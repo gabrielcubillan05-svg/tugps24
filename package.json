@@ -12,6 +12,8 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/vercel": "^11.0.4",
+    "@upstash/redis": "^1.38.2",
     "astro": "^7.1.6"
   }
 }

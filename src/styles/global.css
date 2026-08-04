@@ -224,6 +224,36 @@ footer .logo-badge img {
   gap: 12px;
   display: flex;
 }
+.social-links {
+  align-items: center;
+  gap: 6px;
+  display: flex;
+}
+.social-links a {
+  color: var(--paper-dim);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+.social-links a:hover {
+  color: var(--teal-bright);
+  background: var(--glow-2);
+}
+.social-links svg {
+  width: 16px;
+  height: 16px;
+}
+@media (width<=860px) {
+  .social-links {
+    display: none;
+  }
+}
 .theme-toggle {
   border: 1px solid var(--line);
   cursor: pointer;
@@ -753,6 +783,7 @@ html[data-theme="light"] .theme-toggle .sun {
 }
 .branch-card .addr {
   color: var(--paper-dim);
+  text-align: justify;
   font-size: 13.5px;
   font-family: var(--mono);
   line-height: 1.6;
@@ -1052,7 +1083,7 @@ html[data-theme="light"] .theme-toggle .sun {
   background: var(--ink-700);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  flex: 0 0 220px;
+  flex: 0 0 170px;
   scroll-snap-align: start;
   transition:
     transform 0.2s,
@@ -1088,7 +1119,7 @@ html[data-theme="light"] .theme-toggle .sun {
     display: none;
   }
   .recovery-card {
-    flex-basis: 160px;
+    flex-basis: 120px;
   }
 }
 .promo {
@@ -1189,6 +1220,13 @@ form.contact-form {
   transition:
     background 0.35s,
     border-color 0.35s;
+}
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 .field {
   margin-bottom: 18px;

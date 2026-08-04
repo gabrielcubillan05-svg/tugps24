@@ -23,6 +23,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (contactForm) {
       contactForm.addEventListener('submit', function (e) {
         e.preventDefault();
+
+        const website = document.getElementById('website');
+        if (website && website.value.trim()) {
+          return; // campo trampa lleno -> es un bot, no hacemos nada
+        }
+
         const nombre = document.getElementById('nombre').value.trim();
         const ciudad = document.getElementById('ciudad').value;
         const telefono = document.getElementById('telefono').value.trim();
@@ -52,9 +58,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   } catch (e) { console.error('contact form error', e); }
 
-  // ---------- Encuesta: próxima sucursal — resultados en vivo compartidos (via CounterAPI) ----------
+  // ---------- Encuesta: próxima sucursal — resultados en vivo compartidos (via /api/survey propio) ----------
   try {
-    const SURVEY_NS = 'tugps24com-proxima-sucursal-v1';
     const SURVEY_CITIES = [
       { key: 'Bogota', label: 'Bogotá' },
       { key: 'Cali', label: 'Cali' },
@@ -88,17 +93,17 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       async function fetchCounts() {
-        const counts = {};
-        await Promise.all(SURVEY_CITIES.map(async c => {
-          try {
-            const res = await fetch('https://api.counterapi.dev/v1/' + SURVEY_NS + '/' + c.key);
-            const data = await res.json();
-            counts[c.key] = data && typeof data.count === 'number' ? data.count : 0;
-          } catch (e) {
-            counts[c.key] = 0;
-          }
-        }));
-        return counts;
+        try {
+          const res = await fetch('/api/survey');
+          const data = await res.json();
+          const counts = {};
+          SURVEY_CITIES.forEach(c => { counts[c.key] = Number(data[c.key]) || 0; });
+          return counts;
+        } catch (e) {
+          const counts = {};
+          SURVEY_CITIES.forEach(c => { counts[c.key] = 0; });
+          return counts;
+        }
       }
 
       async function loadResults() {
@@ -127,12 +132,15 @@ document.addEventListener('DOMContentLoaded', function () {
           surveyThanks.classList.add('show');
           localStorage.setItem(votedKey, city);
           try {
-            const res = await fetch('https://api.counterapi.dev/v1/' + SURVEY_NS + '/' + city + '/up');
+            const res = await fetch('/api/survey', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ city }),
+            });
             const data = await res.json();
-            if (data && typeof data.count === 'number') {
-              const counts = await fetchCounts();
-              renderResults(counts);
-            }
+            const counts = {};
+            SURVEY_CITIES.forEach(c => { counts[c.key] = Number(data[c.key]) || 0; });
+            renderResults(counts);
           } catch (e) { /* si falla la red, el voto local ya quedó marcado */ }
         });
       });
@@ -167,11 +175,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const track = document.getElementById('recoveryTrack');
     const gallery = track ? track.closest('.recovery-gallery') : null;
     if (track && gallery) {
-      const step = () => (track.querySelector('.recovery-card')?.getBoundingClientRect().width || 220) + 16;
+      const page = () => track.clientWidth * 0.92;
       const prevBtn = gallery.querySelector('.recovery-arrow.prev');
       const nextBtn = gallery.querySelector('.recovery-arrow.next');
-      if (prevBtn) prevBtn.addEventListener('click', () => track.scrollBy({ left: -step() * 2, behavior: 'smooth' }));
-      if (nextBtn) nextBtn.addEventListener('click', () => track.scrollBy({ left: step() * 2, behavior: 'smooth' }));
+      if (prevBtn) prevBtn.addEventListener('click', () => track.scrollBy({ left: -page(), behavior: 'smooth' }));
+      if (nextBtn) nextBtn.addEventListener('click', () => track.scrollBy({ left: page(), behavior: 'smooth' }));
     }
   } catch (e) { console.error('recuperaciones error', e); }
 
