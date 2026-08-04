@@ -170,18 +170,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   } catch (e) { console.error('carrusel sucursales error', e); }
 
-  // ---------- Recuperaciones: galería con scroll horizontal ----------
+  // ---------- Galerías con scroll horizontal (recuperaciones, central de monitoreo) ----------
   try {
-    const track = document.getElementById('recoveryTrack');
-    const gallery = track ? track.closest('.recovery-gallery') : null;
-    if (track && gallery) {
+    document.querySelectorAll('.recovery-gallery').forEach((gallery) => {
+      const track = gallery.querySelector('.recovery-track');
+      if (!track) return;
       const page = () => track.clientWidth * 0.92;
       const prevBtn = gallery.querySelector('.recovery-arrow.prev');
       const nextBtn = gallery.querySelector('.recovery-arrow.next');
       if (prevBtn) prevBtn.addEventListener('click', () => track.scrollBy({ left: -page(), behavior: 'smooth' }));
       if (nextBtn) nextBtn.addEventListener('click', () => track.scrollBy({ left: page(), behavior: 'smooth' }));
-    }
-  } catch (e) { console.error('recuperaciones error', e); }
+    });
+  } catch (e) { console.error('galería carrusel error', e); }
 
   // ---------- Scroll reveal ----------
   try {

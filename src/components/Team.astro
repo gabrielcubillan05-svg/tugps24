@@ -17,9 +17,14 @@ const teamStats = [
         calle, secretarias atendiendo, y operadores que nunca dejan la central sola.
       </p>
     </div>
-    <div class="team-photo-wrap reveal">
-      <img src="/img/img10.jpg" alt="Equipo de la central de monitoreo TuGPS24" />
-      <div class="team-photo-caption">Central de monitoreo — turno en vivo</div>
+    <div class="recovery-gallery reveal">
+      <button class="recovery-arrow prev" type="button" aria-label="Ver fotos anteriores">‹</button>
+      <div class="recovery-track">
+        <img class="recovery-card" src="/img/central/central-1.jpg" alt="Central de monitoreo TuGPS24 — turno en vivo" loading="lazy" />
+        <img class="recovery-card" src="/img/central/central-2.jpg" alt="Operadores en la central de monitoreo TuGPS24" loading="lazy" />
+        <video class="recovery-card" src="/videos/central-monitoreo.mp4" poster="/img/central/central-1.jpg" width="170" height="212" controls preload="metadata"></video>
+      </div>
+      <button class="recovery-arrow next" type="button" aria-label="Ver fotos siguientes">›</button>
     </div>
     <div class="team-grid reveal">
       {teamStats.map((t) => (

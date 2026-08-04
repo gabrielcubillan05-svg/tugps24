@@ -793,31 +793,6 @@ html[data-theme="light"] .theme-toggle .sun {
   color: var(--slate);
   font-style: italic;
 }
-.team-photo-wrap {
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  margin-bottom: 36px;
-  position: relative;
-  overflow: hidden;
-}
-.team-photo-wrap img {
-  object-fit: cover;
-  width: 100%;
-  max-height: 420px;
-  display: block;
-}
-.team-photo-caption {
-  color: #f2ede2;
-  font-family: var(--mono);
-  letter-spacing: 0.03em;
-  background: linear-gradient(#0000, #000000bf);
-  padding: 24px 26px 18px;
-  font-size: 13px;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-}
 .team-grid {
   grid-template-columns: repeat(4, 1fr);
   gap: 20px;
@@ -1060,6 +1035,7 @@ html[data-theme="light"] .theme-toggle .sun {
 .recovery-gallery {
   align-items: center;
   gap: 14px;
+  margin-bottom: 36px;
   display: flex;
 }
 .recovery-track {
@@ -1079,7 +1055,8 @@ html[data-theme="light"] .theme-toggle .sun {
   border-radius: 999px;
 }
 .recovery-card {
-  aspect-ratio: 4/5;
+  width: 170px;
+  height: 212.5px;
   object-fit: cover;
   background: var(--ink-700);
   border: 1px solid var(--line);
@@ -1120,6 +1097,8 @@ html[data-theme="light"] .theme-toggle .sun {
     display: none;
   }
   .recovery-card {
+    width: 120px;
+    height: 150px;
     flex-basis: 120px;
   }
 }
