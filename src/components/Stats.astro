@@ -1,0 +1,29 @@
+---
+const stats = [
+  { count: 1650, suffix: '+', label: 'Vehículos recuperados en total' },
+  { count: 9, suffix: '', label: 'Sucursales propias activas' },
+  { count: 40, suffix: '+', label: 'Operadores en la central 24/7' },
+  { count: 10, suffix: '', label: 'Años protegiendo vehículos' },
+];
+---
+
+<section class="section" id="estadisticas">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Estadísticas</p>
+      <h2>Diez años de resultados, no de promesas.</h2>
+      <p>
+        Cada número aquí representa un vehículo real devuelto a su dueño, o una llamada real
+        respondida por un operador — no una proyección de marketing.
+      </p>
+    </div>
+    <div class="stats-grid reveal">
+      {stats.map((s) => (
+        <div class="stat-card">
+          <div class="stat-num"><span data-count={s.count}>0</span>{s.suffix}</div>
+          <div class="stat-label">{s.label}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

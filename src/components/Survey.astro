@@ -1,0 +1,41 @@
+---
+const cities = [
+  { key: 'Bogota', label: 'Bogotá' },
+  { key: 'Cali', label: 'Cali' },
+  { key: 'Cucuta', label: 'Cúcuta' },
+  { key: 'Cartagena', label: 'Cartagena' },
+  { key: 'Pereira', label: 'Pereira' },
+  { key: 'Otra', label: 'Otra ciudad' },
+];
+---
+
+<section class="section alt-bg" id="encuesta">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Tu opinión cuenta</p>
+      <h2>¿Dónde debería abrir TuGPS24 su próxima sucursal?</h2>
+      <p>
+        Estamos evaluando nuevas ciudades para expandirnos — cuéntanos cuál te gustaría que
+        fuera la siguiente.
+      </p>
+    </div>
+    <div class="survey-card reveal">
+      <div class="survey-options" id="surveyOptions">
+        {cities.map((c) => (
+          <div class="survey-opt" data-city={c.key}>{c.label}</div>
+        ))}
+      </div>
+      <div class="survey-thanks" id="surveyThanks">
+        <span>✓</span>
+        <span>¡Gracias por tu voto! Ya quedó reflejado en los resultados de abajo.</span>
+      </div>
+      <div class="survey-results" id="surveyResults">
+        <div class="survey-results-head">
+          <span>Resultados en vivo</span>
+          <span id="surveyTotalTop"></span>
+        </div>
+        <div id="surveyBars"></div>
+      </div>
+    </div>
+  </div>
+</section>

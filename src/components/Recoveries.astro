@@ -1,0 +1,31 @@
+---
+const recoveries = Array.from({ length: 21 }, (_, i) => {
+  const num = 60 - i;
+  return {
+    src: `/img/recuperaciones/recuperacion-${num}.jpg`,
+    alt: `Vehículo recuperado por TuGPS24 — caso ${num}`,
+  };
+});
+---
+
+<section class="section" id="recuperaciones">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Recuperaciones</p>
+      <h2>Vehículos recuperados, semana tras semana.</h2>
+      <p>
+        Cada recuperación queda registrada con fecha, ubicación y el conteo total — así
+        trabajamos.
+      </p>
+    </div>
+    <div class="recovery-gallery reveal">
+      <button class="recovery-arrow prev" type="button" aria-label="Ver recuperaciones anteriores">‹</button>
+      <div class="recovery-track" id="recoveryTrack">
+        {recoveries.map((r) => (
+          <img class="recovery-card" src={r.src} alt={r.alt} loading="lazy" />
+        ))}
+      </div>
+      <button class="recovery-arrow next" type="button" aria-label="Ver recuperaciones siguientes">›</button>
+    </div>
+  </div>
+</section>

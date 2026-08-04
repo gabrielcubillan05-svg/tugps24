@@ -1,0 +1,71 @@
+---
+const navLinks = [
+  { href: '#servicios', label: 'Servicios' },
+  { href: '#cobertura', label: 'Sucursales' },
+  { href: '#nosotros', label: 'Nosotros' },
+  { href: '#promocion', label: 'Promoción' },
+  { href: '#contacto', label: 'Contacto' },
+];
+
+const whatsappUrl =
+  'https://wa.me/573116105725?text=Hola%2C%20quiero%20cotizar%20la%20instalaci%C3%B3n%20de%20un%20GPS';
+---
+
+<header>
+  <nav>
+    <a href="#inicio" class="logo">
+      <span class="logo-badge"><img src="/img/img01.png" alt="TuGPS24" /></span>
+    </a>
+    <ul class="nav-links">
+      {navLinks.map((link) => (
+        <li><a href={link.href}>{link.label}</a></li>
+      ))}
+    </ul>
+    <div class="nav-cta">
+      <a
+        class="btn btn-ghost"
+        href="https://gps.tugps24.com/"
+        target="_blank"
+        rel="noopener"
+        style="padding:10px 18px; font-size:13.5px;"
+      >
+        Portal cliente
+      </a>
+      <button
+        class="theme-toggle"
+        id="themeToggle"
+        aria-label="Cambiar entre modo claro y oscuro"
+        type="button"
+      >
+        <svg
+          class="moon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <svg
+          class="sun"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="4"></circle>
+          <path
+            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+          ></path>
+        </svg>
+      </button>
+      <a class="btn btn-primary" href={whatsappUrl} target="_blank" rel="noopener">
+        Cotizar por WhatsApp
+      </a>
+    </div>
+  </nav>
+</header>

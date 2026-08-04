@@ -1,0 +1,133 @@
+---
+const branches = [
+  {
+    photos: [
+      '/img/branches/riohacha/facade.jpg',
+      '/img/branches/riohacha/interior-1.jpg',
+      '/img/branches/riohacha/interior-2.jpg',
+      '/img/branches/riohacha/interior-3.jpg',
+      '/img/branches/riohacha/interior-4.jpg',
+    ],
+    alt: 'Sucursal TuGPS24 Riohacha',
+    city: 'Riohacha — Oficina principal',
+    addr: 'Cra 15 No. 18-60, La Guajira<br>Tel: 316 383 4278 / 317 267 1970<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: [
+      '/img/branches/maicao/facade.jpg',
+      '/img/branches/maicao/interior-1.jpg',
+      '/img/branches/maicao/interior-2.jpg',
+    ],
+    alt: 'Sucursal TuGPS24 Maicao',
+    city: 'Maicao',
+    addr: 'Cra. 16 #16-21, La Guajira<br>Tel: 315 210 2244<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: [
+      '/img/branches/santa-marta/facade.jpg',
+      '/img/branches/santa-marta/facade-alt.jpg',
+      '/img/branches/santa-marta/interior-1.jpg',
+      '/img/branches/santa-marta/interior-2.jpg',
+    ],
+    alt: 'Sucursal TuGPS24 Santa Marta',
+    city: 'Santa Marta',
+    addr: 'Cll 22 #17A-118, Barrio Alcázares, Magdalena<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: [
+      '/img/branches/valledupar/facade.jpg',
+      '/img/branches/valledupar/interior-1.jpg',
+      '/img/branches/valledupar/interior-2.jpg',
+      '/img/branches/valledupar/interior-3.jpg',
+    ],
+    alt: 'Sucursal TuGPS24 Valledupar',
+    city: 'Valledupar',
+    addr: 'Barrio Los Cortijos, Cra. 19 #9C-32, La Elvira, Cesar<br>Tel: 317 646 4403<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: ['/img/branches/barranquilla/facade.jpg', '/img/branches/barranquilla/interior-1.jpg'],
+    alt: 'Sucursal TuGPS24 Barranquilla',
+    city: 'Barranquilla',
+    addr: 'Cra 44 #69-50<br>WhatsApp: 316 784 2516<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: ['/img/branches/soledad/facade.jpg', '/img/branches/soledad/interior-1.jpg'],
+    alt: 'Sucursal TuGPS24 Soledad',
+    city: 'Soledad',
+    addr: 'Cra 14 #59-37<br>WhatsApp: 316 784 2516<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: [
+      '/img/branches/bucaramanga/facade.jpg',
+      '/img/branches/bucaramanga/interior-1.jpg',
+      '/img/branches/bucaramanga/interior-2.jpg',
+      '/img/branches/bucaramanga/interior-3.jpg',
+      '/img/branches/bucaramanga/interior-4.jpg',
+      '/img/branches/bucaramanga/interior-5.jpg',
+    ],
+    alt: 'Sucursal TuGPS24 Bucaramanga',
+    city: 'Bucaramanga',
+    addr: 'Ak 27 #17-17, Bucaramanga, Santander<br>Tel: 311 610 8274<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: [
+      '/img/branches/monteria/facade.jpg',
+      '/img/branches/monteria/interior-1.jpg',
+      '/img/branches/monteria/interior-2.jpg',
+    ],
+    alt: 'Sucursal TuGPS24 Montería',
+    city: 'Montería',
+    addr: 'Cra 5 #39-69, Local 3<br>WhatsApp: 320 250 7432<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+  {
+    photos: ['/img/branches/medellin/facade.jpg'],
+    alt: 'Sucursal TuGPS24 Medellín',
+    city: 'Medellín',
+    addr: 'Cra. 70 #30A-138, Belén, Antioquia<br>Tel: 311 610 5725<br>Lun-Vie 8:00am-12:30pm y 2:30pm-6:00pm · Sáb 8:00am-1:30pm',
+  },
+];
+---
+
+<section class="section alt-bg" id="cobertura">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Sucursales</p>
+      <h2>Presencia directa en el Caribe y el interior de Colombia.</h2>
+      <p>
+        Nueve sucursales propias, cada una con técnicos e infraestructura de instalación local —
+        no dependemos de terceros para atenderte.
+      </p>
+    </div>
+    <div class="branch-grid reveal">
+      {branches.map((b) => (
+        <div class="branch-card">
+          <div class="branch-photo-carousel">
+            {b.photos.map((src, i) => (
+              <img
+                class={`branch-photo${i === 0 ? ' active' : ''}`}
+                src={src}
+                alt={i === 0 ? b.alt : `${b.alt} — interior`}
+                loading="lazy"
+              />
+            ))}
+            {b.photos.length > 1 && (
+              <>
+                <button class="carousel-arrow prev" type="button" aria-label="Foto anterior">‹</button>
+                <button class="carousel-arrow next" type="button" aria-label="Foto siguiente">›</button>
+                <div class="carousel-dots">
+                  {b.photos.map((_, i) => (
+                    <span class={i === 0 ? 'active' : ''}></span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <div class="branch-body">
+            <div class="city">{b.city}</div>
+            <div class="addr" set:html={b.addr} />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

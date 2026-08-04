@@ -1,0 +1,74 @@
+---
+const whatsappUrl =
+  'https://wa.me/573116105725?text=Hola%2C%20quiero%20cotizar%20la%20instalaci%C3%B3n%20de%20un%20GPS';
+
+const nodes = [
+  { cx: 261.0, cy: 51.2, alt: false, delay: '0.0s', label: 'Riohacha', lx: 268.0, ly: 46.2 },
+  { cx: 287.8, cy: 58.1, alt: true, delay: '0.3s', label: 'Maicao', lx: 294.8, ly: 53.1 },
+  { cx: 208.7, cy: 63.8, alt: false, delay: '0.6s', label: 'Santa Marta', lx: 215.7, ly: 58.8 },
+  { cx: 247.0, cy: 96.1, alt: true, delay: '0.9s', label: 'Valledupar', lx: 254.0, ly: 91.1 },
+  { cx: 185.1, cy: 75.1, alt: false, delay: '1.2s', label: 'Barranquilla', lx: 192.1, ly: 65.5 },
+  { cx: 185.8, cy: 77.2, alt: true, delay: '1.5s', label: 'Soledad', lx: 192.8, ly: 82.5 },
+  { cx: 252.4, cy: 235.0, alt: true, delay: '1.8s', label: 'Bucaramanga', lx: 259.4, ly: 230.0 },
+  { cx: 140.6, cy: 167.4, alt: false, delay: '2.1s', label: 'Montería', lx: 147.6, ly: 162.4 },
+  { cx: 153.4, cy: 271.4, alt: true, delay: '2.4s', label: 'Medellín', lx: 160.4, ly: 266.4 },
+];
+
+const logs = [
+  { time: '02:14:09', text: 'Bloqueo remoto de motor activado — orden confirmada' },
+  { time: '02:11:52', text: 'Cerco geográfico verificado — sin novedad' },
+  { time: '02:07:30', text: 'Recuperación coordinada con autoridades — en curso' },
+];
+
+const coOutline =
+  'M 201.0,553.7 L 187.3,545.3 L 185.3,539.4 L 179.2,540.2 L 168.1,532.6 L 165.1,536.0 L 146.3,529.4 L 135.3,518.3 L 123.1,512.7 L 119.1,515.0 L 119.1,520.7 L 112.1,521.6 L 74.1,513.4 L 75.6,503.5 L 67.0,499.4 L 68.4,497.0 L 56.2,496.5 L 46.8,491.3 L 42.1,481.3 L 37.8,482.6 L 29.6,478.8 L 14.0,461.9 L 22.0,454.8 L 25.7,457.2 L 32.9,453.6 L 25.9,440.8 L 32.5,427.2 L 41.3,420.4 L 49.0,419.4 L 51.8,422.3 L 63.3,417.3 L 67.3,406.1 L 75.1,397.1 L 73.0,396.5 L 87.8,378.9 L 88.0,371.6 L 83.8,371.1 L 82.4,366.7 L 86.7,364.2 L 85.4,361.1 L 80.7,367.6 L 74.0,359.3 L 74.0,353.9 L 80.9,347.3 L 82.1,340.9 L 79.5,304.6 L 73.4,303.1 L 74.9,298.8 L 84.6,293.3 L 81.7,281.5 L 75.7,273.5 L 78.7,272.0 L 82.1,258.7 L 66.5,245.0 L 68.4,240.0 L 59.5,230.9 L 63.2,220.8 L 66.8,218.8 L 65.2,211.8 L 72.2,218.9 L 82.6,202.7 L 88.0,201.9 L 77.0,177.7 L 81.3,171.6 L 96.1,187.8 L 98.4,201.9 L 105.5,201.7 L 105.1,182.1 L 98.2,175.9 L 99.9,172.6 L 109.5,170.6 L 122.0,160.3 L 137.8,138.4 L 150.5,139.1 L 155.5,91.6 L 160.2,87.1 L 182.2,69.4 L 197.5,74.7 L 206.1,73.5 L 210.8,59.9 L 230.5,63.3 L 246.1,61.9 L 268.4,44.7 L 288.1,37.0 L 291.9,22.3 L 299.2,21.6 L 299.4,26.0 L 303.4,23.5 L 300.6,19.9 L 303.4,17.5 L 305.6,19.6 L 316.3,14.0 L 326.8,18.0 L 333.6,28.7 L 332.7,32.2 L 322.9,40.1 L 298.9,46.9 L 287.8,67.8 L 278.1,69.7 L 261.2,97.3 L 258.4,121.4 L 253.8,133.8 L 242.3,149.7 L 250.1,149.6 L 256.9,144.8 L 260.0,153.5 L 266.7,152.8 L 271.2,172.9 L 282.0,183.9 L 283.4,191.9 L 283.7,196.9 L 278.0,200.7 L 278.3,219.3 L 280.5,223.3 L 289.7,223.9 L 295.8,238.4 L 333.0,238.6 L 337.3,241.0 L 350.5,236.1 L 365.6,242.7 L 374.0,240.8 L 401.9,277.0 L 409.6,278.2 L 417.4,272.3 L 433.6,276.2 L 458.6,273.3 L 466.3,268.3 L 481.7,273.6 L 480.2,276.2 L 483.5,281.0 L 476.3,288.2 L 474.9,303.2 L 465.8,310.4 L 465.5,342.8 L 475.4,374.8 L 479.9,374.2 L 487.5,389.7 L 465.3,411.7 L 475.0,413.8 L 477.2,419.9 L 480.5,420.0 L 492.6,433.1 L 491.2,437.3 L 495.5,442.1 L 495.2,448.5 L 506.0,479.7 L 496.6,482.3 L 493.9,476.0 L 497.1,473.7 L 494.7,456.1 L 487.9,451.8 L 485.2,438.7 L 476.4,442.6 L 475.8,445.9 L 468.8,447.1 L 463.4,455.8 L 451.4,448.2 L 448.2,454.4 L 453.1,459.0 L 397.5,456.9 L 385.0,459.5 L 384.9,486.0 L 406.2,485.5 L 411.1,489.4 L 413.5,502.1 L 411.1,505.2 L 404.7,505.1 L 399.7,500.2 L 393.5,504.3 L 376.8,507.3 L 376.0,537.5 L 394.4,551.5 L 394.4,562.6 L 403.1,578.0 L 381.4,706.0 L 371.5,698.3 L 367.4,689.7 L 359.0,691.7 L 349.8,688.4 L 376.2,645.4 L 375.6,641.4 L 369.8,641.1 L 363.5,634.5 L 353.2,633.7 L 351.8,628.7 L 339.0,622.7 L 330.4,629.7 L 308.6,623.2 L 309.1,620.6 L 304.5,622.0 L 301.1,629.1 L 295.7,627.9 L 282.9,634.3 L 272.1,628.7 L 269.7,632.6 L 261.0,632.3 L 250.9,624.6 L 252.8,609.0 L 248.7,603.8 L 243.6,605.7 L 236.7,602.7 L 238.4,596.8 L 231.6,583.6 L 222.0,581.6 L 220.6,577.6 L 205.6,571.4 L 201.0,553.7 Z';
+---
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Central de monitoreo activa ahora</p>
+      <h1>Tu vehículo, <em>vigilado en tiempo real</em>, las 24 horas del año.</h1>
+      <p class="lede">
+        Rastreo satelital, bloqueo remoto de motor y una central con más de 40 operadores que
+        responde de verdad — no un algoritmo. Nos enfocamos en un servicio cercano contigo y
+        coordinamos cada operativo directamente con las autoridades.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href={whatsappUrl} target="_blank" rel="noopener">Cotizar instalación</a>
+        <a class="btn btn-ghost" href="#cobertura">Ver sucursales</a>
+      </div>
+      <div class="hero-proof">
+        <div><b data-count="1650" data-suffix="+">0</b><span>Vehículos recuperados</span></div>
+        <div><b>24/7</b><span>Central de monitoreo</span></div>
+        <div><b data-count="40" data-suffix="+">0</b><span>Operadores en turno</span></div>
+        <div><b data-count="10">0</b><span>Años operando</span></div>
+      </div>
+    </div>
+    <div class="console">
+      <div class="console-head">
+        <span>CENTRAL_MONITOREO — SUCURSAL_RIOHACHA</span>
+        <span class="live"><span class="live-dot"></span>EN VIVO</span>
+      </div>
+      <div class="radar-map">
+        <svg viewBox="0 0 520 300" preserveAspectRatio="xMidYMin slice" xmlns="http://www.w3.org/2000/svg">
+          <path class="co-outline" d={coOutline}></path>
+          {nodes.map((n) => (
+            <>
+              <circle class={`node-ping${n.alt ? ' alt' : ''}`} cx={n.cx} cy={n.cy} r="4.5" style={`animation-delay:${n.delay}`}></circle>
+              <circle class={`node${n.alt ? ' alt' : ''}`} cx={n.cx} cy={n.cy} r="4.5"></circle>
+            </>
+          ))}
+          {nodes.map((n) => (
+            <text class="node-label" x={n.lx} y={n.ly}>{n.label}</text>
+          ))}
+        </svg>
+      </div>
+      <ul class="console-log">
+        {logs.map((log) => (
+          <li><time>{log.time}</time><span class="ok">{log.text}</span></li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>

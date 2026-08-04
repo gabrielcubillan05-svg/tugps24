@@ -1,0 +1,32 @@
+---
+const services = [
+  { ico: 'GPS', title: 'Rastreo satelital 4G', text: 'Ubicación en tiempo real desde la app o vía WhatsApp con nuestra central, sin cortes de señal.' },
+  { ico: '⏻', title: 'Bloqueo remoto de motor', text: 'Inmoviliza el vehículo a distancia ante un robo o uso no autorizado, activado por un operador humano.' },
+  { ico: '24h', title: 'Central de monitoreo', text: 'Más de 40 operadores en turno, todos los días del año, revisando cada alerta que genera tu equipo.' },
+  { ico: '◎', title: 'Geocercas con confirmación', text: 'Cada vez que tu vehículo sale de la zona configurada, un operador te llama para confirmar que la salida es autorizada.' },
+  { ico: '➔', title: 'Monitoreo de viaje', text: 'Si sales de tu ciudad, activamos seguimiento reforzado hasta que llegues seguro a tu destino.' },
+  { ico: '⏱', title: 'Apagados programados', text: 'Configura horarios para que el motor se bloquee automáticamente, sin depender de una orden manual.' },
+  { ico: '⚠', title: 'Reportes y alertas', text: 'Exceso de velocidad, motor encendido, tiempo en ralentí y otras alertas configurables según tu vehículo.' },
+  { ico: '🔧', title: 'Instalación profesional', text: 'Técnicos propios en cada sucursal, sin subcontratistas — mismo estándar en toda la cobertura.' },
+  { ico: 'FLT', title: 'Planes para flotas', text: 'Tarifas y reportes a la medida para transportadoras, aseguradoras y empresas con varios vehículos.' },
+  { ico: '↺', title: 'Soporte y mantenimiento', text: 'Revisión periódica del equipo y soporte directo con la sucursal más cercana a ti.' },
+];
+---
+
+<section class="section" id="servicios">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Servicios</p>
+      <h2>Todo lo que necesitas para proteger un vehículo — o toda una flota.</h2>
+    </div>
+    <div class="services-grid reveal">
+      {services.map((s) => (
+        <div class="card">
+          <div class="ico">{s.ico}</div>
+          <h3>{s.title}</h3>
+          <p>{s.text}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

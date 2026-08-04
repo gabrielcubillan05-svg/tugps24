@@ -1,0 +1,41 @@
+---
+const steps = [
+  {
+    tag: '01 — INSTALACIÓN',
+    title: 'Instalas en nuestra sede',
+    text: 'Lleva tu vehículo a la sucursal más cercana y nuestro técnico instala el equipo GPS 4G el mismo día. Si lo necesitas, también coordinamos instalación en tu ubicación.',
+  },
+  {
+    tag: '02 — MONITOREO',
+    title: 'Te vigilamos 24/7',
+    text: 'Nuestra central opera todos los días del año, con operadores reales revisando cada alerta de tu vehículo.',
+  },
+  {
+    tag: '03 — RESPUESTA',
+    title: 'Actuamos si algo pasa',
+    text: 'Bloqueo remoto del motor y coordinación con autoridades para la recuperación, sin que muevas un dedo.',
+  },
+];
+---
+
+<section class="section alt-bg" id="como-funciona">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Cómo funciona</p>
+      <h2>Tres pasos entre tu vehículo y nuestra central.</h2>
+      <p>
+        Sin intermediarios ni pasos de más — así es la ruta de una instalación desde que la pides
+        hasta que quedas monitoreado.
+      </p>
+    </div>
+    <div class="process reveal">
+      {steps.map((s) => (
+        <div class="process-step">
+          <span class="tag">{s.tag}</span>
+          <h3>{s.title}</h3>
+          <p>{s.text}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,34 @@
+---
+const teamStats = [
+  { num: '40+', title: 'Operadores de central', text: 'Turnos rotativos 24/7, todos los días del año.' },
+  { num: '09', title: 'Sucursales propias', text: 'Con técnico, secretaria y gerente local en cada una.' },
+  { num: '10', title: 'Años en la región', text: 'Construyendo relación directa con cada cliente.' },
+  { num: '1.65K+', title: 'Recuperaciones', text: 'Carros y motos devueltos a sus dueños en todo el país.' },
+];
+---
+
+<section class="section" id="nosotros">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Quiénes están detrás</p>
+      <h2>Un equipo humano, no una app sin nadie del otro lado.</h2>
+      <p>
+        Detrás de cada punto en el mapa hay personas — gerentes de sucursal, técnicos en la
+        calle, secretarias atendiendo, y operadores que nunca dejan la central sola.
+      </p>
+    </div>
+    <div class="team-photo-wrap reveal">
+      <img src="/img/img10.jpg" alt="Equipo de la central de monitoreo TuGPS24" />
+      <div class="team-photo-caption">Central de monitoreo — turno en vivo</div>
+    </div>
+    <div class="team-grid reveal">
+      {teamStats.map((t) => (
+        <div class="team-card">
+          <span class="num">{t.num}</span>
+          <h4>{t.title}</h4>
+          <p>{t.text}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

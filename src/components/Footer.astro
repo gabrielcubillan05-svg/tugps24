@@ -1,0 +1,32 @@
+---
+const footerLinks = [
+  { href: '#servicios', label: 'Servicios' },
+  { href: '#cobertura', label: 'Sucursales' },
+  { href: '#encuesta', label: 'Encuesta' },
+  { href: '#app', label: 'App' },
+  { href: '#contacto', label: 'Contacto' },
+  {
+    href: 'https://www.tugps24.com/privacidad',
+    label: 'Política de privacidad',
+    external: true,
+  },
+];
+---
+
+<footer>
+  <div class="wrap footer-wrap">
+    <a href="#inicio" class="logo" style="font-size:16px;">
+      <span class="logo-badge"><img src="/img/img16.png" alt="TuGPS24" /></span>
+    </a>
+    <ul class="footer-links">
+      {footerLinks.map((link) => (
+        <li>
+          <a href={link.href} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener' : undefined}>
+            {link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+    <span class="copyright">© 2026 TuGPS24 — Digital Global S.A.S. · NIT 900.996.607-9</span>
+  </div>
+</footer>

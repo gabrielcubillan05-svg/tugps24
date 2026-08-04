@@ -1,0 +1,45 @@
+---
+const cities = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+---
+
+<section class="section" id="contacto">
+  <div class="wrap contact-wrap">
+    <div class="contact-info reveal">
+      <p class="eyebrow">Contacto</p>
+      <h2>Cotiza tu instalación hoy mismo.</h2>
+      <p>
+        Escríbenos por WhatsApp o llena el formulario — un asesor de la sucursal más cercana te
+        responde el mismo día.
+      </p>
+      <div class="contact-channel">
+        <span class="ico">W</span>
+        <div><b>WhatsApp</b><span>Respuesta inmediata en horario de oficina</span></div>
+      </div>
+      <div class="contact-channel">
+        <span class="ico">☎</span>
+        <div><b>Línea de central 24/7</b><span>Para clientes activos con emergencias</span></div>
+      </div>
+      <div class="contact-channel">
+        <span class="ico">📍</span>
+        <div><b>9 sucursales</b><span>{cities.join(', ')}</span></div>
+      </div>
+    </div>
+    <form class="contact-form reveal" id="contactForm">
+      <div class="field">
+        <label for="nombre">Nombre completo</label>
+        <input id="nombre" type="text" placeholder="Escribe tu nombre" required />
+      </div>
+      <div class="field">
+        <label for="ciudad">Sucursal más cercana</label>
+        <select id="ciudad">
+          {cities.map((c) => <option>{c}</option>)}
+        </select>
+      </div>
+      <div class="field">
+        <label for="telefono">Número de WhatsApp</label>
+        <input id="telefono" type="tel" placeholder="+57 300 000 0000" required />
+      </div>
+      <button class="btn btn-primary" type="submit">Solicitar cotización</button>
+    </form>
+  </div>
+</section>
