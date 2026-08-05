@@ -1,0 +1,83 @@
+---
+const milestones = [
+  {
+    year: '2016',
+    text: 'Fundación en Riohacha, La Guajira — 17 de julio. Nace como estrategia tecnológica para frenar el robo de motos y carros en el departamento.',
+  },
+  {
+    year: '2018',
+    text: 'Apertura de la sucursal de Valledupar, Cesar.',
+  },
+  {
+    year: '2019',
+    text: 'Llegada a Santa Marta, segunda oficina en Riohacha (C.C. Viva Wajira) y apertura en Maicao.',
+  },
+  {
+    year: '2020',
+    text: 'Apertura simultánea de Barranquilla y Soledad, en el Atlántico.',
+  },
+  {
+    year: '2022',
+    text: 'Segunda sede en Valledupar, más amplia, para una mejor atención.',
+  },
+  {
+    year: 'Hoy',
+    text: 'Nueve sucursales propias, central de monitoreo 24/7 y más de 1.650 vehículos recuperados.',
+  },
+];
+---
+
+<section class="section alt-bg" id="historia">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Nuestra empresa</p>
+      <h2>Diez años construyendo confianza, paso a paso.</h2>
+      <p>
+        Somos una empresa colombiana fundada en Riohacha, La Guajira, con la finalidad de
+        suministrar seguridad vehicular al distrito — una respuesta tecnológica al alto índice de
+        robo de motos y carros en la región.
+      </p>
+    </div>
+    <div class="mission-vision-grid reveal">
+      <div class="card">
+        <div class="ico">M</div>
+        <h3>Nuestra misión</h3>
+        <p>
+          Brindar a nuestros clientes un servicio de calidad, responsable y confiable, que
+          permita conocer en tiempo real todos y cada uno de los movimientos de su vehículo con
+          base a sus necesidades.
+        </p>
+      </div>
+      <div class="card">
+        <div class="ico">V</div>
+        <h3>Nuestra visión</h3>
+        <p>
+          Ser una empresa líder en rastreo satelital con calidad superior, punto de referencia en
+          innovación tecnológica para las comunicaciones, la seguridad y el monitoreo — un aliado
+          que responde de forma eficiente e inmediata a cada cliente.
+        </p>
+      </div>
+    </div>
+    <div class="history-copy reveal">
+      <p>
+        Desde sus inicios, TuGPS24 implementó un sistema de rastreo satelital que permite
+        visualizar en tiempo real la ubicación del vehículo, la velocidad a la que circula, el
+        estado del motor y su recorrido, entre otras funciones.
+      </p>
+      <p>
+        En su corto tiempo de operación generó un impacto social importante al establecer
+        vínculos con la Policía Nacional: se realizaron cursos de capacitación a los cuadrantes de
+        policía en lectura de mapas y georreferenciación vehicular, para que las autoridades
+        pudieran apoyar la búsqueda de los vehículos hurtados.
+      </p>
+    </div>
+    <div class="history-timeline reveal">
+      {milestones.map((m) => (
+        <div class="history-item">
+          <span class="history-year">{m.year}</span>
+          <p>{m.text}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

@@ -9,30 +9,29 @@ const videos = Array.from({ length: 15 }, (_, i) => {
 });
 ---
 
-<section class="section alt-bg" id="videos-recuperaciones">
+<section class="section videos-ribbon" id="videos-recuperaciones">
   <div class="wrap">
     <div class="section-head reveal">
       <p class="eyebrow">En video</p>
       <h2>Las recuperaciones más impactantes, grabadas en el momento.</h2>
       <p>
         Así se ven nuestras recuperaciones en tiempo real — coordinadas con las autoridades,
-        vehículo por vehículo.
+        vehículo por vehículo. Haz clic para verlas en grande.
       </p>
     </div>
     <div class="recovery-gallery reveal">
       <button class="recovery-arrow prev" type="button" aria-label="Ver videos anteriores">‹</button>
       <div class="recovery-track">
         {videos.map((v) => (
-          <video
-            class="recovery-card"
-            src={v.src}
-            poster={v.poster}
-            width="170"
-            height="212"
-            controls
-            preload="none"
-            aria-label={v.alt}
-          ></video>
+          <button
+            class="video-card recovery-card"
+            type="button"
+            data-video-src={v.src}
+            aria-label={`Reproducir ${v.alt}`}
+          >
+            <img src={v.poster} alt={v.alt} loading="lazy" />
+            <span class="video-play-icon">▶</span>
+          </button>
         ))}
       </div>
       <button class="recovery-arrow next" type="button" aria-label="Ver videos siguientes">›</button>

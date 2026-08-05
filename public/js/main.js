@@ -183,6 +183,51 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   } catch (e) { console.error('galería carrusel error', e); }
 
+  // ---------- Lightbox: ampliar fotos y reproducir videos en grande ----------
+  try {
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxVideo = document.getElementById('lightboxVideo');
+    const lightboxClose = document.getElementById('lightboxClose');
+
+    function closeLightbox() {
+      lightbox.classList.remove('open');
+      lightboxVideo.pause();
+      lightboxVideo.removeAttribute('src');
+      lightboxVideo.load();
+      lightboxVideo.style.display = 'none';
+      lightboxImg.style.display = 'none';
+    }
+
+    function openLightboxImage(src, alt) {
+      lightboxImg.src = src;
+      lightboxImg.alt = alt || '';
+      lightboxImg.style.display = 'block';
+      lightboxVideo.style.display = 'none';
+      lightbox.classList.add('open');
+    }
+
+    function openLightboxVideo(src) {
+      lightboxVideo.src = src;
+      lightboxVideo.style.display = 'block';
+      lightboxImg.style.display = 'none';
+      lightbox.classList.add('open');
+      lightboxVideo.play().catch(() => {});
+    }
+
+    document.querySelectorAll('img.recovery-card, .central-media-grid > img').forEach((img) => {
+      img.addEventListener('click', () => openLightboxImage(img.getAttribute('src'), img.getAttribute('alt')));
+    });
+
+    document.querySelectorAll('.video-card').forEach((card) => {
+      card.addEventListener('click', () => openLightboxVideo(card.getAttribute('data-video-src')));
+    });
+
+    lightboxClose.addEventListener('click', closeLightbox);
+    lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+  } catch (e) { console.error('lightbox error', e); }
+
   // ---------- Scroll reveal ----------
   try {
     const revealEls = document.querySelectorAll('.reveal');

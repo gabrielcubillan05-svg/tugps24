@@ -2,6 +2,7 @@
 export const prerender = true;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import RecoveryVideos from '../components/RecoveryVideos.astro';
 import Hero from '../components/Hero.astro';
 import TrustBar from '../components/TrustBar.astro';
 import AppDownload from '../components/AppDownload.astro';
@@ -10,9 +11,9 @@ import Process from '../components/Process.astro';
 import Services from '../components/Services.astro';
 import Branches from '../components/Branches.astro';
 import Team from '../components/Team.astro';
+import History from '../components/History.astro';
 import Survey from '../components/Survey.astro';
 import Recoveries from '../components/Recoveries.astro';
-import RecoveryVideos from '../components/RecoveryVideos.astro';
 import Promo from '../components/Promo.astro';
 import Contact from '../components/Contact.astro';
 ---
@@ -21,6 +22,7 @@ import Contact from '../components/Contact.astro';
   title="TuGPS24 — Rastreo satelital y monitoreo vehicular 24/7"
   description="Rastreo satelital, bloqueo remoto de motor y una central con más de 40 operadores. Cobertura en el Caribe colombiano y el interior del país."
 >
+  <RecoveryVideos />
   <Hero />
   <TrustBar />
   <AppDownload />
@@ -29,9 +31,9 @@ import Contact from '../components/Contact.astro';
   <Services />
   <Branches />
   <Team />
+  <History />
   <Survey />
   <Recoveries />
-  <RecoveryVideos />
   <Promo />
   <Contact />
 </BaseLayout>
