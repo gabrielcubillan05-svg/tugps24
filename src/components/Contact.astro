@@ -1,5 +1,15 @@
 ---
 const cities = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+
+const emergencyLines = [
+  '316 383 4278',
+  '317 517 4475',
+  '317 641 0644',
+  '310 626 5332',
+  '302 406 9163',
+  '310 635 2171',
+  '310 624 7861',
+];
 ---
 
 <section class="section" id="contacto">
@@ -17,7 +27,15 @@ const cities = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'B
       </div>
       <div class="contact-channel">
         <span class="ico">☎</span>
-        <div><b>Línea de central 24/7</b><span>Para clientes activos con emergencias</span></div>
+        <div>
+          <b>Línea de central 24/7</b>
+          <span>Para reportar un robo o comunicarte con la central</span>
+          <div class="emergency-lines">
+            {emergencyLines.map((n) => (
+              <a href={`tel:+57${n.replace(/\s/g, '')}`} class="emergency-line">{n}</a>
+            ))}
+          </div>
+        </div>
       </div>
       <div class="contact-channel">
         <span class="ico">📍</span>

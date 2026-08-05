@@ -1371,10 +1371,35 @@ img.recovery-card {
 }
 .contact-channel {
   border-bottom: 1px solid var(--line);
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
   padding: 16px 0;
   display: flex;
+}
+.contact-channel .ico {
+  margin-top: 2px;
+}
+.emergency-lines {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  display: flex;
+}
+.emergency-line {
+  background: var(--ink-900);
+  color: var(--paper);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+.emergency-line:hover {
+  border-color: var(--teal-bright);
+  color: var(--teal-bright);
 }
 .contact-channel .ico {
   background: var(--glow-2);
