@@ -1,0 +1,40 @@
+---
+const videos = Array.from({ length: 6 }, (_, i) => {
+  const num = String(i + 1).padStart(2, '0');
+  return {
+    src: `/videos/donaciones/donacion-video-${num}.mp4`,
+    poster: `/img/donaciones/donacion-video-${num}.jpg`,
+    alt: `Donación TuGPS24 — caso ${num}`,
+  };
+});
+---
+
+<section class="section" id="donaciones">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Labor social</p>
+      <h2>Devolviendo a la comunidad que nos ha dado tanto.</h2>
+      <p>
+        Además de proteger vehículos, apoyamos a familias y comunidades del Caribe colombiano a
+        través de donaciones — parte de nuestro compromiso más allá del rastreo satelital.
+      </p>
+    </div>
+    <div class="recovery-gallery reveal">
+      <button class="recovery-arrow prev" type="button" aria-label="Ver donaciones anteriores">‹</button>
+      <div class="recovery-track">
+        {videos.map((v) => (
+          <button
+            class="video-card recovery-card"
+            type="button"
+            data-video-src={v.src}
+            aria-label={`Reproducir ${v.alt}`}
+          >
+            <img src={v.poster} alt={v.alt} loading="lazy" />
+            <span class="video-play-icon">▶</span>
+          </button>
+        ))}
+      </div>
+      <button class="recovery-arrow next" type="button" aria-label="Ver donaciones siguientes">›</button>
+    </div>
+  </div>
+</section>

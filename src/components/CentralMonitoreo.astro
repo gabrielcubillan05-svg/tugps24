@@ -1,4 +1,11 @@
 ---
+const videos = [
+  { src: '/videos/central-monitoreo.mp4', poster: '/img/central/central-video-poster.jpg', label: 'Central de monitoreo — turno en vivo' },
+  { src: '/videos/central/central-video-02.mp4', poster: '/img/central/central-video-02-poster.jpg', label: 'Así funciona TuGPS24' },
+  { src: '/videos/central/central-video-03.mp4', poster: '/img/central/central-video-03-poster.jpg', label: '¿Por qué confiar en TuGPS24?' },
+  { src: '/videos/central/central-video-04.mp4', poster: '/img/central/central-video-04-poster.jpg', label: '¿Por qué confiar en TuGPS24? (completo)' },
+  { src: '/videos/central/central-video-05.mp4', poster: '/img/central/central-video-05-poster.jpg', label: '¿Qué hace una operadora de alarmas?' },
+];
 ---
 
 <section class="section alt-bg" id="central-monitoreo">
@@ -14,10 +21,12 @@
     <div class="central-media-grid reveal">
       <img src="/img/central/central-1.jpg" alt="Central de monitoreo TuGPS24 — turno en vivo" loading="lazy" />
       <img src="/img/central/central-2.jpg" alt="Operadores en la central de monitoreo TuGPS24" loading="lazy" />
-      <button class="video-card" type="button" data-video-src="/videos/central-monitoreo.mp4" aria-label="Reproducir video de la central de monitoreo">
-        <img src="/img/central/central-video-poster.jpg" alt="" loading="lazy" />
-        <span class="video-play-icon">▶</span>
-      </button>
+      {videos.map((v) => (
+        <button class="video-card" type="button" data-video-src={v.src} aria-label={`Reproducir: ${v.label}`}>
+          <img src={v.poster} alt="" loading="lazy" />
+          <span class="video-play-icon">▶</span>
+        </button>
+      ))}
     </div>
   </div>
 </section>
