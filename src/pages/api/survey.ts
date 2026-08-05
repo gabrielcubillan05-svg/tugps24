@@ -1,17 +1,11 @@
 import type { APIRoute } from 'astro';
-import { Redis } from '@upstash/redis';
+import type { Redis } from '@upstash/redis';
+import { getRedis } from '../../lib/redis';
 
 export const prerender = false;
 
 const CITIES = ['Bogota', 'Cali', 'Cucuta', 'Cartagena', 'Pereira', 'Otra'];
 const REDIS_KEY = 'survey:proxima-sucursal';
-
-function getRedis() {
-  const url = import.meta.env.KV_REST_API_URL || import.meta.env.UPSTASH_REDIS_REST_URL;
-  const token = import.meta.env.KV_REST_API_TOKEN || import.meta.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  return new Redis({ url, token });
-}
 
 async function readCounts(redis: Redis) {
   const raw = (await redis.hgetall<Record<string, number>>(REDIS_KEY)) || {};

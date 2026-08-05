@@ -17,6 +17,72 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   } catch (e) { console.error('theme toggle error', e); }
 
+  // ---------- Contador de visitas (footer) ----------
+  try {
+    const visitCounter = document.getElementById('visitCounter');
+    if (visitCounter) {
+      fetch('/api/visits').then((res) => res.json()).then((data) => {
+        if (data && typeof data.count === 'number') {
+          visitCounter.textContent = '· ' + data.count.toLocaleString('es-CO') + ' visitas';
+        }
+      }).catch(() => {});
+    }
+  } catch (e) { console.error('contador visitas error', e); }
+
+  // ---------- Consola del hero: actividades en vivo, con hora real ----------
+  try {
+    const consoleLog = document.getElementById('consoleLog');
+    if (consoleLog) {
+      const ACTIVITIES = [
+        'Bloqueo remoto de motor activado — orden confirmada',
+        'Apagado remoto ejecutado — vehículo inmovilizado',
+        'Llamada de monitoreo realizada — cliente contactado',
+        'Encendido programado activado — horario configurado',
+        'Alarma de salida de geocerca — verificando con el cliente',
+        'Cerco geográfico verificado — sin novedad',
+        'Reporte de recorrido generado — enviado al cliente',
+        'Recuperación coordinada con autoridades — en curso',
+        'Exceso de velocidad detectado — alerta enviada',
+        'Apagado programado ejecutado — motor en reposo',
+      ];
+
+      function fmtTime(d) {
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return `${hh}:${mm}:${ss}`;
+      }
+
+      function pickActivity(excludeText) {
+        let text = excludeText;
+        while (text === excludeText) {
+          text = ACTIVITIES[Math.floor(Math.random() * ACTIVITIES.length)];
+        }
+        return text;
+      }
+
+      let entries = [
+        { date: new Date(Date.now() - 14000), text: ACTIVITIES[0] },
+        { date: new Date(Date.now() - 151000), text: pickActivity(ACTIVITIES[0]) },
+        { date: new Date(Date.now() - 399000), text: 'Recuperación coordinada con autoridades — en curso' },
+      ];
+
+      function render() {
+        consoleLog.innerHTML = entries.map((e) =>
+          `<li><time>${fmtTime(e.date)}</time><span class="ok">${e.text}</span></li>`
+        ).join('');
+      }
+      render();
+
+      setInterval(() => {
+        const text = pickActivity(entries[0].text);
+        entries.unshift({ date: new Date(), text });
+        entries = entries.slice(0, 3);
+        render();
+      }, 6000);
+    }
+  } catch (e) { console.error('consola hero error', e); }
+
   // ---------- Formulario de contacto -> envía por WhatsApp con los datos precargados ----------
   try {
     const contactForm = document.getElementById('contactForm');

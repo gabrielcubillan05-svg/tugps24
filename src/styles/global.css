@@ -1457,6 +1457,9 @@ footer {
   font-size: 12.5px;
   font-family: var(--mono);
 }
+.visit-counter {
+  margin-left: 4px;
+}
 .reveal {
   opacity: 0;
   transition:
