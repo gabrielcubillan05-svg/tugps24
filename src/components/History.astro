@@ -32,32 +32,34 @@ const milestones = [
     <div class="section-head reveal">
       <p class="eyebrow">Nuestra empresa</p>
       <h2>Diez años construyendo confianza, paso a paso.</h2>
-      <p>
-        Somos una empresa colombiana fundada en Riohacha, La Guajira, con la finalidad de
-        suministrar seguridad vehicular al distrito — una respuesta tecnológica al alto índice de
-        robo de motos y carros en la región.
-      </p>
     </div>
-    <div class="history-copy reveal">
-      <p>
-        Desde sus inicios, TuGPS24 implementó un sistema de rastreo satelital que permite
-        visualizar en tiempo real la ubicación del vehículo, la velocidad a la que circula, el
-        estado del motor y su recorrido, entre otras funciones.
-      </p>
-      <p>
-        En su corto tiempo de operación generó un impacto social importante al establecer
-        vínculos con la Policía Nacional: se realizaron cursos de capacitación a los cuadrantes de
-        policía en lectura de mapas y georreferenciación vehicular, para que las autoridades
-        pudieran apoyar la búsqueda de los vehículos hurtados.
-      </p>
-    </div>
-    <div class="history-timeline reveal">
-      {milestones.map((m) => (
-        <div class="history-item">
-          <span class="history-year">{m.year}</span>
-          <p>{m.text}</p>
-        </div>
-      ))}
+    <div class="history-grid reveal">
+      <div class="history-copy">
+        <p>
+          Somos una empresa colombiana fundada en Riohacha, La Guajira, con la finalidad de
+          suministrar seguridad vehicular al distrito — una respuesta tecnológica al alto índice
+          de robo de motos y carros en la región.
+        </p>
+        <p>
+          Desde sus inicios, TuGPS24 implementó un sistema de rastreo satelital que permite
+          visualizar en tiempo real la ubicación del vehículo, la velocidad a la que circula, el
+          estado del motor y su recorrido, entre otras funciones.
+        </p>
+        <p>
+          En su corto tiempo de operación generó un impacto social importante al establecer
+          vínculos con la Policía Nacional: se realizaron cursos de capacitación a los
+          cuadrantes de policía en lectura de mapas y georreferenciación vehicular, para que las
+          autoridades pudieran apoyar la búsqueda de los vehículos hurtados.
+        </p>
+      </div>
+      <div class="history-timeline">
+        {milestones.map((m) => (
+          <div class="history-item">
+            <span class="history-year">{m.year}</span>
+            <p>{m.text}</p>
+          </div>
+        ))}
+      </div>
     </div>
   </div>
 </section>

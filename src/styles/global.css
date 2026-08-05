@@ -1212,12 +1212,14 @@ img.recovery-card {
   margin-bottom: 40px;
   display: grid;
 }
-.history-copy {
-  max-width: 760px;
-  margin-bottom: 48px;
+.history-grid {
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 56px;
+  display: grid;
 }
 .history-copy p {
   color: var(--paper-dim);
+  text-align: justify;
   margin-bottom: 16px;
   font-size: 15.5px;
   line-height: 1.7;
@@ -1228,6 +1230,12 @@ img.recovery-card {
   flex-direction: column;
   gap: 26px;
   padding-left: 26px;
+}
+@media (width<=900px) {
+  .history-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
 }
 .history-item {
   position: relative;
