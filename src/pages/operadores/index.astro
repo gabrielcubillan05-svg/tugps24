@@ -1,13 +1,15 @@
 ---
 export const prerender = false;
 
-import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+import { isAuthorized, isSupervisor, AUTH_COOKIE, SUPERVISOR_COOKIE } from '../../lib/internalAuth';
 
 const authed = isAuthorized(Astro.cookies.get(AUTH_COOKIE)?.value);
+const supervisorAuthed = isSupervisor(Astro.cookies.get(SUPERVISOR_COOKIE)?.value);
 const loginError = Astro.url.searchParams.get('error') === '1';
 
 const CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Otro'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
 ---
 
 <!DOCTYPE html>
@@ -28,6 +30,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
         --slate: #948d80;
         --amber: #ff7a1a;
         --teal-bright: #ffab5c;
+        --danger: #e0563f;
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -37,7 +40,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
         min-height: 100vh;
         line-height: 1.5;
       }
-      .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 80px; }
+      .wrap { max-width: 1020px; margin: 0 auto; padding: 32px 20px 80px; }
       a { color: inherit; }
       .login-wrap {
         min-height: 100vh;
@@ -89,16 +92,44 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
         padding: 9px 16px;
         font-size: 13px;
       }
-      .error-msg { color: #e0563f; font-size: 13px; margin-bottom: 14px; }
+      .btn-small {
+        padding: 6px 14px;
+        font-size: 12.5px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .btn-done { background: #2f8a4f22; color: #6fce8f; border: 1px solid #2f8a4f55; }
+      .btn-delete { background: #e0563f22; color: var(--danger); border: 1px solid #e0563f55; }
+      .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 14px; }
       header.panel-head {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 28px;
+        margin-bottom: 20px;
         gap: 12px;
         flex-wrap: wrap;
       }
       header.panel-head h1 { font-size: 20px; }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 12px;
+      }
+      .tab-btn {
+        background: none;
+        border: 1px solid var(--line);
+        color: var(--paper-dim);
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-size: 13.5px;
+      }
+      .tab-btn.active { background: var(--amber); color: #1a0f00; border-color: var(--amber); font-weight: 600; }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
       .panel-card {
         background: var(--ink-800);
         border: 1px solid var(--line);
@@ -112,7 +143,8 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
         grid-template-columns: 1fr 1fr 1fr;
         gap: 12px;
       }
-      .form-grid .field-note { grid-column: 1 / -1; }
+      .form-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+      .form-grid .field-note, .form-grid .field-full { grid-column: 1 / -1; }
       .filters {
         display: flex;
         gap: 10px;
@@ -120,33 +152,43 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
         margin-bottom: 18px;
       }
       .filters input, .filters select { width: auto; min-width: 160px; flex: 1; }
-      .reports-list { display: flex; flex-direction: column; gap: 10px; }
-      .report-item {
+      .reports-list, .list-col { display: flex; flex-direction: column; gap: 10px; }
+      .report-item, .list-item {
         background: var(--ink-800);
         border: 1px solid var(--line);
         border-radius: 10px;
         padding: 14px 16px;
       }
-      .report-item .report-top {
+      .list-item.pending { border-color: var(--amber); background: #ff7a1a14; }
+      .report-item .report-top, .list-item .item-top {
         display: flex;
         justify-content: space-between;
         gap: 10px;
         margin-bottom: 6px;
         flex-wrap: wrap;
+        align-items: center;
       }
-      .report-item .plate { font-weight: 700; }
-      .report-item .badge {
+      .report-item .plate, .list-item .title { font-weight: 700; }
+      .report-item .badge, .list-item .badge {
         background: #ff7a1a29;
         color: var(--teal-bright);
         border-radius: 999px;
         padding: 2px 10px;
         font-size: 11.5px;
       }
-      .report-item .meta { color: var(--slate); font-size: 12px; }
-      .report-item .note { color: var(--paper-dim); font-size: 14px; }
+      .list-item.pending .badge.status { background: var(--amber); color: #1a0f00; }
+      .list-item .badge.status.ok { background: #2f8a4f33; color: #6fce8f; }
+      .report-item .meta, .list-item .meta { color: var(--slate); font-size: 12px; }
+      .report-item .note, .list-item .note { color: var(--paper-dim); font-size: 14px; margin-bottom: 8px; }
+      .item-actions { display: flex; gap: 8px; margin-top: 8px; }
       .empty { color: var(--slate); font-size: 14px; padding: 20px 0; text-align: center; }
+      .supervisor-gate {
+        text-align: center;
+        padding: 30px 10px;
+      }
+      .supervisor-gate form { max-width: 280px; margin: 16px auto 0; }
       @media (max-width: 700px) {
-        .form-grid { grid-template-columns: 1fr; }
+        .form-grid, .form-grid.cols-4 { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -169,56 +211,173 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
     ) : (
       <div class="wrap">
         <header class="panel-head">
-          <h1>Panel interno — Reportes y novedades</h1>
+          <h1>Panel interno — TuGPS24</h1>
           <form method="POST" action="/api/internal-logout">
             <button class="btn-ghost" type="submit">Cerrar sesión</button>
           </form>
         </header>
 
-        <div class="panel-card">
-          <h2>Nuevo reporte</h2>
-          <form id="reportForm">
-            <div class="form-grid">
-              <div class="field">
-                <label for="plate">Placa / identificador</label>
-                <input id="plate" name="plate" type="text" placeholder="GKX740" required />
-              </div>
-              <div class="field">
-                <label for="branch">Sucursal</label>
-                <select id="branch" name="branch" required>
-                  {BRANCHES.map((b) => <option value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div class="field">
-                <label for="category">Categoría</label>
-                <select id="category" name="category" required>
-                  {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div class="field field-note">
-                <label for="note">Nota / detalle</label>
-                <textarea id="note" name="note" placeholder="Ej: fuera de área vía Masinga, llamado al principal, confirma todo en orden" required></textarea>
-              </div>
-            </div>
-            <button class="btn" type="submit">Guardar reporte</button>
-          </form>
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="novedades" type="button">Novedades</button>
+          <button class="tab-btn" data-tab="reportes" type="button">Reportes programados</button>
+          <button class="tab-btn" data-tab="horario" type="button">Horario</button>
         </div>
 
-        <div class="panel-card">
-          <h2>Buscar y filtrar</h2>
-          <div class="filters">
-            <input id="searchInput" type="text" placeholder="Buscar por placa, sucursal o texto..." />
-            <select id="branchFilter">
-              <option value="">Todas las sucursales</option>
-              {BRANCHES.map((b) => <option value={b}>{b}</option>)}
-            </select>
-            <select id="categoryFilter">
-              <option value="">Todas las categorías</option>
-              {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
-            </select>
+        <div class="tab-panel active" id="tab-novedades">
+          <div class="panel-card">
+            <h2>Nuevo reporte</h2>
+            <form id="reportForm">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="plate">Placa / identificador</label>
+                  <input id="plate" name="plate" type="text" placeholder="GKX740" required />
+                </div>
+                <div class="field">
+                  <label for="branch">Sucursal</label>
+                  <select id="branch" name="branch" required>
+                    {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="category">Categoría</label>
+                  <select id="category" name="category" required>
+                    {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div class="field field-note">
+                  <label for="note">Nota / detalle</label>
+                  <textarea id="note" name="note" placeholder="Ej: fuera de área vía Masinga, llamado al principal, confirma todo en orden" required></textarea>
+                </div>
+              </div>
+              <button class="btn" type="submit">Guardar reporte</button>
+            </form>
           </div>
-          <div class="reports-list" id="reportsList">
-            <div class="empty">Cargando reportes...</div>
+
+          <div class="panel-card">
+            <h2>Buscar y filtrar</h2>
+            <div class="filters">
+              <input id="searchInput" type="text" placeholder="Buscar por placa, sucursal o texto..." />
+              <select id="branchFilter">
+                <option value="">Todas las sucursales</option>
+                {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+              </select>
+              <select id="categoryFilter">
+                <option value="">Todas las categorías</option>
+                {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div class="reports-list" id="reportsList">
+              <div class="empty">Cargando reportes...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="tab-reportes">
+          <div class="panel-card">
+            <h2>Nuevo reporte programado</h2>
+            <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+              Reportes recurrentes que hay que sacarle a cada cliente. Al guardarlos, aparecen
+              como tarea pendiente según la frecuencia — puedes marcarlos como hechos cuando se
+              completen.
+            </p>
+            <form id="scheduledForm">
+              <div class="form-grid cols-4">
+                <div class="field">
+                  <label for="sr-client">Cliente / placa</label>
+                  <input id="sr-client" type="text" placeholder="Nombre o placa" required />
+                </div>
+                <div class="field">
+                  <label for="sr-type">Tipo de reporte</label>
+                  <input id="sr-type" type="text" placeholder="Ej: Reporte de recorrido" required />
+                </div>
+                <div class="field">
+                  <label for="sr-frequency">Frecuencia</label>
+                  <select id="sr-frequency" required>
+                    {FREQUENCIES.map((f) => <option value={f}>{f}</option>)}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="sr-operator">Operador asignado</label>
+                  <input id="sr-operator" type="text" placeholder="Nombre del operador" required />
+                </div>
+              </div>
+              <button class="btn" type="submit">Guardar reporte programado</button>
+            </form>
+          </div>
+          <div class="panel-card">
+            <h2>Reportes pendientes y al día</h2>
+            <div class="list-col" id="scheduledList">
+              <div class="empty">Cargando...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="tab-horario">
+          <div class="panel-card">
+            <h2>Horario de operadores</h2>
+            <form id="scheduleForm">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="sc-operator">Operador</label>
+                  <input id="sc-operator" type="text" placeholder="Nombre del operador" required />
+                </div>
+                <div class="field field-note">
+                  <label for="sc-horario">Horario</label>
+                  <input id="sc-horario" type="text" placeholder="Ej: Lunes a sábado, turno 6am-2pm" required />
+                </div>
+              </div>
+              <button class="btn" type="submit">Guardar horario</button>
+            </form>
+          </div>
+          <div class="panel-card">
+            <h2>Horarios actuales</h2>
+            <div class="list-col" id="scheduleList">
+              <div class="empty">Cargando...</div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <h2>Días compensatorios</h2>
+            {supervisorAuthed ? (
+              <div id="compDaysArea">
+                <form id="compDaysForm" style="margin-bottom:20px;">
+                  <div class="form-grid cols-4">
+                    <div class="field">
+                      <label for="cd-operator">Operador</label>
+                      <input id="cd-operator" type="text" placeholder="Nombre" required />
+                    </div>
+                    <div class="field">
+                      <label for="cd-days">Días (+ / -)</label>
+                      <input id="cd-days" type="number" step="1" placeholder="Ej: 1 o -1" required />
+                    </div>
+                    <div class="field field-note">
+                      <label for="cd-note">Nota</label>
+                      <input id="cd-note" type="text" placeholder="Motivo" />
+                    </div>
+                  </div>
+                  <button class="btn" type="submit">Registrar</button>
+                </form>
+                <div class="list-col" id="compDaysList">
+                  <div class="empty">Cargando...</div>
+                </div>
+              </div>
+            ) : (
+              <div class="supervisor-gate">
+                <p style="color:var(--slate); font-size:13.5px;">
+                  Esta sección es solo para supervisores.
+                </p>
+                {Astro.url.searchParams.get('sup_error') === '1' && (
+                  <p class="error-msg">Clave de supervisor incorrecta.</p>
+                )}
+                <form id="supervisorForm">
+                  <div class="field">
+                    <label for="sup-password">Clave de supervisor</label>
+                    <input id="sup-password" type="password" required />
+                  </div>
+                  <button class="btn" type="submit" style="width:100%;">Desbloquear</button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       </div>
