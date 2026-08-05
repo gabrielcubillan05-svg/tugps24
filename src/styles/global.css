@@ -1403,6 +1403,34 @@ form.contact-form {
   width: 100%;
   margin-top: 6px;
 }
+.legal-body {
+  max-width: 760px;
+}
+.legal-body h3 {
+  font-family: var(--display);
+  margin-top: 32px;
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+.legal-body h3:first-child {
+  margin-top: 0;
+}
+.legal-body p {
+  color: var(--paper-dim);
+  margin-bottom: 6px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.legal-body a {
+  color: var(--teal-bright);
+  text-decoration: underline;
+}
+.legal-updated {
+  color: var(--slate);
+  margin-top: 24px;
+  font-size: 13px;
+  font-family: var(--mono);
+}
 footer {
   border-top: 1px solid var(--line);
   padding: 44px 0 30px;

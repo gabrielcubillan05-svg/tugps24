@@ -7,4 +7,7 @@ export default defineConfig({
   site: 'https://www.tugps24.com',
   output: 'server',
   adapter: vercel(),
+  redirects: {
+    '/inicio': '/',
+  },
 });
