@@ -1,0 +1,145 @@
+---
+export const prerender = false;
+
+import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+
+const authed = isAuthorized(Astro.cookies.get(AUTH_COOKIE)?.value);
+const loginError = Astro.url.searchParams.get('error') === '1';
+
+const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+---
+
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Cotizador — TuGPS24</title>
+    <style>
+      :root {
+        --ink-900: #0a0a0a;
+        --ink-800: #151412;
+        --line: #332e28;
+        --paper: #f2ede2;
+        --paper-dim: #c9c2b2;
+        --slate: #948d80;
+        --amber: #ff7a1a;
+        --teal-bright: #ffab5c;
+        --danger: #e0563f;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--ink-900);
+        color: var(--paper);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .wrap { max-width: 640px; margin: 0 auto; padding: 32px 20px 80px; }
+      .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .login-box, .panel-card {
+        background: var(--ink-800);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 30px;
+      }
+      .login-box { width: 100%; max-width: 360px; }
+      .login-box h1, header h1 { font-size: 20px; margin-bottom: 8px; }
+      .login-box p, header p { color: var(--slate); font-size: 13.5px; margin-bottom: 20px; }
+      header { margin-bottom: 24px; }
+      .field { margin-bottom: 16px; }
+      .field label { display: block; color: var(--slate); font-size: 12.5px; margin-bottom: 6px; }
+      input, select, button { font-family: inherit; font-size: 14.5px; }
+      input, select {
+        width: 100%;
+        background: var(--ink-900);
+        border: 1px solid var(--line);
+        color: var(--paper);
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .btn {
+        background: var(--amber);
+        color: #1a0f00;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 12px 22px;
+        font-weight: 600;
+        width: 100%;
+      }
+      .btn:disabled { opacity: 0.6; cursor: default; }
+      .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 14px; }
+      .summary { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--paper-dim); }
+      .summary b { color: var(--teal-bright); }
+      a.back { color: var(--slate); font-size: 13px; display: inline-block; margin-bottom: 18px; }
+    </style>
+  </head>
+  <body>
+    {!authed ? (
+      <div class="login-wrap">
+        <div class="login-box">
+          <h1>Cotizador</h1>
+          <p>Acceso solo para personal de TuGPS24.</p>
+          {loginError && <p class="error-msg">Clave incorrecta, intenta de nuevo.</p>}
+          <form method="POST" action="/api/internal-login">
+            <input type="hidden" name="redirect" value="/cotizaciones" />
+            <div class="field">
+              <label for="password">Clave de acceso</label>
+              <input id="password" name="password" type="password" required autofocus />
+            </div>
+            <button class="btn" type="submit">Entrar</button>
+          </form>
+        </div>
+      </div>
+    ) : (
+      <div class="wrap">
+        <a class="back" href="/operadores">← Panel interno</a>
+        <header>
+          <h1>Generador de cotizaciones</h1>
+          <p>Ingresa los datos del cliente y la cantidad de vehículos — se genera un PDF listo para enviar.</p>
+        </header>
+        <div class="panel-card">
+          <form id="quoteForm">
+            <div class="field">
+              <label for="client">Nombre del cliente (opcional)</label>
+              <input id="client" type="text" placeholder="Ej: Juan Pérez" />
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="document">Documento (opcional)</label>
+                <input id="document" type="text" placeholder="Ej: 1097123456" />
+              </div>
+              <div class="field">
+                <label for="email">Correo electrónico (opcional)</label>
+                <input id="email" type="email" placeholder="cliente@correo.com" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="branch">Sucursal</label>
+              <select id="branch" required>
+                {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="motos">Cantidad de motos</label>
+                <input id="motos" type="number" min="0" value="0" required />
+              </div>
+              <div class="field">
+                <label for="carros">Cantidad de carros</label>
+                <input id="carros" type="number" min="0" value="0" required />
+              </div>
+            </div>
+            <button class="btn" type="submit" id="submitBtn">Generar cotización PDF</button>
+            <p id="quoteError" class="error-msg" style="display:none; margin-top:12px;"></p>
+            <div class="summary" id="summary" style="display:none;"></div>
+          </form>
+        </div>
+      </div>
+    )}
+    <script src="/js/cotizaciones.js" defer></script>
+  </body>
+</html>
