@@ -32,9 +32,17 @@ export interface ScheduledReport {
 
 const SOON_WINDOW_MS = 2 * 24 * 60 * 60 * 1000; // "por realizar": vence en los próximos 2 días
 
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
 export function withStatus(r: ScheduledReport) {
   const intervalDays = FREQUENCIES[r.frequency] || 7;
-  const base = new Date(r.lastDoneAt || r.createdAt);
+  // Se trunca a inicio del día para que el vencimiento sea por día calendario, no por hora exacta:
+  // un "Diario" marcado como hecho a cualquier hora vuelve a quedar pendiente justo al empezar el día siguiente.
+  const base = startOfDay(new Date(r.lastDoneAt || r.createdAt));
   const nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
   const pending = nextDue.getTime() <= Date.now();
   const bucket: 'pendiente' | 'por-realizar' | 'al-dia' = pending

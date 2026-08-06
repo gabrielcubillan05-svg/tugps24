@@ -11,9 +11,9 @@ const REDIS_KEY = 'internal:comp-days';
 interface CompDay {
   id: string;
   operator: string;
-  days: number;
-  note: string;
+  workedDate: string;
   scheduledDate: string | null;
+  note: string;
   createdAt: string;
 }
 
@@ -21,6 +21,29 @@ async function requireCompDays(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canManageCompDays(session.role)) return null;
   return session;
+}
+
+async function readEntries(redis: any): Promise<CompDay[]> {
+  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
+  return Object.values(raw)
+    .map((v) => {
+      try {
+        return typeof v === 'string' ? JSON.parse(v) : v;
+      } catch {
+        return null;
+      }
+    })
+    .filter((e): e is any => e !== null)
+    .map((e) => ({
+      id: e.id,
+      operator: e.operator,
+      // Compatibilidad con registros antiguos (antes solo tenían "days" +/- y no fecha trabajada).
+      workedDate: e.workedDate || e.createdAt,
+      scheduledDate: e.scheduledDate || null,
+      note: e.note || '',
+      createdAt: e.createdAt,
+    }))
+    .sort((a, b) => b.workedDate.localeCompare(a.workedDate));
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
@@ -32,30 +55,16 @@ export const GET: APIRoute = async ({ cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  const entries = Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((e): e is CompDay => e !== null)
-    .map((e) => ({ scheduledDate: null, ...e }))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const entries = await readEntries(redis);
 
-  // "totals" = balance disponible/pendiente: las correcciones negativas siempre se restan,
-  // pero un día positivo deja de contar en cuanto se le asigna una fecha (ya quedó comprometido/dado).
+  // "totals" = días pendientes por asignar; "grantedTotals" = días ya asignados/dados.
   const totals: Record<string, number> = {};
   const grantedTotals: Record<string, number> = {};
   entries.forEach((e) => {
-    if (e.days < 0) {
-      totals[e.operator] = (totals[e.operator] || 0) + e.days;
-    } else if (e.scheduledDate) {
-      grantedTotals[e.operator] = (grantedTotals[e.operator] || 0) + e.days;
+    if (e.scheduledDate) {
+      grantedTotals[e.operator] = (grantedTotals[e.operator] || 0) + 1;
     } else {
-      totals[e.operator] = (totals[e.operator] || 0) + e.days;
+      totals[e.operator] = (totals[e.operator] || 0) + 1;
     }
   });
 
@@ -77,7 +86,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { operator?: string; days?: number; note?: string; scheduledDate?: string | null };
+  let body: { operator?: string; workedDate?: string; scheduledDate?: string | null; note?: string };
   try {
     body = await request.json();
   } catch {
@@ -85,25 +94,25 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   const operator = String(body.operator || '').trim();
-  const days = Number(body.days);
-  const note = String(body.note || '').trim();
+  const workedDate = String(body.workedDate || '').trim();
   const scheduledDate = body.scheduledDate ? String(body.scheduledDate) : null;
+  const note = String(body.note || '').trim();
 
-  if (!operator || !Number.isFinite(days) || days === 0) {
-    return new Response(JSON.stringify({ error: 'missing or invalid fields' }), { status: 400 });
+  if (!operator || !workedDate) {
+    return new Response(JSON.stringify({ error: 'empleado y fecha trabajada son obligatorios' }), { status: 400 });
   }
 
   const entry: CompDay = {
     id: randomUUID(),
     operator,
-    days,
-    note,
+    workedDate,
     scheduledDate,
+    note,
     createdAt: new Date().toISOString(),
   };
 
   await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });
-  await logAudit(redis, session, 'comp_day_create', operator, `${days} día(s)`);
+  await logAudit(redis, session, 'comp_day_create', operator, `trabajó ${workedDate}${scheduledDate ? ' · libre ' + scheduledDate : ''}`);
 
   return new Response(JSON.stringify({ entry }), {
     headers: { 'Content-Type': 'application/json' },
@@ -123,11 +132,34 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; scheduledDate?: string | null };
+  let body: { id?: string; operator?: string; scheduledDate?: string | null; assignNext?: boolean };
   try {
     body = await request.json();
   } catch {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  }
+
+  if (body.assignNext) {
+    // Asigna la fecha al día pendiente más antiguo de ese empleado (sin tener que elegir cuál).
+    const operator = String(body.operator || '').trim();
+    const scheduledDate = body.scheduledDate ? String(body.scheduledDate) : null;
+    if (!operator || !scheduledDate) {
+      return new Response(JSON.stringify({ error: 'falta el empleado o la fecha' }), { status: 400 });
+    }
+    const entries = await readEntries(redis);
+    const pending = entries
+      .filter((e) => e.operator === operator && !e.scheduledDate)
+      .sort((a, b) => a.workedDate.localeCompare(b.workedDate));
+    if (!pending.length) {
+      return new Response(JSON.stringify({ error: 'no hay días pendientes disponibles para ese empleado' }), { status: 400 });
+    }
+    const target = pending[0];
+    target.scheduledDate = scheduledDate;
+    await redis.hset(REDIS_KEY, { [target.id]: JSON.stringify(target) });
+    await logAudit(redis, session, 'comp_day_schedule', operator, scheduledDate);
+    return new Response(JSON.stringify({ entry: target }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const id = String(body.id || '');
@@ -135,7 +167,15 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const entry: CompDay = { scheduledDate: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const existing: any = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const entry: CompDay = {
+    id: existing.id,
+    operator: existing.operator,
+    workedDate: existing.workedDate || existing.createdAt,
+    scheduledDate: existing.scheduledDate || null,
+    note: existing.note || '',
+    createdAt: existing.createdAt,
+  };
 
   if (body.scheduledDate !== undefined) {
     entry.scheduledDate = body.scheduledDate || null;

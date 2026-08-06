@@ -33,6 +33,7 @@ export interface Lead {
   vehicleType: string;
   motosCount: number;
   carrosCount: number;
+  installed: boolean;
   notes: Note[];
   createdAt: string;
   updatedAt: string;
@@ -61,7 +62,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -111,8 +112,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const name = String(body.name || '').trim();
   const phone = String(body.phone || '').trim();
-  if (!name || !phone) {
-    return new Response(JSON.stringify({ error: 'nombre y teléfono son obligatorios' }), { status: 400 });
+  if (!phone) {
+    return new Response(JSON.stringify({ error: 'el teléfono es obligatorio' }), { status: 400 });
   }
 
   const normalizedPhone = normalizePhone(phone);
@@ -126,7 +127,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const lead: Lead = {
     id: randomUUID(),
-    name,
+    name: name || phone,
     phone,
     city: String(body.city || '').trim(),
     campaign: String(body.campaign || '').trim(),
@@ -137,6 +138,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     vehicleType: VEHICLE_TYPES.includes(String((body as any).vehicleType || '')) ? String((body as any).vehicleType || '') : '',
     motosCount: Number.isFinite(Number((body as any).motosCount)) ? Math.max(0, parseInt(String((body as any).motosCount), 10) || 0) : 0,
     carrosCount: Number.isFinite(Number((body as any).carrosCount)) ? Math.max(0, parseInt(String((body as any).carrosCount), 10) || 0) : 0,
+    installed: false,
     notes: initialNote ? [{ text: initialNote, date: now }] : [],
     createdAt: now,
     updatedAt: now,
@@ -176,6 +178,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     vehicleType?: string;
     motosCount?: number;
     carrosCount?: number;
+    installed?: boolean;
   };
   try {
     body = await request.json();
@@ -196,6 +199,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     vehicleType: '',
     motosCount: 0,
     carrosCount: 0,
+    installed: false,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
@@ -244,6 +248,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.carrosCount !== undefined) {
     lead.carrosCount = Math.max(0, parseInt(String(body.carrosCount), 10) || 0);
+  }
+  if (body.installed !== undefined) {
+    lead.installed = Boolean(body.installed);
   }
   if (body.addNote) {
     lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];

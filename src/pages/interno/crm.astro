@@ -27,7 +27,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
       <div class="form-grid">
         <div class="field">
           <label for="name">Nombre</label>
-          <input id="name" type="text" placeholder="Nombre del interesado" required />
+          <input id="name" type="text" placeholder="Nombre del interesado (opcional si aún no lo sabes)" />
         </div>
         <div class="field">
           <label for="phone">Teléfono</label>
@@ -125,6 +125,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
   .badge.Convertido { background: #2f8a4f33; color: var(--ok); }
   .badge.Perdido { background: #e0563f22; color: var(--danger); }
   .badge.overdue-badge { background: var(--danger); color: #fff; }
+  .badge.badge-installed { background: #2f8a4f33; color: var(--ok); }
   .notes-list { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
   .notes-list .note-item { font-size: 12.5px; color: var(--paper-dim); }
   .notes-list .note-item .note-date { color: var(--slate); font-size: 11px; margin-right: 6px; }

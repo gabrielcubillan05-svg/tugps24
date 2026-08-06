@@ -62,6 +62,11 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
     <h2>Días compensatorios</h2>
     {canCompDays ? (
       <div id="compDaysArea">
+        <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+          Cada vez que un empleado trabaje un día extra, regístralo aquí con la fecha en que trabajó.
+          Si ya sabes cuándo se le dará el descanso, coloca también esa fecha; si no, queda pendiente y
+          más abajo puedes asignársela cuando quieras, de los días que tenga disponibles.
+        </p>
         <form id="compDaysForm" style="margin-bottom:20px;">
           <div class="form-grid cols-4">
             <div class="field">
@@ -71,21 +76,21 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
               </select>
             </div>
             <div class="field">
-              <label for="cd-days">Días (+ / -)</label>
-              <input id="cd-days" type="number" step="1" placeholder="Ej: 1 o -1" required />
+              <label for="cd-worked">Fecha que trabajó</label>
+              <input id="cd-worked" type="date" required />
             </div>
             <div class="field">
-              <label for="cd-scheduled">Fecha en que se dará (opcional)</label>
+              <label for="cd-scheduled">Fecha del compensatorio (opcional)</label>
               <input id="cd-scheduled" type="date" />
             </div>
             <div class="field field-note">
               <label for="cd-note">Nota</label>
-              <input id="cd-note" type="text" placeholder="Motivo" />
+              <input id="cd-note" type="text" placeholder="Motivo (opcional)" />
             </div>
           </div>
           <button class="btn" type="submit">Registrar</button>
         </form>
-        <h3 style="font-size:13.5px; color:var(--paper-dim); margin-bottom:10px;">Días acumulados por empleado</h3>
+        <h3 style="font-size:13.5px; color:var(--paper-dim); margin-bottom:10px;">Días disponibles por empleado</h3>
         <div class="stats-row" id="compDaysTotals" style="margin-bottom:20px;"></div>
         <div class="list-col" id="compDaysList">
           <div class="empty">Cargando...</div>

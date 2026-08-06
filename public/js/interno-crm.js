@@ -147,6 +147,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="lead-name">${escapeHtml(l.name)}</span>
           <span class="badge ${l.status}">${escapeHtml(l.status)}</span>
           ${l.overdue ? '<span class="badge overdue-badge">Atrasado</span>' : ''}
+          ${l.installed ? '<span class="badge badge-installed">✓ Instalado</span>' : ''}
         </div>
         <div class="lead-meta">
           ${escapeHtml(l.phone)} ${l.city ? '· ' + escapeHtml(l.city) : ''} ${l.campaign ? '· ' + escapeHtml(l.campaign) : ''}
@@ -170,6 +171,9 @@ document.addEventListener('DOMContentLoaded', function () {
             <option value="Flota" ${l.vehicleType === 'Flota' ? 'selected' : ''}>Flota</option>
           </select>
           <button class="btn-small" data-action="edit" data-id="${l.id}" type="button">Editar</button>
+          <button class="btn-small ${l.installed ? 'btn-done' : ''}" data-action="toggle-installed" data-id="${l.id}" type="button">
+            ${l.installed ? '✓ Instalado' : 'Marcar instalado'}
+          </button>
           <button class="btn-small" data-action="quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
         </div>
@@ -230,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const motosCount = parseInt(document.getElementById('motosCount').value, 10) || 0;
     const carrosCount = parseInt(document.getElementById('carrosCount').value, 10) || 0;
     const initialNote = document.getElementById('initialNote').value.trim();
-    if (!name || !phone) return;
+    if (!phone) return;
 
     const submitBtn = leadForm.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
@@ -240,12 +244,13 @@ document.addEventListener('DOMContentLoaded', function () {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, phone, city, campaign, secretary, nextFollowUp, vehicleType, motosCount, carrosCount, initialNote }),
     })
-      .then((res) => res.json())
-      .then(() => {
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar el lead.');
         leadForm.reset();
         loadLeads();
       })
-      .catch(() => alert('No se pudo guardar el lead.'))
+      .catch((err) => alert(err.message || 'No se pudo guardar el lead.'))
       .finally(() => { submitBtn.disabled = false; });
   });
 
@@ -292,6 +297,14 @@ document.addEventListener('DOMContentLoaded', function () {
       }).then(loadLeads);
     } else if (action === 'quote') {
       generateQuoteForLead(id, btn);
+    } else if (action === 'toggle-installed') {
+      const lead = allLeads.find((l) => l.id === id);
+      const installed = !(lead && lead.installed);
+      fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, installed }),
+      }).then(loadLeads);
     } else if (action === 'edit') {
       editingId = id;
       editError = '';

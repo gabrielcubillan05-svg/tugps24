@@ -163,7 +163,8 @@ document.addEventListener('DOMContentLoaded', function () {
       compDaysTotals.innerHTML = employees.map((op) => `
         <div class="stat-box">
           <span class="n">${totals[op] || 0}</span>
-          <span class="l">${escapeHtml(op)}${grantedTotals[op] ? ' · ' + grantedTotals[op] + ' ya asignado(s)' : ''}</span>
+          <span class="l">${escapeHtml(op)}${grantedTotals[op] ? ' · ' + grantedTotals[op] + ' ya dado(s)' : ''}</span>
+          ${totals[op] ? `<button class="btn-small btn-done" data-action="assign-next" data-operator="${escapeHtml(op)}" type="button" style="margin-top:6px;">Asignar día libre</button>` : ''}
         </div>
       `).join('');
     }
@@ -178,13 +179,12 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="list-item">
           <div class="item-top">
             <span class="title">${escapeHtml(e.operator)}</span>
-            <span class="badge">${e.days > 0 ? '+' : ''}${e.days} día(s)</span>
-            ${e.days > 0 && e.scheduledDate ? '<span class="badge status-indefinido">Ya asignado</span>' : ''}
+            <span class="badge">Trabajó: ${fmtDateOnly(e.workedDate)}</span>
+            ${e.scheduledDate ? '<span class="badge status-indefinido">Asignado</span>' : '<span class="badge status-proximo">Pendiente</span>'}
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
-          <div class="meta">${fmtDate(e.createdAt)}</div>
           <div class="item-actions" style="align-items:center;">
-            <label style="color:var(--slate); font-size:12px;">Se dará el:</label>
+            <label style="color:var(--slate); font-size:12px;">Compensatorio:</label>
             <input type="date" data-schedule-input data-id="${e.id}" value="${e.scheduledDate ? e.scheduledDate.slice(0, 10) : ''}" style="width:auto;" />
             <button class="btn-small btn-done" data-action="save-schedule" data-id="${e.id}" type="button">Guardar fecha</button>
             <button class="btn-small btn-delete" data-action="delete-cd" data-id="${e.id}">Eliminar</button>
@@ -209,24 +209,44 @@ document.addEventListener('DOMContentLoaded', function () {
       compDaysForm.addEventListener('submit', function (e) {
         e.preventDefault();
         const operator = cdOperatorSelect.value;
-        const days = Number(document.getElementById('cd-days').value);
+        const workedDate = document.getElementById('cd-worked').value;
         const note = document.getElementById('cd-note').value.trim();
         const scheduledDate = document.getElementById('cd-scheduled').value || null;
-        if (!operator || !days) return;
+        if (!operator || !workedDate) return;
 
         fetch('/api/comp-days', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operator, days, note, scheduledDate }),
+          body: JSON.stringify({ operator, workedDate, note, scheduledDate }),
         })
-          .then((res) => res.json())
-          .then(() => {
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
             compDaysForm.reset();
             loadCompDays();
           })
-          .catch(() => alert('No se pudo guardar.'));
+          .catch((err) => alert(err.message || 'No se pudo guardar.'));
       });
     }
+
+    compDaysTotals.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-action="assign-next"]');
+      if (!btn) return;
+      const operator = btn.getAttribute('data-operator');
+      const scheduledDate = prompt(`Fecha del compensatorio para ${operator} (AAAA-MM-DD):`);
+      if (!scheduledDate) return;
+      fetch('/api/comp-days', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator, scheduledDate, assignNext: true }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo asignar.');
+          loadCompDays();
+        })
+        .catch((err) => alert(err.message || 'No se pudo asignar.'));
+    });
 
     compDaysList.addEventListener('click', function (e) {
       const delBtn = e.target.closest('button[data-action="delete-cd"]');
