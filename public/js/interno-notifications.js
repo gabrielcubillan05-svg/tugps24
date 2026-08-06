@@ -97,11 +97,29 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {});
   }
 
+  function positionDropdown() {
+    const rect = bellBtn.getBoundingClientRect();
+    const width = Math.min(320, window.innerWidth - 32);
+    let left = rect.right - width;
+    left = Math.max(16, Math.min(left, window.innerWidth - width - 16));
+    let top = rect.bottom + 8;
+    top = Math.min(top, window.innerHeight - 100);
+    dropdown.style.width = width + 'px';
+    dropdown.style.left = left + 'px';
+    dropdown.style.top = top + 'px';
+    dropdown.style.right = 'auto';
+  }
+
   bellBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     const willOpen = dropdown.style.display === 'none';
+    if (willOpen) positionDropdown();
     dropdown.style.display = willOpen ? 'block' : 'none';
     if (willOpen) loadNotifications();
+  });
+
+  window.addEventListener('resize', function () {
+    if (dropdown.style.display !== 'none') positionDropdown();
   });
 
   document.addEventListener('click', function (e) {
