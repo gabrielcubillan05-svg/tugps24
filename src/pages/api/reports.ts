@@ -117,11 +117,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     try {
       for (const file of imageFiles.slice(0, MAX_IMAGES)) {
         const blob = await put(`reports/${id}-${randomUUID()}`, file, {
-          access: 'public',
+          access: 'private',
           token,
           addRandomSuffix: false,
         });
-        images.push(blob.url);
+        images.push(blob.pathname);
       }
     } catch (err) {
       return new Response(

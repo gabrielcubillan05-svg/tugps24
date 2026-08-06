@@ -79,7 +79,10 @@ document.addEventListener('DOMContentLoaded', function () {
           <p class="note">${escapeHtml(r.note)}</p>
           ${Array.isArray(r.images) && r.images.length ? `
             <div class="report-images">
-              ${r.images.map((src) => `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="Foto del reporte" loading="lazy" /></a>`).join('')}
+              ${r.images.map((path) => {
+                const src = '/api/report-image?path=' + encodeURIComponent(path);
+                return `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="Foto del reporte" loading="lazy" /></a>`;
+              }).join('')}
             </div>
           ` : ''}
           <div class="meta">${fmtDate(r.createdAt)}</div>
