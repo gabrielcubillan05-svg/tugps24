@@ -38,6 +38,12 @@ document.addEventListener('DOMContentLoaded', function () {
     return new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
+  function initials(name) {
+    const parts = String(name || '?').trim().split(/\s+/);
+    const chars = parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
+    return chars.toUpperCase();
+  }
+
   function loadEmployees() {
     return fetch('/api/users')
       .then((res) => res.json())
@@ -56,6 +62,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     conversationList.innerHTML = conversations.map((c) => `
       <div class="conv-item ${c.id === activeConversationId ? 'active' : ''}" data-id="${c.id}">
+        <span class="avatar ${c.type === 'group' ? 'avatar-group' : ''}">${escapeHtml(initials(c.displayName))}</span>
         <div class="conv-info">
           <div class="conv-name">${escapeHtml(c.displayName || 'Sin nombre')}</div>
           <div class="conv-preview">${escapeHtml(c.lastMessagePreview || 'Sin mensajes')}</div>
@@ -89,14 +96,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderMessages(messages) {
     const conversation = conversations.find((c) => c.id === activeConversationId);
+    const isGroup = conversation && conversation.type === 'group';
     const wasAtBottom = messagesArea.scrollHeight - messagesArea.scrollTop - messagesArea.clientHeight < 40;
-    messagesArea.innerHTML = messages.map((m) => `
-      <div class="msg ${m.senderId === myUserId ? 'mine' : 'theirs'}">
-        ${m.senderId === myUserId ? '' : `<span class="msg-sender">${escapeHtml(m.senderName)}</span>`}
-        ${escapeHtml(m.text)}
-        <span class="msg-time">${fmtTime(m.createdAt)}${m.senderId === myUserId ? ' ' + checkMarkFor(m, conversation) : ''}</span>
+    messagesArea.innerHTML = messages.map((m) => {
+      const mine = m.senderId === myUserId;
+      const showAvatar = !mine && isGroup;
+      return `
+      <div class="msg ${mine ? 'mine' : 'theirs'}">
+        ${showAvatar ? `<span class="avatar avatar-sm">${escapeHtml(initials(m.senderName))}</span>` : ''}
+        <div class="msg-body">
+          ${!mine && isGroup ? `<span class="msg-sender">${escapeHtml(m.senderName)}</span>` : ''}
+          ${escapeHtml(m.text)}
+          <span class="msg-time">${fmtTime(m.createdAt)}${mine ? ' ' + checkMarkFor(m, conversation) : ''}</span>
+        </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
     if (wasAtBottom || messages.length <= 20) {
       messagesArea.scrollTop = messagesArea.scrollHeight;
     }

@@ -38,7 +38,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const roleParam = url.searchParams.get('role');
   const requestedRoles = roleParam ? roleParam.split(',').map((r) => r.trim()).filter(Boolean) : [];
   // Acceso reducido: poblar el selector de empleados en Horario, de secretarias/gerentes en el
-  // CRM (ambos atienden interesados), o de destinatarios en el Chat (todos los roles tienen acceso).
+  // CRM (ambos atienden interesados), de operadores en Reportes programados, o de destinatarios
+  // en el Chat (todos los roles tienen acceso).
   const canHorario = canAccessSection(session.role, 'horario');
   const canChat = canAccessSection(session.role, 'chat');
   const CRM_CONTACT_ROLES = ['secretaria', 'gerente'];
@@ -46,8 +47,12 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     canAccessSection(session.role, 'crm') &&
     requestedRoles.length > 0 &&
     requestedRoles.every((r) => CRM_CONTACT_ROLES.includes(r));
+  const canReportesOperadores =
+    canAccessSection(session.role, 'reportes') &&
+    requestedRoles.length === 1 &&
+    requestedRoles[0] === 'operador';
 
-  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts) {
+  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts && !canReportesOperadores) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -58,7 +63,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   let users = await getUsers(redis);
   if (isPrivileged) {
     if (requestedRoles.length) users = users.filter((u) => requestedRoles.includes(u.role));
-  } else if (canCrmContacts) {
+  } else if (canCrmContacts || canReportesOperadores) {
     users = users.filter((u) => requestedRoles.includes(u.role) && u.active);
   } else if (canHorario || canChat) {
     users = users.filter((u) => u.active);

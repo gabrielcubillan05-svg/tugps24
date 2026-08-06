@@ -15,6 +15,19 @@ document.addEventListener('DOMContentLoaded', function () {
   const scheduledList = document.getElementById('scheduledList');
   if (!scheduledList) return;
 
+  const srOperatorSelect = document.getElementById('sr-operator');
+  fetch('/api/users?role=operador')
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data || !Array.isArray(data.users)) return;
+      srOperatorSelect.innerHTML = data.users.length
+        ? data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('')
+        : '<option value="">No hay operadores disponibles</option>';
+    })
+    .catch(() => {
+      srOperatorSelect.innerHTML = '<option value="">No se pudo cargar la lista</option>';
+    });
+
   const tabButtons = document.querySelectorAll('.tab-btn[data-bucket]');
   let currentBucket = '';
   let allReports = [];

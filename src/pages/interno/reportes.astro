@@ -40,7 +40,9 @@ const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
         </div>
         <div class="field">
           <label for="sr-operator">Operador asignado</label>
-          <input id="sr-operator" type="text" placeholder="Nombre del operador" required />
+          <select id="sr-operator" required>
+            <option value="">Cargando operadores...</option>
+          </select>
         </div>
       </div>
       <button class="btn" type="submit">Guardar reporte programado</button>

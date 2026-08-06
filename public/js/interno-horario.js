@@ -153,23 +153,23 @@ document.addEventListener('DOMContentLoaded', function () {
   const compDaysList = document.getElementById('compDaysList');
   const compDaysTotals = document.getElementById('compDaysTotals');
   if (compDaysList) {
-    function renderCompDaysTotals(totals) {
+    function renderCompDaysTotals(totals, grantedTotals) {
       if (!compDaysTotals) return;
-      const rows = Object.entries(totals);
-      if (!rows.length) {
+      const employees = [...new Set([...Object.keys(totals), ...Object.keys(grantedTotals)])].sort();
+      if (!employees.length) {
         compDaysTotals.innerHTML = '';
         return;
       }
-      compDaysTotals.innerHTML = rows.map(([op, d]) => `
+      compDaysTotals.innerHTML = employees.map((op) => `
         <div class="stat-box">
-          <span class="n">${d}</span>
-          <span class="l">${escapeHtml(op)}</span>
+          <span class="n">${totals[op] || 0}</span>
+          <span class="l">${escapeHtml(op)}${grantedTotals[op] ? ' · ' + grantedTotals[op] + ' ya asignado(s)' : ''}</span>
         </div>
       `).join('');
     }
 
-    function renderCompDays(entries, totals) {
-      renderCompDaysTotals(totals);
+    function renderCompDays(entries, totals, grantedTotals) {
+      renderCompDaysTotals(totals, grantedTotals);
       if (!entries.length) {
         compDaysList.innerHTML = '<div class="empty">No hay registros todavía.</div>';
         return;
@@ -179,6 +179,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="item-top">
             <span class="title">${escapeHtml(e.operator)}</span>
             <span class="badge">${e.days > 0 ? '+' : ''}${e.days} día(s)</span>
+            ${e.days > 0 && e.scheduledDate ? '<span class="badge status-indefinido">Ya asignado</span>' : ''}
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
           <div class="meta">${fmtDate(e.createdAt)}</div>
@@ -196,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function () {
       fetch('/api/comp-days')
         .then((res) => res.json())
         .then((data) => {
-          if (data && Array.isArray(data.entries)) renderCompDays(data.entries, data.totals || {});
+          if (data && Array.isArray(data.entries)) renderCompDays(data.entries, data.totals || {}, data.grantedTotals || {});
           else compDaysList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
         })
         .catch(() => {

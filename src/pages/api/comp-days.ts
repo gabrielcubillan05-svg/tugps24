@@ -45,12 +45,21 @@ export const GET: APIRoute = async ({ cookies }) => {
     .map((e) => ({ scheduledDate: null, ...e }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
+  // "totals" = balance disponible/pendiente: las correcciones negativas siempre se restan,
+  // pero un día positivo deja de contar en cuanto se le asigna una fecha (ya quedó comprometido/dado).
   const totals: Record<string, number> = {};
+  const grantedTotals: Record<string, number> = {};
   entries.forEach((e) => {
-    totals[e.operator] = (totals[e.operator] || 0) + e.days;
+    if (e.days < 0) {
+      totals[e.operator] = (totals[e.operator] || 0) + e.days;
+    } else if (e.scheduledDate) {
+      grantedTotals[e.operator] = (grantedTotals[e.operator] || 0) + e.days;
+    } else {
+      totals[e.operator] = (totals[e.operator] || 0) + e.days;
+    }
   });
 
-  return new Response(JSON.stringify({ entries, totals }), {
+  return new Response(JSON.stringify({ entries, totals, grantedTotals }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };

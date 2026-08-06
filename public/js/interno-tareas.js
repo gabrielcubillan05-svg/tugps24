@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', function () {
               <option value="En progreso" ${t.status === 'En progreso' ? 'selected' : ''}>En progreso</option>
               <option value="Cancelada" ${t.status === 'Cancelada' ? 'selected' : ''}>Cancelada</option>
             </select>
-            <button class="btn-small btn-done" data-action="attach" data-id="${t.id}" type="button">Adjuntar foto</button>
+            <button class="btn-small btn-done" data-action="attach" data-id="${t.id}" type="button" title="También puedes cancelar el explorador y pegar una captura con Ctrl+V">Adjuntar foto</button>
             ${t.status !== 'Completada' ? `<button class="btn-small btn-done" data-action="complete" data-id="${t.id}" type="button">Marcar completada</button>` : ''}
           </div>
         ` : ''}
@@ -209,9 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return res.json();
   }
 
-  hiddenFileInput.addEventListener('change', async function () {
-    const file = hiddenFileInput.files && hiddenFileInput.files[0];
-    hiddenFileInput.value = '';
+  async function handlePendingFile(file) {
     if (!file || !pendingTaskId) return;
     const taskId = pendingTaskId;
     const completeAfter = pendingCompleteAfter;
@@ -235,6 +233,21 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (err) {
       alert(err.message || 'Ocurrió un error.');
     }
+  }
+
+  hiddenFileInput.addEventListener('change', function () {
+    const file = hiddenFileInput.files && hiddenFileInput.files[0];
+    hiddenFileInput.value = '';
+    handlePendingFile(file);
+  });
+
+  document.addEventListener('paste', function (e) {
+    if (!pendingTaskId) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    if (!imageItem) return;
+    const file = imageItem.getAsFile();
+    if (file) handlePendingFile(file);
   });
 
   tasksList.addEventListener('change', function (e) {
