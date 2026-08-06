@@ -124,15 +124,18 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         ` : ''}
         ${isAdmin ? `<div class="task-controls"><button class="btn-small btn-delete" data-action="delete" data-id="${t.id}">Eliminar</button></div>` : ''}
-        <div class="add-note-row">
-          <input type="text" placeholder="Agregar nota de seguimiento..." data-note-input data-id="${t.id}" />
-          <button class="btn-small" data-action="addnote" data-id="${t.id}" type="button">Agregar</button>
-        </div>
-        ${t.notes && t.notes.length ? `
-          <div class="notes-list">
-            ${t.notes.map((n) => `<div class="note-item"><span class="note-date">${fmtDate(n.date)} · ${escapeHtml(n.by)}</span>${escapeHtml(n.text)}</div>`).join('')}
+        <div class="followup-section">
+          <h4>Seguimiento</h4>
+          <div class="add-note-row">
+            <input type="text" placeholder="Agregar nota de seguimiento... (o pega una captura con Ctrl+V)" data-note-input data-id="${t.id}" />
+            <button class="btn-small" data-action="addnote" data-id="${t.id}" type="button">Agregar</button>
           </div>
-        ` : ''}
+          ${t.notes && t.notes.length ? `
+            <div class="notes-list">
+              ${t.notes.map((n) => `<div class="note-item"><span class="note-date">${fmtDate(n.date)} · ${escapeHtml(n.by)}</span>${escapeHtml(n.text)}</div>`).join('')}
+            </div>
+          ` : ''}
+        </div>
       </div>
     `;
     }).join('');
@@ -242,6 +245,11 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   document.addEventListener('paste', function (e) {
+    const noteInput = e.target.closest && e.target.closest('[data-note-input]');
+    if (noteInput) {
+      pendingTaskId = noteInput.getAttribute('data-id');
+      pendingCompleteAfter = false;
+    }
     if (!pendingTaskId) return;
     const items = Array.from(e.clipboardData?.items || []);
     const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
