@@ -45,7 +45,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
           <input id="campaign" type="text" placeholder="Ej: Facebook - Promo aniversario" />
         </div>
         <div class="field">
-          <label for="secretary">Secretaria asignada</label>
+          <label for="secretary">Secretaria / Gerente asignado</label>
           <select id="secretary">
             <option value="">Sin asignar</option>
           </select>
@@ -85,7 +85,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por nombre, teléfono o campaña..." />
       <select id="cityFilter"><option value="">Todas las ciudades</option></select>
-      <select id="secretaryFilter"><option value="">Todas las secretarias</option></select>
+      <select id="secretaryFilter"><option value="">Todos (secretaria/gerente)</option></select>
       <select id="statusFilter">
         <option value="">Todos los estados</option>
         {STATUSES.map((s) => <option value={s}>{s}</option>)}

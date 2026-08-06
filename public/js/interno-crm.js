@@ -20,12 +20,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const secretarySelect = document.getElementById('secretary');
 
   function loadSecretaries() {
-    fetch('/api/users?role=secretaria')
+    fetch('/api/users?role=secretaria,gerente')
       .then((res) => res.json())
       .then((data) => {
         if (!data || !Array.isArray(data.users)) return;
         secretarySelect.innerHTML = '<option value="">Sin asignar</option>' +
-          data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+          data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}${u.role === 'gerente' ? ' (Gerente)' : ''}</option>`).join('');
       })
       .catch(() => {});
   }
