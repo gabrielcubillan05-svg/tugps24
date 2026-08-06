@@ -114,13 +114,20 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!token) {
       return new Response(JSON.stringify({ error: 'almacenamiento de imágenes no configurado' }), { status: 503 });
     }
-    for (const file of imageFiles.slice(0, MAX_IMAGES)) {
-      const blob = await put(`reports/${id}-${randomUUID()}`, file, {
-        access: 'public',
-        token,
-        addRandomSuffix: false,
-      });
-      images.push(blob.url);
+    try {
+      for (const file of imageFiles.slice(0, MAX_IMAGES)) {
+        const blob = await put(`reports/${id}-${randomUUID()}`, file, {
+          access: 'public',
+          token,
+          addRandomSuffix: false,
+        });
+        images.push(blob.url);
+      }
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ error: 'fallo al subir imagen', detail: err instanceof Error ? err.message : String(err) }),
+        { status: 500 }
+      );
     }
   }
 
