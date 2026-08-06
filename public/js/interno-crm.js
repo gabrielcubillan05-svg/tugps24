@@ -96,6 +96,42 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  let editingId = null;
+  let editError = '';
+
+  function renderEditForm(l) {
+    return `
+      <div class="lead-item" data-id="${l.id}">
+        <div class="form-grid">
+          <div class="field">
+            <label>Nombre</label>
+            <input type="text" data-edit="name" value="${escapeHtml(l.name)}" />
+          </div>
+          <div class="field">
+            <label>Teléfono</label>
+            <input type="tel" data-edit="phone" value="${escapeHtml(l.phone)}" />
+          </div>
+          <div class="field">
+            <label>Ciudad</label>
+            <select data-edit="city">
+              <option value="">Selecciona una ciudad</option>
+              ${BRANCHES.map((b) => `<option value="${b}" ${b === l.city ? 'selected' : ''}>${b}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Campaña / anuncio de origen</label>
+            <input type="text" data-edit="campaign" value="${escapeHtml(l.campaign)}" />
+          </div>
+        </div>
+        ${editError ? `<p class="error-msg">${escapeHtml(editError)}</p>` : ''}
+        <div class="lead-controls">
+          <button class="btn-small btn-done" data-action="save-edit" data-id="${l.id}" type="button">Guardar cambios</button>
+          <button class="btn-small" data-action="cancel-edit" data-id="${l.id}" type="button">Cancelar</button>
+        </div>
+      </div>
+    `;
+  }
+
   function renderLeads() {
     const leads = getFilteredLeads();
     if (!leads.length) {
@@ -103,7 +139,9 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    leadsList.innerHTML = leads.map((l) => `
+    leadsList.innerHTML = leads.map((l) => {
+      if (l.id === editingId) return renderEditForm(l);
+      return `
       <div class="lead-item ${l.overdue ? 'overdue' : ''}" data-id="${l.id}">
         <div class="lead-top">
           <span class="lead-name">${escapeHtml(l.name)}</span>
@@ -131,6 +169,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <option value="Carro" ${l.vehicleType === 'Carro' ? 'selected' : ''}>Carro</option>
             <option value="Flota" ${l.vehicleType === 'Flota' ? 'selected' : ''}>Flota</option>
           </select>
+          <button class="btn-small" data-action="edit" data-id="${l.id}" type="button">Editar</button>
           <button class="btn-small" data-action="quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
         </div>
@@ -144,7 +183,8 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         ` : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function loadLeads() {
@@ -252,6 +292,42 @@ document.addEventListener('DOMContentLoaded', function () {
       }).then(loadLeads);
     } else if (action === 'quote') {
       generateQuoteForLead(id, btn);
+    } else if (action === 'edit') {
+      editingId = id;
+      editError = '';
+      renderLeads();
+    } else if (action === 'cancel-edit') {
+      editingId = null;
+      editError = '';
+      renderLeads();
+    } else if (action === 'save-edit') {
+      const card = leadsList.querySelector(`.lead-item[data-id="${id}"]`);
+      const name = card.querySelector('[data-edit="name"]').value.trim();
+      const phone = card.querySelector('[data-edit="phone"]').value.trim();
+      const city = card.querySelector('[data-edit="city"]').value;
+      const campaign = card.querySelector('[data-edit="campaign"]').value.trim();
+      if (!name || !phone) {
+        editError = 'Nombre y teléfono son obligatorios.';
+        renderLeads();
+        return;
+      }
+      btn.disabled = true;
+      fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, phone, city, campaign }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
+          editingId = null;
+          editError = '';
+          loadLeads();
+        })
+        .catch((err) => {
+          editError = err.message || 'No se pudo guardar.';
+          renderLeads();
+        });
     }
   });
 

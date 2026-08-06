@@ -15,16 +15,24 @@ document.addEventListener('DOMContentLoaded', function () {
   const scheduledList = document.getElementById('scheduledList');
   if (!scheduledList) return;
 
-  function renderScheduled(reports) {
+  const tabButtons = document.querySelectorAll('.tab-btn[data-bucket]');
+  let currentBucket = '';
+  let allReports = [];
+
+  const BUCKET_LABELS = { pendiente: 'Pendiente', 'por-realizar': 'Por realizar', 'al-dia': 'Al día' };
+  const BUCKET_CLASS = { pendiente: 'danger', 'por-realizar': '', 'al-dia': 'ok' };
+
+  function renderScheduled() {
+    const reports = currentBucket ? allReports.filter((r) => r.bucket === currentBucket) : allReports;
     if (!reports.length) {
-      scheduledList.innerHTML = '<div class="empty">No hay reportes programados todavía.</div>';
+      scheduledList.innerHTML = '<div class="empty">No hay reportes en esta vista.</div>';
       return;
     }
     scheduledList.innerHTML = reports.map((r) => `
-      <div class="list-item ${r.pending ? 'pending' : ''}" data-id="${r.id}">
+      <div class="list-item ${r.bucket === 'pendiente' ? 'pending' : ''}" data-id="${r.id}">
         <div class="item-top">
           <span class="title">${escapeHtml(r.client)} — ${escapeHtml(r.reportType)}</span>
-          <span class="badge status ${r.pending ? '' : 'ok'}">${r.pending ? 'Pendiente' : 'Al día'}</span>
+          <span class="badge status ${BUCKET_CLASS[r.bucket]}">${BUCKET_LABELS[r.bucket]}</span>
         </div>
         <div class="meta">
           Operador: ${escapeHtml(r.operator)} · Frecuencia: ${escapeHtml(r.frequency)} ·
@@ -42,13 +50,26 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch('/api/scheduled-reports')
       .then((res) => res.json())
       .then((data) => {
-        if (data && Array.isArray(data.reports)) renderScheduled(data.reports);
-        else scheduledList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+        if (data && Array.isArray(data.reports)) {
+          allReports = data.reports;
+          renderScheduled();
+        } else {
+          scheduledList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+        }
       })
       .catch(() => {
         scheduledList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
       });
   }
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', function () {
+      tabButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentBucket = btn.getAttribute('data-bucket') || '';
+      renderScheduled();
+    });
+  });
 
   scheduledForm.addEventListener('submit', function (e) {
     e.preventDefault();

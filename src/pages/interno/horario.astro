@@ -12,6 +12,7 @@ if (!canAccessSection(session.role, 'horario')) {
 }
 
 const canCompDays = canManageCompDays(session.role);
+const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 ---
 
 <InternoLayout title="Horario" active="horario" session={session}>
@@ -29,12 +30,25 @@ const canCompDays = canManageCompDays(session.role);
             <option value="">Cargando empleados...</option>
           </select>
         </div>
+        <div class="field">
+          <label for="sc-start">Hora inicio</label>
+          <input id="sc-start" type="time" required />
+        </div>
+        <div class="field">
+          <label for="sc-end">Hora fin</label>
+          <input id="sc-end" type="time" required />
+        </div>
         <div class="field field-note">
-          <label for="sc-horario">Franja de horario</label>
-          <input id="sc-horario" type="text" placeholder="Ej: Lunes a miércoles, turno 6am-2pm" required />
+          <label>Días</label>
+          <div class="day-checks">
+            {DAYS.map((d) => (
+              <label class="day-check"><input type="checkbox" class="sc-day" value={d} /> {d.slice(0, 3)}</label>
+            ))}
+          </div>
         </div>
       </div>
       <button class="btn" type="submit">Agregar franja</button>
+      <p id="scheduleError" class="error-msg" style="display:none; margin-top:10px;"></p>
     </form>
   </div>
   <div class="panel-card">
@@ -60,6 +74,10 @@ const canCompDays = canManageCompDays(session.role);
               <label for="cd-days">Días (+ / -)</label>
               <input id="cd-days" type="number" step="1" placeholder="Ej: 1 o -1" required />
             </div>
+            <div class="field">
+              <label for="cd-scheduled">Fecha en que se dará (opcional)</label>
+              <input id="cd-scheduled" type="date" />
+            </div>
             <div class="field field-note">
               <label for="cd-note">Nota</label>
               <input id="cd-note" type="text" placeholder="Motivo" />
@@ -79,6 +97,70 @@ const canCompDays = canManageCompDays(session.role);
       </div>
     )}
   </div>
+
+  <div class="panel-card">
+    <h2>Contratos y vacaciones</h2>
+    {canCompDays ? (
+      <div id="contractsArea">
+        <form id="contractForm" style="margin-bottom:20px;">
+          <div class="form-grid cols-4">
+            <div class="field">
+              <label for="ct-employee">Empleado</label>
+              <select id="ct-employee" required>
+                <option value="">Cargando empleados...</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="ct-type">Tipo</label>
+              <select id="ct-type" required>
+                <option value="Contrato">Contrato</option>
+                <option value="Vacaciones">Vacaciones</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="ct-start">Fecha inicio</label>
+              <input id="ct-start" type="date" required />
+            </div>
+            <div class="field">
+              <label for="ct-end">Fecha fin</label>
+              <input id="ct-end" type="date" />
+            </div>
+            <div class="field field-note">
+              <label for="ct-note">Nota</label>
+              <input id="ct-note" type="text" placeholder="Detalle (opcional)" />
+            </div>
+          </div>
+          <button class="btn" type="submit">Registrar</button>
+        </form>
+        <div class="list-col" id="contractsList">
+          <div class="empty">Cargando...</div>
+        </div>
+      </div>
+    ) : (
+      <div class="supervisor-gate">
+        <p style="color:var(--slate); font-size:13.5px;">
+          Esta sección es solo para supervisores, gerentes y administradores.
+        </p>
+      </div>
+    )}
+  </div>
 </InternoLayout>
+
+<style>
+  .day-checks { display: flex; gap: 10px; flex-wrap: wrap; }
+  .day-check {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    color: var(--paper-dim);
+    cursor: pointer;
+    width: auto;
+  }
+  .day-check input { width: auto; }
+</style>
 
 <script src="/js/interno-horario.js" defer></script>

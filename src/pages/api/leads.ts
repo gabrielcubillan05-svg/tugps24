@@ -40,6 +40,10 @@ interface Lead {
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', ''];
 
+function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, '');
+}
+
 function computeOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUp) return false;
   if (lead.status === 'Convertido' || lead.status === 'Perdido') return false;
@@ -111,6 +115,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'nombre y teléfono son obligatorios' }), { status: 400 });
   }
 
+  const normalizedPhone = normalizePhone(phone);
+  const existingLeads = await readLeads(redis);
+  if (existingLeads.some((l) => normalizePhone(l.phone) === normalizedPhone)) {
+    return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese número de teléfono' }), { status: 409 });
+  }
+
   const now = new Date().toISOString();
   const initialNote = String((body as any).initialNote || '').trim();
 
@@ -155,6 +165,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   let body: {
     id?: string;
+    name?: string;
+    phone?: string;
+    city?: string;
+    campaign?: string;
     status?: string;
     nextFollowUp?: string | null;
     convertedBranch?: string;
@@ -185,6 +199,31 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
+  if (body.name !== undefined) {
+    const name = String(body.name).trim();
+    if (!name) {
+      return new Response(JSON.stringify({ error: 'el nombre no puede quedar vacío' }), { status: 400 });
+    }
+    lead.name = name;
+  }
+  if (body.phone !== undefined) {
+    const phone = String(body.phone).trim();
+    if (!phone) {
+      return new Response(JSON.stringify({ error: 'el teléfono no puede quedar vacío' }), { status: 400 });
+    }
+    const normalizedPhone = normalizePhone(phone);
+    const others = await readLeads(redis);
+    if (others.some((l) => l.id !== id && normalizePhone(l.phone) === normalizedPhone)) {
+      return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese número de teléfono' }), { status: 409 });
+    }
+    lead.phone = phone;
+  }
+  if (body.city !== undefined) {
+    lead.city = String(body.city).trim();
+  }
+  if (body.campaign !== undefined) {
+    lead.campaign = String(body.campaign).trim();
+  }
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) {
       return new Response(JSON.stringify({ error: 'invalid status' }), { status: 400 });

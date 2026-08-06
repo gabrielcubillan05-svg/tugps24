@@ -35,7 +35,10 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 
         </div>
         <div class="field">
           <label for="city">Ciudad</label>
-          <input id="city" type="text" placeholder="Ej: Riohacha" />
+          <select id="city">
+            <option value="">Selecciona una ciudad</option>
+            {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+          </select>
         </div>
         <div class="field">
           <label for="campaign">Campaña / anuncio de origen</label>

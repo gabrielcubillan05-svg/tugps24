@@ -30,12 +30,19 @@ interface ScheduledReport {
   createdAt: string;
 }
 
+const SOON_WINDOW_MS = 2 * 24 * 60 * 60 * 1000; // "por realizar": vence en los próximos 2 días
+
 function withStatus(r: ScheduledReport) {
   const intervalDays = FREQUENCIES[r.frequency] || 7;
   const base = new Date(r.lastDoneAt || r.createdAt);
   const nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
   const pending = nextDue.getTime() <= Date.now();
-  return { ...r, nextDue: nextDue.toISOString(), pending };
+  const bucket: 'pendiente' | 'por-realizar' | 'al-dia' = pending
+    ? 'pendiente'
+    : nextDue.getTime() - Date.now() <= SOON_WINDOW_MS
+    ? 'por-realizar'
+    : 'al-dia';
+  return { ...r, nextDue: nextDue.toISOString(), pending, bucket };
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
@@ -58,7 +65,10 @@ export const GET: APIRoute = async ({ cookies }) => {
     })
     .filter((r): r is ScheduledReport => r !== null)
     .map(withStatus)
-    .sort((a, b) => (a.pending === b.pending ? 0 : a.pending ? -1 : 1));
+    .sort((a, b) => {
+      const order = { pendiente: 0, 'por-realizar': 1, 'al-dia': 2 };
+      return order[a.bucket] - order[b.bucket];
+    });
 
   return new Response(JSON.stringify({ reports, frequencies: Object.keys(FREQUENCIES) }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },

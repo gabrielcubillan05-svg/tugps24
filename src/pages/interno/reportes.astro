@@ -47,7 +47,13 @@ const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
     </form>
   </div>
   <div class="panel-card">
-    <h2>Reportes pendientes y al día</h2>
+    <h2>Reportes</h2>
+    <div class="tabs">
+      <button class="tab-btn active" data-bucket="" type="button">Todos</button>
+      <button class="tab-btn" data-bucket="pendiente" type="button">Pendientes</button>
+      <button class="tab-btn" data-bucket="por-realizar" type="button">Por realizar</button>
+      <button class="tab-btn" data-bucket="al-dia" type="button">Al día</button>
+    </div>
     <div class="list-col" id="scheduledList">
       <div class="empty">Cargando...</div>
     </div>

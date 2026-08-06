@@ -6,25 +6,27 @@ import { SESSION_COOKIE, getSession, canManageCompDays, verifySameOrigin } from 
 
 export const prerender = false;
 
-const REDIS_KEY = 'internal:comp-days';
+const REDIS_KEY = 'internal:contracts';
+const TYPES = ['Contrato', 'Vacaciones'];
 
-interface CompDay {
+interface ContractEntry {
   id: string;
-  operator: string;
-  days: number;
+  employee: string;
+  type: string;
+  startDate: string;
+  endDate: string | null;
   note: string;
-  scheduledDate: string | null;
   createdAt: string;
 }
 
-async function requireCompDays(cookies: any) {
+async function requireContracts(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canManageCompDays(session.role)) return null;
   return session;
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
-  if (!(await requireCompDays(cookies))) {
+  if (!(await requireContracts(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -41,16 +43,10 @@ export const GET: APIRoute = async ({ cookies }) => {
         return null;
       }
     })
-    .filter((e): e is CompDay => e !== null)
-    .map((e) => ({ scheduledDate: null, ...e }))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .filter((e): e is ContractEntry => e !== null)
+    .sort((a, b) => b.startDate.localeCompare(a.startDate));
 
-  const totals: Record<string, number> = {};
-  entries.forEach((e) => {
-    totals[e.operator] = (totals[e.operator] || 0) + e.days;
-  });
-
-  return new Response(JSON.stringify({ entries, totals }), {
+  return new Response(JSON.stringify({ entries, types: TYPES }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
@@ -59,7 +55,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!verifySameOrigin(request)) {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   }
-  const session = await requireCompDays(cookies);
+  const session = await requireContracts(cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
@@ -68,33 +64,35 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { operator?: string; days?: number; note?: string; scheduledDate?: string | null };
+  let body: { employee?: string; type?: string; startDate?: string; endDate?: string | null; note?: string };
   try {
     body = await request.json();
   } catch {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
 
-  const operator = String(body.operator || '').trim();
-  const days = Number(body.days);
+  const employee = String(body.employee || '').trim();
+  const type = String(body.type || '');
+  const startDate = String(body.startDate || '').trim();
+  const endDate = body.endDate ? String(body.endDate) : null;
   const note = String(body.note || '').trim();
-  const scheduledDate = body.scheduledDate ? String(body.scheduledDate) : null;
 
-  if (!operator || !Number.isFinite(days) || days === 0) {
+  if (!employee || !TYPES.includes(type) || !startDate) {
     return new Response(JSON.stringify({ error: 'missing or invalid fields' }), { status: 400 });
   }
 
-  const entry: CompDay = {
+  const entry: ContractEntry = {
     id: randomUUID(),
-    operator,
-    days,
+    employee,
+    type,
+    startDate,
+    endDate,
     note,
-    scheduledDate,
     createdAt: new Date().toISOString(),
   };
 
   await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });
-  await logAudit(redis, session, 'comp_day_create', operator, `${days} día(s)`);
+  await logAudit(redis, session, 'contract_create', employee, `${type}: ${startDate}${endDate ? ' – ' + endDate : ''}`);
 
   return new Response(JSON.stringify({ entry }), {
     headers: { 'Content-Type': 'application/json' },
@@ -105,7 +103,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
   if (!verifySameOrigin(request)) {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   }
-  const session = await requireCompDays(cookies);
+  const session = await requireContracts(cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
@@ -122,7 +120,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
   }
 
   await redis.hdel(REDIS_KEY, String(body.id || ''));
-  await logAudit(redis, session, 'comp_day_delete', String(body.id || ''));
+  await logAudit(redis, session, 'contract_delete', String(body.id || ''));
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },
   });

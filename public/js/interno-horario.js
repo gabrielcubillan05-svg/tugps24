@@ -11,9 +11,15 @@ document.addEventListener('DOMContentLoaded', function () {
     return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
-  // ---------- Lista de empleados (para los selectores de abajo) ----------
+  function fmtDateOnly(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString('es-CO', { dateStyle: 'medium' });
+  }
+
+  // ---------- Lista de empleados (para los selectores de esta página) ----------
   const scOperatorSelect = document.getElementById('sc-operator');
   const cdOperatorSelect = document.getElementById('cd-operator');
+  const ctEmployeeSelect = document.getElementById('ct-employee');
 
   function loadEmployees() {
     fetch('/api/users')
@@ -24,18 +30,38 @@ document.addEventListener('DOMContentLoaded', function () {
           data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
         if (scOperatorSelect) scOperatorSelect.innerHTML = options;
         if (cdOperatorSelect) cdOperatorSelect.innerHTML = options;
+        if (ctEmployeeSelect) ctEmployeeSelect.innerHTML = options;
       })
       .catch(() => {
         const fallback = '<option value="">No se pudo cargar la lista</option>';
         if (scOperatorSelect) scOperatorSelect.innerHTML = fallback;
         if (cdOperatorSelect) cdOperatorSelect.innerHTML = fallback;
+        if (ctEmployeeSelect) ctEmployeeSelect.innerHTML = fallback;
       });
   }
   loadEmployees();
 
   // ---------- Horario ----------
+  const DAY_ORDER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
   const scheduleForm = document.getElementById('scheduleForm');
   const scheduleList = document.getElementById('scheduleList');
+  const scheduleError = document.getElementById('scheduleError');
+
+  function composeHorario(selectedDays, start, end) {
+    const ordered = DAY_ORDER.filter((d) => selectedDays.includes(d));
+    const indices = ordered.map((d) => DAY_ORDER.indexOf(d));
+    let daysLabel;
+    const isContiguous = indices.every((v, i) => i === 0 || v === indices[i - 1] + 1);
+    if (ordered.length === 1) {
+      daysLabel = ordered[0];
+    } else if (isContiguous) {
+      daysLabel = `${ordered[0]} a ${ordered[ordered.length - 1]}`;
+    } else {
+      daysLabel = ordered.join(', ');
+    }
+    return `${daysLabel}, turno ${start}-${end}`;
+  }
+
   if (scheduleList) {
     function renderSchedule(schedule) {
       if (!schedule.length) {
@@ -75,9 +101,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     scheduleForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      const operator = document.getElementById('sc-operator').value.trim();
-      const horario = document.getElementById('sc-horario').value.trim();
-      if (!operator || !horario) return;
+      scheduleError.style.display = 'none';
+      const operator = scOperatorSelect.value;
+      const start = document.getElementById('sc-start').value;
+      const end = document.getElementById('sc-end').value;
+      const selectedDays = Array.from(scheduleForm.querySelectorAll('.sc-day:checked')).map((el) => el.value);
+
+      if (!operator || !start || !end || !selectedDays.length) {
+        scheduleError.textContent = 'Selecciona el empleado, al menos un día y ambas horas.';
+        scheduleError.style.display = 'block';
+        return;
+      }
+
+      const horario = composeHorario(selectedDays, start, end);
 
       fetch('/api/schedule', {
         method: 'POST',
@@ -86,10 +122,15 @@ document.addEventListener('DOMContentLoaded', function () {
       })
         .then((res) => res.json())
         .then(() => {
-          document.getElementById('sc-horario').value = '';
+          scheduleForm.querySelectorAll('.sc-day:checked').forEach((el) => { el.checked = false; });
+          document.getElementById('sc-start').value = '';
+          document.getElementById('sc-end').value = '';
           loadSchedule();
         })
-        .catch(() => alert('No se pudo guardar.'));
+        .catch(() => {
+          scheduleError.textContent = 'No se pudo guardar.';
+          scheduleError.style.display = 'block';
+        });
     });
 
     scheduleList.addEventListener('click', function (e) {
@@ -128,7 +169,10 @@ document.addEventListener('DOMContentLoaded', function () {
             <span class="badge">${e.days > 0 ? '+' : ''}${e.days} día(s)</span>
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
-          <div class="meta">${fmtDate(e.createdAt)}</div>
+          <div class="meta">
+            ${fmtDate(e.createdAt)}
+            ${e.scheduledDate ? ' · Se dará el ' + fmtDateOnly(e.scheduledDate) : ''}
+          </div>
           <div class="item-actions">
             <button class="btn-small btn-delete" data-action="delete-cd" data-id="${e.id}">Eliminar</button>
           </div>
@@ -151,15 +195,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (compDaysForm) {
       compDaysForm.addEventListener('submit', function (e) {
         e.preventDefault();
-        const operator = document.getElementById('cd-operator').value.trim();
+        const operator = cdOperatorSelect.value;
         const days = Number(document.getElementById('cd-days').value);
         const note = document.getElementById('cd-note').value.trim();
+        const scheduledDate = document.getElementById('cd-scheduled').value || null;
         if (!operator || !days) return;
 
         fetch('/api/comp-days', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operator, days, note }),
+          body: JSON.stringify({ operator, days, note, scheduledDate }),
         })
           .then((res) => res.json())
           .then(() => {
@@ -183,5 +228,82 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     loadCompDays();
+  }
+
+  // ---------- Contratos y vacaciones ----------
+  const contractForm = document.getElementById('contractForm');
+  const contractsList = document.getElementById('contractsList');
+  if (contractsList) {
+    function renderContracts(entries) {
+      if (!entries.length) {
+        contractsList.innerHTML = '<div class="empty">No hay registros todavía.</div>';
+        return;
+      }
+      contractsList.innerHTML = entries.map((e) => `
+        <div class="list-item">
+          <div class="item-top">
+            <span class="title">${escapeHtml(e.employee)}</span>
+            <span class="badge">${escapeHtml(e.type)}</span>
+          </div>
+          <div class="meta">
+            ${fmtDateOnly(e.startDate)}${e.endDate ? ' – ' + fmtDateOnly(e.endDate) : ''}
+          </div>
+          ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
+          <div class="item-actions">
+            <button class="btn-small btn-delete" data-action="delete-ct" data-id="${e.id}">Eliminar</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function loadContracts() {
+      fetch('/api/contracts')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && Array.isArray(data.entries)) renderContracts(data.entries);
+          else contractsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+        })
+        .catch(() => {
+          contractsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+        });
+    }
+
+    if (contractForm) {
+      contractForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const employee = ctEmployeeSelect.value;
+        const type = document.getElementById('ct-type').value;
+        const startDate = document.getElementById('ct-start').value;
+        const endDate = document.getElementById('ct-end').value || null;
+        const note = document.getElementById('ct-note').value.trim();
+        if (!employee || !type || !startDate) return;
+
+        fetch('/api/contracts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employee, type, startDate, endDate, note }),
+        })
+          .then((res) => res.json())
+          .then(() => {
+            contractForm.reset();
+            loadContracts();
+          })
+          .catch(() => alert('No se pudo guardar.'));
+      });
+    }
+
+    contractsList.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-action="delete-ct"]');
+      if (!btn) return;
+      if (!confirm('¿Eliminar este registro?')) return;
+      const id = btn.getAttribute('data-id');
+      fetch('/api/contracts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).then(loadContracts);
+    });
+
+    loadContracts();
   }
 });
