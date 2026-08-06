@@ -151,29 +151,41 @@ document.addEventListener('DOMContentLoaded', function () {
   // ---------- Días compensatorios ----------
   const compDaysForm = document.getElementById('compDaysForm');
   const compDaysList = document.getElementById('compDaysList');
+  const compDaysTotals = document.getElementById('compDaysTotals');
   if (compDaysList) {
-    function renderCompDays(entries, totals) {
-      const totalsHtml = Object.keys(totals).length
-        ? '<div class="meta" style="margin-bottom:14px;">' +
-          Object.entries(totals).map(([op, d]) => `${escapeHtml(op)}: <b>${d}</b> día(s)`).join(' · ') +
-          '</div>'
-        : '';
-      if (!entries.length) {
-        compDaysList.innerHTML = totalsHtml + '<div class="empty">No hay registros todavía.</div>';
+    function renderCompDaysTotals(totals) {
+      if (!compDaysTotals) return;
+      const rows = Object.entries(totals);
+      if (!rows.length) {
+        compDaysTotals.innerHTML = '';
         return;
       }
-      compDaysList.innerHTML = totalsHtml + entries.map((e) => `
+      compDaysTotals.innerHTML = rows.map(([op, d]) => `
+        <div class="stat-box">
+          <span class="n">${d}</span>
+          <span class="l">${escapeHtml(op)}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderCompDays(entries, totals) {
+      renderCompDaysTotals(totals);
+      if (!entries.length) {
+        compDaysList.innerHTML = '<div class="empty">No hay registros todavía.</div>';
+        return;
+      }
+      compDaysList.innerHTML = entries.map((e) => `
         <div class="list-item">
           <div class="item-top">
             <span class="title">${escapeHtml(e.operator)}</span>
             <span class="badge">${e.days > 0 ? '+' : ''}${e.days} día(s)</span>
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
-          <div class="meta">
-            ${fmtDate(e.createdAt)}
-            ${e.scheduledDate ? ' · Se dará el ' + fmtDateOnly(e.scheduledDate) : ''}
-          </div>
-          <div class="item-actions">
+          <div class="meta">${fmtDate(e.createdAt)}</div>
+          <div class="item-actions" style="align-items:center;">
+            <label style="color:var(--slate); font-size:12px;">Se dará el:</label>
+            <input type="date" data-schedule-input data-id="${e.id}" value="${e.scheduledDate ? e.scheduledDate.slice(0, 10) : ''}" style="width:auto;" />
+            <button class="btn-small btn-done" data-action="save-schedule" data-id="${e.id}" type="button">Guardar fecha</button>
             <button class="btn-small btn-delete" data-action="delete-cd" data-id="${e.id}">Eliminar</button>
           </div>
         </div>
@@ -216,15 +228,30 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     compDaysList.addEventListener('click', function (e) {
-      const btn = e.target.closest('button[data-action="delete-cd"]');
-      if (!btn) return;
-      if (!confirm('¿Eliminar este registro?')) return;
-      const id = btn.getAttribute('data-id');
-      fetch('/api/comp-days', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      }).then(loadCompDays);
+      const delBtn = e.target.closest('button[data-action="delete-cd"]');
+      if (delBtn) {
+        if (!confirm('¿Eliminar este registro?')) return;
+        const id = delBtn.getAttribute('data-id');
+        fetch('/api/comp-days', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        }).then(loadCompDays);
+        return;
+      }
+      const schedBtn = e.target.closest('button[data-action="save-schedule"]');
+      if (schedBtn) {
+        const id = schedBtn.getAttribute('data-id');
+        const input = compDaysList.querySelector(`input[data-schedule-input][data-id="${id}"]`);
+        const scheduledDate = input ? input.value || null : null;
+        fetch('/api/comp-days', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, scheduledDate }),
+        })
+          .then(() => loadCompDays())
+          .catch(() => alert('No se pudo guardar la fecha.'));
+      }
     });
 
     loadCompDays();
@@ -233,7 +260,47 @@ document.addEventListener('DOMContentLoaded', function () {
   // ---------- Contratos y vacaciones ----------
   const contractForm = document.getElementById('contractForm');
   const contractsList = document.getElementById('contractsList');
+  const vacationBalancesEl = document.getElementById('vacationBalances');
+  const ctEndInput = document.getElementById('ct-end');
+  const ctIndefiniteCheck = document.getElementById('ct-indefinite');
+
+  if (ctIndefiniteCheck) {
+    ctIndefiniteCheck.addEventListener('change', function () {
+      ctEndInput.disabled = ctIndefiniteCheck.checked;
+      if (ctIndefiniteCheck.checked) ctEndInput.value = '';
+    });
+  }
+
+  const STATUS_LABELS = {
+    vencido: 'Vencido',
+    proximo: 'Próximo a vencer',
+    proxima: 'Próxima',
+    vigente: 'Vigente',
+    indefinido: 'Indefinido',
+    programada: 'Programada',
+  };
+
   if (contractsList) {
+    function renderVacationBalances(balances) {
+      if (!vacationBalancesEl) return;
+      if (!balances.length) {
+        vacationBalancesEl.innerHTML = '<div class="empty">Sin datos todavía (registra al menos un contrato por empleado).</div>';
+        return;
+      }
+      vacationBalancesEl.innerHTML = balances.map((b) => `
+        <div class="list-item">
+          <div class="item-top">
+            <span class="title">${escapeHtml(b.employee)}</span>
+            <span class="badge">${b.remainingDays} día(s) disponibles</span>
+          </div>
+          <div class="meta">
+            ${b.hireDate ? 'Ingreso: ' + fmtDateOnly(b.hireDate) + ' · Antigüedad: ' + b.yearsOfService + ' año(s)' : 'Sin fecha de ingreso registrada'}
+            · Acumulados: ${b.accruedDays} · Tomados/asignados: ${b.takenDays}
+          </div>
+        </div>
+      `).join('');
+    }
+
     function renderContracts(entries) {
       if (!entries.length) {
         contractsList.innerHTML = '<div class="empty">No hay registros todavía.</div>';
@@ -244,9 +311,10 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="item-top">
             <span class="title">${escapeHtml(e.employee)}</span>
             <span class="badge">${escapeHtml(e.type)}</span>
+            <span class="badge status-${e.status}">${STATUS_LABELS[e.status] || e.status}</span>
           </div>
           <div class="meta">
-            ${fmtDateOnly(e.startDate)}${e.endDate ? ' – ' + fmtDateOnly(e.endDate) : ''}
+            ${fmtDateOnly(e.startDate)}${e.indefinite ? ' – indefinido' : e.endDate ? ' – ' + fmtDateOnly(e.endDate) : ''}
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
           <div class="item-actions">
@@ -260,8 +328,12 @@ document.addEventListener('DOMContentLoaded', function () {
       fetch('/api/contracts')
         .then((res) => res.json())
         .then((data) => {
-          if (data && Array.isArray(data.entries)) renderContracts(data.entries);
-          else contractsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+          if (data && Array.isArray(data.entries)) {
+            renderContracts(data.entries);
+            renderVacationBalances(data.vacationBalances || []);
+          } else {
+            contractsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+          }
         })
         .catch(() => {
           contractsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
@@ -274,21 +346,28 @@ document.addEventListener('DOMContentLoaded', function () {
         const employee = ctEmployeeSelect.value;
         const type = document.getElementById('ct-type').value;
         const startDate = document.getElementById('ct-start').value;
-        const endDate = document.getElementById('ct-end').value || null;
+        const indefinite = ctIndefiniteCheck.checked;
+        const endDate = indefinite ? null : (ctEndInput.value || null);
         const note = document.getElementById('ct-note').value.trim();
         if (!employee || !type || !startDate) return;
+        if (type === 'Vacaciones' && !endDate) {
+          alert('Las vacaciones necesitan fecha de fin.');
+          return;
+        }
 
         fetch('/api/contracts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ employee, type, startDate, endDate, note }),
+          body: JSON.stringify({ employee, type, startDate, endDate, indefinite, note }),
         })
-          .then((res) => res.json())
-          .then(() => {
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
             contractForm.reset();
+            ctEndInput.disabled = false;
             loadContracts();
           })
-          .catch(() => alert('No se pudo guardar.'));
+          .catch((err) => alert(err.message || 'No se pudo guardar.'));
       });
     }
 

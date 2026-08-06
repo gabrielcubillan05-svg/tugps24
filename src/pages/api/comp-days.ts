@@ -101,6 +101,45 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   });
 };
 
+export const PATCH: APIRoute = async ({ request, cookies }) => {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireCompDays(cookies);
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  let body: { id?: string; scheduledDate?: string | null };
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  }
+
+  const id = String(body.id || '');
+  const raw = await redis.hget<string>(REDIS_KEY, id);
+  if (!raw) {
+    return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+  }
+  const entry: CompDay = { scheduledDate: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+
+  if (body.scheduledDate !== undefined) {
+    entry.scheduledDate = body.scheduledDate || null;
+  }
+
+  await redis.hset(REDIS_KEY, { [id]: JSON.stringify(entry) });
+  await logAudit(redis, session, 'comp_day_schedule', entry.operator, entry.scheduledDate || 'sin fecha');
+
+  return new Response(JSON.stringify({ entry }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
 export const DELETE: APIRoute = async ({ request, cookies }) => {
   if (!verifySameOrigin(request)) {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });

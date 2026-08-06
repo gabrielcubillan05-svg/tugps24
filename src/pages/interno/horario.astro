@@ -85,6 +85,8 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
           </div>
           <button class="btn" type="submit">Registrar</button>
         </form>
+        <h3 style="font-size:13.5px; color:var(--paper-dim); margin-bottom:10px;">Días acumulados por empleado</h3>
+        <div class="stats-row" id="compDaysTotals" style="margin-bottom:20px;"></div>
         <div class="list-col" id="compDaysList">
           <div class="empty">Cargando...</div>
         </div>
@@ -124,6 +126,9 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
             <div class="field">
               <label for="ct-end">Fecha fin</label>
               <input id="ct-end" type="date" />
+              <label class="day-check" style="margin-top:8px;">
+                <input type="checkbox" id="ct-indefinite" /> Contrato indefinido (sin fecha fin)
+              </label>
             </div>
             <div class="field field-note">
               <label for="ct-note">Nota</label>
@@ -132,6 +137,8 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
           </div>
           <button class="btn" type="submit">Registrar</button>
         </form>
+        <h3 style="font-size:13.5px; color:var(--paper-dim); margin-bottom:10px;">Balance de vacaciones por empleado</h3>
+        <div class="list-col" id="vacationBalances" style="margin-bottom:20px;"></div>
         <div class="list-col" id="contractsList">
           <div class="empty">Cargando...</div>
         </div>
@@ -161,6 +168,9 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
     width: auto;
   }
   .day-check input { width: auto; }
+  .badge.status-vencido { background: var(--danger); color: #fff; }
+  .badge.status-proximo, .badge.status-proxima { background: #ff7a1a29; color: var(--teal-bright); }
+  .badge.status-indefinido { background: #2f8a4f33; color: var(--ok); }
 </style>
 
 <script src="/js/interno-horario.js" defer></script>
