@@ -16,7 +16,7 @@ async function requireNovedades(cookies: any) {
 
 const REDIS_KEY = 'internal:reports';
 const CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Monitoreo a', 'Monitoreo en', 'Monitoreo vía', 'Monitoreo retornando', 'Otro'];
-const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 const MAX_IMAGES = 4;
 
 interface Report {
@@ -160,11 +160,15 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     (u) => u.active && u.id !== session.userId && (u.role === 'supervisor' || u.role === 'gerente' || u.role === 'admin')
   );
   for (const manager of managers) {
-    await pushNotification(redis, manager.id, {
-      type: 'novedad',
-      message: `Nueva novedad: ${report.plate} · ${report.branch} (${report.category})`,
-      link: '/interno/novedades',
-    });
+    try {
+      await pushNotification(redis, manager.id, {
+        type: 'novedad',
+        message: `Nueva novedad: ${report.plate} · ${report.branch} (${report.category})`,
+        link: '/interno/novedades',
+      });
+    } catch {
+      // no debe tumbar el guardado del reporte si falla notificar a un gerente puntual
+    }
   }
 
   return new Response(JSON.stringify({ report }), {
