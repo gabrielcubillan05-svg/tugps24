@@ -8,6 +8,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (!bellBtn || !dropdown) return;
 
+  let previousUnread = null;
+  let audioCtx = null;
+
+  function playBeep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.16, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.35);
+    } catch (e) {
+      // navegador bloqueó el audio (sin interacción previa) — se ignora, no rompe nada
+    }
+  }
+
   function escapeHtml(str) {
     return String(str || '')
       .replace(/&/g, '&amp;')
@@ -51,6 +72,10 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
           bellBadge.style.display = 'none';
         }
+        if (previousUnread !== null && data.unreadCount > previousUnread) {
+          playBeep();
+        }
+        previousUnread = data.unreadCount;
       })
       .catch(() => {});
   }

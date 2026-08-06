@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, verifySameOrigin } from '../../lib/auth';
+import { pushNotification } from '../../lib/notifications';
 import { getConversation, saveConversation } from './conversations';
 
 export const prerender = false;
@@ -88,10 +89,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
 
+  const sender = await findUserById(redis, session.userId);
   const message: Message = {
     id: randomUUID(),
     senderId: session.userId,
-    senderName: session.username,
+    senderName: sender?.name || session.username,
     text,
     createdAt: new Date().toISOString(),
   };
@@ -102,12 +104,25 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   conversation.lastMessageAt = message.createdAt;
   conversation.lastMessagePreview = text.slice(0, 120);
-  conversation.memberIds.forEach((memberId) => {
-    if (memberId !== session.userId) {
-      conversation.unread[memberId] = (conversation.unread[memberId] || 0) + 1;
-    }
+  const recipients = conversation.memberIds.filter((memberId) => memberId !== session.userId);
+  recipients.forEach((memberId) => {
+    conversation.unread[memberId] = (conversation.unread[memberId] || 0) + 1;
   });
   await saveConversation(redis, conversation);
+
+  const preview = text.length > 80 ? text.slice(0, 80) + '…' : text;
+  const notifMessage =
+    conversation.type === 'group'
+      ? `${message.senderName} en ${conversation.name}: ${preview}`
+      : `Nuevo mensaje de ${message.senderName}: ${preview}`;
+  for (const memberId of recipients) {
+    await pushNotification(redis, memberId, {
+      type: 'chat_message',
+      message: notifMessage,
+      link: '/interno/chat',
+      key: `chat:${conversationId}`,
+    });
+  }
 
   return new Response(JSON.stringify({ message }), {
     headers: { 'Content-Type': 'application/json' },

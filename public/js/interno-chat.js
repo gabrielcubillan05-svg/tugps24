@@ -77,13 +77,24 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {});
   }
 
+  function checkMarkFor(message, conversation) {
+    if (!conversation) return '';
+    const others = conversation.memberIds.filter((id) => id !== myUserId);
+    const readByAll = others.length > 0 && others.every((id) => {
+      const lastRead = conversation.lastRead && conversation.lastRead[id];
+      return lastRead && lastRead >= message.createdAt;
+    });
+    return `<span class="msg-check ${readByAll ? 'read' : ''}">${readByAll ? '✓✓' : '✓'}</span>`;
+  }
+
   function renderMessages(messages) {
+    const conversation = conversations.find((c) => c.id === activeConversationId);
     const wasAtBottom = messagesArea.scrollHeight - messagesArea.scrollTop - messagesArea.clientHeight < 40;
     messagesArea.innerHTML = messages.map((m) => `
       <div class="msg ${m.senderId === myUserId ? 'mine' : 'theirs'}">
         ${m.senderId === myUserId ? '' : `<span class="msg-sender">${escapeHtml(m.senderName)}</span>`}
         ${escapeHtml(m.text)}
-        <span class="msg-time">${fmtTime(m.createdAt)}</span>
+        <span class="msg-time">${fmtTime(m.createdAt)}${m.senderId === myUserId ? ' ' + checkMarkFor(m, conversation) : ''}</span>
       </div>
     `).join('');
     if (wasAtBottom || messages.length <= 20) {

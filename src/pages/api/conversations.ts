@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
+import { removeNotification } from '../../lib/notifications';
 import { SESSION_COOKIE, getSession, getUsers, findUserById, canManageUsers, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
@@ -18,9 +19,12 @@ export interface Conversation {
   lastMessageAt: string | null;
   lastMessagePreview: string;
   unread: Record<string, number>;
+  lastRead: Record<string, string>;
 }
 
 type Redis = NonNullable<ReturnType<typeof getRedis>>;
+
+const CONVERSATION_DEFAULTS = { unread: {}, lastMessagePreview: '', lastMessageAt: null, lastRead: {} };
 
 export async function readConversations(redis: Redis): Promise<Conversation[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
@@ -33,7 +37,7 @@ export async function readConversations(redis: Redis): Promise<Conversation[]> {
       }
     })
     .filter((c): c is Conversation => c !== null)
-    .map((c) => ({ unread: {}, lastMessagePreview: '', lastMessageAt: null, ...c }));
+    .map((c) => ({ ...CONVERSATION_DEFAULTS, ...c }));
 }
 
 export async function saveConversation(redis: Redis, conversation: Conversation): Promise<void> {
@@ -44,7 +48,7 @@ export async function getConversation(redis: Redis, id: string): Promise<Convers
   const raw = await redis.hget<string>(REDIS_KEY, id);
   if (!raw) return null;
   const c = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
-  return { unread: {}, lastMessagePreview: '', lastMessageAt: null, ...c };
+  return { ...CONVERSATION_DEFAULTS, ...c };
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
@@ -136,6 +140,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       lastMessageAt: null,
       lastMessagePreview: '',
       unread: {},
+      lastRead: {},
     };
     await saveConversation(redis, conversation);
     return new Response(JSON.stringify({ conversation }), {
@@ -161,6 +166,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     lastMessageAt: null,
     lastMessagePreview: '',
     unread: {},
+    lastRead: {},
   };
   await saveConversation(redis, conversation);
   await logAudit(redis, session, 'group_create', name, `${allMembers.length} miembro(s)`);
@@ -198,6 +204,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   if (body.markRead) {
     conversation.unread[session.userId] = 0;
+    conversation.lastRead[session.userId] = new Date().toISOString();
+    await removeNotification(redis, session.userId, `chat:${id}`);
   }
   if (body.memberIds !== undefined) {
     const canManage = conversation.createdBy === session.userId || canManageUsers(session.role);

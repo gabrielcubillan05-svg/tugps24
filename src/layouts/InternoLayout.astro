@@ -154,7 +154,7 @@ const sections = ROLE_SECTIONS[session.role] || [];
         text-decoration: none;
       }
       .top-nav a.active { background: var(--amber); color: #1a0f00; border-color: var(--amber); font-weight: 600; }
-      .head-actions { display: flex; align-items: center; gap: 10px; }
+      .head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
       .panel-card {
         background: var(--ink-800);
@@ -276,6 +276,7 @@ const sections = ROLE_SECTIONS[session.role] || [];
         top: 46px;
         right: 0;
         width: 320px;
+        max-width: calc(100vw - 32px);
         max-height: 420px;
         overflow-y: auto;
         background: var(--ink-800);

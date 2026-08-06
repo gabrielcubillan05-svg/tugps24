@@ -176,6 +176,10 @@ export async function readNotifications(
   return { notifications: entries, unreadCount };
 }
 
+export async function removeNotification(redis: Redis, userId: string, id: string): Promise<void> {
+  await redis.hdel(keyFor(userId), id);
+}
+
 export async function markNotificationRead(redis: Redis, userId: string, id: string): Promise<void> {
   const raw = await redis.hget<string>(keyFor(userId), id);
   if (!raw) return;
