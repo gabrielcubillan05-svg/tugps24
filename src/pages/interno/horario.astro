@@ -16,16 +16,18 @@ const canCompDays = canManageCompDays(session.role);
 
 <InternoLayout title="Horario" active="horario" session={session}>
   <div class="panel-card">
-    <h2>Horario de operadores</h2>
+    <h2>Horario de empleados</h2>
     <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
-      Si un operador tiene horario mixto (turnos distintos según el día), agrega una franja a la vez —
-      puedes guardar varias para el mismo operador y todas quedarán listadas juntas.
+      Si un empleado tiene horario mixto (turnos distintos según el día), agrega una franja a la vez —
+      puedes guardar varias para el mismo empleado y todas quedarán listadas juntas.
     </p>
     <form id="scheduleForm">
       <div class="form-grid">
         <div class="field">
-          <label for="sc-operator">Operador</label>
-          <input id="sc-operator" type="text" placeholder="Nombre del operador" required />
+          <label for="sc-operator">Empleado</label>
+          <select id="sc-operator" required>
+            <option value="">Cargando empleados...</option>
+          </select>
         </div>
         <div class="field field-note">
           <label for="sc-horario">Franja de horario</label>
@@ -49,8 +51,10 @@ const canCompDays = canManageCompDays(session.role);
         <form id="compDaysForm" style="margin-bottom:20px;">
           <div class="form-grid cols-4">
             <div class="field">
-              <label for="cd-operator">Operador</label>
-              <input id="cd-operator" type="text" placeholder="Nombre" required />
+              <label for="cd-operator">Empleado</label>
+              <select id="cd-operator" required>
+                <option value="">Cargando empleados...</option>
+              </select>
             </div>
             <div class="field">
               <label for="cd-days">Días (+ / -)</label>

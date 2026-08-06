@@ -11,6 +11,28 @@ document.addEventListener('DOMContentLoaded', function () {
     return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
+  // ---------- Lista de empleados (para los selectores de abajo) ----------
+  const scOperatorSelect = document.getElementById('sc-operator');
+  const cdOperatorSelect = document.getElementById('cd-operator');
+
+  function loadEmployees() {
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !Array.isArray(data.users)) return;
+        const options = '<option value="">Selecciona un empleado</option>' +
+          data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+        if (scOperatorSelect) scOperatorSelect.innerHTML = options;
+        if (cdOperatorSelect) cdOperatorSelect.innerHTML = options;
+      })
+      .catch(() => {
+        const fallback = '<option value="">No se pudo cargar la lista</option>';
+        if (scOperatorSelect) scOperatorSelect.innerHTML = fallback;
+        if (cdOperatorSelect) cdOperatorSelect.innerHTML = fallback;
+      });
+  }
+  loadEmployees();
+
   // ---------- Horario ----------
   const scheduleForm = document.getElementById('scheduleForm');
   const scheduleList = document.getElementById('scheduleList');
