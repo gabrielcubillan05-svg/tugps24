@@ -20,10 +20,21 @@ document.addEventListener('DOMContentLoaded', function () {
         scheduleList.innerHTML = '<div class="empty">No hay horarios registrados todavía.</div>';
         return;
       }
-      scheduleList.innerHTML = schedule.map((s) => `
+      const byOperator = new Map();
+      schedule.forEach((s) => {
+        if (!byOperator.has(s.operator)) byOperator.set(s.operator, []);
+        byOperator.get(s.operator).push(s);
+      });
+
+      scheduleList.innerHTML = [...byOperator.entries()].map(([operator, entries]) => `
         <div class="list-item">
-          <div class="item-top"><span class="title">${escapeHtml(s.operator)}</span></div>
-          <p class="note">${escapeHtml(s.horario)}</p>
+          <div class="item-top"><span class="title">${escapeHtml(operator)}</span></div>
+          ${entries.map((e) => `
+            <div class="schedule-line" style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0;">
+              <p class="note" style="margin:0;">${escapeHtml(e.horario)}</p>
+              <button class="btn-small btn-delete" data-action="delete-sched" data-id="${e.id}" type="button">Eliminar</button>
+            </div>
+          `).join('')}
         </div>
       `).join('');
     }
@@ -53,10 +64,22 @@ document.addEventListener('DOMContentLoaded', function () {
       })
         .then((res) => res.json())
         .then(() => {
-          scheduleForm.reset();
+          document.getElementById('sc-horario').value = '';
           loadSchedule();
         })
         .catch(() => alert('No se pudo guardar.'));
+    });
+
+    scheduleList.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-action="delete-sched"]');
+      if (!btn) return;
+      if (!confirm('¿Eliminar esta franja de horario?')) return;
+      const id = btn.getAttribute('data-id');
+      fetch('/api/schedule', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).then(loadSchedule);
     });
 
     loadSchedule();

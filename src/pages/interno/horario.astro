@@ -17,6 +17,10 @@ const canCompDays = canManageCompDays(session.role);
 <InternoLayout title="Horario" active="horario" session={session}>
   <div class="panel-card">
     <h2>Horario de operadores</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Si un operador tiene horario mixto (turnos distintos según el día), agrega una franja a la vez —
+      puedes guardar varias para el mismo operador y todas quedarán listadas juntas.
+    </p>
     <form id="scheduleForm">
       <div class="form-grid">
         <div class="field">
@@ -24,11 +28,11 @@ const canCompDays = canManageCompDays(session.role);
           <input id="sc-operator" type="text" placeholder="Nombre del operador" required />
         </div>
         <div class="field field-note">
-          <label for="sc-horario">Horario</label>
-          <input id="sc-horario" type="text" placeholder="Ej: Lunes a sábado, turno 6am-2pm" required />
+          <label for="sc-horario">Franja de horario</label>
+          <input id="sc-horario" type="text" placeholder="Ej: Lunes a miércoles, turno 6am-2pm" required />
         </div>
       </div>
-      <button class="btn" type="submit">Guardar horario</button>
+      <button class="btn" type="submit">Agregar franja</button>
     </form>
   </div>
   <div class="panel-card">

@@ -14,6 +14,7 @@ import {
   verifyPassword,
   canManageUsers,
   canAssignTasks,
+  canAccessSection,
   destroyAllSessionsForUser,
   verifySameOrigin,
   type Role,
@@ -27,16 +28,32 @@ function publicUser(u: User) {
   return rest;
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
+export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || (!canManageUsers(session.role) && !canAssignTasks(session.role))) {
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
+
+  const isPrivileged = canManageUsers(session.role) || canAssignTasks(session.role);
+  const roleParam = url.searchParams.get('role');
+
+  if (!isPrivileged) {
+    // Acceso reducido: solo para poblar el selector de secretarias en el CRM.
+    if (!canAccessSection(session.role, 'crm') || roleParam !== 'secretaria') {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    }
+  }
+
   const redis = getRedis();
   if (!redis) {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
-  const users = await getUsers(redis);
+  let users = await getUsers(redis);
+  if (!isPrivileged) {
+    users = users.filter((u) => u.role === 'secretaria' && u.active);
+  } else if (roleParam) {
+    users = users.filter((u) => u.role === roleParam);
+  }
   return new Response(JSON.stringify({ users: users.map(publicUser), roles: ROLES }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });

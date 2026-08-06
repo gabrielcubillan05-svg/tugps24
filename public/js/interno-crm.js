@@ -17,6 +17,18 @@ document.addEventListener('DOMContentLoaded', function () {
   const exportBtn = document.getElementById('exportBtn');
 
   let allLeads = [];
+  const secretarySelect = document.getElementById('secretary');
+
+  function loadSecretaries() {
+    fetch('/api/users?role=secretaria')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !Array.isArray(data.users)) return;
+        secretarySelect.innerHTML = '<option value="">Sin asignar</option>' +
+          data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+      })
+      .catch(() => {});
+  }
 
   function escapeHtml(str) {
     return String(str || '')
@@ -311,5 +323,6 @@ document.addEventListener('DOMContentLoaded', function () {
     URL.revokeObjectURL(url);
   });
 
+  loadSecretaries();
   loadLeads();
 });
