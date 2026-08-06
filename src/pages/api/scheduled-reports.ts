@@ -20,7 +20,7 @@ const FREQUENCIES: Record<string, number> = {
   Mensual: 30,
 };
 
-interface ScheduledReport {
+export interface ScheduledReport {
   id: string;
   client: string;
   reportType: string;
@@ -32,7 +32,7 @@ interface ScheduledReport {
 
 const SOON_WINDOW_MS = 2 * 24 * 60 * 60 * 1000; // "por realizar": vence en los próximos 2 días
 
-function withStatus(r: ScheduledReport) {
+export function withStatus(r: ScheduledReport) {
   const intervalDays = FREQUENCIES[r.frequency] || 7;
   const base = new Date(r.lastDoneAt || r.createdAt);
   const nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
@@ -45,17 +45,9 @@ function withStatus(r: ScheduledReport) {
   return { ...r, nextDue: nextDue.toISOString(), pending, bucket };
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
-  if (!(await requireReportes(cookies))) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
-  }
-  const redis = getRedis();
-  if (!redis) {
-    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
-  }
-
+export async function readScheduledReports(redis: any) {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  const reports = Object.values(raw)
+  return Object.values(raw)
     .map((v) => {
       try {
         return typeof v === 'string' ? JSON.parse(v) : v;
@@ -69,6 +61,18 @@ export const GET: APIRoute = async ({ cookies }) => {
       const order = { pendiente: 0, 'por-realizar': 1, 'al-dia': 2 };
       return order[a.bucket] - order[b.bucket];
     });
+}
+
+export const GET: APIRoute = async ({ cookies }) => {
+  if (!(await requireReportes(cookies))) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  const reports = await readScheduledReports(redis);
 
   return new Response(JSON.stringify({ reports, frequencies: Object.keys(FREQUENCIES) }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },

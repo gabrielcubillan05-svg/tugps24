@@ -1,0 +1,98 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'chat')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Chat" active="chat" session={session}>
+  <div class="chat-layout">
+    <div class="panel-card chat-sidebar">
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button class="btn-small" id="newDmBtn" type="button">+ Mensaje</button>
+        <button class="btn-small" id="newGroupBtn" type="button">+ Grupo</button>
+      </div>
+      <div id="conversationList" class="list-col"><div class="empty">Cargando...</div></div>
+    </div>
+    <div class="panel-card chat-main">
+      <div id="chatHeader" class="chat-header">Selecciona una conversación</div>
+      <div id="messagesArea" class="messages-area"></div>
+      <form id="messageForm" class="message-form" style="display:none;">
+        <input id="messageInput" type="text" placeholder="Escribe un mensaje..." autocomplete="off" />
+        <button class="btn" type="submit">Enviar</button>
+      </form>
+    </div>
+  </div>
+</InternoLayout>
+
+<div class="modal-overlay" id="dmModalOverlay" style="display:none;">
+  <div class="modal-box">
+    <h2>Nuevo mensaje</h2>
+    <div class="field">
+      <label for="dmUserSelect">Empleado</label>
+      <select id="dmUserSelect"><option value="">Cargando...</option></select>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button class="btn" id="dmStartBtn" type="button">Iniciar</button>
+      <button class="btn-ghost" id="dmCancelBtn" type="button">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="groupModalOverlay" style="display:none;">
+  <div class="modal-box">
+    <h2>Nuevo grupo</h2>
+    <div class="field">
+      <label for="groupNameInput">Nombre del grupo</label>
+      <input id="groupNameInput" type="text" placeholder="Ej: Operadores Riohacha" />
+    </div>
+    <div class="field">
+      <label>Miembros</label>
+      <div id="groupMembersList" class="group-members-list"></div>
+    </div>
+    <p id="groupError" class="error-msg" style="display:none;"></p>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button class="btn" id="groupCreateBtn" type="button">Crear grupo</button>
+      <button class="btn-ghost" id="groupCancelBtn" type="button">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .chat-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+  .chat-sidebar { max-height: 72vh; overflow-y: auto; }
+  .chat-main { display: flex; flex-direction: column; height: 72vh; }
+  .chat-header { font-weight: 700; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+  .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+  .message-form { display: flex; gap: 8px; margin-top: 10px; }
+  .message-form input { flex: 1; }
+  .msg { max-width: 72%; padding: 8px 12px; border-radius: 12px; font-size: 13.5px; }
+  .msg.mine { align-self: flex-end; background: var(--amber); color: #1a0f00; }
+  .msg.theirs { align-self: flex-start; background: var(--ink-900); border: 1px solid var(--line); }
+  .msg .msg-sender { display: block; font-size: 11px; opacity: 0.75; margin-bottom: 2px; }
+  .msg .msg-time { display: block; font-size: 10px; opacity: 0.6; margin-top: 3px; }
+  .conv-item {
+    padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; display: flex;
+    justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .conv-item:hover, .conv-item.active { background: var(--ink-900); }
+  .conv-item .conv-info { min-width: 0; }
+  .conv-item .conv-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-item .conv-preview { font-size: 12px; color: var(--slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .group-members-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .group-members-list label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; width: auto; }
+  .group-members-list input { width: auto; }
+  @media (max-width: 700px) {
+    .chat-layout { grid-template-columns: 1fr; }
+    .chat-sidebar { max-height: 220px; }
+  }
+</style>
+
+<script src="/js/interno-chat.js" defer></script>

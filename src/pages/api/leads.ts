@@ -20,7 +20,7 @@ interface Note {
   date: string;
 }
 
-interface Lead {
+export interface Lead {
   id: string;
   name: string;
   phone: string;
@@ -44,13 +44,13 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
-function computeOverdue(lead: Lead): boolean {
+export function computeOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUp) return false;
   if (lead.status === 'Convertido' || lead.status === 'Perdido') return false;
   return new Date(lead.nextFollowUp).getTime() < new Date().setHours(0, 0, 0, 0);
 }
 
-async function readLeads(redis: any): Promise<Lead[]> {
+export async function readLeads(redis: any): Promise<Lead[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {

@@ -36,11 +36,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const isPrivileged = canManageUsers(session.role) || canAssignTasks(session.role);
   const roleParam = url.searchParams.get('role');
-  // Acceso reducido: poblar el selector de empleados en Horario, o de secretarias en el CRM.
+  // Acceso reducido: poblar el selector de empleados en Horario, de secretarias en el CRM, o de
+  // destinatarios en el Chat (todos los roles tienen acceso a 'chat').
   const canHorario = canAccessSection(session.role, 'horario');
+  const canChat = canAccessSection(session.role, 'chat');
   const canCrmSecretaria = canAccessSection(session.role, 'crm') && roleParam === 'secretaria';
 
-  if (!isPrivileged && !canHorario && !canCrmSecretaria) {
+  if (!isPrivileged && !canHorario && !canChat && !canCrmSecretaria) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -53,7 +55,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     if (roleParam) users = users.filter((u) => u.role === roleParam);
   } else if (canCrmSecretaria) {
     users = users.filter((u) => u.role === 'secretaria' && u.active);
-  } else if (canHorario) {
+  } else if (canHorario || canChat) {
     users = users.filter((u) => u.active);
   }
   return new Response(JSON.stringify({ users: users.map(publicUser), roles: ROLES }), {

@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
+import { pushNotification } from '../../lib/notifications';
 import {
   SESSION_COOKIE,
   getSession,
@@ -27,7 +28,7 @@ interface Proof {
   contentType: string;
 }
 
-interface Task {
+export interface Task {
   id: string;
   title: string;
   description: string;
@@ -43,13 +44,13 @@ interface Task {
   updatedAt: string;
 }
 
-function computeOverdue(task: Task): boolean {
+export function computeOverdue(task: Task): boolean {
   if (!task.dueDate) return false;
   if (task.status === 'Completada' || task.status === 'Cancelada') return false;
   return new Date(task.dueDate).getTime() < new Date().setHours(0, 0, 0, 0);
 }
 
-async function readTasks(redis: any): Promise<Task[]> {
+export async function readTasks(redis: any): Promise<Task[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {
@@ -143,6 +144,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   await redis.hset(REDIS_KEY, { [task.id]: JSON.stringify(task) });
   await logAudit(redis, session, 'task_create', task.title, `asignada a ${assignee.username}`);
+  await pushNotification(redis, assignee.id, {
+    type: 'task_assigned',
+    message: `Se te asignó la tarea: ${task.title}`,
+    link: '/interno/tareas',
+  });
 
   return new Response(JSON.stringify({ task: { ...task, overdue: computeOverdue(task) } }), {
     headers: { 'Content-Type': 'application/json' },

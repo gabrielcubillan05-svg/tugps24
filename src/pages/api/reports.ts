@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
+import { pushNotification } from '../../lib/notifications';
+import { SESSION_COOKIE, getSession, canAccessSection, getUsers, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -154,6 +155,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   await redis.lpush(REDIS_KEY, JSON.stringify(report));
   await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category);
+
+  const managers = (await getUsers(redis)).filter(
+    (u) => u.active && u.id !== session.userId && (u.role === 'supervisor' || u.role === 'gerente' || u.role === 'admin')
+  );
+  for (const manager of managers) {
+    await pushNotification(redis, manager.id, {
+      type: 'novedad',
+      message: `Nueva novedad: ${report.plate} · ${report.branch} (${report.category})`,
+      link: '/interno/novedades',
+    });
+  }
 
   return new Response(JSON.stringify({ report }), {
     headers: { 'Content-Type': 'application/json' },
