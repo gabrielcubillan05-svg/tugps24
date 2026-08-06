@@ -140,7 +140,15 @@ const sections = ROLE_SECTIONS[session.role] || [];
         padding-bottom: 16px;
         border-bottom: 1px solid var(--line);
       }
-      .brand { display: flex; flex-direction: column; gap: 2px; }
+      .brand { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+      .brand-logo {
+        height: 26px;
+        width: auto;
+        display: block;
+        background: #fff;
+        padding: 4px 8px;
+        border-radius: 8px;
+      }
       .brand h1 { font-size: 19px; }
       .brand h1 span { color: var(--slate); font-weight: 400; }
       .user-chip { color: var(--slate); font-size: 12px; }
@@ -314,8 +322,11 @@ const sections = ROLE_SECTIONS[session.role] || [];
     <div class="wrap">
       <header class="panel-head">
         <div class="brand">
-          <h1>TuGPS24 <span>· Interno</span></h1>
-          <div class="user-chip">{session.username} · {ROLE_LABELS[session.role]}</div>
+          <img src="/img/img01.png" alt="TuGPS24" class="brand-logo" />
+          <div>
+            <h1>TuGPS24 <span>· Interno</span></h1>
+            <div class="user-chip">{session.username} · {ROLE_LABELS[session.role]}</div>
+          </div>
         </div>
         <nav class="top-nav">
           {sections.map((s) => (

@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const messagesArea = document.getElementById('messagesArea');
   const messageForm = document.getElementById('messageForm');
   const messageInput = document.getElementById('messageInput');
+  const emojiBtn = document.getElementById('emojiBtn');
+  const emojiPanel = document.getElementById('emojiPanel');
 
   const newDmBtn = document.getElementById('newDmBtn');
   const dmModalOverlay = document.getElementById('dmModalOverlay');
@@ -170,6 +172,36 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .catch(() => alert('No se pudo enviar el mensaje.'));
   });
+
+  // ---------- Emojis ----------
+  const EMOJIS = [
+    '😀', '😄', '😁', '😂', '🙂', '😉', '😊', '😍', '🤔', '😐',
+    '😴', '😢', '😭', '😡', '😱', '😅', '🙌', '👏', '👍', '👎',
+    '🙏', '💪', '👌', '✌️', '🤝', '❤️', '🔥', '⭐', '✅', '❌',
+    '⚠️', '📌', '📷', '🚗', '🏍️', '📍', '⏰', '📅', '🎉', '☕',
+  ];
+  if (emojiBtn && emojiPanel) {
+    let emojiPanelBuilt = false;
+    emojiBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!emojiPanelBuilt) {
+        emojiPanel.innerHTML = EMOJIS.map((em) => `<button type="button" data-emoji="${em}">${em}</button>`).join('');
+        emojiPanelBuilt = true;
+      }
+      emojiPanel.style.display = emojiPanel.style.display === 'none' ? 'grid' : 'none';
+    });
+    emojiPanel.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-emoji]');
+      if (!btn) return;
+      messageInput.value += btn.getAttribute('data-emoji');
+      messageInput.focus();
+    });
+    document.addEventListener('click', function (e) {
+      if (emojiPanel.style.display !== 'none' && !emojiPanel.contains(e.target) && e.target !== emojiBtn) {
+        emojiPanel.style.display = 'none';
+      }
+    });
+  }
 
   // ---------- Nuevo mensaje (DM) ----------
   newDmBtn.addEventListener('click', function () {

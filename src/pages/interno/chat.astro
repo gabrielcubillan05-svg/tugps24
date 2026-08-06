@@ -39,7 +39,9 @@ if (!canAccessSection(session.role, 'chat')) {
           <p>Selecciona una conversación para empezar</p>
         </div>
       </div>
-      <form id="messageForm" class="message-form" style="display:none;">
+      <form id="messageForm" class="message-form" style="display:none; position:relative;">
+        <button class="btn-small btn-emoji" id="emojiBtn" type="button" aria-label="Emojis" title="Emojis">🙂</button>
+        <div class="emoji-panel" id="emojiPanel" style="display:none;"></div>
         <input id="messageInput" type="text" placeholder="Escribe un mensaje..." autocomplete="off" />
         <button class="btn btn-send" type="submit" aria-label="Enviar" title="Enviar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -107,14 +109,37 @@ if (!canAccessSection(session.role, 'chat')) {
   .message-form input { flex: 1; }
   .btn-send { width: 44px; padding: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .btn-send svg { width: 18px; height: 18px; }
+  .btn-emoji { width: 40px; padding: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+  .emoji-panel {
+    position: absolute;
+    bottom: 52px;
+    left: 0;
+    width: 260px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    z-index: 60;
+  }
+  .emoji-panel button {
+    background: none; border: none; font-size: 19px; padding: 5px; cursor: pointer;
+    border-radius: 6px; width: auto;
+  }
+  .emoji-panel button:hover { background: var(--ink-900); }
   .msg { max-width: 72%; padding: 8px 12px; border-radius: 12px; font-size: 13.5px; display: flex; gap: 8px; align-items: flex-end; }
   .msg.mine { align-self: flex-end; background: var(--amber); color: #1a0f00; }
   .msg.theirs { align-self: flex-start; background: var(--ink-900); border: 1px solid var(--line); }
   .msg .msg-body { min-width: 0; }
   .msg .msg-sender { display: block; font-size: 11px; opacity: 0.75; margin-bottom: 2px; font-weight: 600; }
   .msg .msg-time { display: block; font-size: 10px; opacity: 0.6; margin-top: 3px; }
-  .msg-check { letter-spacing: -2px; opacity: 0.8; }
-  .msg-check.read { color: #34b7f1; opacity: 1; }
+  .msg-check { letter-spacing: -2px; opacity: 0.85; font-size: 12px; font-weight: 700; margin-left: 2px; }
+  .msg-check.read { color: #2f8fd1; opacity: 1; }
   .avatar {
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     width: 30px; height: 30px; border-radius: 50%; font-size: 12px; font-weight: 700;
