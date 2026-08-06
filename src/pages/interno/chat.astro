@@ -73,7 +73,8 @@ if (!canAccessSection(session.role, 'chat')) {
       <input id="groupNameInput" type="text" placeholder="Ej: Operadores Riohacha" />
     </div>
     <div class="field">
-      <label>Miembros</label>
+      <label for="groupMemberSearch">Miembros</label>
+      <input id="groupMemberSearch" type="text" placeholder="Buscar empleado..." style="margin-bottom:8px;" />
       <div id="groupMembersList" class="group-members-list"></div>
     </div>
     <p id="groupError" class="error-msg" style="display:none;"></p>
@@ -84,7 +85,7 @@ if (!canAccessSection(session.role, 'chat')) {
   </div>
 </div>
 
-<style>
+<style is:global>
   .chat-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
   .chat-sidebar { max-height: 72vh; overflow-y: auto; }
   .chat-sidebar-head {
@@ -137,6 +138,11 @@ if (!canAccessSection(session.role, 'chat')) {
   .msg.theirs { align-self: flex-start; background: var(--ink-900); border: 1px solid var(--line); }
   .msg .msg-body { min-width: 0; }
   .msg .msg-sender { display: block; font-size: 11px; opacity: 0.75; margin-bottom: 2px; font-weight: 600; }
+  .date-divider { display: flex; justify-content: center; margin: 10px 0; }
+  .date-divider span {
+    background: var(--ink-900); border: 1px solid var(--line); color: var(--slate);
+    font-size: 11px; padding: 4px 12px; border-radius: 999px;
+  }
   .msg .msg-time { display: block; font-size: 10px; opacity: 0.6; margin-top: 3px; }
   .msg-check { letter-spacing: -2px; opacity: 0.85; font-size: 12px; font-weight: 700; margin-left: 2px; }
   .msg-check.read { color: #2f8fd1; opacity: 1; }
@@ -155,9 +161,17 @@ if (!canAccessSection(session.role, 'chat')) {
   .conv-item .conv-info { min-width: 0; flex: 1; }
   .conv-item .conv-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conv-item .conv-preview { font-size: 12px; color: var(--slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .group-members-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
-  .group-members-list label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; width: auto; }
-  .group-members-list input { width: auto; }
+  .group-members-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+  .group-members-list label {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 13px; padding: 7px 0; width: auto; border-bottom: 1px solid var(--line);
+  }
+  .group-members-list label:last-child { border-bottom: none; }
+  .group-members-list label.hidden { display: none; }
+  .group-members-list input[type="checkbox"] {
+    width: 16px; height: 16px; padding: 0; margin: 0; background: none;
+    border: 1px solid var(--line); border-radius: 4px; flex-shrink: 0; accent-color: var(--amber);
+  }
   @media (max-width: 700px) {
     .chat-layout { grid-template-columns: 1fr; }
     .chat-sidebar { max-height: 220px; }

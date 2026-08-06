@@ -37,7 +37,21 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function fmtTime(iso) {
-    return new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
+    return new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function dayKey(iso) {
+    return new Date(iso).toDateString();
+  }
+
+  function fmtDateLabel(iso) {
+    const d = new Date(iso);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Hoy';
+    if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
+    return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
   function initials(name) {
@@ -100,10 +114,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const conversation = conversations.find((c) => c.id === activeConversationId);
     const isGroup = conversation && conversation.type === 'group';
     const wasAtBottom = messagesArea.scrollHeight - messagesArea.scrollTop - messagesArea.clientHeight < 40;
+    let lastDay = null;
     messagesArea.innerHTML = messages.map((m) => {
       const mine = m.senderId === myUserId;
       const showAvatar = !mine && isGroup;
+      const thisDay = dayKey(m.createdAt);
+      let dateDivider = '';
+      if (thisDay !== lastDay) {
+        dateDivider = `<div class="date-divider"><span>${escapeHtml(fmtDateLabel(m.createdAt))}</span></div>`;
+        lastDay = thisDay;
+      }
       return `
+      ${dateDivider}
       <div class="msg ${mine ? 'mine' : 'theirs'}">
         ${showAvatar ? `<span class="avatar avatar-sm">${escapeHtml(initials(m.senderName))}</span>` : ''}
         <div class="msg-body">
@@ -238,16 +260,29 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // ---------- Nuevo grupo ----------
+  const groupMemberSearch = document.getElementById('groupMemberSearch');
+
   newGroupBtn.addEventListener('click', function () {
     groupError.style.display = 'none';
     groupNameInput.value = '';
+    if (groupMemberSearch) groupMemberSearch.value = '';
     groupMembersList.innerHTML = employees.length
       ? employees.map((u) => `
-          <label><input type="checkbox" class="group-member-check" value="${u.id}" /> ${escapeHtml(u.name)}</label>
+          <label data-name="${escapeHtml(u.name.toLowerCase())}"><span>${escapeHtml(u.name)}</span><input type="checkbox" class="group-member-check" value="${u.id}" /></label>
         `).join('')
       : '<p class="empty">No hay empleados disponibles.</p>';
     groupModalOverlay.style.display = 'flex';
   });
+
+  if (groupMemberSearch) {
+    groupMemberSearch.addEventListener('input', function () {
+      const q = groupMemberSearch.value.trim().toLowerCase();
+      groupMembersList.querySelectorAll('label[data-name]').forEach((label) => {
+        const matches = !q || label.getAttribute('data-name').includes(q);
+        label.classList.toggle('hidden', !matches);
+      });
+    });
+  }
   groupCancelBtn.addEventListener('click', function () {
     groupModalOverlay.style.display = 'none';
   });
