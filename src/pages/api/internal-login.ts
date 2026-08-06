@@ -3,7 +3,7 @@ import { checkPassword, expectedToken, AUTH_COOKIE, PANEL_PATH } from '../../lib
 
 export const prerender = false;
 
-const ALLOWED_REDIRECTS = [PANEL_PATH, '/cotizaciones'];
+const ALLOWED_REDIRECTS = [PANEL_PATH, '/cotizaciones', '/secretarias'];
 
 function safeRedirectPath(input: FormDataEntryValue | null): string {
   const path = String(input || '');

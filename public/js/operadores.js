@@ -117,14 +117,59 @@ document.addEventListener('DOMContentLoaded', function () {
     branchFilter.addEventListener('change', loadReports);
     categoryFilter.addEventListener('change', loadReports);
 
+    // ---------- Imágenes: selector de archivos + pegar (Ctrl+V) ----------
+    const imagesInput = document.getElementById('images');
+    const imagePreview = document.getElementById('imagePreview');
+    const MAX_IMAGES = 4;
+    let pendingImages = [];
+
+    function renderImagePreview() {
+      imagePreview.innerHTML = pendingImages.map((_, i) => `
+        <div class="thumb" data-index="${i}">
+          <img src="${pendingImages[i].url}" alt="Previsualización" />
+          <button type="button" data-remove="${i}" aria-label="Quitar imagen">×</button>
+        </div>
+      `).join('');
+    }
+
+    function addPendingImage(file) {
+      if (pendingImages.length >= MAX_IMAGES) return;
+      pendingImages.push({ file, url: URL.createObjectURL(file) });
+      renderImagePreview();
+    }
+
+    if (imagesInput) {
+      imagesInput.addEventListener('change', () => {
+        Array.from(imagesInput.files || []).forEach(addPendingImage);
+        imagesInput.value = '';
+      });
+    }
+
+    imagePreview.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-remove]');
+      if (!btn) return;
+      const i = Number(btn.getAttribute('data-remove'));
+      URL.revokeObjectURL(pendingImages[i].url);
+      pendingImages.splice(i, 1);
+      renderImagePreview();
+    });
+
+    reportForm.addEventListener('paste', (e) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItems = items.filter((item) => item.kind === 'file' && item.type.startsWith('image/'));
+      if (!imageItems.length) return;
+      imageItems.forEach((item) => {
+        const file = item.getAsFile();
+        if (file) addPendingImage(file);
+      });
+    });
+
     reportForm.addEventListener('submit', async function (e) {
       e.preventDefault();
       const plate = document.getElementById('plate').value.trim();
       const branch = document.getElementById('branch').value;
       const category = document.getElementById('category').value;
       const note = document.getElementById('note').value.trim();
-      const imagesInput = document.getElementById('images');
-      const files = imagesInput ? Array.from(imagesInput.files || []).slice(0, 4) : [];
       if (!plate || !branch || !category || !note) return;
 
       const submitBtn = reportForm.querySelector('button[type="submit"]');
@@ -138,9 +183,9 @@ document.addEventListener('DOMContentLoaded', function () {
         formData.set('category', category);
         formData.set('note', note);
 
-        if (files.length) {
+        if (pendingImages.length) {
           submitBtn.textContent = 'Procesando fotos...';
-          for (const file of files) {
+          for (const { file } of pendingImages) {
             const compressed = await compressImage(file, 1600, 0.75);
             formData.append('images', compressed, 'foto.jpg');
           }
@@ -150,6 +195,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const res = await fetch('/api/reports', { method: 'POST', body: formData });
         if (!res.ok) throw new Error('save failed');
         reportForm.reset();
+        pendingImages.forEach((p) => URL.revokeObjectURL(p.url));
+        pendingImages = [];
+        renderImagePreview();
         loadReports();
       } catch (err) {
         alert('No se pudo guardar el reporte, intenta de nuevo.');

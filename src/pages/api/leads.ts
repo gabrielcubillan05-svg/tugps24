@@ -1,0 +1,190 @@
+import type { APIRoute } from 'astro';
+import { randomUUID } from 'node:crypto';
+import { getRedis } from '../../lib/redis';
+import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+
+export const prerender = false;
+
+const REDIS_KEY = 'internal:leads';
+export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Convertido', 'Perdido'];
+
+interface Note {
+  text: string;
+  date: string;
+}
+
+interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  city: string;
+  campaign: string;
+  secretary: string;
+  status: string;
+  nextFollowUp: string | null;
+  convertedBranch: string | null;
+  notes: Note[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+function computeOverdue(lead: Lead): boolean {
+  if (!lead.nextFollowUp) return false;
+  if (lead.status === 'Convertido' || lead.status === 'Perdido') return false;
+  return new Date(lead.nextFollowUp).getTime() < new Date().setHours(0, 0, 0, 0);
+}
+
+async function readLeads(redis: any): Promise<Lead[]> {
+  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
+  return Object.values(raw)
+    .map((v) => {
+      try {
+        return typeof v === 'string' ? JSON.parse(v) : v;
+      } catch {
+        return null;
+      }
+    })
+    .filter((l): l is Lead => l !== null)
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', ...l }))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export const GET: APIRoute = async ({ cookies }) => {
+  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  const leads = await readLeads(redis);
+  const withOverdue = leads.map((l) => ({ ...l, overdue: computeOverdue(l) }));
+
+  const stats = { total: leads.length, byStatus: {} as Record<string, number>, overdueCount: 0 };
+  STATUSES.forEach((s) => (stats.byStatus[s] = 0));
+  withOverdue.forEach((l) => {
+    stats.byStatus[l.status] = (stats.byStatus[l.status] || 0) + 1;
+    if (l.overdue) stats.overdueCount += 1;
+  });
+
+  return new Response(JSON.stringify({ leads: withOverdue, stats, statuses: STATUSES }), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  });
+};
+
+export const POST: APIRoute = async ({ request, cookies }) => {
+  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  let body: Partial<Lead>;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  }
+
+  const name = String(body.name || '').trim();
+  const phone = String(body.phone || '').trim();
+  if (!name || !phone) {
+    return new Response(JSON.stringify({ error: 'nombre y teléfono son obligatorios' }), { status: 400 });
+  }
+
+  const now = new Date().toISOString();
+  const initialNote = String((body as any).initialNote || '').trim();
+
+  const lead: Lead = {
+    id: randomUUID(),
+    name,
+    phone,
+    city: String(body.city || '').trim(),
+    campaign: String(body.campaign || '').trim(),
+    secretary: String(body.secretary || '').trim(),
+    status: STATUSES.includes(String(body.status)) ? String(body.status) : 'Nuevo',
+    nextFollowUp: body.nextFollowUp ? String(body.nextFollowUp) : null,
+    convertedBranch: null,
+    notes: initialNote ? [{ text: initialNote, date: now }] : [],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await redis.hset(REDIS_KEY, { [lead.id]: JSON.stringify(lead) });
+
+  return new Response(JSON.stringify({ lead }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+export const PATCH: APIRoute = async ({ request, cookies }) => {
+  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  let body: { id?: string; status?: string; nextFollowUp?: string | null; convertedBranch?: string; addNote?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  }
+
+  const id = String(body.id || '');
+  const raw = await redis.hget<string>(REDIS_KEY, id);
+  if (!raw) {
+    return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+  }
+  const lead: Lead = { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+
+  if (body.status !== undefined) {
+    if (!STATUSES.includes(body.status)) {
+      return new Response(JSON.stringify({ error: 'invalid status' }), { status: 400 });
+    }
+    lead.status = body.status;
+  }
+  if (body.nextFollowUp !== undefined) {
+    lead.nextFollowUp = body.nextFollowUp || null;
+  }
+  if (body.convertedBranch !== undefined) {
+    lead.convertedBranch = body.convertedBranch || null;
+  }
+  if (body.addNote) {
+    lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];
+  }
+  lead.updatedAt = new Date().toISOString();
+
+  await redis.hset(REDIS_KEY, { [id]: JSON.stringify(lead) });
+
+  return new Response(JSON.stringify({ lead: { ...lead, overdue: computeOverdue(lead) } }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+export const DELETE: APIRoute = async ({ request, cookies }) => {
+  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  let body: { id?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  }
+
+  await redis.hdel(REDIS_KEY, String(body.id || ''));
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};

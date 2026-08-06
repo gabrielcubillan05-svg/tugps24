@@ -1,0 +1,243 @@
+---
+export const prerender = false;
+
+import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+
+const authed = isAuthorized(Astro.cookies.get(AUTH_COOKIE)?.value);
+const loginError = Astro.url.searchParams.get('error') === '1';
+
+const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Convertido', 'Perdido'];
+const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+---
+
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>CRM Secretarias — TuGPS24</title>
+    <style>
+      :root {
+        --ink-900: #0a0a0a;
+        --ink-800: #151412;
+        --line: #332e28;
+        --paper: #f2ede2;
+        --paper-dim: #c9c2b2;
+        --slate: #948d80;
+        --amber: #ff7a1a;
+        --teal-bright: #ffab5c;
+        --danger: #e0563f;
+        --ok: #6fce8f;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--ink-900);
+        color: var(--paper);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+      a { color: inherit; }
+      .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .login-box, .panel-card {
+        background: var(--ink-800);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 24px;
+      }
+      .login-box { width: 100%; max-width: 360px; padding: 36px; }
+      .login-box h1 { font-size: 20px; margin-bottom: 8px; }
+      .login-box p { color: var(--slate); font-size: 13.5px; margin-bottom: 20px; }
+      .field { margin-bottom: 16px; }
+      .field label { display: block; color: var(--slate); font-size: 12.5px; margin-bottom: 6px; }
+      input, select, textarea, button { font-family: inherit; font-size: 14px; }
+      input, select, textarea {
+        width: 100%;
+        background: var(--ink-900);
+        border: 1px solid var(--line);
+        color: var(--paper);
+        border-radius: 8px;
+        padding: 9px 11px;
+      }
+      textarea { resize: vertical; min-height: 50px; }
+      .btn {
+        background: var(--amber);
+        color: #1a0f00;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 11px 20px;
+        font-weight: 600;
+      }
+      .btn-ghost {
+        background: none;
+        border: 1px solid var(--line);
+        color: var(--paper);
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 9px 16px;
+        font-size: 13px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+      }
+      .btn-small { padding: 6px 13px; font-size: 12px; border-radius: 999px; cursor: pointer; }
+      .btn-wa { background: #25d36622; color: #3ee085; border: 1px solid #25d36655; }
+      .btn-delete { background: #e0563f22; color: var(--danger); border: 1px solid #e0563f55; }
+      .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 14px; }
+      header.panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      header.panel-head h1 { font-size: 20px; }
+      .panel-card { margin-bottom: 22px; }
+      .panel-card h2 { font-size: 15px; margin-bottom: 14px; }
+      .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+      .form-grid .field-full { grid-column: 1 / -1; }
+      .stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+      .stat-box {
+        background: var(--ink-800);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+        text-align: center;
+      }
+      .stat-box .n { font-size: 22px; font-weight: 700; color: var(--amber); display: block; }
+      .stat-box .l { font-size: 10.5px; color: var(--slate); }
+      .stat-box.overdue .n { color: var(--danger); }
+      .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+      .filters input, .filters select { width: auto; min-width: 140px; flex: 1; }
+      .filters label.checkbox { display: flex; align-items: center; gap: 6px; color: var(--paper-dim); font-size: 13px; white-space: nowrap; }
+      .filters label.checkbox input { width: auto; }
+      .leads-list { display: flex; flex-direction: column; gap: 12px; }
+      .lead-item {
+        background: var(--ink-800);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px;
+      }
+      .lead-item.overdue { border-color: var(--danger); background: #e0563f14; }
+      .lead-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+      .lead-name { font-weight: 700; font-size: 15px; }
+      .lead-meta { color: var(--slate); font-size: 12.5px; margin-bottom: 10px; }
+      .lead-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+      .lead-controls select, .lead-controls input { width: auto; padding: 7px 9px; font-size: 12.5px; }
+      .badge { border-radius: 999px; padding: 3px 11px; font-size: 11px; font-weight: 600; }
+      .badge.Nuevo { background: #ffab5c33; color: var(--teal-bright); }
+      .badge.Contactado { background: #4a90d922; color: #7ab8ec; }
+      .badge.Cotizado { background: #ff7a1a29; color: var(--amber); }
+      .badge.Convertido { background: #2f8a4f33; color: var(--ok); }
+      .badge.Perdido { background: #e0563f22; color: var(--danger); }
+      .badge.overdue-badge { background: var(--danger); color: #fff; }
+      .notes-list { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+      .notes-list .note-item { font-size: 12.5px; color: var(--paper-dim); }
+      .notes-list .note-item .note-date { color: var(--slate); font-size: 11px; margin-right: 6px; }
+      .add-note-row { display: flex; gap: 8px; margin-top: 10px; }
+      .add-note-row input { flex: 1; }
+      .empty { color: var(--slate); font-size: 14px; padding: 20px 0; text-align: center; }
+      @media (max-width: 900px) {
+        .stats-row { grid-template-columns: repeat(3, 1fr); }
+      }
+      @media (max-width: 700px) {
+        .form-grid { grid-template-columns: 1fr; }
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+      }
+    </style>
+  </head>
+  <body data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)}>
+    {!authed ? (
+      <div class="login-wrap">
+        <div class="login-box">
+          <h1>CRM Secretarias</h1>
+          <p>Acceso solo para personal de TuGPS24.</p>
+          {loginError && <p class="error-msg">Clave incorrecta, intenta de nuevo.</p>}
+          <form method="POST" action="/api/internal-login">
+            <input type="hidden" name="redirect" value="/secretarias" />
+            <div class="field">
+              <label for="password">Clave de acceso</label>
+              <input id="password" name="password" type="password" required autofocus />
+            </div>
+            <button class="btn" type="submit" style="width:100%;">Entrar</button>
+          </form>
+        </div>
+      </div>
+    ) : (
+      <div class="wrap">
+        <header class="panel-head">
+          <h1>CRM — Seguimiento de leads</h1>
+          <div style="display:flex; gap:10px;">
+            <a class="btn-ghost" href="/operadores">← Panel interno</a>
+            <form method="POST" action="/api/internal-logout">
+              <button class="btn-ghost" type="submit">Cerrar sesión</button>
+            </form>
+          </div>
+        </header>
+
+        <div class="stats-row" id="statsRow"></div>
+        <br />
+
+        <div class="panel-card">
+          <h2>Nuevo lead</h2>
+          <form id="leadForm">
+            <div class="form-grid">
+              <div class="field">
+                <label for="name">Nombre</label>
+                <input id="name" type="text" placeholder="Nombre del interesado" required />
+              </div>
+              <div class="field">
+                <label for="phone">Teléfono</label>
+                <input id="phone" type="tel" placeholder="+57 300 000 0000" required />
+              </div>
+              <div class="field">
+                <label for="city">Ciudad</label>
+                <input id="city" type="text" placeholder="Ej: Riohacha" />
+              </div>
+              <div class="field">
+                <label for="campaign">Campaña / anuncio de origen</label>
+                <input id="campaign" type="text" placeholder="Ej: Facebook - Promo aniversario" />
+              </div>
+              <div class="field">
+                <label for="secretary">Secretaria asignada</label>
+                <input id="secretary" type="text" placeholder="Nombre de la secretaria" />
+              </div>
+              <div class="field">
+                <label for="nextFollowUp">Próximo seguimiento</label>
+                <input id="nextFollowUp" type="date" />
+              </div>
+              <div class="field field-full">
+                <label for="initialNote">Nota inicial (opcional)</label>
+                <textarea id="initialNote" placeholder="Detalle del primer contacto"></textarea>
+              </div>
+            </div>
+            <button class="btn" type="submit">Guardar lead</button>
+          </form>
+        </div>
+
+        <div class="panel-card">
+          <h2>Buscar y filtrar</h2>
+          <div class="filters">
+            <input id="searchInput" type="text" placeholder="Buscar por nombre, teléfono o campaña..." />
+            <select id="cityFilter"><option value="">Todas las ciudades</option></select>
+            <select id="secretaryFilter"><option value="">Todas las secretarias</option></select>
+            <select id="statusFilter">
+              <option value="">Todos los estados</option>
+              {STATUSES.map((s) => <option value={s}>{s}</option>)}
+            </select>
+            <label class="checkbox"><input type="checkbox" id="overdueFilter" /> Solo atrasados</label>
+            <button class="btn-ghost" type="button" id="exportBtn">Exportar CSV</button>
+          </div>
+          <div class="leads-list" id="leadsList">
+            <div class="empty">Cargando...</div>
+          </div>
+        </div>
+      </div>
+    )}
+    <script src="/js/secretarias.js" defer></script>
+  </body>
+</html>
