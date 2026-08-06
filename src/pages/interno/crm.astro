@@ -1,0 +1,130 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'crm')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Convertido', 'Perdido'];
+const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+---
+
+<InternoLayout title="CRM" active="crm" session={session}>
+  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} style="display:none;"></div>
+
+  <div class="stats-row" id="statsRow"></div>
+  <br />
+
+  <div class="panel-card">
+    <h2>Nuevo lead</h2>
+    <form id="leadForm">
+      <div class="form-grid">
+        <div class="field">
+          <label for="name">Nombre</label>
+          <input id="name" type="text" placeholder="Nombre del interesado" required />
+        </div>
+        <div class="field">
+          <label for="phone">Teléfono</label>
+          <input id="phone" type="tel" placeholder="+57 300 000 0000" required />
+        </div>
+        <div class="field">
+          <label for="city">Ciudad</label>
+          <input id="city" type="text" placeholder="Ej: Riohacha" />
+        </div>
+        <div class="field">
+          <label for="campaign">Campaña / anuncio de origen</label>
+          <input id="campaign" type="text" placeholder="Ej: Facebook - Promo aniversario" />
+        </div>
+        <div class="field">
+          <label for="secretary">Secretaria asignada</label>
+          <input id="secretary" type="text" placeholder="Nombre de la secretaria" />
+        </div>
+        <div class="field">
+          <label for="nextFollowUp">Próximo seguimiento</label>
+          <input id="nextFollowUp" type="date" />
+        </div>
+        <div class="field">
+          <label for="vehicleType">Tipo de cliente</label>
+          <select id="vehicleType">
+            <option value="">Sin definir</option>
+            <option value="Moto">Moto</option>
+            <option value="Carro">Carro</option>
+            <option value="Flota">Flota</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="motosCount">Cantidad de motos</label>
+          <input id="motosCount" type="number" min="0" placeholder="0" />
+        </div>
+        <div class="field">
+          <label for="carrosCount">Cantidad de carros</label>
+          <input id="carrosCount" type="number" min="0" placeholder="0" />
+        </div>
+        <div class="field field-full">
+          <label for="initialNote">Nota inicial (opcional)</label>
+          <textarea id="initialNote" placeholder="Detalle del primer contacto"></textarea>
+        </div>
+      </div>
+      <button class="btn" type="submit">Guardar lead</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Buscar y filtrar</h2>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por nombre, teléfono o campaña..." />
+      <select id="cityFilter"><option value="">Todas las ciudades</option></select>
+      <select id="secretaryFilter"><option value="">Todas las secretarias</option></select>
+      <select id="statusFilter">
+        <option value="">Todos los estados</option>
+        {STATUSES.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <select id="vehicleTypeFilter">
+        <option value="">Todos los tipos</option>
+        <option value="Moto">Moto</option>
+        <option value="Carro">Carro</option>
+        <option value="Flota">Flota</option>
+      </select>
+      <label class="checkbox"><input type="checkbox" id="overdueFilter" /> Solo atrasados</label>
+      <button class="btn-ghost" type="button" id="exportBtn">Exportar CSV</button>
+    </div>
+    <div class="leads-list" id="leadsList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style>
+  .leads-list { display: flex; flex-direction: column; gap: 12px; }
+  .lead-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .lead-item.overdue { border-color: var(--danger); background: #e0563f14; }
+  .lead-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .lead-name { font-weight: 700; font-size: 15px; }
+  .lead-meta { color: var(--slate); font-size: 12.5px; margin-bottom: 10px; }
+  .lead-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .lead-controls select, .lead-controls input { width: auto; padding: 7px 9px; font-size: 12.5px; }
+  .badge.Nuevo { background: #ffab5c33; color: var(--teal-bright); }
+  .badge.Contactado { background: #4a90d922; color: #7ab8ec; }
+  .badge.Cotizado { background: #ff7a1a29; color: var(--amber); }
+  .badge.Convertido { background: #2f8a4f33; color: var(--ok); }
+  .badge.Perdido { background: #e0563f22; color: var(--danger); }
+  .badge.overdue-badge { background: var(--danger); color: #fff; }
+  .notes-list { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .notes-list .note-item { font-size: 12.5px; color: var(--paper-dim); }
+  .notes-list .note-item .note-date { color: var(--slate); font-size: 11px; margin-right: 6px; }
+  .add-note-row { display: flex; gap: 8px; margin-top: 10px; }
+  .add-note-row input { flex: 1; }
+</style>
+
+<script src="/js/interno-crm.js" defer></script>

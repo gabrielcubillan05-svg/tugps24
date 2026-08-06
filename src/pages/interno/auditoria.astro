@@ -1,0 +1,45 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'auditoria')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Auditoría" active="auditoria" session={session}>
+  <div class="panel-card">
+    <h2>Registro de actividad</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Historial de acciones realizadas por el personal en el sistema (últimas 500).
+    </p>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por usuario, acción o detalle..." />
+    </div>
+    <div class="list-col" id="auditList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style>
+  .audit-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .audit-item .audit-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .audit-item .audit-action { font-weight: 700; }
+  .audit-item .audit-date { color: var(--slate); font-size: 12px; }
+  .audit-item .audit-detail { color: var(--paper-dim); margin-top: 4px; }
+</style>
+
+<script src="/js/interno-auditoria.js" defer></script>

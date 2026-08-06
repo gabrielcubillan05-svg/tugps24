@@ -1,0 +1,57 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'reportes')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
+---
+
+<InternoLayout title="Reportes programados" active="reportes" session={session}>
+  <div class="panel-card">
+    <h2>Nuevo reporte programado</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Reportes recurrentes que hay que sacarle a cada cliente. Al guardarlos, aparecen
+      como tarea pendiente según la frecuencia — puedes marcarlos como hechos cuando se
+      completen.
+    </p>
+    <form id="scheduledForm">
+      <div class="form-grid cols-4">
+        <div class="field">
+          <label for="sr-client">Cliente / placa</label>
+          <input id="sr-client" type="text" placeholder="Nombre o placa" required />
+        </div>
+        <div class="field">
+          <label for="sr-type">Tipo de reporte</label>
+          <input id="sr-type" type="text" placeholder="Ej: Reporte de recorrido" required />
+        </div>
+        <div class="field">
+          <label for="sr-frequency">Frecuencia</label>
+          <select id="sr-frequency" required>
+            {FREQUENCIES.map((f) => <option value={f}>{f}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="sr-operator">Operador asignado</label>
+          <input id="sr-operator" type="text" placeholder="Nombre del operador" required />
+        </div>
+      </div>
+      <button class="btn" type="submit">Guardar reporte programado</button>
+    </form>
+  </div>
+  <div class="panel-card">
+    <h2>Reportes pendientes y al día</h2>
+    <div class="list-col" id="scheduledList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<script src="/js/interno-reportes.js" defer></script>

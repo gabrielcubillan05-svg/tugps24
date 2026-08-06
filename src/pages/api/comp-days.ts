@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { isAuthorized, isSupervisor, AUTH_COOKIE, SUPERVISOR_COOKIE } from '../../lib/internalAuth';
+import { logAudit } from '../../lib/audit';
+import { SESSION_COOKIE, getSession, canManageCompDays, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -15,12 +16,14 @@ interface CompDay {
   createdAt: string;
 }
 
-function authorized(cookies: any) {
-  return isAuthorized(cookies.get(AUTH_COOKIE)?.value) && isSupervisor(cookies.get(SUPERVISOR_COOKIE)?.value);
+async function requireCompDays(cookies: any) {
+  const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
+  if (!session || !canManageCompDays(session.role)) return null;
+  return session;
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
-  if (!authorized(cookies)) {
+  if (!(await requireCompDays(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -51,7 +54,11 @@ export const GET: APIRoute = async ({ cookies }) => {
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  if (!authorized(cookies)) {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireCompDays(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -83,6 +90,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });
+  await logAudit(redis, session, 'comp_day_create', operator, `${days} día(s)`);
 
   return new Response(JSON.stringify({ entry }), {
     headers: { 'Content-Type': 'application/json' },
@@ -90,7 +98,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 };
 
 export const DELETE: APIRoute = async ({ request, cookies }) => {
-  if (!authorized(cookies)) {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireCompDays(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -106,6 +118,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
   }
 
   await redis.hdel(REDIS_KEY, String(body.id || ''));
+  await logAudit(redis, session, 'comp_day_delete', String(body.id || ''));
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },
   });

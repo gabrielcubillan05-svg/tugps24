@@ -2,9 +2,16 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
-import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+import { logAudit } from '../../lib/audit';
+import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
+
+async function requireNovedades(cookies: any) {
+  const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
+  if (!session || !canAccessSection(session.role, 'novedades')) return null;
+  return session;
+}
 
 const REDIS_KEY = 'internal:reports';
 const CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Otro'];
@@ -22,7 +29,7 @@ interface Report {
 }
 
 export const GET: APIRoute = async ({ cookies, url }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!(await requireNovedades(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -63,7 +70,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireNovedades(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -142,6 +153,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   await redis.lpush(REDIS_KEY, JSON.stringify(report));
+  await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category);
 
   return new Response(JSON.stringify({ report }), {
     headers: { 'Content-Type': 'application/json' },

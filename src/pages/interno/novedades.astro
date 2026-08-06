@@ -1,0 +1,72 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'novedades')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Otro'];
+const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+---
+
+<InternoLayout title="Novedades" active="novedades" session={session}>
+  <div class="panel-card">
+    <h2>Nuevo reporte</h2>
+    <form id="reportForm">
+      <div class="form-grid">
+        <div class="field">
+          <label for="plate">Placa / identificador</label>
+          <input id="plate" name="plate" type="text" placeholder="GKX740" required />
+        </div>
+        <div class="field">
+          <label for="branch">Sucursal</label>
+          <select id="branch" name="branch" required>
+            {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="category">Categoría</label>
+          <select id="category" name="category" required>
+            {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div class="field field-note">
+          <label for="note">Nota / detalle</label>
+          <textarea id="note" name="note" placeholder="Ej: fuera de área vía Masinga, llamado al principal, confirma todo en orden" required></textarea>
+        </div>
+        <div class="field field-note">
+          <label for="images">Fotos (opcional, máx. 4) — puedes pegar una captura con Ctrl+V dentro de la nota</label>
+          <input id="images" name="images" type="file" accept="image/*" multiple />
+          <div class="image-preview" id="imagePreview"></div>
+        </div>
+      </div>
+      <button class="btn" type="submit">Guardar reporte</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Buscar y filtrar</h2>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por placa, sucursal o texto..." />
+      <select id="branchFilter">
+        <option value="">Todas las sucursales</option>
+        {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+      </select>
+      <select id="categoryFilter">
+        <option value="">Todas las categorías</option>
+        {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
+      </select>
+    </div>
+    <div class="reports-list" id="reportsList">
+      <div class="empty">Cargando reportes...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<script src="/js/interno-novedades.js" defer></script>

@@ -1,0 +1,99 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, canAssignTasks, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'tareas')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const canAssign = canAssignTasks(session.role);
+const isAdmin = session.role === 'admin';
+---
+
+<InternoLayout title="Tareas" active="tareas" session={session}>
+  <div id="tareasData" data-can-assign={String(canAssign)} data-is-admin={String(isAdmin)} style="display:none;"></div>
+
+  {canAssign && (
+    <div class="panel-card">
+      <h2>Nueva tarea</h2>
+      <form id="taskForm">
+        <div class="form-grid">
+          <div class="field field-full">
+            <label for="t-title">Título</label>
+            <input id="t-title" type="text" placeholder="Ej: Revisar instalación GPS moto ABC123" required />
+          </div>
+          <div class="field field-note">
+            <label for="t-description">Descripción (opcional)</label>
+            <textarea id="t-description" placeholder="Detalles de la tarea"></textarea>
+          </div>
+          <div class="field">
+            <label for="t-assignee">Asignar a</label>
+            <select id="t-assignee" required>
+              <option value="">Cargando empleados...</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="t-duedate">Fecha de vencimiento</label>
+            <input id="t-duedate" type="date" />
+          </div>
+        </div>
+        <button class="btn" type="submit">Asignar tarea</button>
+      </form>
+    </div>
+  )}
+
+  <div class="panel-card">
+    <h2>{canAssign ? 'Todas las tareas' : 'Mis tareas'}</h2>
+    <div class="filters">
+      {canAssign && (
+        <select id="assigneeFilter"><option value="">Todos los empleados</option></select>
+      )}
+      <select id="statusFilter">
+        <option value="">Todos los estados</option>
+        <option value="Pendiente">Pendiente</option>
+        <option value="En progreso">En progreso</option>
+        <option value="Completada">Completada</option>
+        <option value="Cancelada">Cancelada</option>
+      </select>
+      <label class="checkbox"><input type="checkbox" id="overdueFilter" /> Solo atrasadas</label>
+    </div>
+    <div class="list-col" id="tasksList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style>
+  .task-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .task-item.overdue { border-color: var(--danger); background: #e0563f14; }
+  .task-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; align-items: center; }
+  .task-title { font-weight: 700; font-size: 15px; }
+  .task-meta { color: var(--slate); font-size: 12.5px; margin-bottom: 10px; }
+  .task-desc { color: var(--paper-dim); font-size: 14px; margin-bottom: 10px; }
+  .badge.Pendiente { background: #ffab5c33; color: var(--teal-bright); }
+  .badge.En-progreso { background: #4a90d922; color: #7ab8ec; }
+  .badge.Completada { background: #2f8a4f33; color: var(--ok); }
+  .badge.Cancelada { background: #e0563f22; color: var(--danger); }
+  .badge.overdue-badge { background: var(--danger); color: #fff; }
+  .task-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .task-controls select { width: auto; padding: 7px 9px; font-size: 12.5px; }
+  .proof-thumb { display: block; width: 90px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 10px; }
+  .notes-list { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .notes-list .note-item { font-size: 12.5px; color: var(--paper-dim); }
+  .notes-list .note-item .note-date { color: var(--slate); font-size: 11px; margin-right: 6px; }
+  .add-note-row { display: flex; gap: 8px; margin-top: 10px; }
+  .add-note-row input { flex: 1; }
+</style>
+
+<script src="/js/interno-tareas.js" defer></script>

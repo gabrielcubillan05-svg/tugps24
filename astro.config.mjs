@@ -9,5 +9,8 @@ export default defineConfig({
   adapter: vercel(),
   redirects: {
     '/inicio': '/',
+    '/operadores': '/interno/novedades',
+    '/cotizaciones': '/interno/cotizaciones',
+    '/secretarias': '/interno/crm',
   },
 });

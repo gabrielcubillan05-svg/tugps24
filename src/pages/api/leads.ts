@@ -1,9 +1,16 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+import { logAudit } from '../../lib/audit';
+import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
+
+async function requireCrm(cookies: any) {
+  const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
+  if (!session || !canAccessSection(session.role, 'crm')) return null;
+  return session;
+}
 
 const REDIS_KEY = 'internal:leads';
 export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Convertido', 'Perdido'];
@@ -55,7 +62,7 @@ async function readLeads(redis: any): Promise<Lead[]> {
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!(await requireCrm(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -79,7 +86,11 @@ export const GET: APIRoute = async ({ cookies }) => {
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireCrm(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -122,6 +133,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   await redis.hset(REDIS_KEY, { [lead.id]: JSON.stringify(lead) });
+  await logAudit(redis, session, 'lead_create', lead.name, lead.phone);
 
   return new Response(JSON.stringify({ lead }), {
     headers: { 'Content-Type': 'application/json' },
@@ -129,7 +141,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 };
 
 export const PATCH: APIRoute = async ({ request, cookies }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireCrm(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -196,6 +212,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   lead.updatedAt = new Date().toISOString();
 
   await redis.hset(REDIS_KEY, { [id]: JSON.stringify(lead) });
+  await logAudit(redis, session, 'lead_update', lead.name, JSON.stringify(body));
 
   return new Response(JSON.stringify({ lead: { ...lead, overdue: computeOverdue(lead) } }), {
     headers: { 'Content-Type': 'application/json' },
@@ -203,7 +220,11 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 };
 
 export const DELETE: APIRoute = async ({ request, cookies }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireCrm(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -219,6 +240,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
   }
 
   await redis.hdel(REDIS_KEY, String(body.id || ''));
+  await logAudit(redis, session, 'lead_delete', String(body.id || ''));
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },
   });

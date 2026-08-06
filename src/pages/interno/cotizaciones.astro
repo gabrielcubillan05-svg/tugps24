@@ -1,0 +1,61 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'cotizaciones')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+---
+
+<InternoLayout title="Cotizador" active="cotizaciones" session={session}>
+  <div class="panel-card" style="max-width:640px;">
+    <h2>Generador de cotizaciones</h2>
+    <p style="color:var(--slate); font-size:13.5px; margin-bottom:18px;">
+      Ingresa los datos del cliente y la cantidad de vehículos — se genera un PDF listo para enviar.
+    </p>
+    <form id="quoteForm">
+      <div class="field">
+        <label for="client">Nombre del cliente (opcional)</label>
+        <input id="client" type="text" placeholder="Ej: Juan Pérez" />
+      </div>
+      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="field">
+          <label for="document">Documento (opcional)</label>
+          <input id="document" type="text" placeholder="Ej: 1097123456" />
+        </div>
+        <div class="field">
+          <label for="email">Correo electrónico (opcional)</label>
+          <input id="email" type="email" placeholder="cliente@correo.com" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="branch">Sucursal</label>
+        <select id="branch" required>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+      </div>
+      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="field">
+          <label for="motos">Cantidad de motos</label>
+          <input id="motos" type="number" min="0" value="0" required />
+        </div>
+        <div class="field">
+          <label for="carros">Cantidad de carros</label>
+          <input id="carros" type="number" min="0" value="0" required />
+        </div>
+      </div>
+      <button class="btn" type="submit" id="submitBtn" style="width:100%;">Generar cotización PDF</button>
+      <p id="quoteError" class="error-msg" style="display:none; margin-top:12px;"></p>
+      <div class="summary" id="summary" style="display:none; margin-top:20px; padding-top:16px; border-top:1px solid var(--line); font-size:13.5px; color:var(--paper-dim);"></div>
+    </form>
+  </div>
+</InternoLayout>
+
+<script src="/js/interno-cotizaciones.js" defer></script>

@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+import { getRedis } from '../../lib/redis';
+import { logAudit } from '../../lib/audit';
+import { SESSION_COOKIE, getSession, canAccessSection } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -41,7 +43,8 @@ function money(n: number): string {
 }
 
 export const POST: APIRoute = async ({ request, cookies, url }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
+  if (!session || !canAccessSection(session.role, 'cotizaciones')) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -372,6 +375,11 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   }
 
   const pdfBytes = await pdfDoc.save();
+
+  const redis = getRedis();
+  if (redis) {
+    await logAudit(redis, session, 'quote_generate', clientLabel, `${branch} · ${motos} moto(s) + ${carros} carro(s)`);
+  }
 
   return new Response(pdfBytes, {
     headers: {

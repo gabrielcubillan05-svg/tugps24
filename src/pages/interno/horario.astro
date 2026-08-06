@@ -1,0 +1,76 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, canManageCompDays, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'horario')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const canCompDays = canManageCompDays(session.role);
+---
+
+<InternoLayout title="Horario" active="horario" session={session}>
+  <div class="panel-card">
+    <h2>Horario de operadores</h2>
+    <form id="scheduleForm">
+      <div class="form-grid">
+        <div class="field">
+          <label for="sc-operator">Operador</label>
+          <input id="sc-operator" type="text" placeholder="Nombre del operador" required />
+        </div>
+        <div class="field field-note">
+          <label for="sc-horario">Horario</label>
+          <input id="sc-horario" type="text" placeholder="Ej: Lunes a sábado, turno 6am-2pm" required />
+        </div>
+      </div>
+      <button class="btn" type="submit">Guardar horario</button>
+    </form>
+  </div>
+  <div class="panel-card">
+    <h2>Horarios actuales</h2>
+    <div class="list-col" id="scheduleList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Días compensatorios</h2>
+    {canCompDays ? (
+      <div id="compDaysArea">
+        <form id="compDaysForm" style="margin-bottom:20px;">
+          <div class="form-grid cols-4">
+            <div class="field">
+              <label for="cd-operator">Operador</label>
+              <input id="cd-operator" type="text" placeholder="Nombre" required />
+            </div>
+            <div class="field">
+              <label for="cd-days">Días (+ / -)</label>
+              <input id="cd-days" type="number" step="1" placeholder="Ej: 1 o -1" required />
+            </div>
+            <div class="field field-note">
+              <label for="cd-note">Nota</label>
+              <input id="cd-note" type="text" placeholder="Motivo" />
+            </div>
+          </div>
+          <button class="btn" type="submit">Registrar</button>
+        </form>
+        <div class="list-col" id="compDaysList">
+          <div class="empty">Cargando...</div>
+        </div>
+      </div>
+    ) : (
+      <div class="supervisor-gate">
+        <p style="color:var(--slate); font-size:13.5px;">
+          Esta sección es solo para supervisores, gerentes y administradores.
+        </p>
+      </div>
+    )}
+  </div>
+</InternoLayout>
+
+<script src="/js/interno-horario.js" defer></script>

@@ -2,8 +2,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const leadsList = document.getElementById('leadsList');
   if (!leadsList) return; // no autenticado
 
-  const STATUSES = JSON.parse(document.body.dataset.statuses || '[]');
-  const BRANCHES = JSON.parse(document.body.dataset.branches || '[]');
+  const crmData = document.getElementById('crmData');
+  const STATUSES = JSON.parse((crmData && crmData.dataset.statuses) || '[]');
+  const BRANCHES = JSON.parse((crmData && crmData.dataset.branches) || '[]');
 
   const statsRow = document.getElementById('statsRow');
   const leadForm = document.getElementById('leadForm');

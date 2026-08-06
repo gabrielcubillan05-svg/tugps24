@@ -1,13 +1,20 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
-import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
+import { logAudit } from '../../lib/audit';
+import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
 const REDIS_KEY = 'internal:schedule';
 
+async function requireHorario(cookies: any) {
+  const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
+  if (!session || !canAccessSection(session.role, 'horario')) return null;
+  return session;
+}
+
 export const GET: APIRoute = async ({ cookies }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!(await requireHorario(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -25,7 +32,11 @@ export const GET: APIRoute = async ({ cookies }) => {
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  if (!isAuthorized(cookies.get(AUTH_COOKIE)?.value)) {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireHorario(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -47,6 +58,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   await redis.hset(REDIS_KEY, { [operator]: horario });
+  await logAudit(redis, session, 'schedule_update', operator);
 
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },

@@ -1,0 +1,466 @@
+[
+  {
+    "username": "admin",
+    "name": "Administrador",
+    "city": "Bucaramanga",
+    "role": "admin",
+    "tipoOriginal": "Administrador",
+    "puestoOriginal": "ADMIN"
+  },
+  {
+    "username": "adriannuñez",
+    "name": "Adrian Nuñez Acosta",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Monitoreo"
+  },
+  {
+    "username": "alonsopadilla",
+    "name": "Alonso David Padilla Ortega",
+    "city": "Valledupar",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Valledupar"
+  },
+  {
+    "username": "ambarpimienta",
+    "name": "Ambar Yissel Pimienta Rodriguez",
+    "city": "Valledupar",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Monitoreo"
+  },
+  {
+    "username": "analopez",
+    "name": "Ana Teresa López Barbosa",
+    "city": "Medellín",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria Valledupar"
+  },
+  {
+    "username": "antonyquinto",
+    "name": "Antony de Jesus Quinto San Juan",
+    "city": "Santa Marta",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "tecnico santa marta"
+  },
+  {
+    "username": "anuardcogollos",
+    "name": "Anuard Andres Cogollos Sanjuan",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "operador"
+  },
+  {
+    "username": "arleinstalador",
+    "name": "Arle Luis Moguea Fuenmayor",
+    "city": "Atlantico",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Monteria"
+  },
+  {
+    "username": "arlin",
+    "name": "Arlin Antonio Paez Ferrer",
+    "city": "Santa Marta",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Atlantico"
+  },
+  {
+    "username": "brayansierra",
+    "name": "Brayan Darío sierra peña",
+    "city": "Valledupar",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "tecnico"
+  },
+  {
+    "username": "camilovergara",
+    "name": "Camilo Andres Vergara Barrios",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "operador"
+  },
+  {
+    "username": "chrisinstalador",
+    "name": "Christophofer Alexander Rivero Toyo",
+    "city": "Medellín",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Maicao"
+  },
+  {
+    "username": "claratiles",
+    "name": "Clara Ines Tiles Atencio",
+    "city": "Valledupar",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Alarmas"
+  },
+  {
+    "username": "cristianzambrano1",
+    "name": "Cristian Zambrano",
+    "city": "Bucaramanga",
+    "role": "supervisor",
+    "tipoOriginal": "Administrador",
+    "puestoOriginal": "Jefe"
+  },
+  {
+    "username": "paolasalas",
+    "name": "Cyndy Paola Salas Morales",
+    "city": "Valledupar",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador Alarmas"
+  },
+  {
+    "username": "danielgutierrez",
+    "name": "Daniel Alejandro Gutierrez Villas",
+    "city": "Santa Marta",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "operador"
+  },
+  {
+    "username": "danielmorelo",
+    "name": "Daniel David Morelo Pinto",
+    "city": "Valledupar",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Alarmas"
+  },
+  {
+    "username": "daniloherran",
+    "name": "Danilo Andres Herran Toro",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "operador"
+  },
+  {
+    "username": "esmitoro",
+    "name": "Esmi Jesus Toro Mejia",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Alarmas"
+  },
+  {
+    "username": "fernandoternera",
+    "name": "Fernando Manuel Ternera Julio",
+    "city": "Santa Marta",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "instalador santa marta"
+  },
+  {
+    "username": "franklinospino",
+    "name": "Franklin Javier Ospino",
+    "city": "Maicao",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Riohacha"
+  },
+  {
+    "username": "gabriel",
+    "name": "Gabriel",
+    "city": "Riohacha",
+    "role": "gerente",
+    "tipoOriginal": "Administrador",
+    "puestoOriginal": "Gerente General"
+  },
+  {
+    "username": "helen",
+    "name": "Helen Dayana Luna Camargo",
+    "city": "Santa Marta",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria"
+  },
+  {
+    "username": "henrylozano",
+    "name": "Henry Alexis Lozano Herrera",
+    "city": "Santa Marta",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Santa Marta"
+  },
+  {
+    "username": "heydrich",
+    "name": "Heydrich Montes Beltran",
+    "city": "Valledupar",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria Valledupar"
+  },
+  {
+    "username": "juniorcardenas",
+    "name": "Hisnaldis junior cardenas almanza",
+    "city": "Riohacha",
+    "role": "supervisor",
+    "tipoOriginal": "Operador Jefe",
+    "puestoOriginal": "Coordinador de Operadores"
+  },
+  {
+    "username": "isidrocubillan",
+    "name": "Isidro Cubillan",
+    "city": "Riohacha",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Riohacha"
+  },
+  {
+    "username": "jerssoncampo",
+    "name": "Jersson Jamet Campo Sanchez",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Monitoreo"
+  },
+  {
+    "username": "jhonsanta",
+    "name": "Jhon Freyder Santa Cantillo",
+    "city": "Santa Marta",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Santa Marta"
+  },
+  {
+    "username": "joenys",
+    "name": "Joenys Castillo Perez",
+    "city": "Atlantico",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria Atlantico"
+  },
+  {
+    "username": "josegonzalez",
+    "name": "Jose Gonzalez",
+    "city": "Riohacha",
+    "role": "gerente",
+    "tipoOriginal": "Administrador",
+    "puestoOriginal": "Gerente Riohacha"
+  },
+  {
+    "username": "josemiguel",
+    "name": "Jose Miguel Reales Durango",
+    "city": "Riohacha",
+    "role": "supervisor",
+    "tipoOriginal": "Operador Jefe",
+    "puestoOriginal": "Sub Coordinador de operadores"
+  },
+  {
+    "username": "josuegonzalez",
+    "name": "Josue David Gonzalez Lopez",
+    "city": "Medellín",
+    "role": "gerente",
+    "tipoOriginal": "Administrador",
+    "puestoOriginal": "gerente"
+  },
+  {
+    "username": "juanplata",
+    "name": "Juan Daniel Plata Montaño",
+    "city": "Riohacha",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Valledupar"
+  },
+  {
+    "username": "juanperez",
+    "name": "Juan Guillermo Perez Arroyo",
+    "city": "Santa Marta",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador"
+  },
+  {
+    "username": "juanromero",
+    "name": "Juan José Romero",
+    "city": "Riohacha",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "tecnico Riohacha"
+  },
+  {
+    "username": "katherinpaola",
+    "name": "KATHERIN PAOLA GONZALEZ MENDOZA",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "OPERADOR DE MONITOREO"
+  },
+  {
+    "username": "kellylara",
+    "name": "Kelly Lisbeth Lara Ramirez",
+    "city": "Maicao",
+    "role": "gerente",
+    "tipoOriginal": "Administrador",
+    "puestoOriginal": "Gerente de Maicao"
+  },
+  {
+    "username": "kevincordero",
+    "name": "Kevin Joseph Cordero Pastran",
+    "city": "Santa Marta",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "Tecnico Santa Marta"
+  },
+  {
+    "username": "kevingonzalez",
+    "name": "Kevin Santiago Gonzalez Andrade",
+    "city": "Valledupar",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador Nocturno"
+  },
+  {
+    "username": "keyneriguaran",
+    "name": "Keyner Yeisir Iguaran Guevara",
+    "city": "Valledupar",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Alarmas"
+  },
+  {
+    "username": "luispertuz",
+    "name": "Luis Jose Pertuz Caro",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador Nocturno"
+  },
+  {
+    "username": "marcosmorillo",
+    "name": "Marcos Antonio Morillo Canaan",
+    "city": "Valledupar",
+    "role": "tecnico",
+    "tipoOriginal": "Técnico",
+    "puestoOriginal": "tecnico valledupar"
+  },
+  {
+    "username": "alejandramolina",
+    "name": "Maria Alejandra Molina",
+    "city": "Medellín",
+    "role": "gerente",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Gerente Valledupar"
+  },
+  {
+    "username": "mariapertuz",
+    "name": "Maria Jose Pertuz Caro",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Ooperador de Monitoreo"
+  },
+  {
+    "username": "melanyinsignares",
+    "name": "Melany Insignares Suarez",
+    "city": "Atlantico",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria Atlantico"
+  },
+  {
+    "username": "monicacubillan",
+    "name": "Monica Cubillan",
+    "city": "Santa Marta",
+    "role": "gerente",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Gerente Santa Marta"
+  },
+  {
+    "username": "oscargarcia",
+    "name": "Oscar Alberto Garcia de la Cruz",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Garantias"
+  },
+  {
+    "username": "pierangelasanchez",
+    "name": "Pierangela Sanchez",
+    "city": "Montería",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria Monteria"
+  },
+  {
+    "username": "sandramorales",
+    "name": "Sandra Morales Rojas",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Garantias"
+  },
+  {
+    "username": "shelennesfuentes",
+    "name": "Shelennes Fuentes Pacheco",
+    "city": "Valledupar",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador"
+  },
+  {
+    "username": "valentinasepulveda",
+    "name": "Valentina Sepulveda Villanueva",
+    "city": "Atlantico",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria Atlantico"
+  },
+  {
+    "username": "viannarodriguez",
+    "name": "Vianna Isabel Rodriguez Bautista",
+    "city": "Santa Marta",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Alarmas"
+  },
+  {
+    "username": "viarnysfuentes",
+    "name": "Viarnys Paola Fuentes Pacheco",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "operador de garantias"
+  },
+  {
+    "username": "wilmar",
+    "name": "Wilmar Archila",
+    "city": "Bucaramanga",
+    "role": "gerente",
+    "tipoOriginal": "Administrador",
+    "puestoOriginal": "Gerente de Cobranza"
+  },
+  {
+    "username": "yelitzaredondo",
+    "name": "Yelitza Redondo Palacios",
+    "city": "Riohacha",
+    "role": "secretaria",
+    "tipoOriginal": "Secretaría",
+    "puestoOriginal": "Secretaria Riohacha"
+  },
+  {
+    "username": "yoerlismendez",
+    "name": "Yoerlis Carolina Mendez Montiel",
+    "city": "Atlantico",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operadora de Alarmas"
+  },
+  {
+    "username": "yohanabecerra",
+    "name": "Yohana Carolina Becerra Mendoza",
+    "city": "Riohacha",
+    "role": "operador",
+    "tipoOriginal": "Operador",
+    "puestoOriginal": "Operador de Garantias"
+  }
+]

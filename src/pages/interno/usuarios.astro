@@ -1,0 +1,84 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, ROLES, ROLE_LABELS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (!canAccessSection(session.role, 'usuarios')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Usuarios" active="usuarios" session={session}>
+  <div class="panel-card">
+    <h2>Nuevo usuario</h2>
+    <form id="userForm">
+      <div class="form-grid">
+        <div class="field">
+          <label for="u-username">Usuario (para iniciar sesión)</label>
+          <input id="u-username" type="text" placeholder="ej: juanperez" required />
+        </div>
+        <div class="field">
+          <label for="u-name">Nombre completo</label>
+          <input id="u-name" type="text" placeholder="Ej: Juan Pérez" required />
+        </div>
+        <div class="field">
+          <label for="u-role">Rol</label>
+          <select id="u-role" required>
+            {ROLES.map((r) => <option value={r}>{ROLE_LABELS[r]}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="u-password">Contraseña inicial (mín. 8 caracteres)</label>
+          <input id="u-password" type="text" placeholder="Ej: TuGps2026" required />
+        </div>
+      </div>
+      <button class="btn" type="submit">Crear usuario</button>
+      <p id="userFormError" class="error-msg" style="display:none; margin-top:12px;"></p>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Cargar empleados desde archivo</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Crea automáticamente los usuarios que todavía no existan a partir de la lista de personal, con contraseña inicial <b>1234</b>. Los usuarios ya existentes no se modifican.
+    </p>
+    <button class="btn-ghost" id="seedBtn" type="button">Cargar empleados</button>
+    <p id="seedResult" style="display:none; margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></p>
+  </div>
+
+  <div class="panel-card">
+    <h2>Usuarios</h2>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por nombre o usuario..." />
+      <select id="roleFilter">
+        <option value="">Todos los roles</option>
+        {ROLES.map((r) => <option value={r}>{ROLE_LABELS[r]}</option>)}
+      </select>
+    </div>
+    <div class="list-col" id="usersList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style>
+  .user-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .user-item.inactive { opacity: 0.55; }
+  .user-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; align-items: center; }
+  .user-name { font-weight: 700; }
+  .user-meta { color: var(--slate); font-size: 12.5px; margin-bottom: 8px; }
+  .user-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .user-controls select, .user-controls input { width: auto; padding: 7px 9px; font-size: 12.5px; }
+</style>
+
+<script src="/js/interno-usuarios.js" defer></script>

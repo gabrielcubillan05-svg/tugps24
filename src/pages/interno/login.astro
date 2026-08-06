@@ -1,0 +1,107 @@
+---
+export const prerender = false;
+
+import { SESSION_COOKIE, getSession, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (session) {
+  const section = firstSectionFor(session.role);
+  return Astro.redirect(section ? SECTION_PATHS[section] : '/interno/login');
+}
+
+const loginError = Astro.url.searchParams.get('error') === '1';
+---
+
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Acceso interno — TuGPS24</title>
+    <script src="/js/theme-toggle.js" is:inline></script>
+    <style>
+      :root {
+        --ink-900: #0a0a0a;
+        --ink-800: #151412;
+        --line: #332e28;
+        --paper: #f2ede2;
+        --paper-dim: #c9c2b2;
+        --slate: #948d80;
+        --amber: #ff7a1a;
+        --danger: #e0563f;
+      }
+      html[data-theme="light"] {
+        --ink-900: #faf7f2;
+        --ink-800: #ffffff;
+        --line: #e4dccb;
+        --paper: #1c1712;
+        --paper-dim: #5b5347;
+        --slate: #8a8072;
+        --amber: #e8630a;
+        --danger: #c9432e;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--ink-900);
+        color: var(--paper);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .login-box {
+        background: var(--ink-800);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 36px;
+        width: 100%;
+        max-width: 360px;
+      }
+      .login-box h1 { font-size: 20px; margin-bottom: 8px; }
+      .login-box p { color: var(--slate); font-size: 13.5px; margin-bottom: 20px; }
+      .field { margin-bottom: 16px; }
+      .field label { display: block; color: var(--slate); font-size: 12.5px; margin-bottom: 6px; }
+      input, button { font-family: inherit; font-size: 14.5px; }
+      input {
+        width: 100%;
+        background: var(--ink-900);
+        border: 1px solid var(--line);
+        color: var(--paper);
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .btn {
+        background: var(--amber);
+        color: #1a0f00;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 12px 20px;
+        font-weight: 600;
+        width: 100%;
+      }
+      .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="login-wrap">
+      <div class="login-box">
+        <h1>Acceso interno</h1>
+        <p>Solo para personal de TuGPS24.</p>
+        {loginError && <p class="error-msg">Usuario o contraseña incorrectos.</p>}
+        <form method="POST" action="/api/auth/login">
+          <div class="field">
+            <label for="username">Usuario</label>
+            <input id="username" name="username" type="text" required autofocus autocomplete="username" />
+          </div>
+          <div class="field">
+            <label for="password">Contraseña</label>
+            <input id="password" name="password" type="password" required autocomplete="current-password" />
+          </div>
+          <button class="btn" type="submit">Entrar</button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
