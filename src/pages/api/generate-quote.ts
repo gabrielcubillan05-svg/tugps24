@@ -22,7 +22,7 @@ const PAGE_H = 841.89;
 const BRANCHES: Record<string, string> = {
   Riohacha: 'Cra 15 No. 18-60, La Guajira · 316 383 4278',
   Valledupar: 'Barrio Los Cortijos, Cra. 19 #9C-32, Cesar · 317 646 4403',
-  'Santa Marta': 'Cll 22 #17A-118, Barrio Alcázares, Magdalena',
+  'Santa Marta': 'Cll 22 #17A-118, Barrio Alcázares, Magdalena · 318 605 2983',
   Maicao: 'Cra. 16 #16-21, La Guajira · 315 210 2244',
   Soledad: 'Cra 14 #59-37 · WhatsApp 316 784 2516',
   Barranquilla: 'Cra 44 #69-50 · WhatsApp 316 784 2516',
@@ -73,12 +73,32 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const totalInstalacion = totalVehiculos * INSTALACION_UNIT;
   const totalMensual = motos * mensualidadMoto + carros * mensualidadCarro;
 
+  const SEDE_PHOTOS: [string, string][] = [
+    ['Riohacha', '/img/branches/riohacha/facade.jpg'],
+    ['Maicao', '/img/branches/maicao/facade.jpg'],
+    ['Santa Marta', '/img/branches/santa-marta/facade.jpg'],
+    ['Valledupar', '/img/branches/valledupar/facade.jpg'],
+    ['Barranquilla', '/img/branches/barranquilla/facade.jpg'],
+    ['Soledad', '/img/branches/soledad/facade.jpg'],
+    ['Bucaramanga', '/img/branches/bucaramanga/facade.jpg'],
+    ['Medellín', '/img/branches/medellin/facade.jpg'],
+    ['Montería', '/img/branches/monteria/facade.jpg'],
+  ];
+  const RECOVERY_PHOTOS = [
+    '/img/recuperaciones/recuperacion-60.jpg',
+    '/img/recuperaciones/recuperacion-58.jpg',
+    '/img/recuperaciones/recuperacion-54.jpg',
+    '/img/recuperaciones/recuperacion-50.jpg',
+  ];
+
   const origin = url.origin;
-  const [coverJpg, statsJpg, priceJpg, closeJpg] = await Promise.all([
+  const [coverJpg, statsJpg, priceJpg, closeJpg, sedeJpgs, recoveryJpgs] = await Promise.all([
     fetchImageBytes(origin, '/img/central/central-1.jpg'),
-    fetchImageBytes(origin, '/img/recuperaciones/recuperacion-60.jpg'),
     fetchImageBytes(origin, '/img/central/central-2.jpg'),
+    fetchImageBytes(origin, '/img/central/central-video-poster.jpg'),
     fetchImageBytes(origin, '/img/recuperaciones/recuperacion-55.jpg'),
+    Promise.all(SEDE_PHOTOS.map(([, p]) => fetchImageBytes(origin, p))),
+    Promise.all(RECOVERY_PHOTOS.map((p) => fetchImageBytes(origin, p))),
   ]);
 
   const pdfDoc = await PDFDocument.create();
@@ -92,6 +112,8 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const statsImg = await pdfDoc.embedJpg(statsJpg);
   const priceImg = await pdfDoc.embedJpg(priceJpg);
   const closeImg = await pdfDoc.embedJpg(closeJpg);
+  const sedeImgs = await Promise.all(sedeJpgs.map((b) => pdfDoc.embedJpg(b)));
+  const recoveryImgs = await Promise.all(recoveryJpgs.map((b) => pdfDoc.embedJpg(b)));
 
   // Solo seguro para fotos a página completa (0,0 a PAGE_W,PAGE_H): el desborde
   // queda recortado por el propio límite de la página.
@@ -187,6 +209,60 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     page.drawText('Ventajas de nuestro servicio', { x: 40, y: 260, size: 13, font: fontBold, color: C.tealBright });
     perks.forEach((p, i) => {
       page.drawText('•  ' + p, { x: 40, y: 236 - i * 18, size: 10.5, font: fontRegular, color: C.paper });
+    });
+  }
+
+  // ---------- PAGE: Nuestras sedes ----------
+  {
+    const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: C.paper });
+    page.drawRectangle({ x: 0, y: PAGE_H - 90, width: PAGE_W, height: 90, color: C.ink900 });
+    page.drawText('Nuestras sedes', { x: 40, y: PAGE_H - 58, size: 22, font: fontBold, color: C.amber });
+    page.drawText('Nueve sucursales propias en el Caribe y el interior de Colombia.', {
+      x: 40, y: PAGE_H - 76, size: 10.5, font: fontRegular, color: C.paperDim,
+    });
+
+    const cols = 3;
+    const gap = 16;
+    const gridX = 40;
+    const gridTop = PAGE_H - 120;
+    const cellW = (PAGE_W - 80 - gap * (cols - 1)) / cols;
+    const photoH = 120;
+    const rowH = photoH + 28;
+
+    SEDE_PHOTOS.forEach(([name], i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = gridX + col * (cellW + gap);
+      const y = gridTop - row * (rowH + gap) - photoH;
+      drawContainImage(page, sedeImgs[i], x, y, cellW, photoH, C.ink800);
+      page.drawRectangle({ x, y, width: cellW, height: photoH, borderColor: C.amber, borderWidth: 1 });
+      page.drawText(name, { x, y: y - 16, size: 10.5, font: fontBold, color: C.ink900 });
+    });
+  }
+
+  // ---------- PAGE: Resultados reales ----------
+  {
+    const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: C.ink900 });
+    page.drawRectangle({ x: 0, y: PAGE_H - 90, width: PAGE_W, height: 90, color: C.ink800 });
+    page.drawText('Resultados que hablan por nosotros', { x: 40, y: PAGE_H - 58, size: 20, font: fontBold, color: C.amber });
+    page.drawText('Algunas de nuestras recuperaciones más recientes.', {
+      x: 40, y: PAGE_H - 76, size: 10.5, font: fontRegular, color: C.paperDim,
+    });
+
+    const gap = 14;
+    const cellW = (PAGE_W - 80 - gap * (recoveryImgs.length - 1)) / recoveryImgs.length;
+    const cellH = 340;
+    const y = PAGE_H - 130 - cellH;
+    recoveryImgs.forEach((img, i) => {
+      const x = 40 + i * (cellW + gap);
+      drawContainImage(page, img, x, y, cellW, cellH, C.ink800);
+      page.drawRectangle({ x, y, width: cellW, height: cellH, borderColor: C.amber, borderWidth: 1 });
+    });
+
+    page.drawText('Más de 1.650 vehículos recuperados en 10 años operando en Colombia.', {
+      x: 40, y: y - 30, size: 11.5, font: fontRegular, color: C.paper,
     });
   }
 

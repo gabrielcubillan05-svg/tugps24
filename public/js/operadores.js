@@ -16,6 +16,33 @@ document.addEventListener('DOMContentLoaded', function () {
     return d.toLocaleDateString('es-CO', { dateStyle: 'medium' });
   }
 
+  function compressImage(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = () => { img.src = reader.result; };
+      reader.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('No se pudo comprimir la imagen'));
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   // ---------- Tabs ----------
   const tabButtons = document.querySelectorAll('.tab-btn');
   if (tabButtons.length) {
@@ -50,6 +77,11 @@ document.addEventListener('DOMContentLoaded', function () {
             <span class="badge">${escapeHtml(r.category)}</span>
           </div>
           <p class="note">${escapeHtml(r.note)}</p>
+          ${Array.isArray(r.images) && r.images.length ? `
+            <div class="report-images">
+              ${r.images.map((src) => `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="Foto del reporte" loading="lazy" /></a>`).join('')}
+            </div>
+          ` : ''}
           <div class="meta">${fmtDate(r.createdAt)}</div>
         </div>
       `).join('');
@@ -82,33 +114,46 @@ document.addEventListener('DOMContentLoaded', function () {
     branchFilter.addEventListener('change', loadReports);
     categoryFilter.addEventListener('change', loadReports);
 
-    reportForm.addEventListener('submit', function (e) {
+    reportForm.addEventListener('submit', async function (e) {
       e.preventDefault();
       const plate = document.getElementById('plate').value.trim();
       const branch = document.getElementById('branch').value;
       const category = document.getElementById('category').value;
       const note = document.getElementById('note').value.trim();
+      const imagesInput = document.getElementById('images');
+      const files = imagesInput ? Array.from(imagesInput.files || []).slice(0, 4) : [];
       if (!plate || !branch || !category || !note) return;
 
       const submitBtn = reportForm.querySelector('button[type="submit"]');
       submitBtn.disabled = true;
+      const originalLabel = submitBtn.textContent;
 
-      fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plate, branch, category, note }),
-      })
-        .then((res) => res.json())
-        .then(() => {
-          reportForm.reset();
-          loadReports();
-        })
-        .catch(() => {
-          alert('No se pudo guardar el reporte, intenta de nuevo.');
-        })
-        .finally(() => {
-          submitBtn.disabled = false;
-        });
+      try {
+        const formData = new FormData();
+        formData.set('plate', plate);
+        formData.set('branch', branch);
+        formData.set('category', category);
+        formData.set('note', note);
+
+        if (files.length) {
+          submitBtn.textContent = 'Procesando fotos...';
+          for (const file of files) {
+            const compressed = await compressImage(file, 1600, 0.75);
+            formData.append('images', compressed, 'foto.jpg');
+          }
+        }
+
+        submitBtn.textContent = 'Guardando...';
+        const res = await fetch('/api/reports', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('save failed');
+        reportForm.reset();
+        loadReports();
+      } catch (err) {
+        alert('No se pudo guardar el reporte, intenta de nuevo.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
+      }
     });
 
     loadReports();

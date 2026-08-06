@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
+import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { isAuthorized, AUTH_COOKIE } from '../../lib/internalAuth';
 
@@ -8,6 +9,7 @@ export const prerender = false;
 const REDIS_KEY = 'internal:reports';
 const CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Otro'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Soledad', 'Barranquilla', 'Bucaramanga', 'Medellín', 'Montería'];
+const MAX_IMAGES = 4;
 
 interface Report {
   id: string;
@@ -15,6 +17,7 @@ interface Report {
   branch: string;
   category: string;
   note: string;
+  images: string[];
   createdAt: string;
 }
 
@@ -37,7 +40,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         return null;
       }
     })
-    .filter((r): r is Report => r !== null);
+    .filter((r): r is Report => r !== null)
+    .map((r) => ({ images: [], ...r }));
 
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const branch = url.searchParams.get('branch') || '';
@@ -68,17 +72,32 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: Partial<Report>;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
-  }
+  const contentType = request.headers.get('content-type') || '';
+  let plate = '';
+  let branch = '';
+  let category = '';
+  let note = '';
+  let imageFiles: File[] = [];
 
-  const plate = String(body.plate || '').trim();
-  const branch = String(body.branch || '').trim();
-  const category = String(body.category || '').trim();
-  const note = String(body.note || '').trim();
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData();
+    plate = String(form.get('plate') || '').trim();
+    branch = String(form.get('branch') || '').trim();
+    category = String(form.get('category') || '').trim();
+    note = String(form.get('note') || '').trim();
+    imageFiles = form.getAll('images').filter((v): v is File => v instanceof File && v.size > 0);
+  } else {
+    let body: Partial<Report>;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+    }
+    plate = String(body.plate || '').trim();
+    branch = String(body.branch || '').trim();
+    category = String(body.category || '').trim();
+    note = String(body.note || '').trim();
+  }
 
   if (!plate || !branch || !category || !note) {
     return new Response(JSON.stringify({ error: 'missing fields' }), { status: 400 });
@@ -87,12 +106,31 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid branch or category' }), { status: 400 });
   }
 
+  const id = randomUUID();
+  const images: string[] = [];
+
+  if (imageFiles.length) {
+    const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'almacenamiento de imágenes no configurado' }), { status: 503 });
+    }
+    for (const file of imageFiles.slice(0, MAX_IMAGES)) {
+      const blob = await put(`reports/${id}-${randomUUID()}`, file, {
+        access: 'public',
+        token,
+        addRandomSuffix: false,
+      });
+      images.push(blob.url);
+    }
+  }
+
   const report: Report = {
-    id: randomUUID(),
+    id,
     plate: plate.toUpperCase(),
     branch,
     category,
     note,
+    images,
     createdAt: new Date().toISOString(),
   };
 

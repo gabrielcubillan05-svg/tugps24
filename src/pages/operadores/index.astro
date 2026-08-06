@@ -180,6 +180,15 @@ const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
       .list-item .badge.status.ok { background: #2f8a4f33; color: #6fce8f; }
       .report-item .meta, .list-item .meta { color: var(--slate); font-size: 12px; }
       .report-item .note, .list-item .note { color: var(--paper-dim); font-size: 14px; margin-bottom: 8px; }
+      .report-images { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+      .report-images img {
+        width: 72px;
+        height: 72px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        display: block;
+      }
       .item-actions { display: flex; gap: 8px; margin-top: 8px; }
       .empty { color: var(--slate); font-size: 14px; padding: 20px 0; text-align: center; }
       .supervisor-gate {
@@ -250,6 +259,10 @@ const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
                 <div class="field field-note">
                   <label for="note">Nota / detalle</label>
                   <textarea id="note" name="note" placeholder="Ej: fuera de área vía Masinga, llamado al principal, confirma todo en orden" required></textarea>
+                </div>
+                <div class="field field-note">
+                  <label for="images">Fotos (opcional, máx. 4)</label>
+                  <input id="images" name="images" type="file" accept="image/*" multiple />
                 </div>
               </div>
               <button class="btn" type="submit">Guardar reporte</button>
