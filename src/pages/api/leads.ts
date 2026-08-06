@@ -23,10 +23,15 @@ interface Lead {
   status: string;
   nextFollowUp: string | null;
   convertedBranch: string | null;
+  vehicleType: string;
+  motosCount: number;
+  carrosCount: number;
   notes: Note[];
   createdAt: string;
   updatedAt: string;
 }
+
+const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', ''];
 
 function computeOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUp) return false;
@@ -45,7 +50,7 @@ async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -108,6 +113,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     status: STATUSES.includes(String(body.status)) ? String(body.status) : 'Nuevo',
     nextFollowUp: body.nextFollowUp ? String(body.nextFollowUp) : null,
     convertedBranch: null,
+    vehicleType: VEHICLE_TYPES.includes(String((body as any).vehicleType || '')) ? String((body as any).vehicleType || '') : '',
+    motosCount: Number.isFinite(Number((body as any).motosCount)) ? Math.max(0, parseInt(String((body as any).motosCount), 10) || 0) : 0,
+    carrosCount: Number.isFinite(Number((body as any).carrosCount)) ? Math.max(0, parseInt(String((body as any).carrosCount), 10) || 0) : 0,
     notes: initialNote ? [{ text: initialNote, date: now }] : [],
     createdAt: now,
     updatedAt: now,
@@ -129,7 +137,16 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; status?: string; nextFollowUp?: string | null; convertedBranch?: string; addNote?: string };
+  let body: {
+    id?: string;
+    status?: string;
+    nextFollowUp?: string | null;
+    convertedBranch?: string;
+    addNote?: string;
+    vehicleType?: string;
+    motosCount?: number;
+    carrosCount?: number;
+  };
   try {
     body = await request.json();
   } catch {
@@ -141,7 +158,16 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const lead: Lead = { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const lead: Lead = {
+    notes: [],
+    nextFollowUp: null,
+    convertedBranch: null,
+    campaign: '',
+    vehicleType: '',
+    motosCount: 0,
+    carrosCount: 0,
+    ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
+  };
 
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) {
@@ -154,6 +180,15 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.convertedBranch !== undefined) {
     lead.convertedBranch = body.convertedBranch || null;
+  }
+  if (body.vehicleType !== undefined) {
+    lead.vehicleType = VEHICLE_TYPES.includes(String(body.vehicleType)) ? String(body.vehicleType) : '';
+  }
+  if (body.motosCount !== undefined) {
+    lead.motosCount = Math.max(0, parseInt(String(body.motosCount), 10) || 0);
+  }
+  if (body.carrosCount !== undefined) {
+    lead.carrosCount = Math.max(0, parseInt(String(body.carrosCount), 10) || 0);
   }
   if (body.addNote) {
     lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];

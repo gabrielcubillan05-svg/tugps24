@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const cityFilter = document.getElementById('cityFilter');
   const secretaryFilter = document.getElementById('secretaryFilter');
   const statusFilter = document.getElementById('statusFilter');
+  const vehicleTypeFilter = document.getElementById('vehicleTypeFilter');
   const overdueFilter = document.getElementById('overdueFilter');
   const exportBtn = document.getElementById('exportBtn');
 
@@ -68,6 +69,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const city = cityFilter.value;
     const secretary = secretaryFilter.value;
     const status = statusFilter.value;
+    const vehicleType = vehicleTypeFilter.value;
     const onlyOverdue = overdueFilter.checked;
 
     return allLeads.filter((l) => {
@@ -75,6 +77,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (city && l.city !== city) return false;
       if (secretary && l.secretary !== secretary) return false;
       if (status && l.status !== status) return false;
+      if (vehicleType && l.vehicleType !== vehicleType) return false;
       if (onlyOverdue && !l.overdue) return false;
       return true;
     });
@@ -97,6 +100,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="lead-meta">
           ${escapeHtml(l.phone)} ${l.city ? '· ' + escapeHtml(l.city) : ''} ${l.campaign ? '· ' + escapeHtml(l.campaign) : ''}
           ${l.secretary ? '· Secretaria: ' + escapeHtml(l.secretary) : ''}
+          ${l.vehicleType ? '· ' + escapeHtml(l.vehicleType) + (l.motosCount || l.carrosCount ? ' (' + [l.motosCount ? l.motosCount + ' moto(s)' : '', l.carrosCount ? l.carrosCount + ' carro(s)' : ''].filter(Boolean).join(', ') + ')' : '') : ''}
         </div>
         <div class="lead-controls">
           <a class="btn-small btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>
@@ -108,6 +112,13 @@ document.addEventListener('DOMContentLoaded', function () {
             <option value="">Sucursal (si convertido)</option>
             ${BRANCHES.map((b) => `<option value="${b}" ${b === l.convertedBranch ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
+          <select data-action="vehicleType" data-id="${l.id}" title="Tipo de cliente">
+            <option value="" ${!l.vehicleType ? 'selected' : ''}>Sin definir</option>
+            <option value="Moto" ${l.vehicleType === 'Moto' ? 'selected' : ''}>Moto</option>
+            <option value="Carro" ${l.vehicleType === 'Carro' ? 'selected' : ''}>Carro</option>
+            <option value="Flota" ${l.vehicleType === 'Flota' ? 'selected' : ''}>Flota</option>
+          </select>
+          <button class="btn-small" data-action="quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
         </div>
         <div class="add-note-row">
@@ -151,6 +162,7 @@ document.addEventListener('DOMContentLoaded', function () {
   cityFilter.addEventListener('change', renderLeads);
   secretaryFilter.addEventListener('change', renderLeads);
   statusFilter.addEventListener('change', renderLeads);
+  vehicleTypeFilter.addEventListener('change', renderLeads);
   overdueFilter.addEventListener('change', renderLeads);
 
   leadForm.addEventListener('submit', function (e) {
@@ -161,6 +173,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const campaign = document.getElementById('campaign').value.trim();
     const secretary = document.getElementById('secretary').value.trim();
     const nextFollowUp = document.getElementById('nextFollowUp').value || null;
+    const vehicleType = document.getElementById('vehicleType').value;
+    const motosCount = parseInt(document.getElementById('motosCount').value, 10) || 0;
+    const carrosCount = parseInt(document.getElementById('carrosCount').value, 10) || 0;
     const initialNote = document.getElementById('initialNote').value.trim();
     if (!name || !phone) return;
 
@@ -170,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, city, campaign, secretary, nextFollowUp, initialNote }),
+      body: JSON.stringify({ name, phone, city, campaign, secretary, nextFollowUp, vehicleType, motosCount, carrosCount, initialNote }),
     })
       .then((res) => res.json())
       .then(() => {
@@ -190,6 +205,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (action === 'status') body.status = el.value;
     else if (action === 'followup') body.nextFollowUp = el.value || null;
     else if (action === 'branch') body.convertedBranch = el.value || null;
+    else if (action === 'vehicleType') body.vehicleType = el.value || '';
     else return;
 
     fetch('/api/leads', {
@@ -221,15 +237,63 @@ document.addEventListener('DOMContentLoaded', function () {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, addNote: text }),
       }).then(loadLeads);
+    } else if (action === 'quote') {
+      generateQuoteForLead(id, btn);
     }
   });
 
+  function generateQuoteForLead(id, btn) {
+    const lead = allLeads.find((l) => l.id === id);
+    if (!lead) return;
+    const branch = BRANCHES.find((b) => lead.city && b.toLowerCase().includes(lead.city.toLowerCase()))
+      || lead.convertedBranch
+      || BRANCHES[0];
+
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Generando...';
+
+    fetch('/api/generate-quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client: lead.name,
+        branch,
+        motos: lead.motosCount || 0,
+        carros: lead.carrosCount || 0,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'No se pudo generar la cotización.');
+        }
+        return res.blob();
+      })
+      .then((blob) => {
+        const safeName = (lead.name || 'cliente').replace(/[^a-zA-Z0-9]/g, '_');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Cotizacion-TuGPS24-${safeName}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch((err) => alert(err.message || 'No se pudo generar la cotización.'))
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      });
+  }
+
   exportBtn.addEventListener('click', function () {
     const leads = getFilteredLeads();
-    const headers = ['Nombre', 'Teléfono', 'Ciudad', 'Campaña', 'Secretaria', 'Estado', 'Próximo seguimiento', 'Sucursal conversión', 'Creado', 'Notas'];
+    const headers = ['Nombre', 'Teléfono', 'Ciudad', 'Campaña', 'Secretaria', 'Estado', 'Próximo seguimiento', 'Sucursal conversión', 'Tipo de cliente', 'Motos', 'Carros', 'Creado', 'Notas'];
     const rows = leads.map((l) => [
       l.name, l.phone, l.city, l.campaign, l.secretary, l.status,
-      l.nextFollowUp || '', l.convertedBranch || '', l.createdAt,
+      l.nextFollowUp || '', l.convertedBranch || '', l.vehicleType || '', l.motosCount || 0, l.carrosCount || 0, l.createdAt,
       (l.notes || []).map((n) => `[${n.date}] ${n.text}`).join(' | '),
     ]);
     const csv = [headers, ...rows]
