@@ -51,7 +51,7 @@ export async function getConversation(redis: Redis, id: string): Promise<Convers
   return { ...CONVERSATION_DEFAULTS, ...c };
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
+export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -62,8 +62,31 @@ export const GET: APIRoute = async ({ cookies }) => {
   }
 
   const all = await readConversations(redis);
-  const mine = all.filter((c) => c.memberIds.includes(session.userId));
   const users = await getUsers(redis);
+
+  if (url.searchParams.get('scope') === 'all') {
+    if (!canManageUsers(session.role)) {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    }
+    const everything = all
+      .map((c) => {
+        const names = c.memberIds.map((id) => users.find((u) => u.id === id)?.name || 'Usuario');
+        return {
+          ...c,
+          displayName: c.type === 'group' ? c.name : names.join(' · '),
+          participantNames: names,
+        };
+      })
+      .sort((a, b) => (b.lastMessageAt || b.createdAt).localeCompare(a.lastMessageAt || a.createdAt));
+
+    await logAudit(redis, session, 'chat_oversight_view', 'todas las conversaciones');
+
+    return new Response(JSON.stringify({ conversations: everything }), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
+
+  const mine = all.filter((c) => c.memberIds.includes(session.userId));
 
   const withDisplay = mine
     .map((c) => {

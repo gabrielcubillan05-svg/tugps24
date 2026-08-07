@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, canManageUsers, verifySameOrigin } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
+import { logAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
 
 export const prerender = false;
@@ -33,8 +34,13 @@ export const GET: APIRoute = async ({ url, cookies }) => {
 
   const conversationId = url.searchParams.get('conversationId') || '';
   const conversation = await getConversation(redis, conversationId);
-  if (!conversation || !conversation.memberIds.includes(session.userId)) {
+  const isMember = conversation && conversation.memberIds.includes(session.userId);
+  const isOversight = conversation && !isMember && canManageUsers(session.role);
+  if (!conversation || (!isMember && !isOversight)) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+  }
+  if (isOversight) {
+    await logAudit(redis, session, 'chat_oversight_view', conversationId);
   }
 
   const since = url.searchParams.get('since');

@@ -13,6 +13,7 @@ if (!canAccessSection(session.role, 'chat')) {
 ---
 
 <InternoLayout title="Chat" active="chat" session={session}>
+  <div id="chatData" data-is-admin={String(session.role === 'admin')} style="display:none;"></div>
   <div class="chat-layout">
     <div class="panel-card chat-sidebar">
       <div class="chat-sidebar-head">
@@ -29,6 +30,12 @@ if (!canAccessSection(session.role, 'chat')) {
           Grupo
         </button>
       </div>
+      {session.role === 'admin' && (
+        <div class="chat-mode-toggle">
+          <button class="btn-small active" id="modeMyChats" type="button">Mis chats</button>
+          <button class="btn-small" id="modeAllChats" type="button" title="Ver todas las conversaciones (solo lectura)">Todos los chats (admin)</button>
+        </div>
+      )}
       <div id="conversationList" class="list-col"><div class="empty">Cargando...</div></div>
     </div>
     <div class="panel-card chat-main">
@@ -97,6 +104,12 @@ if (!canAccessSection(session.role, 'chat')) {
   .chat-actions { display: flex; gap: 8px; margin-bottom: 14px; }
   .chat-actions .btn-small { display: inline-flex; align-items: center; gap: 6px; }
   .chat-actions .btn-small svg { width: 14px; height: 14px; }
+  .chat-mode-toggle { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .chat-mode-toggle .btn-small.active { background: var(--amber); color: #1a0f00; border-color: var(--amber); font-weight: 600; }
+  .oversight-banner {
+    background: #ff7a1a1a; border: 1px solid var(--amber); color: var(--teal-bright);
+    font-size: 12px; padding: 8px 10px; border-radius: 8px; margin-bottom: 10px;
+  }
   .chat-main { display: flex; flex-direction: column; height: 72vh; }
   .chat-header { font-weight: 700; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
   .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }

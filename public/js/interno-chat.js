@@ -24,10 +24,16 @@ document.addEventListener('DOMContentLoaded', function () {
   const groupCancelBtn = document.getElementById('groupCancelBtn');
   const groupError = document.getElementById('groupError');
 
+  const chatData = document.getElementById('chatData');
+  const isAdmin = chatData && chatData.dataset.isAdmin === 'true';
+  const modeMyChats = document.getElementById('modeMyChats');
+  const modeAllChats = document.getElementById('modeAllChats');
+
   let employees = [];
   let conversations = [];
   let activeConversationId = null;
   let activeConversationName = '';
+  let oversightMode = false;
 
   function escapeHtml(str) {
     return String(str || '')
@@ -89,7 +95,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function loadConversations() {
-    return fetch('/api/conversations')
+    const url = oversightMode ? '/api/conversations?scope=all' : '/api/conversations';
+    return fetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (data && Array.isArray(data.conversations)) {
@@ -153,10 +160,13 @@ document.addEventListener('DOMContentLoaded', function () {
   function openConversation(id, name) {
     activeConversationId = id;
     activeConversationName = name;
-    chatHeader.textContent = name;
-    messageForm.style.display = 'flex';
+    chatHeader.innerHTML = oversightMode
+      ? `${escapeHtml(name)} <span class="oversight-banner" style="display:inline-block; margin-left:8px;">Modo supervisión — solo lectura</span>`
+      : escapeHtml(name);
+    messageForm.style.display = oversightMode ? 'none' : 'flex';
     renderConversations();
     loadMessages(id);
+    if (oversightMode) return;
     fetch('/api/conversations', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -319,10 +329,36 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   });
 
+  if (isAdmin && modeMyChats && modeAllChats) {
+    modeMyChats.addEventListener('click', function () {
+      if (!oversightMode) return;
+      oversightMode = false;
+      modeMyChats.classList.add('active');
+      modeAllChats.classList.remove('active');
+      activeConversationId = null;
+      chatHeader.textContent = 'Selecciona una conversación';
+      messageForm.style.display = 'none';
+      loadConversations();
+    });
+    modeAllChats.addEventListener('click', function () {
+      if (oversightMode) return;
+      oversightMode = true;
+      modeAllChats.classList.add('active');
+      modeMyChats.classList.remove('active');
+      activeConversationId = null;
+      chatHeader.textContent = 'Selecciona una conversación (modo supervisión)';
+      messageForm.style.display = 'none';
+      loadConversations();
+    });
+  }
+
   loadEmployees();
   loadConversations();
 
+  // El polling automático solo aplica al modo normal — en modo supervisión (admin viendo
+  // conversaciones ajenas) se evita, para no dejar un registro de auditoría repitiéndose solo.
   setInterval(function () {
+    if (oversightMode) return;
     loadConversations();
     if (activeConversationId) loadMessages(activeConversationId);
   }, 12000);
