@@ -3,13 +3,16 @@ import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAssignTasks } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAssignTasks, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
 const REDIS_KEY = 'internal:tasks';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -33,6 +36,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
   if (!photo.type.startsWith('image/')) {
     return new Response(JSON.stringify({ error: 'el archivo debe ser una foto' }), { status: 400 });
+  }
+  if (photo.size > 8 * 1024 * 1024) {
+    return new Response(JSON.stringify({ error: 'la foto debe pesar menos de 8MB' }), { status: 400 });
   }
 
   const raw = await redis.hget<string>(REDIS_KEY, id);

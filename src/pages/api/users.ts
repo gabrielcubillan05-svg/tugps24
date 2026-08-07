@@ -118,6 +118,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     active: true,
     createdAt: now,
     updatedAt: now,
+    mustChangePassword: true,
   };
   await saveUser(redis, user);
   await logAudit(redis, session, 'user_create', username, role);
@@ -182,6 +183,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
     }
     user.passwordHash = hashPassword(String(body.password));
+    user.mustChangePassword = false;
     user.updatedAt = new Date().toISOString();
     await saveUser(redis, user);
     await logAudit(redis, session, 'user_password_self_change', user.username);
@@ -205,7 +207,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
     }
     user.passwordHash = hashPassword(String(body.password));
-    if (!isSelf) await destroyAllSessionsForUser(redis, user.id);
+    if (!isSelf) {
+      user.mustChangePassword = true;
+      await destroyAllSessionsForUser(redis, user.id);
+    }
   }
   if (body.active !== undefined) {
     if (user.id === session.userId && body.active === false) {

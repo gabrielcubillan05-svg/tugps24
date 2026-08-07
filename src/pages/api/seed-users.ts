@@ -57,6 +57,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       active: true,
       createdAt: now,
       updatedAt: now,
+      mustChangePassword: true,
     };
     await saveUser(redis, user);
     created++;

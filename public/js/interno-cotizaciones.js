@@ -1,3 +1,9 @@
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   const quoteForm = document.getElementById('quoteForm');
   if (!quoteForm) return;
@@ -52,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const total = motos + carros;
         const flota = total > 5;
-        summaryEl.innerHTML = `Cotización generada${client ? ' para <b>' + client + '</b>' : ''}: ${motos} moto(s) + ${carros} carro(s)` +
+        summaryEl.innerHTML = `Cotización generada${client ? ' para <b>' + escapeHtml(client) + '</b>' : ''}: ${motos} moto(s) + ${carros} carro(s)` +
           (flota ? ' · tarifa de flota aplicada ($39.000/mes c/u)' : '') + '.';
         summaryEl.style.display = 'block';
       })

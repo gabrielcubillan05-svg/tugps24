@@ -1,17 +1,10 @@
 ---
 export const prerender = false;
 
-import { SESSION_COOKIE, getSession, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, getSession } from '../../lib/auth';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
-if (session) {
-  const section = firstSectionFor(session.role);
-  return Astro.redirect(section ? SECTION_PATHS[section] : '/interno/login');
-}
-
-const errorParam = Astro.url.searchParams.get('error');
-const loginError = errorParam === '1';
-const lockedOut = errorParam === 'locked';
+if (!session) return Astro.redirect(LOGIN_PATH);
 ---
 
 <!DOCTYPE html>
@@ -20,7 +13,7 @@ const lockedOut = errorParam === 'locked';
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Acceso interno — TuGPS24</title>
+    <title>Cambiar contraseña — TuGPS24</title>
     <script src="/js/theme-toggle.js" is:inline></script>
     <style>
       :root {
@@ -32,6 +25,7 @@ const lockedOut = errorParam === 'locked';
         --slate: #948d80;
         --amber: #ff7a1a;
         --danger: #e0563f;
+        --ok: #6fce8f;
       }
       html[data-theme="light"] {
         --ink-900: #faf7f2;
@@ -42,6 +36,7 @@ const lockedOut = errorParam === 'locked';
         --slate: #8a8072;
         --amber: #e8630a;
         --danger: #c9432e;
+        --ok: #2f8a4f;
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -51,17 +46,17 @@ const lockedOut = errorParam === 'locked';
         min-height: 100vh;
         line-height: 1.5;
       }
-      .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-      .login-box {
+      .wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .box {
         background: var(--ink-800);
         border: 1px solid var(--line);
         border-radius: 14px;
         padding: 36px;
         width: 100%;
-        max-width: 360px;
+        max-width: 380px;
       }
-      .login-box h1 { font-size: 20px; margin-bottom: 8px; }
-      .login-box p { color: var(--slate); font-size: 13.5px; margin-bottom: 20px; }
+      .box h1 { font-size: 20px; margin-bottom: 8px; }
+      .box p { color: var(--slate); font-size: 13.5px; margin-bottom: 20px; }
       .field { margin-bottom: 16px; }
       .field label { display: block; color: var(--slate); font-size: 12.5px; margin-bottom: 6px; }
       input, button { font-family: inherit; font-size: 14.5px; }
@@ -83,28 +78,31 @@ const lockedOut = errorParam === 'locked';
         font-weight: 600;
         width: 100%;
       }
-      .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 14px; }
+      .msg { font-size: 13px; margin-bottom: 14px; display: none; }
+      .msg.error { color: var(--danger); }
+      .msg.success { color: var(--ok); }
     </style>
   </head>
-  <body>
-    <div class="login-wrap">
-      <div class="login-box">
-        <h1>Acceso interno</h1>
-        <p>Solo para personal de TuGPS24.</p>
-        {loginError && <p class="error-msg">Usuario o contraseña incorrectos.</p>}
-        {lockedOut && <p class="error-msg">Demasiados intentos fallidos. Espera unos minutos e intenta de nuevo.</p>}
-        <form method="POST" action="/api/auth/login">
+  <body data-user-id={session.userId}>
+    <div class="wrap">
+      <div class="box">
+        <h1>Actualiza tu contraseña</h1>
+        <p>Por seguridad debes elegir una contraseña nueva antes de continuar.</p>
+        <p id="msgError" class="msg error"></p>
+        <p id="msgSuccess" class="msg success">Contraseña actualizada. Iniciando sesión de nuevo…</p>
+        <form id="changeForm">
           <div class="field">
-            <label for="username">Usuario</label>
-            <input id="username" name="username" type="text" required autofocus autocomplete="username" />
+            <label for="current">Contraseña actual</label>
+            <input id="current" type="password" required autocomplete="current-password" />
           </div>
           <div class="field">
-            <label for="password">Contraseña</label>
-            <input id="password" name="password" type="password" required autocomplete="current-password" />
+            <label for="fresh">Contraseña nueva (mínimo 8 caracteres)</label>
+            <input id="fresh" type="password" required minlength="8" autocomplete="new-password" />
           </div>
-          <button class="btn" type="submit">Entrar</button>
+          <button class="btn" type="submit" id="submitBtn">Guardar y continuar</button>
         </form>
       </div>
     </div>
+    <script src="/js/interno-cambiar-clave.js" defer></script>
   </body>
 </html>

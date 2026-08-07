@@ -4,6 +4,7 @@ import { getRedis } from './redis';
 export const SESSION_COOKIE = 'interno_session';
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
 export const LOGIN_PATH = '/interno/login';
+export const CHANGE_PASSWORD_PATH = '/interno/cambiar-clave';
 
 const USERS_KEY = 'internal:users';
 const SESSIONS_KEY = 'internal:sessions';
@@ -95,6 +96,7 @@ export interface User {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  mustChangePassword?: boolean;
 }
 
 export interface Session {
@@ -103,6 +105,7 @@ export interface Session {
   role: Role;
   createdAt: string;
   expiresAt: string;
+  mustChangePassword?: boolean;
 }
 
 // --- Contraseñas ---
@@ -167,6 +170,7 @@ export async function createSession(user: User): Promise<string | null> {
     role: user.role,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
+    mustChangePassword: user.mustChangePassword ?? false,
   };
   await redis.hset(SESSIONS_KEY, { [sessionId]: JSON.stringify(session) });
   return cookieValueForSession(sessionId);

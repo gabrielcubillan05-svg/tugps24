@@ -17,6 +17,13 @@ import {
 
 export const prerender = false;
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_SECONDS = 15 * 60;
+
+function loginAttemptsKey(username: string) {
+  return `internal:login-attempts:${username.toLowerCase()}`;
+}
+
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   if (!verifySameOrigin(request)) {
     return redirect(`${LOGIN_PATH}?error=1`);
@@ -35,15 +42,28 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect(`${LOGIN_PATH}?error=1`);
   }
 
+  const attemptsKey = loginAttemptsKey(username);
+  const attempts = Number((await redis.get<number>(attemptsKey)) || 0);
+  if (attempts >= MAX_LOGIN_ATTEMPTS) {
+    await logAudit(redis, { userId: 'anon', username: username || 'desconocido' }, 'login_locked', username);
+    return redirect(`${LOGIN_PATH}?error=locked`);
+  }
+
   let user = await findUserByUsername(redis, username);
   if (!user) {
     user = await createBootstrapAdminIfMatches(redis, username, password);
   }
 
   if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
+    const newCount = await redis.incr(attemptsKey);
+    if (newCount === 1) {
+      await redis.expire(attemptsKey, LOGIN_LOCKOUT_SECONDS);
+    }
     await logAudit(redis, { userId: 'anon', username: username || 'desconocido' }, 'login_failed', username);
     return redirect(`${LOGIN_PATH}?error=1`);
   }
+
+  await redis.del(attemptsKey);
 
   // Autorreparación: la cuenta designada como admin de arranque (env var) siempre vuelve a
   // quedar con rol admin al iniciar sesión, por si se le cambió el rol por error desde Usuarios.

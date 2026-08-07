@@ -18,6 +18,7 @@ const REDIS_KEY = 'internal:reports';
 const CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Monitoreo a', 'Monitoreo en', 'Monitoreo vía', 'Monitoreo retornando', 'Otro'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 const MAX_IMAGES = 4;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB por foto
 
 interface Report {
   id: string;
@@ -117,6 +118,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!BRANCHES.includes(branch) || !CATEGORIES.includes(category)) {
     return new Response(JSON.stringify({ error: 'invalid branch or category' }), { status: 400 });
   }
+  for (const file of imageFiles) {
+    if (!file.type.startsWith('image/')) {
+      return new Response(JSON.stringify({ error: 'los adjuntos deben ser imágenes' }), { status: 400 });
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      return new Response(JSON.stringify({ error: 'cada imagen debe pesar menos de 8MB' }), { status: 400 });
+    }
+  }
 
   const id = randomUUID();
   const images: string[] = [];
@@ -157,7 +166,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category);
 
   const managers = (await getUsers(redis)).filter(
-    (u) => u.active && u.id !== session.userId && (u.role === 'supervisor' || u.role === 'gerente' || u.role === 'admin')
+    (u) => u.active && u.id !== session.userId && (u.role === 'supervisor' || u.role === 'gerente')
   );
   for (const manager of managers) {
     try {
