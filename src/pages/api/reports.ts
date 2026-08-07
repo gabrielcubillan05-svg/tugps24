@@ -4,7 +4,7 @@ import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
-import { SESSION_COOKIE, getSession, canAccessSection, getUsers, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, getUsers, findUserById, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -28,6 +28,7 @@ interface Report {
   note: string;
   images: string[];
   createdAt: string;
+  createdByName: string;
 }
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -50,7 +51,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       }
     })
     .filter((r): r is Report => r !== null)
-    .map((r) => ({ images: [], ...r }));
+    .map((r) => ({ images: [], createdByName: '', ...r }));
 
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const branch = url.searchParams.get('branch') || '';
@@ -152,6 +153,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
   }
 
+  const creator = await findUserById(redis, session.userId);
+
   const report: Report = {
     id,
     plate: plate.toUpperCase(),
@@ -160,6 +163,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     note,
     images,
     createdAt: new Date().toISOString(),
+    createdByName: creator?.name || session.username,
   };
 
   await redis.lpush(REDIS_KEY, JSON.stringify(report));

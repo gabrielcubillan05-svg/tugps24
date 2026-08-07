@@ -66,7 +66,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }).join('')}
           </div>
         ` : ''}
-        <div class="meta">${fmtDate(r.createdAt)}</div>
+        <div class="meta">
+          <span>${fmtDate(r.createdAt)}</span>
+          ${r.createdByName ? `<span class="author">${escapeHtml(r.createdByName)}</span>` : ''}
+        </div>
       </div>
     `).join('');
   }

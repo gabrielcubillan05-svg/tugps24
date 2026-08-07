@@ -225,6 +225,8 @@ const sections = ROLE_SECTIONS[session.role] || [];
       .list-item .badge.status.ok { background: #2f8a4f33; color: var(--ok); }
       .list-item .badge.status.danger { background: var(--danger); color: #fff; }
       .report-item .meta, .list-item .meta { color: var(--slate); font-size: 12px; }
+      .report-item .meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+      .report-item .meta .author { font-weight: 600; }
       .report-item .note, .list-item .note { color: var(--paper-dim); font-size: 14px; margin-bottom: 8px; }
       .report-images { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
       .report-images img {
