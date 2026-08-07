@@ -51,8 +51,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     canAccessSection(session.role, 'reportes') &&
     requestedRoles.length === 1 &&
     requestedRoles[0] === 'operador';
+  const NOVEDADES_AUTHOR_ROLES = ['operador', 'supervisor', 'gerente', 'admin'];
+  const canNovedadesAuthors =
+    canAccessSection(session.role, 'novedades') &&
+    requestedRoles.length > 0 &&
+    requestedRoles.every((r) => NOVEDADES_AUTHOR_ROLES.includes(r));
 
-  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts && !canReportesOperadores) {
+  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts && !canReportesOperadores && !canNovedadesAuthors) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -63,7 +68,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   let users = await getUsers(redis);
   if (isPrivileged) {
     if (requestedRoles.length) users = users.filter((u) => requestedRoles.includes(u.role));
-  } else if (canCrmContacts || canReportesOperadores) {
+  } else if (canCrmContacts || canReportesOperadores || canNovedadesAuthors) {
     users = users.filter((u) => requestedRoles.includes(u.role) && u.active);
   } else if (canHorario || canChat) {
     users = users.filter((u) => u.active);

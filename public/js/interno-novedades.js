@@ -45,6 +45,19 @@ document.addEventListener('DOMContentLoaded', function () {
   const searchInput = document.getElementById('searchInput');
   const branchFilter = document.getElementById('branchFilter');
   const categoryFilter = document.getElementById('categoryFilter');
+  const employeeFilter = document.getElementById('employeeFilter');
+
+  function loadEmployeeFilter() {
+    fetch('/api/users?role=operador,supervisor,gerente,admin')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !Array.isArray(data.users)) return;
+        const users = data.users.slice().sort((a, b) => a.name.localeCompare(b.name));
+        employeeFilter.innerHTML = '<option value="">Todos los empleados</option>' +
+          users.map((u) => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');
+      })
+      .catch(() => {});
+  }
 
   function renderReports(reports) {
     if (!reports.length) {
@@ -80,6 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
     if (branchFilter.value) params.set('branch', branchFilter.value);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
+    if (employeeFilter.value) params.set('employee', employeeFilter.value);
 
     fetch('/api/reports?' + params.toString())
       .then((res) => res.json())
@@ -100,6 +114,9 @@ document.addEventListener('DOMContentLoaded', function () {
   searchInput.addEventListener('input', debouncedLoad);
   branchFilter.addEventListener('change', loadReports);
   categoryFilter.addEventListener('change', loadReports);
+  employeeFilter.addEventListener('change', loadReports);
+
+  loadEmployeeFilter();
 
   const imagesInput = document.getElementById('images');
   const imagePreview = document.getElementById('imagePreview');

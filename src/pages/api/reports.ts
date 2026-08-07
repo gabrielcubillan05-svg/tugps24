@@ -29,6 +29,7 @@ interface Report {
   images: string[];
   createdAt: string;
   createdByName: string;
+  createdById: string;
 }
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -51,11 +52,12 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       }
     })
     .filter((r): r is Report => r !== null)
-    .map((r) => ({ images: [], createdByName: '', ...r }));
+    .map((r) => ({ images: [], createdByName: '', createdById: '', ...r }));
 
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const branch = url.searchParams.get('branch') || '';
   const category = url.searchParams.get('category') || '';
+  const employee = url.searchParams.get('employee') || '';
 
   if (q) {
     reports = reports.filter((r) =>
@@ -66,6 +68,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   }
   if (branch) reports = reports.filter((r) => r.branch === branch);
   if (category) reports = reports.filter((r) => r.category === category);
+  if (employee) reports = reports.filter((r) => r.createdById === employee);
 
   return new Response(JSON.stringify({ reports, categories: CATEGORIES, branches: BRANCHES }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
@@ -164,6 +167,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     images,
     createdAt: new Date().toISOString(),
     createdByName: creator?.name || session.username,
+    createdById: session.userId,
   };
 
   await redis.lpush(REDIS_KEY, JSON.stringify(report));
