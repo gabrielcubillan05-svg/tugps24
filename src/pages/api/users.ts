@@ -192,6 +192,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     user.name = String(body.name).trim();
   }
   if (body.role !== undefined) {
+    if (user.id === session.userId && body.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'no puedes quitarte a ti mismo el rol de administrador' }), { status: 400 });
+    }
     if (!ROLES.includes(body.role as Role)) {
       return new Response(JSON.stringify({ error: 'rol inválido' }), { status: 400 });
     }
