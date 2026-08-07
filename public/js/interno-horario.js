@@ -152,7 +152,13 @@ document.addEventListener('DOMContentLoaded', function () {
   const compDaysForm = document.getElementById('compDaysForm');
   const compDaysList = document.getElementById('compDaysList');
   const compDaysTotals = document.getElementById('compDaysTotals');
+  const cdEmployeeFilter = document.getElementById('cdEmployeeFilter');
+  const cdStatusFilter = document.getElementById('cdStatusFilter');
   if (compDaysList) {
+    let allCompDaysEntries = [];
+    let allCompDaysTotals = {};
+    let allCompDaysGranted = {};
+
     function renderCompDaysTotals(totals, grantedTotals) {
       if (!compDaysTotals) return;
       const employees = [...new Set([...Object.keys(totals), ...Object.keys(grantedTotals)])].sort();
@@ -169,10 +175,30 @@ document.addEventListener('DOMContentLoaded', function () {
       `).join('');
     }
 
-    function renderCompDays(entries, totals, grantedTotals) {
-      renderCompDaysTotals(totals, grantedTotals);
+    function populateCdEmployeeFilter() {
+      if (!cdEmployeeFilter) return;
+      const employees = [...new Set(allCompDaysEntries.map((e) => e.operator))].sort();
+      const current = cdEmployeeFilter.value;
+      cdEmployeeFilter.innerHTML = '<option value="">Todos los empleados</option>' +
+        employees.map((op) => `<option value="${escapeHtml(op)}">${escapeHtml(op)}</option>`).join('');
+      cdEmployeeFilter.value = current;
+    }
+
+    function getFilteredCompDays() {
+      const employee = cdEmployeeFilter ? cdEmployeeFilter.value : '';
+      const status = cdStatusFilter ? cdStatusFilter.value : '';
+      return allCompDaysEntries.filter((e) => {
+        if (employee && e.operator !== employee) return false;
+        if (status === 'pendiente' && e.scheduledDate) return false;
+        if (status === 'asignado' && !e.scheduledDate) return false;
+        return true;
+      });
+    }
+
+    function renderCompDaysList() {
+      const entries = getFilteredCompDays();
       if (!entries.length) {
-        compDaysList.innerHTML = '<div class="empty">No hay registros todavía.</div>';
+        compDaysList.innerHTML = '<div class="empty">No hay registros con esos filtros.</div>';
         return;
       }
       compDaysList.innerHTML = entries.map((e) => `
@@ -192,6 +218,18 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
       `).join('');
     }
+
+    function renderCompDays(entries, totals, grantedTotals) {
+      allCompDaysEntries = entries;
+      allCompDaysTotals = totals;
+      allCompDaysGranted = grantedTotals;
+      renderCompDaysTotals(totals, grantedTotals);
+      populateCdEmployeeFilter();
+      renderCompDaysList();
+    }
+
+    if (cdEmployeeFilter) cdEmployeeFilter.addEventListener('change', renderCompDaysList);
+    if (cdStatusFilter) cdStatusFilter.addEventListener('change', renderCompDaysList);
 
     function loadCompDays() {
       fetch('/api/comp-days')

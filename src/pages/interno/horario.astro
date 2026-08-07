@@ -92,6 +92,14 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
         </form>
         <h3 style="font-size:13.5px; color:var(--paper-dim); margin-bottom:10px;">Días disponibles por empleado</h3>
         <div class="stats-row" id="compDaysTotals" style="margin-bottom:20px;"></div>
+        <div class="filters">
+          <select id="cdEmployeeFilter"><option value="">Todos los empleados</option></select>
+          <select id="cdStatusFilter">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="asignado">Asignados</option>
+          </select>
+        </div>
         <div class="list-col" id="compDaysList">
           <div class="empty">Cargando...</div>
         </div>
