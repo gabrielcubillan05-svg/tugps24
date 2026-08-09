@@ -11,8 +11,7 @@ import {
   saveUser,
   verifyPassword,
   verifySameOrigin,
-  firstSectionFor,
-  SECTION_PATHS,
+  CHANGE_PASSWORD_PATH,
 } from '../../../lib/auth';
 
 export const prerender = false;
@@ -90,6 +89,5 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   await logAudit(redis, { userId: user.id, username: user.username }, 'login', user.username);
 
-  const section = firstSectionFor(user.role);
-  return redirect(section ? SECTION_PATHS[section] : LOGIN_PATH);
+  return redirect(user.mustChangePassword ? CHANGE_PASSWORD_PATH : '/interno');
 };

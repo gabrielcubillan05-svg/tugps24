@@ -1,7 +1,8 @@
 ---
 export const prerender = false;
 
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession } from '../../lib/auth';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) {
@@ -10,6 +11,31 @@ if (!session) {
 if (session.mustChangePassword) {
   return Astro.redirect(CHANGE_PASSWORD_PATH);
 }
-const section = firstSectionFor(session.role);
-return Astro.redirect(section ? SECTION_PATHS[section] : LOGIN_PATH);
 ---
+
+<InternoLayout title="Inicio" active={null} session={session}>
+  <div class="home-hero">
+    <img src="/img/img01.png" alt="TuGPS24" />
+    <p>Elige una sección en el menú de arriba para comenzar.</p>
+  </div>
+</InternoLayout>
+
+<style>
+  .home-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 90px 20px;
+    text-align: center;
+  }
+  .home-hero img {
+    max-width: 320px;
+    width: 100%;
+  }
+  .home-hero p {
+    color: var(--slate);
+    font-size: 14.5px;
+  }
+</style>
