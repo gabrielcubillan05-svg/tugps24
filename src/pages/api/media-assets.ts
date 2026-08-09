@@ -93,7 +93,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'almacenamiento no configurado' }), { status: 503 });
     }
     try {
-      const blob = await put(`media/${randomUUID()}-${file.name}`, file, {
+      const blob = await put(`media/${randomUUID()}`, file, {
         access: 'public',
         token,
         addRandomSuffix: false,
