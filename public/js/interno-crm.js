@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const STATUSES = JSON.parse((crmData && crmData.dataset.statuses) || '[]');
   const BRANCHES = JSON.parse((crmData && crmData.dataset.branches) || '[]');
   const canManageMedia = !!(crmData && crmData.dataset.canManageMedia);
+  const canSetStatus = !!(crmData && crmData.dataset.canSetStatus);
 
   const statsRow = document.getElementById('statsRow');
   const leadForm = document.getElementById('leadForm');
@@ -213,9 +214,11 @@ Estos son los beneficios que te ofrecemos 👇🏻
             <option value="install">Confirmar instalación</option>
             <option value="followup">Seguimiento</option>
           </select>
+          ${canSetStatus ? `
           <select data-action="status" data-id="${l.id}">
             ${STATUSES.map((s) => `<option value="${s}" ${s === l.status ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
+          ` : ''}
           <input type="date" data-action="followup" data-id="${l.id}" value="${l.nextFollowUp ? l.nextFollowUp.slice(0, 10) : ''}" title="Próximo seguimiento" />
           <input type="date" data-action="scheduledInstall" data-id="${l.id}" value="${l.scheduledInstallDate ? l.scheduledInstallDate.slice(0, 10) : ''}" title="Fecha de instalación agendada" />
           <select data-action="branch" data-id="${l.id}" title="Sucursal de instalación">
@@ -231,6 +234,9 @@ Estos son los beneficios que te ofrecemos 👇🏻
           <button class="btn-small" data-action="edit" data-id="${l.id}" type="button">Editar</button>
           <button class="btn-small ${l.installed ? 'btn-done' : ''}" data-action="toggle-installed" data-id="${l.id}" type="button">
             ${l.installed ? '✓ Instalado' : 'Marcar instalado'}
+          </button>
+          <button class="btn-small ${l.status === 'Perdido' ? 'btn-delete' : ''}" data-action="toggle-lost" data-id="${l.id}" type="button">
+            ${l.status === 'Perdido' ? '✕ Sin interés' : 'Marcar sin interés'}
           </button>
           <button class="btn-small" data-action="quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
@@ -251,7 +257,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
 
   function renderBoardCard(l) {
     return `
-      <div class="board-card ${l.overdue ? 'overdue' : ''}" draggable="true" data-id="${l.id}">
+      <div class="board-card ${l.overdue ? 'overdue' : ''}" draggable="${canSetStatus}" data-id="${l.id}">
         <div class="board-card-name">${escapeHtml(l.name)}</div>
         <div class="board-card-meta">${escapeHtml(l.phone)}${l.city ? ' · ' + escapeHtml(l.city) : ''}</div>
         <div class="board-card-badges">
@@ -540,6 +546,14 @@ Estos son los beneficios que te ofrecemos 👇🏻
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, installed }),
+      }).then(loadLeads);
+    } else if (action === 'toggle-lost') {
+      const lead = allLeads.find((l) => l.id === id);
+      const status = lead && lead.status === 'Perdido' ? 'Contactado' : 'Perdido';
+      fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
       }).then(loadLeads);
     } else if (action === 'edit') {
       editingId = id;

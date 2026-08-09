@@ -17,7 +17,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
 ---
 
 <InternoLayout title="CRM" active="crm" session={session}>
-  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} data-can-manage-media={canManageMediaAssets(session.role) ? '1' : ''} style="display:none;"></div>
+  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} data-can-manage-media={canManageMediaAssets(session.role) ? '1' : ''} data-can-set-status={canVerifyInstalls(session.role) ? '1' : ''} style="display:none;"></div>
 
   <div class="stats-row" id="statsRow"></div>
   <br />

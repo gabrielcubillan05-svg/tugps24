@@ -50,7 +50,12 @@ export const GET: APIRoute = async ({ cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
   const assets = await readAssets(redis);
-  return new Response(JSON.stringify({ assets }), {
+  const withUrls = assets.map((a) =>
+    a.kind === 'image' && a.blobPathname
+      ? { ...a, url: '/api/blob-file?path=' + encodeURIComponent(a.blobPathname) }
+      : a
+  );
+  return new Response(JSON.stringify({ assets: withUrls }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
@@ -94,7 +99,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
     try {
       const blob = await put(`media/${randomUUID()}`, file, {
-        access: 'public',
+        access: 'private',
         token,
         addRandomSuffix: false,
       });
@@ -102,7 +107,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         id: randomUUID(),
         label,
         kind: 'image',
-        url: blob.url,
+        url: '',
         blobPathname: blob.pathname,
         contentType: file.type,
         createdAt: now,
@@ -142,7 +147,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   await redis.hset(REDIS_KEY, { [asset.id]: JSON.stringify(asset) });
   await logAudit(redis, session, 'media_asset_create', asset.label, asset.kind);
 
-  return new Response(JSON.stringify({ asset }), {
+  const responseAsset =
+    asset.kind === 'image' && asset.blobPathname
+      ? { ...asset, url: '/api/blob-file?path=' + encodeURIComponent(asset.blobPathname) }
+      : asset;
+
+  return new Response(JSON.stringify({ asset: responseAsset }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };
