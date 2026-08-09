@@ -757,7 +757,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
         fetch('/api/media-assets', { method: 'POST', body: formData })
           .then(async (res) => {
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'No se pudo subir la imagen.');
+            if (!res.ok) throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || 'No se pudo subir la imagen.');
             mediaImageForm.reset();
             loadMediaAssets();
           })
