@@ -228,12 +228,14 @@ Te comparto unas fotos de nuestro trabajo. ¡Instala hoy y protege tu inversión
             <option value="install">Confirmar instalación</option>
             <option value="followup">Seguimiento</option>
           </select>
-          <input type="date" data-action="followup" data-id="${l.id}" value="${l.nextFollowUp ? l.nextFollowUp.slice(0, 10) : ''}" title="Próximo seguimiento" />
-          <input type="date" data-action="scheduledInstall" data-id="${l.id}" value="${l.scheduledInstallDate ? l.scheduledInstallDate.slice(0, 10) : ''}" title="Fecha de instalación agendada" />
-          <select data-action="branch" data-id="${l.id}" title="Sucursal de instalación">
-            <option value="">Sucursal (si instalado)</option>
-            ${BRANCHES.map((b) => `<option value="${b}" ${b === l.convertedBranch ? 'selected' : ''}>${b}</option>`).join('')}
-          </select>
+          <label class="date-field" title="Próxima llamada de seguimiento">
+            <span>Próxima llamada</span>
+            <input type="date" data-action="followup" data-id="${l.id}" value="${l.nextFollowUp ? l.nextFollowUp.slice(0, 10) : ''}" />
+          </label>
+          <label class="date-field" title="Fecha de instalación agendada">
+            <span>Instalación agendada</span>
+            <input type="date" data-action="scheduledInstall" data-id="${l.id}" value="${l.scheduledInstallDate ? l.scheduledInstallDate.slice(0, 10) : ''}" />
+          </label>
           <select data-action="vehicleType" data-id="${l.id}" title="Tipo de cliente">
             <option value="" ${!l.vehicleType ? 'selected' : ''}>Sin definir</option>
             <option value="Moto" ${l.vehicleType === 'Moto' ? 'selected' : ''}>Moto</option>
@@ -529,7 +531,6 @@ Te comparto unas fotos de nuestro trabajo. ¡Instala hoy y protege tu inversión
     if (action === 'status') body.status = el.value;
     else if (action === 'followup') body.nextFollowUp = el.value || null;
     else if (action === 'scheduledInstall') body.scheduledInstallDate = el.value || null;
-    else if (action === 'branch') body.convertedBranch = el.value || null;
     else if (action === 'vehicleType') body.vehicleType = el.value || '';
     else return;
 
