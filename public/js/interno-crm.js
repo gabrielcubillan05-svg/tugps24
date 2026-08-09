@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const crmData = document.getElementById('crmData');
   const STATUSES = JSON.parse((crmData && crmData.dataset.statuses) || '[]');
   const BRANCHES = JSON.parse((crmData && crmData.dataset.branches) || '[]');
+  const canManageMedia = !!(crmData && crmData.dataset.canManageMedia);
 
   const statsRow = document.getElementById('statsRow');
   const leadForm = document.getElementById('leadForm');
@@ -676,6 +677,116 @@ Estos son los beneficios que te ofrecemos 👇🏻
           submitBtn.disabled = false;
         });
     });
+  }
+
+  const mediaGallery = document.getElementById('mediaGallery');
+  if (mediaGallery) {
+    function renderMediaGallery(assets) {
+      if (!assets.length) {
+        mediaGallery.innerHTML = '<div class="empty">Todavía no hay fotos ni videos agregados.</div>';
+        return;
+      }
+      mediaGallery.innerHTML = assets.map((a) => `
+        <div class="media-item" data-id="${a.id}">
+          <div class="media-thumb">${a.kind === 'image' ? `<img src="${a.url}" alt="${escapeHtml(a.label)}" loading="lazy" />` : '🎬'}</div>
+          <div class="media-label">${escapeHtml(a.label)}</div>
+          <div class="media-actions">
+            <a class="btn-tiny" href="${a.url}" target="_blank" rel="noopener">Abrir</a>
+            <button class="btn-tiny" type="button" data-action="copy-media-link" data-url="${a.url}">Copiar enlace</button>
+            ${canManageMedia ? `<button class="btn-tiny btn-delete" type="button" data-action="delete-media" data-id="${a.id}">Eliminar</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function loadMediaAssets() {
+      fetch('/api/media-assets')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && Array.isArray(data.assets)) renderMediaGallery(data.assets);
+        })
+        .catch(() => {
+          mediaGallery.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
+        });
+    }
+
+    mediaGallery.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+      if (action === 'copy-media-link') {
+        const url = btn.getAttribute('data-url');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(() => {
+            const original = btn.textContent;
+            btn.textContent = '¡Copiado!';
+            setTimeout(() => { btn.textContent = original; }, 1500);
+          }).catch(() => {});
+        }
+      } else if (action === 'delete-media') {
+        if (!confirm('¿Eliminar este recurso?')) return;
+        const id = btn.getAttribute('data-id');
+        fetch('/api/media-assets', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        }).then(loadMediaAssets);
+      }
+    });
+
+    const mediaImageForm = document.getElementById('mediaImageForm');
+    if (mediaImageForm) {
+      mediaImageForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const label = document.getElementById('mediaImageLabel').value.trim();
+        const file = document.getElementById('mediaImageFile').files[0];
+        if (!label || !file) return;
+        const submitBtn = mediaImageForm.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('label', label);
+        formData.append('file', file);
+
+        fetch('/api/media-assets', { method: 'POST', body: formData })
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo subir la imagen.');
+            mediaImageForm.reset();
+            loadMediaAssets();
+          })
+          .catch((err) => alert(err.message || 'No se pudo subir la imagen.'))
+          .finally(() => { submitBtn.disabled = false; });
+      });
+    }
+
+    const mediaLinkForm = document.getElementById('mediaLinkForm');
+    if (mediaLinkForm) {
+      mediaLinkForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const label = document.getElementById('mediaLinkLabel').value.trim();
+        const url = document.getElementById('mediaLinkUrl').value.trim();
+        if (!label || !url) return;
+        const submitBtn = mediaLinkForm.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        fetch('/api/media-assets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, url }),
+        })
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo agregar el enlace.');
+            mediaLinkForm.reset();
+            loadMediaAssets();
+          })
+          .catch((err) => alert(err.message || 'No se pudo agregar el enlace.'))
+          .finally(() => { submitBtn.disabled = false; });
+      });
+    }
+
+    loadMediaAssets();
   }
 
   loadSecretaries();

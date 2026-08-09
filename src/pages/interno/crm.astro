@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, canManageMediaAssets, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -17,7 +17,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
 ---
 
 <InternoLayout title="CRM" active="crm" session={session}>
-  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} style="display:none;"></div>
+  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} data-can-manage-media={canManageMediaAssets(session.role) ? '1' : ''} style="display:none;"></div>
 
   <div class="stats-row" id="statsRow"></div>
   <br />
@@ -92,6 +92,27 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
       <div id="verifyInstallsResult"></div>
     </div>
   )}
+
+  <div class="panel-card">
+    <h2>Recursos para WhatsApp</h2>
+    <p class="hint">Fotos y videos para acompañar los mensajes a los clientes. Copia el enlace o descarga la imagen y adjúntala manualmente en WhatsApp (WhatsApp no permite adjuntar archivos automáticamente desde un enlace).</p>
+    {canManageMediaAssets(session.role) && (
+      <div class="media-upload-forms">
+        <form id="mediaImageForm" class="media-form">
+          <input id="mediaImageLabel" type="text" placeholder="Nombre (ej: Promoción aniversario)" required />
+          <input id="mediaImageFile" type="file" accept="image/*" required />
+          <button class="btn-small" type="submit">Subir foto</button>
+        </form>
+        <form id="mediaLinkForm" class="media-form">
+          <input id="mediaLinkLabel" type="text" placeholder="Nombre (ej: Video explicativo)" required />
+          <input id="mediaLinkUrl" type="url" placeholder="Enlace (Drive, YouTube, etc.)" required />
+          <button class="btn-small" type="submit">Agregar enlace de video</button>
+        </form>
+        <p class="hint">Para videos: súbelo a Drive o YouTube (puede ser "no listado") y pega aquí el enlace — los archivos de video pesan demasiado para subirlos directo.</p>
+      </div>
+    )}
+    <div id="mediaGallery" class="media-gallery"></div>
+  </div>
 
   {canVerifyInstalls(session.role) && (
     <div class="panel-card">
@@ -198,6 +219,34 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
   .results-table th, .results-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
   .results-table th { color: var(--slate); font-weight: 600; font-size: 11.5px; }
   .wa-select { width: auto; padding: 7px 9px; font-size: 12.5px; }
+
+  .media-upload-forms { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .media-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .media-form input[type="text"], .media-form input[type="url"] { flex: 1; min-width: 180px; }
+  .media-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .media-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .media-thumb {
+    width: 100%;
+    height: 100px;
+    border-radius: 8px;
+    background: var(--ink-700);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 32px;
+  }
+  .media-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .media-label { font-size: 12.5px; font-weight: 600; }
+  .media-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .verify-installs-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .verify-installs-form input[type="file"] { flex: 1; min-width: 200px; }
   #verifyInstallsResult { margin-top: 12px; font-size: 13px; }

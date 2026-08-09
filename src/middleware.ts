@@ -5,7 +5,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: blob: https://tools.applemediaservices.com",
+  "img-src 'self' data: blob: https://tools.applemediaservices.com https://*.public.blob.vercel-storage.com",
   "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
