@@ -19,7 +19,29 @@ document.addEventListener('DOMContentLoaded', function () {
   const resultsPanel = document.getElementById('resultsPanel');
 
   const WA_TEMPLATES = {
-    first: (name) => `Hola ${name}, soy de TuGPS24 👋 Vi tu interés en instalar un GPS para tu vehículo. ¿Tienes unos minutos para contarte cómo funciona?`,
+    first: (name) => `Hola ${name}, ¡bienvenido a TuGPS24! 👋
+
+¿Buscas total tranquilidad y control para tu vehículo? En TuGPS24 te ofrecemos las soluciones líderes en monitoreo y rastreo satelital. Con más de 1600 vehículos recuperados y una red de 10 oficinas a nivel nacional, somos tu aliado confiable.
+
+Estos son los beneficios que te ofrecemos 👇🏻
+
+📍 Ubicación en tiempo real: control absoluto de tu vehículo (🚗🏍️) desde cualquier parte del mundo, en la palma de tu mano.
+
+🔒 Apagado remoto: apaga totalmente tu vehículo sin importar la distancia. ¡Con o sin llave, no podrán encenderlo!
+
+📌 Enlace directo con la Policía: en caso de robo, nuestra central de monitoreo 24 horas coordina automáticamente el operativo de rescate con las autoridades, guiándolos al punto exacto.
+
+📈 Reportes de control: desde tu app móvil puedes ver los recorridos y el kilometraje de tu vehículo.
+
+👨🏻‍💻 Central de monitoreo 24/7: más de 40 operadores expertos vigilan tu vehículo día y noche, listos para actuar.
+
+🗺️ Cobertura nacional amplia: te acompañamos por todo el país, con oficinas estratégicamente ubicadas para tu comodidad.
+
+🛣️ Geocerca de zona: si tu vehículo sale de la ciudad te llamamos para confirmar autorización; si no hay comunicación, apagamos el vehículo por seguridad.
+
+🔧 Planes de mantenimiento: preventivo cada 6 meses sin costo adicional, para que siempre esté en las mejores condiciones. Es nuestro compromiso con tu tranquilidad.
+
+¿Qué esperas para proteger tu inversión? ¡Instala ya nuestros servicios!`,
     quote: (name) => `Hola ${name}, te escribo de TuGPS24 para saber si pudiste revisar la cotización que te enviamos. Cualquier duda con gusto te ayudo.`,
     install: (name) => `Hola ${name}, ¿cómo estás? Te escribimos de TuGPS24 para confirmar los detalles de la instalación de tu GPS. ¿Qué día y hora te queda mejor?`,
     followup: (name) => `Hola ${name}, ¿cómo vas? Quería hacer seguimiento a tu interés en el servicio de GPS de TuGPS24. Cuéntame si tienes alguna pregunta o si quieres que avancemos.`,
