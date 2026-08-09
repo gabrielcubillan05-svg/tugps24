@@ -145,9 +145,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderBoardCard(t) {
     const canAct = canAssign || t.assigneeId === userId;
-    const proofImg = t.proof
-      ? `<img class="proof-thumb" src="/api/blob-file?path=${encodeURIComponent(t.proof.pathname)}" alt="Evidencia" loading="lazy" />`
-      : '';
     return `
       <div class="board-card ${t.overdue ? 'overdue' : ''}" draggable="${canAct && t.status !== 'Cancelada'}" data-id="${t.id}">
         <div class="board-card-title">${escapeHtml(t.title)}</div>
@@ -155,7 +152,6 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="board-card-badges">
           ${t.overdue ? '<span class="badge overdue-badge">Atrasada</span>' : ''}
         </div>
-        ${proofImg}
       </div>
     `;
   }
@@ -163,8 +159,12 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderBoard() {
     if (!tasksBoard) return;
     const tasks = getFilteredTasks();
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     tasksBoard.innerHTML = `<div class="board-columns">${BOARD_STATUSES.map((s) => {
-      const items = tasks.filter((t) => t.status === s);
+      let items = tasks.filter((t) => t.status === s);
+      if (s === 'Completada') {
+        items = items.filter((t) => new Date(t.updatedAt).getTime() >= sevenDaysAgo);
+      }
       return `
         <div class="board-col">
           <div class="board-col-head"><span>${escapeHtml(s)}</span><span class="board-count">${items.length}</span></div>
