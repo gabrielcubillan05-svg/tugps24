@@ -21,33 +21,47 @@ document.addEventListener('DOMContentLoaded', function () {
   const resultsPanel = document.getElementById('resultsPanel');
 
   const WA_TEMPLATES = {
-    first: (name) => `Hola ${name}, ¡bienvenido a TuGPS24! 👋
+    first: (name) => `Hola ${name}, bienvenido a TuGPS24 👋
 
-¿Buscas total tranquilidad y control para tu vehículo? En TuGPS24 te ofrecemos las soluciones líderes en monitoreo y rastreo satelital. Con más de 1600 vehículos recuperados y una red de 10 oficinas a nivel nacional, somos tu aliado confiable.
+10 años protegiendo lo que más te importa. Más de 1.650 vehículos recuperados nos respaldan.
 
-Estos son los beneficios que te ofrecemos 👇🏻
+Esto es lo que obtienes con nosotros:
+📍 Ubicación en tiempo real desde tu celular
+🔒 Apagado remoto del motor, con o sin llave
+🚔 Enlace directo con la Policía si hay un robo
+📊 Reportes de recorrido y kilometraje
+🕑 Central de monitoreo 24/7 con operadores reales
+🗺 Cobertura en todo el país
+🔧 Mantenimiento preventivo cada 6 meses, sin costo
 
-📍 Ubicación en tiempo real: control absoluto de tu vehículo (🚗🏍️) desde cualquier parte del mundo, en la palma de tu mano.
-
-🔒 Apagado remoto: apaga totalmente tu vehículo sin importar la distancia. ¡Con o sin llave, no podrán encenderlo!
-
-📌 Enlace directo con la Policía: en caso de robo, nuestra central de monitoreo 24 horas coordina automáticamente el operativo de rescate con las autoridades, guiándolos al punto exacto.
-
-📈 Reportes de control: desde tu app móvil puedes ver los recorridos y el kilometraje de tu vehículo.
-
-👨🏻‍💻 Central de monitoreo 24/7: más de 40 operadores expertos vigilan tu vehículo día y noche, listos para actuar.
-
-🗺️ Cobertura nacional amplia: te acompañamos por todo el país, con oficinas estratégicamente ubicadas para tu comodidad.
-
-🛣️ Geocerca de zona: si tu vehículo sale de la ciudad te llamamos para confirmar autorización; si no hay comunicación, apagamos el vehículo por seguridad.
-
-🔧 Planes de mantenimiento: preventivo cada 6 meses sin costo adicional, para que siempre esté en las mejores condiciones. Es nuestro compromiso con tu tranquilidad.
-
-¿Qué esperas para proteger tu inversión? ¡Instala ya nuestros servicios!`,
+Te comparto unas fotos de nuestro trabajo. ¡Instala hoy y protege tu inversión!`,
     quote: (name) => `Hola ${name}, te escribo de TuGPS24 para saber si pudiste revisar la cotización que te enviamos. Cualquier duda con gusto te ayudo.`,
     install: (name) => `Hola ${name}, ¿cómo estás? Te escribimos de TuGPS24 para confirmar los detalles de la instalación de tu GPS. ¿Qué día y hora te queda mejor?`,
     followup: (name) => `Hola ${name}, ¿cómo vas? Quería hacer seguimiento a tu interés en el servicio de GPS de TuGPS24. Cuéntame si tienes alguna pregunta o si quieres que avancemos.`,
   };
+
+  function downloadMediaAssetsForWhatsApp() {
+    // WhatsApp no permite adjuntar archivos automáticamente desde un enlace: esto deja
+    // las fotos ya descargadas y los videos abiertos, listos para arrastrar al chat que se abrió.
+    fetch('/api/media-assets')
+      .then((res) => res.json())
+      .then((data) => {
+        const assets = (data && data.assets) || [];
+        assets.forEach((a) => {
+          if (a.kind === 'image') {
+            const link = document.createElement('a');
+            link.href = a.url;
+            link.download = (a.label || 'foto').replace(/[^a-zA-Z0-9]/g, '_');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          } else if (a.kind === 'link') {
+            window.open(a.url, '_blank', 'noopener');
+          }
+        });
+      })
+      .catch(() => {});
+  }
 
   let allLeads = [];
   const secretarySelect = document.getElementById('secretary');
@@ -498,10 +512,14 @@ Estos son los beneficios que te ofrecemos 👇🏻
     const id = el.getAttribute('data-id');
 
     if (action === 'wa-template') {
-      const template = WA_TEMPLATES[el.value];
+      const templateKey = el.value;
+      const template = WA_TEMPLATES[templateKey];
       if (template) {
         const lead = allLeads.find((l) => l.id === id);
-        if (lead) window.open(waLink(lead.phone, template(lead.name)), '_blank', 'noopener');
+        if (lead) {
+          window.open(waLink(lead.phone, template(lead.name)), '_blank', 'noopener');
+          if (templateKey === 'first') downloadMediaAssetsForWhatsApp();
+        }
       }
       el.value = '';
       return;
