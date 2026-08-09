@@ -15,6 +15,15 @@ document.addEventListener('DOMContentLoaded', function () {
   const vehicleTypeFilter = document.getElementById('vehicleTypeFilter');
   const overdueFilter = document.getElementById('overdueFilter');
   const exportBtn = document.getElementById('exportBtn');
+  const leadsBoard = document.getElementById('leadsBoard');
+  const resultsPanel = document.getElementById('resultsPanel');
+
+  const WA_TEMPLATES = {
+    first: (name) => `Hola ${name}, soy de TuGPS24 👋 Vi tu interés en instalar un GPS para tu vehículo. ¿Tienes unos minutos para contarte cómo funciona?`,
+    quote: (name) => `Hola ${name}, te escribo de TuGPS24 para saber si pudiste revisar la cotización que te enviamos. Cualquier duda con gusto te ayudo.`,
+    install: (name) => `Hola ${name}, ¿cómo estás? Te escribimos de TuGPS24 para confirmar los detalles de la instalación de tu GPS. ¿Qué día y hora te queda mejor?`,
+    followup: (name) => `Hola ${name}, ¿cómo vas? Quería hacer seguimiento a tu interés en el servicio de GPS de TuGPS24. Cuéntame si tienes alguna pregunta o si quieres que avancemos.`,
+  };
 
   let allLeads = [];
   const secretarySelect = document.getElementById('secretary');
@@ -42,10 +51,23 @@ document.addEventListener('DOMContentLoaded', function () {
     return new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
-  function waLink(phone) {
+  function waLink(phone, text) {
     const digits = String(phone).replace(/\D/g, '');
     const withCountry = digits.startsWith('57') ? digits : '57' + digits;
-    return 'https://wa.me/' + withCountry;
+    return 'https://wa.me/' + withCountry + (text ? '?text=' + encodeURIComponent(text) : '');
+  }
+
+  function isCold(l) {
+    if (l.notes && l.notes.length) return false;
+    if (l.status === 'Convertido' || l.status === 'Perdido') return false;
+    const ageHours = (Date.now() - new Date(l.createdAt).getTime()) / 3600000;
+    return ageHours > 24;
+  }
+
+  function fmtHours(hours) {
+    if (hours < 1) return Math.round(hours * 60) + ' min';
+    if (hours < 48) return Math.round(hours) + ' h';
+    return Math.round(hours / 24) + ' días';
   }
 
   function renderStats(stats) {
@@ -151,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function () {
           ${l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">✓ Verificado por orden</span>' : ''}
           ${l.installed && !l.verifiedInstalled ? '<span class="badge badge-unverified">⚠ Sin verificar</span>' : ''}
           ${!l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">Orden verificada (falta marcar)</span>' : ''}
+          ${isCold(l) ? '<span class="badge badge-cold">Sin contactar</span>' : ''}
         </div>
         <div class="lead-meta">
           ${escapeHtml(l.phone)} ${l.city ? '· ' + escapeHtml(l.city) : ''} ${l.campaign ? '· ' + escapeHtml(l.campaign) : ''}
@@ -159,6 +182,13 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="lead-controls">
           <a class="btn-small btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>
+          <select class="wa-select" data-action="wa-template" data-id="${l.id}">
+            <option value="">Mensaje rápido...</option>
+            <option value="first">Primer contacto</option>
+            <option value="quote">Recordatorio cotización</option>
+            <option value="install">Confirmar instalación</option>
+            <option value="followup">Seguimiento</option>
+          </select>
           <select data-action="status" data-id="${l.id}">
             ${STATUSES.map((s) => `<option value="${s}" ${s === l.status ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
@@ -194,6 +224,113 @@ document.addEventListener('DOMContentLoaded', function () {
     }).join('');
   }
 
+  function renderBoardCard(l) {
+    return `
+      <div class="board-card ${l.overdue ? 'overdue' : ''}" draggable="true" data-id="${l.id}">
+        <div class="board-card-name">${escapeHtml(l.name)}</div>
+        <div class="board-card-meta">${escapeHtml(l.phone)}${l.city ? ' · ' + escapeHtml(l.city) : ''}</div>
+        <div class="board-card-badges">
+          ${l.overdue ? '<span class="badge overdue-badge">Atrasado</span>' : ''}
+          ${l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">✓ Verificado</span>' : ''}
+          ${l.installed && !l.verifiedInstalled ? '<span class="badge badge-unverified">⚠ Sin verificar</span>' : ''}
+          ${isCold(l) ? '<span class="badge badge-cold">Sin contactar</span>' : ''}
+        </div>
+        <a class="btn-tiny btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+    `;
+  }
+
+  function renderBoard() {
+    if (!leadsBoard) return;
+    const leads = getFilteredLeads();
+    leadsBoard.innerHTML = `<div class="board-columns">${STATUSES.map((s) => {
+      const items = leads.filter((l) => l.status === s);
+      return `
+        <div class="board-col">
+          <div class="board-col-head"><span>${escapeHtml(s)}</span><span class="board-count">${items.length}</span></div>
+          <div class="board-col-body" data-dropzone="${escapeHtml(s)}">
+            ${items.map(renderBoardCard).join('') || '<div class="board-empty">Sin leads</div>'}
+          </div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function renderResults(leads) {
+    if (!resultsPanel) return;
+
+    const byCampaign = {};
+    leads.forEach((l) => {
+      const key = l.campaign || 'Sin campaña';
+      const s = byCampaign[key] || (byCampaign[key] = { total: 0, converted: 0, verified: 0 });
+      s.total++;
+      if (l.status === 'Convertido') s.converted++;
+      if (l.verifiedInstalled) s.verified++;
+    });
+    const campaignRows = Object.entries(byCampaign)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([name, s]) => `
+        <tr>
+          <td>${escapeHtml(name)}</td>
+          <td>${s.total}</td>
+          <td>${s.converted}</td>
+          <td>${s.verified}</td>
+          <td>${s.total ? Math.round((s.verified / s.total) * 100) : 0}%</td>
+        </tr>
+      `).join('');
+
+    const bySecretary = {};
+    leads.forEach((l) => {
+      const key = l.secretary || 'Sin asignar';
+      const s = bySecretary[key] || (bySecretary[key] = { total: 0, contacted: 0, totalHours: 0, cold: 0 });
+      s.total++;
+      if (l.notes && l.notes.length) {
+        const firstNote = l.notes[l.notes.length - 1];
+        const hours = (new Date(firstNote.date).getTime() - new Date(l.createdAt).getTime()) / 3600000;
+        if (hours >= 0) {
+          s.contacted++;
+          s.totalHours += hours;
+        }
+      } else if (isCold(l)) {
+        s.cold++;
+      }
+    });
+    const secretaryRows = Object.entries(bySecretary)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([name, s]) => `
+        <tr>
+          <td>${escapeHtml(name)}</td>
+          <td>${s.total}</td>
+          <td>${s.contacted ? fmtHours(s.totalHours / s.contacted) : '—'}</td>
+          <td>${s.cold}</td>
+        </tr>
+      `).join('');
+
+    resultsPanel.innerHTML = `
+      <div class="results-grid">
+        <div>
+          <h3>Por campaña</h3>
+          <table class="results-table">
+            <thead><tr><th>Campaña</th><th>Leads</th><th>Convertidos</th><th>Instalación verificada</th><th>Tasa real</th></tr></thead>
+            <tbody>${campaignRows || '<tr><td colspan="5">Sin datos</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Por secretaria — tiempo de respuesta</h3>
+          <table class="results-table">
+            <thead><tr><th>Secretaria</th><th>Leads</th><th>Tiempo prom. 1er contacto</th><th>Sin contactar (+24h)</th></tr></thead>
+            <tbody>${secretaryRows || '<tr><td colspan="4">Sin datos</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCurrentView() {
+    renderLeads();
+    renderBoard();
+  }
+
   function loadLeads() {
     fetch('/api/leads')
       .then((res) => res.json())
@@ -205,7 +342,8 @@ document.addEventListener('DOMContentLoaded', function () {
         allLeads = data.leads;
         renderStats(data.stats);
         populateDynamicFilters(allLeads);
-        renderLeads();
+        renderCurrentView();
+        renderResults(allLeads);
       })
       .catch(() => {
         leadsList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
@@ -215,15 +353,72 @@ document.addEventListener('DOMContentLoaded', function () {
   let debounceTimer;
   function debouncedRender() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(renderLeads, 200);
+    debounceTimer = setTimeout(renderCurrentView, 200);
   }
 
   searchInput.addEventListener('input', debouncedRender);
-  cityFilter.addEventListener('change', renderLeads);
-  secretaryFilter.addEventListener('change', renderLeads);
-  statusFilter.addEventListener('change', renderLeads);
-  vehicleTypeFilter.addEventListener('change', renderLeads);
-  overdueFilter.addEventListener('change', renderLeads);
+  cityFilter.addEventListener('change', renderCurrentView);
+  secretaryFilter.addEventListener('change', renderCurrentView);
+  statusFilter.addEventListener('change', renderCurrentView);
+  vehicleTypeFilter.addEventListener('change', renderCurrentView);
+  overdueFilter.addEventListener('change', renderCurrentView);
+
+  const viewButtons = document.querySelectorAll('.view-btn');
+  viewButtons.forEach((btn) => {
+    btn.addEventListener('click', function () {
+      const view = btn.getAttribute('data-view');
+      viewButtons.forEach((b) => b.classList.toggle('active', b === btn));
+      leadsList.style.display = view === 'board' ? 'none' : '';
+      if (leadsBoard) leadsBoard.style.display = view === 'board' ? '' : 'none';
+      try { localStorage.setItem('crmView', view); } catch {}
+    });
+  });
+  try {
+    const savedView = localStorage.getItem('crmView');
+    if (savedView === 'board') {
+      const boardBtn = document.querySelector('.view-btn[data-view="board"]');
+      if (boardBtn) boardBtn.click();
+    }
+  } catch {}
+
+  if (leadsBoard) {
+    leadsBoard.addEventListener('dragstart', function (e) {
+      const card = e.target.closest('.board-card');
+      if (!card) return;
+      e.dataTransfer.setData('text/plain', card.getAttribute('data-id'));
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('dragging');
+    });
+    leadsBoard.addEventListener('dragend', function (e) {
+      const card = e.target.closest('.board-card');
+      if (card) card.classList.remove('dragging');
+    });
+    leadsBoard.addEventListener('dragover', function (e) {
+      const zone = e.target.closest('[data-dropzone]');
+      if (!zone) return;
+      e.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    leadsBoard.addEventListener('dragleave', function (e) {
+      const zone = e.target.closest('[data-dropzone]');
+      if (zone) zone.classList.remove('drag-over');
+    });
+    leadsBoard.addEventListener('drop', function (e) {
+      const zone = e.target.closest('[data-dropzone]');
+      if (!zone) return;
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const newStatus = zone.getAttribute('data-dropzone');
+      const lead = allLeads.find((l) => l.id === id);
+      if (!lead || lead.status === newStatus) return;
+      fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus }),
+      }).then(loadLeads);
+    });
+  }
 
   leadForm.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -262,6 +457,17 @@ document.addEventListener('DOMContentLoaded', function () {
     const action = el.getAttribute('data-action');
     if (!action) return;
     const id = el.getAttribute('data-id');
+
+    if (action === 'wa-template') {
+      const template = WA_TEMPLATES[el.value];
+      if (template) {
+        const lead = allLeads.find((l) => l.id === id);
+        if (lead) window.open(waLink(lead.phone, template(lead.name)), '_blank', 'noopener');
+      }
+      el.value = '';
+      return;
+    }
+
     const body = { id };
     if (action === 'status') body.status = el.value;
     else if (action === 'followup') body.nextFollowUp = el.value || null;
