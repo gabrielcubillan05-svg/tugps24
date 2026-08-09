@@ -21,20 +21,20 @@ document.addEventListener('DOMContentLoaded', function () {
   const resultsPanel = document.getElementById('resultsPanel');
 
   const WA_TEMPLATES = {
-    first: (name) => `Hola ${name}, bienvenido a TuGPS24.
+    first: (name) => `Hola ${name}, *bienvenido a TuGPS24* ✓
 
-10 años protegiendo lo que más te importa. Más de 1.650 vehículos recuperados nos respaldan.
+*10 años* protegiendo lo que más te importa. Más de *1.650 vehículos recuperados* nos respaldan.
 
 Esto es lo que obtienes con nosotros:
-- Ubicación en tiempo real desde tu celular
-- Apagado remoto del motor, con o sin llave
-- Enlace directo con la Policía si hay un robo
-- Reportes de recorrido y kilometraje
-- Central de monitoreo 24/7 con operadores reales
-- Cobertura en todo el país
-- Mantenimiento preventivo cada 6 meses, sin costo
+✓ Ubicación en tiempo real desde tu celular
+✓ Apagado remoto del motor, con o sin llave
+✓ Enlace directo con la Policía si hay un robo
+✓ Reportes de recorrido y kilometraje
+✓ Central de monitoreo 24/7 con operadores reales
+✓ Cobertura en todo el país
+✓ Mantenimiento preventivo cada 6 meses, sin costo
 
-Te comparto unas fotos de nuestro trabajo. ¡Instala hoy y protege tu inversión!`,
+Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversión!*`,
     quote: (name) => `Hola ${name}, te escribo de TuGPS24 para saber si pudiste revisar la cotización que te enviamos. Cualquier duda con gusto te ayudo.`,
     install: (name) => `Hola ${name}, ¿cómo estás? Te escribimos de TuGPS24 para confirmar los detalles de la instalación de tu GPS. ¿Qué día y hora te queda mejor?`,
     followup: (name) => `Hola ${name}, ¿cómo vas? Quería hacer seguimiento a tu interés en el servicio de GPS de TuGPS24. Cuéntame si tienes alguna pregunta o si quieres que avancemos.`,
