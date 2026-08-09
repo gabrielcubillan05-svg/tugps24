@@ -66,7 +66,7 @@ function isTaskOverdue(t: MiniTask): boolean {
 
 function isLeadOverdue(l: MiniLead): boolean {
   if (!l.nextFollowUp) return false;
-  if (l.status === 'Convertido' || l.status === 'Perdido') return false;
+  if (l.status === 'Instalado' || l.status === 'Perdido') return false;
   return new Date(l.nextFollowUp).getTime() < new Date().setHours(0, 0, 0, 0);
 }
 

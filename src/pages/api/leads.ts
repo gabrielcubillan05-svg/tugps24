@@ -13,7 +13,7 @@ async function requireCrm(cookies: any) {
 }
 
 export const REDIS_KEY = 'internal:leads';
-export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Convertido', 'Perdido'];
+export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Agendado', 'Instalado', 'Perdido'];
 
 interface Note {
   text: string;
@@ -36,6 +36,7 @@ export interface Lead {
   installed: boolean;
   verifiedInstalled: boolean;
   verifiedInstalledAt: string | null;
+  scheduledInstallDate: string | null;
   source: 'manual' | 'meta-leadgen';
   metaLeadId: string | null;
   notes: Note[];
@@ -51,7 +52,7 @@ export function normalizePhone(phone: string): string {
 
 export function computeOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUp) return false;
-  if (lead.status === 'Convertido' || lead.status === 'Perdido') return false;
+  if (lead.status === 'Instalado' || lead.status === 'Perdido') return false;
   return new Date(lead.nextFollowUp).getTime() < new Date().setHours(0, 0, 0, 0);
 }
 
@@ -66,7 +67,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, source: 'manual', metaLeadId: null, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -145,6 +146,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     installed: false,
     verifiedInstalled: false,
     verifiedInstalledAt: null,
+    scheduledInstallDate: null,
     source: 'manual',
     metaLeadId: null,
     notes: initialNote ? [{ text: initialNote, date: now }] : [],
@@ -187,6 +189,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     motosCount?: number;
     carrosCount?: number;
     installed?: boolean;
+    scheduledInstallDate?: string | null;
   };
   try {
     body = await request.json();
@@ -210,6 +213,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     installed: false,
     verifiedInstalled: false,
     verifiedInstalledAt: null,
+    scheduledInstallDate: null,
     source: 'manual',
     metaLeadId: null,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
@@ -263,9 +267,21 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.installed !== undefined) {
     lead.installed = Boolean(body.installed);
+    if (lead.installed && lead.status !== 'Perdido') {
+      lead.status = 'Instalado';
+    }
+  }
+  if (body.scheduledInstallDate !== undefined) {
+    lead.scheduledInstallDate = body.scheduledInstallDate || null;
+    if (lead.scheduledInstallDate && ['Nuevo', 'Contactado', 'Cotizado'].includes(lead.status)) {
+      lead.status = 'Agendado';
+    }
   }
   if (body.addNote) {
     lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];
+    if (lead.status === 'Nuevo') {
+      lead.status = 'Contactado';
+    }
   }
   lead.updatedAt = new Date().toISOString();
 

@@ -82,7 +82,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
 
   function isCold(l) {
     if (l.notes && l.notes.length) return false;
-    if (l.status === 'Convertido' || l.status === 'Perdido') return false;
+    if (l.status === 'Instalado' || l.status === 'Perdido') return false;
     const ageHours = (Date.now() - new Date(l.createdAt).getTime()) / 3600000;
     return ageHours > 24;
   }
@@ -217,8 +217,9 @@ Estos son los beneficios que te ofrecemos 👇🏻
             ${STATUSES.map((s) => `<option value="${s}" ${s === l.status ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
           <input type="date" data-action="followup" data-id="${l.id}" value="${l.nextFollowUp ? l.nextFollowUp.slice(0, 10) : ''}" title="Próximo seguimiento" />
-          <select data-action="branch" data-id="${l.id}" title="Sucursal de conversión">
-            <option value="">Sucursal (si convertido)</option>
+          <input type="date" data-action="scheduledInstall" data-id="${l.id}" value="${l.scheduledInstallDate ? l.scheduledInstallDate.slice(0, 10) : ''}" title="Fecha de instalación agendada" />
+          <select data-action="branch" data-id="${l.id}" title="Sucursal de instalación">
+            <option value="">Sucursal (si instalado)</option>
             ${BRANCHES.map((b) => `<option value="${b}" ${b === l.convertedBranch ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
           <select data-action="vehicleType" data-id="${l.id}" title="Tipo de cliente">
@@ -289,7 +290,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
       const key = l.campaign || 'Sin campaña';
       const s = byCampaign[key] || (byCampaign[key] = { total: 0, converted: 0, verified: 0 });
       s.total++;
-      if (l.status === 'Convertido') s.converted++;
+      if (l.status === 'Instalado') s.converted++;
       if (l.verifiedInstalled) s.verified++;
     });
     const campaignRows = Object.entries(byCampaign)
@@ -336,7 +337,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
         <div>
           <h3>Por campaña</h3>
           <table class="results-table">
-            <thead><tr><th>Campaña</th><th>Leads</th><th>Convertidos</th><th>Instalación verificada</th><th>Tasa real</th></tr></thead>
+            <thead><tr><th>Campaña</th><th>Leads</th><th>Instalados</th><th>Instalación verificada</th><th>Tasa real</th></tr></thead>
             <tbody>${campaignRows || '<tr><td colspan="5">Sin datos</td></tr>'}</tbody>
           </table>
         </div>
@@ -496,6 +497,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
     const body = { id };
     if (action === 'status') body.status = el.value;
     else if (action === 'followup') body.nextFollowUp = el.value || null;
+    else if (action === 'scheduledInstall') body.scheduledInstallDate = el.value || null;
     else if (action === 'branch') body.convertedBranch = el.value || null;
     else if (action === 'vehicleType') body.vehicleType = el.value || '';
     else return;
@@ -597,6 +599,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
         branch,
         motos: lead.motosCount || 0,
         carros: lead.carrosCount || 0,
+        leadId: lead.id,
       }),
     })
       .then(async (res) => {
@@ -616,6 +619,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+        loadLeads();
       })
       .catch((err) => alert(err.message || 'No se pudo generar la cotización.'))
       .finally(() => {

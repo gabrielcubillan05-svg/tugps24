@@ -12,7 +12,7 @@ if (!canAccessSection(session.role, 'crm')) {
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }
 
-const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Convertido', 'Perdido'];
+const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Agendado', 'Instalado', 'Perdido'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 ---
 
@@ -169,7 +169,8 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
   .badge.Nuevo { background: #ffab5c33; color: var(--teal-bright); }
   .badge.Contactado { background: #4a90d922; color: #7ab8ec; }
   .badge.Cotizado { background: #ff7a1a29; color: var(--amber); }
-  .badge.Convertido { background: #2f8a4f33; color: var(--ok); }
+  .badge.Agendado { background: #8a5cf622; color: #b79bfa; }
+  .badge.Instalado { background: #2f8a4f33; color: var(--ok); }
   .badge.Perdido { background: #e0563f22; color: var(--danger); }
   .badge.overdue-badge { background: var(--danger); color: #fff; }
   .badge.badge-installed { background: #2f8a4f33; color: var(--ok); }

@@ -3,6 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
+import { REDIS_KEY as LEADS_REDIS_KEY, type Lead } from './leads';
 
 export const prerender = false;
 
@@ -50,7 +51,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
-  let body: { client?: string; document?: string; email?: string; branch?: string; motos?: number; carros?: number };
+  let body: { client?: string; document?: string; email?: string; branch?: string; motos?: number; carros?: number; leadId?: string };
   try {
     body = await request.json();
   } catch {
@@ -64,6 +65,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const branch = String(body.branch || 'Riohacha').trim();
   const motos = Math.max(0, Number(body.motos) || 0);
   const carros = Math.max(0, Number(body.carros) || 0);
+  const leadId = String(body.leadId || '').trim();
   const totalVehiculos = motos + carros;
 
   if (totalVehiculos <= 0) {
@@ -381,6 +383,22 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const redis = getRedis();
   if (redis) {
     await logAudit(redis, session, 'quote_generate', clientLabel, `${branch} · ${motos} moto(s) + ${carros} carro(s)`);
+
+    if (leadId) {
+      try {
+        const raw = await redis.hget<string>(LEADS_REDIS_KEY, leadId);
+        if (raw) {
+          const lead: Lead = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (['Nuevo', 'Contactado'].includes(lead.status)) {
+            lead.status = 'Cotizado';
+            lead.updatedAt = new Date().toISOString();
+            await redis.hset(LEADS_REDIS_KEY, { [leadId]: JSON.stringify(lead) });
+          }
+        }
+      } catch {
+        // no debe tumbar la descarga del PDF si falla actualizar el estado del lead
+      }
+    }
   }
 
   return new Response(pdfBytes, {
