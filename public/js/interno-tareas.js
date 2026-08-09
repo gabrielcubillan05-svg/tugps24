@@ -181,24 +181,6 @@ document.addEventListener('DOMContentLoaded', function () {
     renderBoard();
   }
 
-  const viewButtons = document.querySelectorAll('.view-btn');
-  viewButtons.forEach((btn) => {
-    btn.addEventListener('click', function () {
-      const view = btn.getAttribute('data-view');
-      viewButtons.forEach((b) => b.classList.toggle('active', b === btn));
-      tasksList.style.display = view === 'board' ? 'none' : '';
-      if (tasksBoard) tasksBoard.style.display = view === 'board' ? '' : 'none';
-      try { localStorage.setItem('tareasView', view); } catch {}
-    });
-  });
-  try {
-    const savedView = localStorage.getItem('tareasView');
-    if (savedView === 'board') {
-      const boardBtn = document.querySelector('.view-btn[data-view="board"]');
-      if (boardBtn) boardBtn.click();
-    }
-  } catch {}
-
   if (tasksBoard) {
     tasksBoard.addEventListener('dragstart', function (e) {
       const card = e.target.closest('.board-card');
