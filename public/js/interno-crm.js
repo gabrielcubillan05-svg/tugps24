@@ -197,6 +197,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
           ${l.installed && !l.verifiedInstalled ? '<span class="badge badge-unverified">⚠ Sin verificar</span>' : ''}
           ${!l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">Orden verificada (falta marcar)</span>' : ''}
           ${isCold(l) ? '<span class="badge badge-cold">Sin contactar</span>' : ''}
+          ${l.source === 'meta-leadgen' ? '<span class="badge badge-meta">Meta</span>' : ''}
         </div>
         <div class="lead-meta">
           ${escapeHtml(l.phone)} ${l.city ? '· ' + escapeHtml(l.city) : ''} ${l.campaign ? '· ' + escapeHtml(l.campaign) : ''}
@@ -257,6 +258,7 @@ Estos son los beneficios que te ofrecemos 👇🏻
           ${l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">✓ Verificado</span>' : ''}
           ${l.installed && !l.verifiedInstalled ? '<span class="badge badge-unverified">⚠ Sin verificar</span>' : ''}
           ${isCold(l) ? '<span class="badge badge-cold">Sin contactar</span>' : ''}
+          ${l.source === 'meta-leadgen' ? '<span class="badge badge-meta">Meta</span>' : ''}
         </div>
         <a class="btn-tiny btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>
       </div>

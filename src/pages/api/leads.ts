@@ -36,6 +36,8 @@ export interface Lead {
   installed: boolean;
   verifiedInstalled: boolean;
   verifiedInstalledAt: string | null;
+  source: 'manual' | 'meta-leadgen';
+  metaLeadId: string | null;
   notes: Note[];
   createdAt: string;
   updatedAt: string;
@@ -64,7 +66,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, source: 'manual', metaLeadId: null, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -143,6 +145,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     installed: false,
     verifiedInstalled: false,
     verifiedInstalledAt: null,
+    source: 'manual',
+    metaLeadId: null,
     notes: initialNote ? [{ text: initialNote, date: now }] : [],
     createdAt: now,
     updatedAt: now,
@@ -206,6 +210,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     installed: false,
     verifiedInstalled: false,
     verifiedInstalledAt: null,
+    source: 'manual',
+    metaLeadId: null,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
