@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const assigneeFilter = document.getElementById('assigneeFilter');
   const statusFilter = document.getElementById('statusFilter');
   const overdueFilter = document.getElementById('overdueFilter');
+  const tasksBoard = document.getElementById('tasksBoard');
+  const BOARD_STATUSES = ['Pendiente', 'En progreso', 'Completada', 'Cancelada'];
 
   let allTasks = [];
   let users = [];
@@ -141,6 +143,107 @@ document.addEventListener('DOMContentLoaded', function () {
     }).join('');
   }
 
+  function renderBoardCard(t) {
+    const canAct = canAssign || t.assigneeId === userId;
+    const proofImg = t.proof
+      ? `<img class="proof-thumb" src="/api/blob-file?path=${encodeURIComponent(t.proof.pathname)}" alt="Evidencia" loading="lazy" />`
+      : '';
+    return `
+      <div class="board-card ${t.overdue ? 'overdue' : ''}" draggable="${canAct && t.status !== 'Cancelada'}" data-id="${t.id}">
+        <div class="board-card-title">${escapeHtml(t.title)}</div>
+        <div class="board-card-meta">${escapeHtml(t.assigneeName)} · Vence: ${fmtDateOnly(t.dueDate)}</div>
+        <div class="board-card-badges">
+          ${t.overdue ? '<span class="badge overdue-badge">Atrasada</span>' : ''}
+        </div>
+        ${proofImg}
+      </div>
+    `;
+  }
+
+  function renderBoard() {
+    if (!tasksBoard) return;
+    const tasks = getFilteredTasks();
+    tasksBoard.innerHTML = `<div class="board-columns">${BOARD_STATUSES.map((s) => {
+      const items = tasks.filter((t) => t.status === s);
+      return `
+        <div class="board-col">
+          <div class="board-col-head"><span>${escapeHtml(s)}</span><span class="board-count">${items.length}</span></div>
+          <div class="board-col-body" data-dropzone="${escapeHtml(s)}">
+            ${items.map(renderBoardCard).join('') || '<div class="board-empty">Sin tareas</div>'}
+          </div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  function renderCurrentView() {
+    renderTasks();
+    renderBoard();
+  }
+
+  const viewButtons = document.querySelectorAll('.view-btn');
+  viewButtons.forEach((btn) => {
+    btn.addEventListener('click', function () {
+      const view = btn.getAttribute('data-view');
+      viewButtons.forEach((b) => b.classList.toggle('active', b === btn));
+      tasksList.style.display = view === 'board' ? 'none' : '';
+      if (tasksBoard) tasksBoard.style.display = view === 'board' ? '' : 'none';
+      try { localStorage.setItem('tareasView', view); } catch {}
+    });
+  });
+  try {
+    const savedView = localStorage.getItem('tareasView');
+    if (savedView === 'board') {
+      const boardBtn = document.querySelector('.view-btn[data-view="board"]');
+      if (boardBtn) boardBtn.click();
+    }
+  } catch {}
+
+  if (tasksBoard) {
+    tasksBoard.addEventListener('dragstart', function (e) {
+      const card = e.target.closest('.board-card');
+      if (!card || card.getAttribute('draggable') !== 'true') return;
+      e.dataTransfer.setData('text/plain', card.getAttribute('data-id'));
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('dragging');
+    });
+    tasksBoard.addEventListener('dragend', function (e) {
+      const card = e.target.closest('.board-card');
+      if (card) card.classList.remove('dragging');
+    });
+    tasksBoard.addEventListener('dragover', function (e) {
+      const zone = e.target.closest('[data-dropzone]');
+      if (!zone) return;
+      e.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    tasksBoard.addEventListener('dragleave', function (e) {
+      const zone = e.target.closest('[data-dropzone]');
+      if (zone) zone.classList.remove('drag-over');
+    });
+    tasksBoard.addEventListener('drop', function (e) {
+      const zone = e.target.closest('[data-dropzone]');
+      if (!zone) return;
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const newStatus = zone.getAttribute('data-dropzone');
+      const task = allTasks.find((t) => t.id === id);
+      if (!task || task.status === newStatus) return;
+      fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo actualizar la tarea.');
+          loadTasks();
+        })
+        .catch((err) => alert(err.message || 'No se pudo actualizar la tarea.'));
+    });
+  }
+
   function loadTasks() {
     fetch('/api/tasks')
       .then((res) => res.json())
@@ -150,16 +253,16 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
         allTasks = data.tasks;
-        renderTasks();
+        renderCurrentView();
       })
       .catch(() => {
         tasksList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
       });
   }
 
-  statusFilter.addEventListener('change', renderTasks);
-  overdueFilter.addEventListener('change', renderTasks);
-  if (assigneeFilter) assigneeFilter.addEventListener('change', renderTasks);
+  statusFilter.addEventListener('change', renderCurrentView);
+  overdueFilter.addEventListener('change', renderCurrentView);
+  if (assigneeFilter) assigneeFilter.addEventListener('change', renderCurrentView);
 
   if (taskForm) {
     taskForm.addEventListener('submit', function (e) {

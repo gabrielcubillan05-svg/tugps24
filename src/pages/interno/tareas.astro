@@ -63,9 +63,14 @@ const isAdmin = session.role === 'admin';
       </select>
       <label class="checkbox"><input type="checkbox" id="overdueFilter" /> Solo atrasadas</label>
     </div>
+    <div class="view-toggle">
+      <button type="button" class="btn-small view-btn active" data-view="list">Lista</button>
+      <button type="button" class="btn-small view-btn" data-view="board">Tablero</button>
+    </div>
     <div class="list-col" id="tasksList">
       <div class="empty">Cargando...</div>
     </div>
+    <div class="tasks-board" id="tasksBoard" style="display:none;"></div>
   </div>
 </InternoLayout>
 
@@ -107,6 +112,41 @@ const isAdmin = session.role === 'admin';
   }
   .notes-list { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
   .notes-list .note-item { font-size: 12.5px; color: var(--paper-dim); }
+
+  .view-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .view-toggle .view-btn.active { background: var(--amber); color: #1a0f00; }
+
+  .tasks-board { overflow-x: auto; padding-bottom: 8px; }
+  .board-columns { display: flex; gap: 12px; min-width: min-content; }
+  .board-col {
+    flex: 0 0 250px;
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .board-col-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13px; margin-bottom: 10px; }
+  .board-col-head .board-count { color: var(--slate); font-weight: 500; font-size: 11.5px; }
+  .board-col-body { display: flex; flex-direction: column; gap: 8px; min-height: 60px; border-radius: 8px; transition: background 0.15s; }
+  .board-col-body.drag-over { background: #ff7a1a1f; }
+  .board-empty { color: var(--slate); font-size: 12px; text-align: center; padding: 14px 0; }
+  .board-card {
+    background: var(--ink-700);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 10px;
+    cursor: grab;
+  }
+  .board-card[draggable="false"] { cursor: default; }
+  .board-card.dragging { opacity: 0.45; }
+  .board-card.overdue { border-color: var(--danger); }
+  .board-card-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .board-card-meta { color: var(--slate); font-size: 11.5px; margin-bottom: 6px; }
+  .board-card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .board-card-badges .badge { font-size: 10px; padding: 1px 7px; }
+  .board-card .proof-thumb { width: 100%; height: 70px; margin-bottom: 0; }
   .notes-list .note-item .note-date { color: var(--slate); font-size: 11px; margin-right: 6px; }
   .add-note-row { display: flex; gap: 8px; }
   .add-note-row input { flex: 1; }
