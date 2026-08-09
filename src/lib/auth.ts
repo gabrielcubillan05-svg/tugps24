@@ -83,6 +83,10 @@ export function canAssignTasks(role: Role): boolean {
   return role === 'supervisor' || role === 'gerente' || role === 'admin';
 }
 
+export function canVerifyInstalls(role: Role): boolean {
+  return role === 'supervisor' || role === 'gerente' || role === 'admin';
+}
+
 export function canManageUsers(role: Role): boolean {
   return role === 'admin';
 }

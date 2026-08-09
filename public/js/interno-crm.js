@@ -148,6 +148,9 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="badge ${l.status}">${escapeHtml(l.status)}</span>
           ${l.overdue ? '<span class="badge overdue-badge">Atrasado</span>' : ''}
           ${l.installed ? '<span class="badge badge-installed">✓ Instalado</span>' : ''}
+          ${l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">✓ Verificado por orden</span>' : ''}
+          ${l.installed && !l.verifiedInstalled ? '<span class="badge badge-unverified">⚠ Sin verificar</span>' : ''}
+          ${!l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">Orden verificada (falta marcar)</span>' : ''}
         </div>
         <div class="lead-meta">
           ${escapeHtml(l.phone)} ${l.city ? '· ' + escapeHtml(l.city) : ''} ${l.campaign ? '· ' + escapeHtml(l.campaign) : ''}
@@ -411,6 +414,41 @@ document.addEventListener('DOMContentLoaded', function () {
     a.remove();
     URL.revokeObjectURL(url);
   });
+
+  const verifyInstallsForm = document.getElementById('verifyInstallsForm');
+  if (verifyInstallsForm) {
+    const verifyInstallsFile = document.getElementById('verifyInstallsFile');
+    const verifyInstallsResult = document.getElementById('verifyInstallsResult');
+    verifyInstallsForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const file = verifyInstallsFile.files && verifyInstallsFile.files[0];
+      if (!file) return;
+      verifyInstallsResult.innerHTML = 'Comparando...';
+      const submitBtn = verifyInstallsForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      fetch('/api/leads-verify-installs', { method: 'POST', body: formData })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo procesar el archivo.');
+          const unmatchedHtml = data.unmatchedPhones && data.unmatchedPhones.length
+            ? `<div class="unmatched-list">Teléfonos en el archivo sin lead en el CRM (${data.unmatchedCount}): ${data.unmatchedPhones.map(escapeHtml).join(', ')}${data.unmatchedCount > data.unmatchedPhones.length ? '…' : ''}</div>`
+            : '';
+          verifyInstallsResult.innerHTML = `<p class="result-ok">${data.ordersWithPhone} órdenes leídas · ${data.matched} coincidieron con un lead · ${data.newlyVerified} quedaron verificadas ahora.</p>${unmatchedHtml}`;
+          verifyInstallsForm.reset();
+          loadLeads();
+        })
+        .catch((err) => {
+          verifyInstallsResult.innerHTML = `<p class="result-error">${escapeHtml(err.message || 'No se pudo procesar el archivo.')}</p>`;
+        })
+        .finally(() => {
+          submitBtn.disabled = false;
+        });
+    });
+  }
 
   loadSecretaries();
   loadLeads();

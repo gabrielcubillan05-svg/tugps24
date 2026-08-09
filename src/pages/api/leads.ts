@@ -12,7 +12,7 @@ async function requireCrm(cookies: any) {
   return session;
 }
 
-const REDIS_KEY = 'internal:leads';
+export const REDIS_KEY = 'internal:leads';
 export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Convertido', 'Perdido'];
 
 interface Note {
@@ -34,6 +34,8 @@ export interface Lead {
   motosCount: number;
   carrosCount: number;
   installed: boolean;
+  verifiedInstalled: boolean;
+  verifiedInstalledAt: string | null;
   notes: Note[];
   createdAt: string;
   updatedAt: string;
@@ -41,7 +43,7 @@ export interface Lead {
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', ''];
 
-function normalizePhone(phone: string): string {
+export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
@@ -62,7 +64,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -139,6 +141,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     motosCount: Number.isFinite(Number((body as any).motosCount)) ? Math.max(0, parseInt(String((body as any).motosCount), 10) || 0) : 0,
     carrosCount: Number.isFinite(Number((body as any).carrosCount)) ? Math.max(0, parseInt(String((body as any).carrosCount), 10) || 0) : 0,
     installed: false,
+    verifiedInstalled: false,
+    verifiedInstalledAt: null,
     notes: initialNote ? [{ text: initialNote, date: now }] : [],
     createdAt: now,
     updatedAt: now,
@@ -200,6 +204,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     motosCount: 0,
     carrosCount: 0,
     installed: false,
+    verifiedInstalled: false,
+    verifiedInstalledAt: null,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 

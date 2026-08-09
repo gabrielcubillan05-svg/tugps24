@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -81,6 +81,18 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
     </form>
   </div>
 
+  {canVerifyInstalls(session.role) && (
+    <div class="panel-card">
+      <h2>Verificar instalaciones</h2>
+      <p class="hint">Sube el Excel con las órdenes de instalación reales (debe tener una columna de teléfono/celular). Se compara contra los leads del CRM para confirmar cuáles se instalaron de verdad, sin depender de lo que marque el operador.</p>
+      <form id="verifyInstallsForm" class="verify-installs-form">
+        <input id="verifyInstallsFile" type="file" accept=".xlsx,.xls,.csv" required />
+        <button class="btn-small" type="submit">Comparar y verificar</button>
+      </form>
+      <div id="verifyInstallsResult"></div>
+    </div>
+  )}
+
   <div class="panel-card">
     <h2>Buscar y filtrar</h2>
     <div class="filters">
@@ -127,6 +139,15 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
   .badge.Perdido { background: #e0563f22; color: var(--danger); }
   .badge.overdue-badge { background: var(--danger); color: #fff; }
   .badge.badge-installed { background: #2f8a4f33; color: var(--ok); }
+  .badge.badge-verified { background: #2f8a4f33; color: var(--ok); }
+  .badge.badge-unverified { background: #ff7a1a29; color: var(--amber); }
+  .hint { color: var(--slate); font-size: 12.5px; margin-bottom: 12px; }
+  .verify-installs-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .verify-installs-form input[type="file"] { flex: 1; min-width: 200px; }
+  #verifyInstallsResult { margin-top: 12px; font-size: 13px; }
+  #verifyInstallsResult .result-ok { color: var(--ok); }
+  #verifyInstallsResult .result-error { color: var(--danger); }
+  #verifyInstallsResult .unmatched-list { color: var(--slate); font-size: 12px; margin-top: 6px; }
   .notes-list { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
   .notes-list .note-item { font-size: 12.5px; color: var(--paper-dim); }
   .notes-list .note-item .note-date { color: var(--slate); font-size: 11px; margin-right: 6px; }

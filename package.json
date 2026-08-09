@@ -16,6 +16,7 @@
     "@upstash/redis": "^1.38.2",
     "@vercel/blob": "^2.6.1",
     "astro": "^7.1.6",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5"
   }
 }
