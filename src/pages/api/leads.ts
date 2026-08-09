@@ -248,6 +248,13 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!STATUSES.includes(body.status)) {
       return new Response(JSON.stringify({ error: 'invalid status' }), { status: 400 });
     }
+    const willBeInstalled = body.installed !== undefined ? Boolean(body.installed) : lead.installed;
+    if (body.status === 'Perdido' && willBeInstalled) {
+      return new Response(
+        JSON.stringify({ error: 'no puedes marcar como "sin interés" un lead que ya está instalado' }),
+        { status: 400 }
+      );
+    }
     lead.status = body.status;
   }
   if (body.nextFollowUp !== undefined) {
@@ -267,7 +274,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.installed !== undefined) {
     lead.installed = Boolean(body.installed);
-    if (lead.installed && lead.status !== 'Perdido') {
+    if (lead.installed) {
       lead.status = 'Instalado';
     }
   }

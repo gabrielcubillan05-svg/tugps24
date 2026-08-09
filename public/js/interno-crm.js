@@ -214,11 +214,6 @@ Estos son los beneficios que te ofrecemos 👇🏻
             <option value="install">Confirmar instalación</option>
             <option value="followup">Seguimiento</option>
           </select>
-          ${canSetStatus ? `
-          <select data-action="status" data-id="${l.id}">
-            ${STATUSES.map((s) => `<option value="${s}" ${s === l.status ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-          ` : ''}
           <input type="date" data-action="followup" data-id="${l.id}" value="${l.nextFollowUp ? l.nextFollowUp.slice(0, 10) : ''}" title="Próximo seguimiento" />
           <input type="date" data-action="scheduledInstall" data-id="${l.id}" value="${l.scheduledInstallDate ? l.scheduledInstallDate.slice(0, 10) : ''}" title="Fecha de instalación agendada" />
           <select data-action="branch" data-id="${l.id}" title="Sucursal de instalación">
@@ -235,9 +230,11 @@ Estos son los beneficios que te ofrecemos 👇🏻
           <button class="btn-small ${l.installed ? 'btn-done' : ''}" data-action="toggle-installed" data-id="${l.id}" type="button">
             ${l.installed ? '✓ Instalado' : 'Marcar instalado'}
           </button>
+          ${!l.installed ? `
           <button class="btn-small ${l.status === 'Perdido' ? 'btn-delete' : ''}" data-action="toggle-lost" data-id="${l.id}" type="button">
             ${l.status === 'Perdido' ? '✕ Sin interés' : 'Marcar sin interés'}
           </button>
+          ` : ''}
           <button class="btn-small" data-action="quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
         </div>
@@ -444,11 +441,21 @@ Estos son los beneficios que te ofrecemos 👇🏻
       const newStatus = zone.getAttribute('data-dropzone');
       const lead = allLeads.find((l) => l.id === id);
       if (!lead || lead.status === newStatus) return;
+      if (newStatus === 'Perdido' && lead.installed) {
+        alert('No puedes marcar como "sin interés" un lead que ya está instalado.');
+        return;
+      }
       fetch('/api/leads', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: newStatus }),
-      }).then(loadLeads);
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el lead.');
+          loadLeads();
+        })
+        .catch((err) => alert(err.message || 'No se pudo actualizar el lead.'));
     });
   }
 
@@ -554,7 +561,13 @@ Estos son los beneficios que te ofrecemos 👇🏻
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status }),
-      }).then(loadLeads);
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el lead.');
+          loadLeads();
+        })
+        .catch((err) => alert(err.message || 'No se pudo actualizar el lead.'));
     } else if (action === 'edit') {
       editingId = id;
       editError = '';
