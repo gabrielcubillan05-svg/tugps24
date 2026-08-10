@@ -96,13 +96,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (employeeFilter.value) params.set('employee', employeeFilter.value);
 
     fetch('/api/reports?' + params.toString())
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.reports)) renderReports(data.reports);
-        else reportsList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
+        else reportsList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
       })
-      .catch(() => {
-        reportsList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
+      .catch((err) => {
+        reportsList.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(err.message || 'error de red')}.</div>`;
       });
   }
 
@@ -193,14 +193,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
       submitBtn.textContent = 'Guardando...';
       const res = await fetch('/api/reports', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error('save failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || `error ${res.status}`);
+      }
       reportForm.reset();
       pendingImages.forEach((p) => URL.revokeObjectURL(p.url));
       pendingImages = [];
       renderImagePreview();
       loadReports();
     } catch (err) {
-      alert('No se pudo guardar el reporte, intenta de nuevo.');
+      alert('No se pudo guardar el reporte: ' + (err.message || 'intenta de nuevo.'));
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = originalLabel;
