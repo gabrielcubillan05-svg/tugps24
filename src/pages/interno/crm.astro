@@ -93,26 +93,28 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
     </div>
   )}
 
-  <div class="panel-card">
-    <h2>Recursos para WhatsApp</h2>
-    <p class="hint">Fotos y videos para acompañar los mensajes a los clientes. Copia el enlace o descarga la imagen y adjúntala manualmente en WhatsApp (WhatsApp no permite adjuntar archivos automáticamente desde un enlace).</p>
-    {canManageMediaAssets(session.role) && (
-      <div class="media-upload-forms">
-        <form id="mediaImageForm" class="media-form">
-          <input id="mediaImageLabel" type="text" placeholder="Nombre (ej: Promoción aniversario)" required />
-          <input id="mediaImageFile" type="file" accept="image/*" required />
-          <button class="btn-small" type="submit">Subir foto</button>
-        </form>
-        <form id="mediaLinkForm" class="media-form">
-          <input id="mediaLinkLabel" type="text" placeholder="Nombre (ej: Video explicativo)" required />
-          <input id="mediaLinkUrl" type="url" placeholder="Enlace (Drive, YouTube, etc.)" required />
-          <button class="btn-small" type="submit">Agregar enlace de video</button>
-        </form>
-        <p class="hint">Para videos: súbelo a Drive o YouTube (puede ser "no listado") y pega aquí el enlace — los archivos de video pesan demasiado para subirlos directo.</p>
-      </div>
-    )}
-    <div id="mediaGallery" class="media-gallery"></div>
-  </div>
+  {session.role === 'admin' && (
+    <div class="panel-card">
+      <h2>Recursos para WhatsApp</h2>
+      <p class="hint">Fotos y videos para acompañar los mensajes a los clientes. Copia el enlace o descarga la imagen y adjúntala manualmente en WhatsApp (WhatsApp no permite adjuntar archivos automáticamente desde un enlace).</p>
+      {canManageMediaAssets(session.role) && (
+        <div class="media-upload-forms">
+          <form id="mediaImageForm" class="media-form">
+            <input id="mediaImageLabel" type="text" placeholder="Nombre (ej: Promoción aniversario)" required />
+            <input id="mediaImageFile" type="file" accept="image/*" required />
+            <button class="btn-small" type="submit">Subir foto</button>
+          </form>
+          <form id="mediaLinkForm" class="media-form">
+            <input id="mediaLinkLabel" type="text" placeholder="Nombre (ej: Video explicativo)" required />
+            <input id="mediaLinkUrl" type="url" placeholder="Enlace (Drive, YouTube, etc.)" required />
+            <button class="btn-small" type="submit">Agregar enlace de video</button>
+          </form>
+          <p class="hint">Para videos: súbelo a Drive o YouTube (puede ser "no listado") y pega aquí el enlace — los archivos de video pesan demasiado para subirlos directo.</p>
+        </div>
+      )}
+      <div id="mediaGallery" class="media-gallery"></div>
+    </div>
+  )}
 
   {canVerifyInstalls(session.role) && (
     <div class="panel-card">
