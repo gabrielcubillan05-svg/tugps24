@@ -361,5 +361,5 @@ document.addEventListener('DOMContentLoaded', function () {
     if (oversightMode) return;
     loadConversations();
     if (activeConversationId) loadMessages(activeConversationId);
-  }, 12000);
+  }, 20000);
 });

@@ -211,5 +211,5 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   loadReports();
-  setInterval(loadReports, 60000);
+  setInterval(loadReports, 120000);
 });

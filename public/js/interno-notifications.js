@@ -152,6 +152,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   loadNotifications();
   loadChatUnread();
-  setInterval(loadNotifications, 15000);
-  setInterval(loadChatUnread, 15000);
+  setInterval(loadNotifications, 45000);
+  setInterval(loadChatUnread, 45000);
 });
