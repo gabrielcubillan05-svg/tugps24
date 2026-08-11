@@ -123,8 +123,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const normalizedPhone = normalizePhone(phone);
   const existingLeads = await readLeads(redis);
-  if (existingLeads.some((l) => normalizePhone(l.phone) === normalizedPhone)) {
-    return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese número de teléfono' }), { status: 409 });
+  const isDuplicate = normalizedPhone
+    ? existingLeads.some((l) => normalizePhone(l.phone) === normalizedPhone)
+    : existingLeads.some((l) => l.phone.trim().toLowerCase() === phone.toLowerCase());
+  if (isDuplicate) {
+    return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese teléfono o usuario' }), { status: 409 });
   }
 
   const now = new Date().toISOString();
@@ -233,8 +236,11 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     const normalizedPhone = normalizePhone(phone);
     const others = await readLeads(redis);
-    if (others.some((l) => l.id !== id && normalizePhone(l.phone) === normalizedPhone)) {
-      return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese número de teléfono' }), { status: 409 });
+    const isDuplicate = normalizedPhone
+      ? others.some((l) => l.id !== id && normalizePhone(l.phone) === normalizedPhone)
+      : others.some((l) => l.id !== id && l.phone.trim().toLowerCase() === phone.toLowerCase());
+    if (isDuplicate) {
+      return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese teléfono o usuario' }), { status: 409 });
     }
     lead.phone = phone;
   }

@@ -95,6 +95,12 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     return 'https://wa.me/' + withCountry + (text ? '?text=' + encodeURIComponent(text) : '');
   }
 
+  // WhatsApp todavía no soporta abrir un chat por enlace usando el usuario (solo por
+  // número), así que distinguimos: si trae letras es un usuario, no un teléfono real.
+  function isPhoneLike(value) {
+    return /^[\d\s+().-]+$/.test(String(value || '').trim()) && String(value).replace(/\D/g, '').length >= 7;
+  }
+
   function isCold(l) {
     if (l.notes && l.notes.length) return false;
     if (l.status === 'Instalado' || l.status === 'Perdido') return false;
@@ -168,8 +174,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
             <input type="text" data-edit="name" value="${escapeHtml(l.name)}" />
           </div>
           <div class="field">
-            <label>Teléfono</label>
-            <input type="tel" data-edit="phone" value="${escapeHtml(l.phone)}" />
+            <label>Teléfono o usuario de WhatsApp</label>
+            <input type="text" data-edit="phone" value="${escapeHtml(l.phone)}" />
           </div>
           <div class="field">
             <label>Ciudad</label>
@@ -220,7 +226,9 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           ${l.vehicleType ? '· ' + escapeHtml(l.vehicleType) + (l.motosCount || l.carrosCount ? ' (' + [l.motosCount ? l.motosCount + ' moto(s)' : '', l.carrosCount ? l.carrosCount + ' carro(s)' : ''].filter(Boolean).join(', ') + ')' : '') : ''}
         </div>
         <div class="lead-controls">
-          <a class="btn-small btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>
+          ${isPhoneLike(l.phone)
+            ? `<a class="btn-small btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>`
+            : `<span class="btn-small" title="Es un usuario de WhatsApp, no un teléfono. WhatsApp aún no permite abrir el chat por enlace usando el usuario, búscalo manualmente.">WhatsApp: ${escapeHtml(l.phone)}</span>`}
           <select class="wa-select" data-action="wa-template" data-id="${l.id}">
             <option value="">Mensaje rápido...</option>
             <option value="first">Primer contacto</option>
@@ -280,7 +288,9 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           ${isCold(l) ? '<span class="badge badge-cold">Sin contactar</span>' : ''}
           ${l.source === 'meta-leadgen' ? '<span class="badge badge-meta">Meta</span>' : ''}
         </div>
-        <a class="btn-tiny btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>
+        ${isPhoneLike(l.phone)
+          ? `<a class="btn-tiny btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>`
+          : `<span class="btn-tiny" title="Usuario de WhatsApp, no teléfono">Usuario WA</span>`}
       </div>
     `;
   }
@@ -518,7 +528,9 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       const template = WA_TEMPLATES[templateKey];
       if (template) {
         const lead = allLeads.find((l) => l.id === id);
-        if (lead) {
+        if (lead && !isPhoneLike(lead.phone)) {
+          alert('Este lead tiene un usuario de WhatsApp, no un teléfono. WhatsApp aún no permite abrir el chat por enlace usando el usuario — búscalo manualmente dentro de WhatsApp.');
+        } else if (lead) {
           window.open(waLink(lead.phone, template(lead.name)), '_blank', 'noopener');
           if (templateKey === 'first') downloadMediaAssetsForWhatsApp();
         }
