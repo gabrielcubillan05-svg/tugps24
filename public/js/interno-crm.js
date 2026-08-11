@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const crmData = document.getElementById('crmData');
   const STATUSES = JSON.parse((crmData && crmData.dataset.statuses) || '[]');
   const BRANCHES = JSON.parse((crmData && crmData.dataset.branches) || '[]');
+  const CAMPAIGNS = JSON.parse((crmData && crmData.dataset.campaigns) || '[]');
   const canManageMedia = !!(crmData && crmData.dataset.canManageMedia);
   const canSetStatus = !!(crmData && crmData.dataset.canSetStatus);
 
@@ -185,8 +186,11 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
             </select>
           </div>
           <div class="field">
-            <label>Campaña / anuncio de origen</label>
-            <input type="text" data-edit="campaign" value="${escapeHtml(l.campaign)}" />
+            <label>¿De dónde viene?</label>
+            <select data-edit="campaign">
+              <option value="" ${!l.campaign ? 'selected' : ''}>Sin definir</option>
+              ${CAMPAIGNS.map((c) => `<option value="${c}" ${c === l.campaign ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
           </div>
         </div>
         ${editError ? `<p class="error-msg">${escapeHtml(editError)}</p>` : ''}

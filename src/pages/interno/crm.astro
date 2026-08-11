@@ -14,10 +14,11 @@ if (!canAccessSection(session.role, 'crm')) {
 
 const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Agendado', 'Instalado', 'Perdido'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
+const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina', 'Otro'];
 ---
 
 <InternoLayout title="CRM" active="crm" session={session}>
-  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} data-can-manage-media={canManageMediaAssets(session.role) ? '1' : ''} data-can-set-status={canVerifyInstalls(session.role) ? '1' : ''} style="display:none;"></div>
+  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} data-campaigns={JSON.stringify(CAMPAIGNS)} data-can-manage-media={canManageMediaAssets(session.role) ? '1' : ''} data-can-set-status={canVerifyInstalls(session.role) ? '1' : ''} style="display:none;"></div>
 
   <div class="stats-row" id="statsRow"></div>
   <br />
@@ -42,8 +43,11 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
           </select>
         </div>
         <div class="field">
-          <label for="campaign">Campaña / anuncio de origen</label>
-          <input id="campaign" type="text" placeholder="Ej: Facebook - Promo aniversario" />
+          <label for="campaign">¿De dónde viene?</label>
+          <select id="campaign">
+            <option value="">Sin definir</option>
+            {CAMPAIGNS.map((c) => <option value={c}>{c}</option>)}
+          </select>
         </div>
         <div class="field">
           <label for="secretary">Secretaria / Gerente asignado</label>
