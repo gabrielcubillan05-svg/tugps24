@@ -50,8 +50,13 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="meta">
           Operador: ${escapeHtml(r.operator)} · Frecuencia: ${escapeHtml(r.frequency)} ·
           ${r.pending ? 'Debía hacerse el ' : 'Próximo: '}${fmtDateOnly(r.nextDue)}
+          ${r.dueDateOverride ? ' (fecha fijada a mano)' : ''}
         </div>
         <div class="item-actions">
+          <label class="date-field" title="Fijar fecha de entrega para este ciclo">
+            <span>Fecha de entrega</span>
+            <input type="date" data-action="set-due" data-id="${r.id}" value="${r.dueDateOverride ? r.dueDateOverride.slice(0, 10) : ''}" />
+          </label>
           <button class="btn-small btn-done" data-action="done" data-id="${r.id}">Marcar hecho</button>
           <button class="btn-small btn-delete" data-action="delete-sr" data-id="${r.id}">Eliminar</button>
         </div>
@@ -90,12 +95,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const reportType = document.getElementById('sr-type').value.trim();
     const frequency = document.getElementById('sr-frequency').value;
     const operator = document.getElementById('sr-operator').value.trim();
+    const dueDate = document.getElementById('sr-duedate').value || null;
     if (!client || !reportType || !frequency || !operator) return;
 
     fetch('/api/scheduled-reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client, reportType, frequency, operator }),
+      body: JSON.stringify({ client, reportType, frequency, operator, dueDate }),
     })
       .then((res) => res.json())
       .then(() => {
@@ -103,6 +109,17 @@ document.addEventListener('DOMContentLoaded', function () {
         loadScheduled();
       })
       .catch(() => alert('No se pudo guardar.'));
+  });
+
+  scheduledList.addEventListener('change', function (e) {
+    const el = e.target;
+    if (el.getAttribute('data-action') !== 'set-due') return;
+    const id = el.getAttribute('data-id');
+    fetch('/api/scheduled-reports', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, dueDate: el.value || null }),
+    }).then(loadScheduled);
   });
 
   scheduledList.addEventListener('click', function (e) {

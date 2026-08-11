@@ -27,6 +27,7 @@ export interface ScheduledReport {
   frequency: string;
   operator: string;
   lastDoneAt: string | null;
+  dueDateOverride: string | null;
   createdAt: string;
 }
 
@@ -39,11 +40,18 @@ function startOfDay(d: Date): Date {
 }
 
 export function withStatus(r: ScheduledReport) {
-  const intervalDays = FREQUENCIES[r.frequency] || 7;
-  // Se trunca a inicio del día para que el vencimiento sea por día calendario, no por hora exacta:
-  // un "Diario" marcado como hecho a cualquier hora vuelve a quedar pendiente justo al empezar el día siguiente.
-  const base = startOfDay(new Date(r.lastDoneAt || r.createdAt));
-  const nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
+  let nextDue: Date;
+  if (r.dueDateOverride) {
+    // Fecha de entrega fijada a mano: manda sobre el cálculo automático por frecuencia,
+    // solo para este ciclo (se limpia al marcar el reporte como hecho).
+    nextDue = startOfDay(new Date(r.dueDateOverride));
+  } else {
+    const intervalDays = FREQUENCIES[r.frequency] || 7;
+    // Se trunca a inicio del día para que el vencimiento sea por día calendario, no por hora exacta:
+    // un "Diario" marcado como hecho a cualquier hora vuelve a quedar pendiente justo al empezar el día siguiente.
+    const base = startOfDay(new Date(r.lastDoneAt || r.createdAt));
+    nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
+  }
   const pending = nextDue.getTime() <= Date.now();
   const bucket: 'pendiente' | 'por-realizar' | 'al-dia' = pending
     ? 'pendiente'
@@ -123,6 +131,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     frequency,
     operator,
     lastDoneAt: null,
+    dueDateOverride: (body as any).dueDate ? String((body as any).dueDate) : null,
     createdAt: new Date().toISOString(),
   };
 
@@ -147,7 +156,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string };
+  let body: { id?: string; dueDate?: string | null };
   try {
     body = await request.json();
   } catch {
@@ -159,10 +168,18 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const existing: ScheduledReport = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
-  existing.lastDoneAt = new Date().toISOString();
-  await redis.hset(REDIS_KEY, { [id]: JSON.stringify(existing) });
-  await logAudit(redis, session, 'scheduled_report_done', `${existing.client} · ${existing.reportType}`);
+  const existing: ScheduledReport = { dueDateOverride: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+
+  if (body.dueDate !== undefined) {
+    existing.dueDateOverride = body.dueDate || null;
+    await redis.hset(REDIS_KEY, { [id]: JSON.stringify(existing) });
+    await logAudit(redis, session, 'scheduled_report_due_date_set', `${existing.client} · ${existing.reportType}`, String(body.dueDate));
+  } else {
+    existing.lastDoneAt = new Date().toISOString();
+    existing.dueDateOverride = null;
+    await redis.hset(REDIS_KEY, { [id]: JSON.stringify(existing) });
+    await logAudit(redis, session, 'scheduled_report_done', `${existing.client} · ${existing.reportType}`);
+  }
 
   return new Response(JSON.stringify({ report: withStatus(existing) }), {
     headers: { 'Content-Type': 'application/json' },

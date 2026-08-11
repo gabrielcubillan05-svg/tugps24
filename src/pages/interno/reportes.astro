@@ -45,6 +45,10 @@ const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
             <option value="">Cargando operadores...</option>
           </select>
         </div>
+        <div class="field">
+          <label for="sr-duedate">Fecha de entrega (opcional)</label>
+          <input id="sr-duedate" type="date" />
+        </div>
       </div>
       <button class="btn" type="submit">Guardar reporte programado</button>
     </form>
@@ -62,5 +66,10 @@ const FREQUENCIES = ['Diario', 'Semanal', 'Quincenal', 'Mensual'];
     </div>
   </div>
 </InternoLayout>
+
+<style is:global>
+  .item-actions .date-field { display: flex; flex-direction: column; gap: 2px; }
+  .item-actions .date-field span { color: var(--slate); font-size: 10.5px; }
+</style>
 
 <script src="/js/interno-reportes.js" defer></script>
