@@ -137,6 +137,7 @@ export const POST: APIRoute = async ({ request }) => {
             verifiedInstalledAt: null,
             source: 'meta-leadgen',
             metaLeadId: String(leadgenId),
+            createdByName: 'Meta Lead Ads',
             notes: [],
             createdAt: now,
             updatedAt: now,

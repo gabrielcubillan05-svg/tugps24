@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -39,6 +39,7 @@ export interface Lead {
   scheduledInstallDate: string | null;
   source: 'manual' | 'meta-leadgen';
   metaLeadId: string | null;
+  createdByName: string;
   notes: Note[];
   createdAt: string;
   updatedAt: string;
@@ -67,7 +68,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -132,6 +133,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const now = new Date().toISOString();
   const initialNote = String((body as any).initialNote || '').trim();
+  const creator = await findUserById(redis, session.userId);
 
   const lead: Lead = {
     id: randomUUID(),
@@ -152,6 +154,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     scheduledInstallDate: null,
     source: 'manual',
     metaLeadId: null,
+    createdByName: creator?.name || session.username,
     notes: initialNote ? [{ text: initialNote, date: now }] : [],
     createdAt: now,
     updatedAt: now,
@@ -219,6 +222,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     scheduledInstallDate: null,
     source: 'manual',
     metaLeadId: null,
+    createdByName: '',
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
