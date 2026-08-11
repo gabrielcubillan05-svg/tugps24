@@ -316,12 +316,26 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     }).join('')}</div>`;
   }
 
+  // Agrupa las variantes sueltas que quedaron de cuando "campaña" era texto libre
+  // (facebook / FACEBOOK / facebook promo aniversario, etc.) en las mismas categorías
+  // fijas del selector actual, para que la tabla de resultados no quede saturada.
+  function normalizeCampaignLabel(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return 'Sin campaña';
+    const lower = value.toLowerCase();
+    if (CAMPAIGNS.includes(value)) return value;
+    if (/facebook|instagram|\bfb\b|\big\b/.test(lower)) return 'Facebook';
+    if (/recomend/.test(lower)) return 'Recomendado de cliente';
+    if (/oficina|interesad/.test(lower)) return 'Interesado en oficina';
+    return 'Otro';
+  }
+
   function renderResults(leads) {
     if (!resultsPanel) return;
 
     const byCampaign = {};
     leads.forEach((l) => {
-      const key = l.campaign || 'Sin campaña';
+      const key = normalizeCampaignLabel(l.campaign);
       const s = byCampaign[key] || (byCampaign[key] = { total: 0, converted: 0, verified: 0 });
       s.total++;
       if (l.status === 'Instalado') s.converted++;

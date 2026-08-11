@@ -286,6 +286,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     lead.installed = Boolean(body.installed);
     if (lead.installed) {
       lead.status = 'Instalado';
+    } else if (lead.status === 'Instalado') {
+      // Se desmarcó "instalado" (ej: se había marcado por error) — el estado no debe
+      // quedarse pegado en "Instalado" si ya no lo está.
+      lead.status = 'Contactado';
     }
   }
   if (body.scheduledInstallDate !== undefined) {
