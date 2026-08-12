@@ -130,7 +130,7 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   <div class="panel-card">
     <h2>Buscar y filtrar</h2>
     <div class="filters">
-      <input id="searchInput" type="text" placeholder="Buscar por nombre, teléfono o campaña..." />
+      <input id="searchInput" type="text" placeholder="Buscar por nombre, teléfono, campaña o nota..." />
       <select id="cityFilter"><option value="">Todas las ciudades</option></select>
       <select id="secretaryFilter"><option value="">Todos (secretaria/gerente)</option></select>
       <select id="statusFilter">
@@ -144,8 +144,17 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
         <option value="Flota">Flota</option>
       </select>
       <label class="checkbox"><input type="checkbox" id="overdueFilter" /> Solo atrasados</label>
+      <label class="date-field" title="Creado desde">
+        <span>Creado desde</span>
+        <input type="date" id="dateFromFilter" />
+      </label>
+      <label class="date-field" title="Creado hasta">
+        <span>Creado hasta</span>
+        <input type="date" id="dateToFilter" />
+      </label>
       <button class="btn-ghost" type="button" id="exportBtn">Exportar CSV</button>
     </div>
+    <div class="filtered-count" id="filteredCount"></div>
     <div class="view-toggle">
       <button type="button" class="btn-small view-btn active" data-view="list">Lista</button>
       <button type="button" class="btn-small view-btn" data-view="board">Tablero</button>
@@ -190,6 +199,7 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .hint { color: var(--slate); font-size: 12.5px; margin-bottom: 12px; }
   .backfill-secretary-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
   .backfill-secretary-row .hint { margin: 0; }
+  .filtered-count { color: var(--slate); font-size: 12.5px; margin: -6px 0 12px; }
 
   .view-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
   .view-toggle .view-btn.active { background: var(--amber); color: #1a0f00; }

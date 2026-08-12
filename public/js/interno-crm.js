@@ -17,6 +17,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const statusFilter = document.getElementById('statusFilter');
   const vehicleTypeFilter = document.getElementById('vehicleTypeFilter');
   const overdueFilter = document.getElementById('overdueFilter');
+  const dateFromFilter = document.getElementById('dateFromFilter');
+  const dateToFilter = document.getElementById('dateToFilter');
+  const filteredCount = document.getElementById('filteredCount');
   const exportBtn = document.getElementById('exportBtn');
   const leadsBoard = document.getElementById('leadsBoard');
   const resultsPanel = document.getElementById('resultsPanel');
@@ -150,14 +153,27 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     const status = statusFilter.value;
     const vehicleType = vehicleTypeFilter.value;
     const onlyOverdue = overdueFilter.checked;
+    const dateFrom = dateFromFilter.value;
+    const dateTo = dateToFilter.value;
 
     return allLeads.filter((l) => {
-      if (q && !(l.name.toLowerCase().includes(q) || l.phone.toLowerCase().includes(q) || (l.campaign || '').toLowerCase().includes(q))) return false;
+      if (q) {
+        const notesText = (l.notes || []).map((n) => n.text).join(' ').toLowerCase();
+        const matches = l.name.toLowerCase().includes(q) || l.phone.toLowerCase().includes(q)
+          || (l.campaign || '').toLowerCase().includes(q) || notesText.includes(q);
+        if (!matches) return false;
+      }
       if (city && l.city !== city) return false;
       if (secretary && l.secretary !== secretary) return false;
       if (status && l.status !== status) return false;
       if (vehicleType && l.vehicleType !== vehicleType) return false;
       if (onlyOverdue && !l.overdue) return false;
+      if (dateFrom || dateTo) {
+        const created = l.createdAt ? l.createdAt.slice(0, 10) : '';
+        if (!created) return false;
+        if (dateFrom && created < dateFrom) return false;
+        if (dateTo && created > dateTo) return false;
+      }
       return true;
     });
   }
@@ -415,9 +431,18 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     `;
   }
 
+  function renderFilteredCount() {
+    const count = getFilteredLeads().length;
+    const hasDateRange = dateFromFilter.value || dateToFilter.value;
+    filteredCount.textContent = hasDateRange
+      ? `${count} lead(s) en el rango de fechas seleccionado.`
+      : `${count} lead(s) con estos filtros.`;
+  }
+
   function renderCurrentView() {
     renderLeads();
     renderBoard();
+    renderFilteredCount();
   }
 
   function loadLeads() {
@@ -451,6 +476,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   statusFilter.addEventListener('change', renderCurrentView);
   vehicleTypeFilter.addEventListener('change', renderCurrentView);
   overdueFilter.addEventListener('change', renderCurrentView);
+  dateFromFilter.addEventListener('change', renderCurrentView);
+  dateToFilter.addEventListener('change', renderCurrentView);
 
   const viewButtons = document.querySelectorAll('.view-btn');
   viewButtons.forEach((btn) => {
