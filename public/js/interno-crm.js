@@ -237,7 +237,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           ${l.secretary ? '· Secretaria: ' + escapeHtml(l.secretary) : ''}
           ${l.vehicleType ? '· ' + escapeHtml(l.vehicleType) + (l.motosCount || l.carrosCount ? ' (' + [l.motosCount ? l.motosCount + ' moto(s)' : '', l.carrosCount ? l.carrosCount + ' carro(s)' : ''].filter(Boolean).join(', ') + ')' : '') : ''}
         </div>
-        ${l.createdByName ? `<div class="lead-added-by">Agregado por: ${escapeHtml(l.createdByName)}</div>` : ''}
+        ${l.createdByName ? `<div class="lead-added-by">Agregado por: ${escapeHtml(l.createdByName)}${l.createdAt ? ' · ' + new Date(l.createdAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : ''}</div>` : ''}
         <div class="lead-controls">
           ${isPhoneLike(l.phone)
             ? `<a class="btn-small btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>`
