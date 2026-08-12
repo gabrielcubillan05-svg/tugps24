@@ -192,6 +192,14 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
               ${CAMPAIGNS.map((c) => `<option value="${c}" ${c === l.campaign ? 'selected' : ''}>${c}</option>`).join('')}
             </select>
           </div>
+          <div class="field">
+            <label>Cantidad de motos</label>
+            <input type="number" min="0" data-edit="motosCount" value="${l.motosCount || 0}" />
+          </div>
+          <div class="field">
+            <label>Cantidad de carros</label>
+            <input type="number" min="0" data-edit="carrosCount" value="${l.carrosCount || 0}" />
+          </div>
         </div>
         ${editError ? `<p class="error-msg">${escapeHtml(editError)}</p>` : ''}
         <div class="lead-controls">
@@ -632,6 +640,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       const phone = card.querySelector('[data-edit="phone"]').value.trim();
       const city = card.querySelector('[data-edit="city"]').value;
       const campaign = card.querySelector('[data-edit="campaign"]').value.trim();
+      const motosCount = parseInt(card.querySelector('[data-edit="motosCount"]').value, 10) || 0;
+      const carrosCount = parseInt(card.querySelector('[data-edit="carrosCount"]').value, 10) || 0;
       if (!name || !phone) {
         editError = 'Nombre y teléfono son obligatorios.';
         renderLeads();
@@ -641,7 +651,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       fetch('/api/leads', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, name, phone, city, campaign }),
+        body: JSON.stringify({ id, name, phone, city, campaign, motosCount, carrosCount }),
       })
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
