@@ -65,15 +65,14 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   }
 
   let allLeads = [];
-  const secretarySelect = document.getElementById('secretary');
+  let secretaryOptions = [];
 
   function loadSecretaries() {
-    fetch('/api/users?role=secretaria,gerente')
+    return fetch('/api/users?role=secretaria,gerente')
       .then((res) => res.json())
       .then((data) => {
         if (!data || !Array.isArray(data.users)) return;
-        secretarySelect.innerHTML = '<option value="">Sin asignar</option>' +
-          data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}${u.role === 'gerente' ? ' (Gerente)' : ''}</option>`).join('');
+        secretaryOptions = data.users;
       })
       .catch(() => {});
   }
@@ -199,6 +198,14 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           <div class="field">
             <label>Cantidad de carros</label>
             <input type="number" min="0" data-edit="carrosCount" value="${l.carrosCount || 0}" />
+          </div>
+          <div class="field">
+            <label>Responsable</label>
+            <select data-edit="secretary">
+              <option value="">Sin asignar</option>
+              ${secretaryOptions.map((u) => `<option value="${escapeHtml(u.name)}" ${u.name === l.secretary ? 'selected' : ''}>${escapeHtml(u.name)}${u.role === 'gerente' ? ' (Gerente)' : ''}</option>`).join('')}
+              ${l.secretary && !secretaryOptions.some((u) => u.name === l.secretary) ? `<option value="${escapeHtml(l.secretary)}" selected>${escapeHtml(l.secretary)}</option>` : ''}
+            </select>
           </div>
         </div>
         ${editError ? `<p class="error-msg">${escapeHtml(editError)}</p>` : ''}
@@ -518,7 +525,6 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     const phone = document.getElementById('phone').value.trim();
     const city = document.getElementById('city').value.trim();
     const campaign = document.getElementById('campaign').value.trim();
-    const secretary = document.getElementById('secretary').value.trim();
     const nextFollowUp = document.getElementById('nextFollowUp').value || null;
     const vehicleType = document.getElementById('vehicleType').value;
     const motosCount = parseInt(document.getElementById('motosCount').value, 10) || 0;
@@ -532,7 +538,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, city, campaign, secretary, nextFollowUp, vehicleType, motosCount, carrosCount, initialNote }),
+      body: JSON.stringify({ name, phone, city, campaign, nextFollowUp, vehicleType, motosCount, carrosCount, initialNote }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
@@ -642,6 +648,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       const campaign = card.querySelector('[data-edit="campaign"]').value.trim();
       const motosCount = parseInt(card.querySelector('[data-edit="motosCount"]').value, 10) || 0;
       const carrosCount = parseInt(card.querySelector('[data-edit="carrosCount"]').value, 10) || 0;
+      const secretary = card.querySelector('[data-edit="secretary"]').value;
       if (!name || !phone) {
         editError = 'Nombre y teléfono son obligatorios.';
         renderLeads();
@@ -651,7 +658,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       fetch('/api/leads', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, name, phone, city, campaign, motosCount, carrosCount }),
+        body: JSON.stringify({ id, name, phone, city, campaign, motosCount, carrosCount, secretary }),
       })
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
@@ -882,6 +889,25 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     loadMediaAssets();
   }
 
-  loadSecretaries();
-  loadLeads();
+  const backfillSecretaryBtn = document.getElementById('backfillSecretaryBtn');
+  if (backfillSecretaryBtn) {
+    const backfillSecretaryResult = document.getElementById('backfillSecretaryResult');
+    backfillSecretaryBtn.addEventListener('click', function () {
+      backfillSecretaryBtn.disabled = true;
+      backfillSecretaryResult.textContent = 'Asignando...';
+      fetch('/api/leads-backfill-secretary', { method: 'POST' })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo asignar.');
+          backfillSecretaryResult.textContent = `${data.updated} lead(s) asignados a su creador.`;
+          loadLeads();
+        })
+        .catch((err) => {
+          backfillSecretaryResult.textContent = err.message || 'No se pudo asignar.';
+        })
+        .finally(() => { backfillSecretaryBtn.disabled = false; });
+    });
+  }
+
+  loadSecretaries().then(loadLeads);
 });

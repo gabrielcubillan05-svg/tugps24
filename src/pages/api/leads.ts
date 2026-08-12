@@ -141,7 +141,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     phone,
     city: String(body.city || '').trim(),
     campaign: String(body.campaign || '').trim(),
-    secretary: String(body.secretary || '').trim(),
+    secretary: String(body.secretary || '').trim() || creator?.name || session.username,
     status: STATUSES.includes(String(body.status)) ? String(body.status) : 'Nuevo',
     nextFollowUp: body.nextFollowUp ? String(body.nextFollowUp) : null,
     convertedBranch: null,
@@ -253,6 +253,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.campaign !== undefined) {
     lead.campaign = String(body.campaign).trim();
+  }
+  if (body.secretary !== undefined) {
+    lead.secretary = String(body.secretary).trim();
   }
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) {

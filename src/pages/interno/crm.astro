@@ -50,12 +50,6 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
           </select>
         </div>
         <div class="field">
-          <label for="secretary">Secretaria / Gerente asignado</label>
-          <select id="secretary">
-            <option value="">Sin asignar</option>
-          </select>
-        </div>
-        <div class="field">
           <label for="nextFollowUp">Próximo seguimiento</label>
           <input id="nextFollowUp" type="date" />
         </div>
@@ -81,6 +75,7 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
           <textarea id="initialNote" placeholder="Detalle del primer contacto"></textarea>
         </div>
       </div>
+      <p class="hint">El lead queda asignado automáticamente a tu usuario. Si necesitas cambiar el responsable, hazlo desde "Editar" en la lista.</p>
       <button class="btn" type="submit">Guardar lead</button>
     </form>
   </div>
@@ -125,6 +120,10 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
       <h2>Resultados</h2>
       <p class="hint">Conversión real por campaña (usando instalaciones verificadas, no lo autoreportado) y tiempo de respuesta por secretaria.</p>
       <div id="resultsPanel"></div>
+      <div class="backfill-secretary-row">
+        <button class="btn-small" id="backfillSecretaryBtn" type="button">Asignar leads "sin asignar" a quien los creó</button>
+        <span id="backfillSecretaryResult" class="hint"></span>
+      </div>
     </div>
   )}
 
@@ -189,6 +188,8 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .badge.badge-cold { background: #e0563f22; color: var(--danger); }
   .badge.badge-meta { background: #4a90d922; color: #7ab8ec; }
   .hint { color: var(--slate); font-size: 12.5px; margin-bottom: 12px; }
+  .backfill-secretary-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .backfill-secretary-row .hint { margin: 0; }
 
   .view-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
   .view-toggle .view-btn.active { background: var(--amber); color: #1a0f00; }
