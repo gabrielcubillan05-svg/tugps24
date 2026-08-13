@@ -51,6 +51,14 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+// Un "usuario de WhatsApp" (ej: @eliacaturbina07) puede traer dígitos sueltos que no
+// representan un teléfono real; si lo tratáramos como tal, dos usuarios distintos con
+// las mismas cifras sueltas (ej: "...07") se marcarían como duplicados entre sí.
+function isPhoneLike(value: string): boolean {
+  const v = String(value || '').trim();
+  return /^[\d\s+().-]+$/.test(v) && v.replace(/\D/g, '').length >= 7;
+}
+
 export function computeOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUp) return false;
   if (lead.status === 'Instalado' || lead.status === 'Perdido') return false;
@@ -122,10 +130,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'el teléfono es obligatorio' }), { status: 400 });
   }
 
-  const normalizedPhone = normalizePhone(phone);
+  const normalizedPhone = isPhoneLike(phone) ? normalizePhone(phone) : '';
   const existingLeads = await readLeads(redis);
   const isDuplicate = normalizedPhone
-    ? existingLeads.some((l) => normalizePhone(l.phone) === normalizedPhone)
+    ? existingLeads.some((l) => isPhoneLike(l.phone) && normalizePhone(l.phone) === normalizedPhone)
     : existingLeads.some((l) => l.phone.trim().toLowerCase() === phone.toLowerCase());
   if (isDuplicate) {
     return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese teléfono o usuario' }), { status: 409 });
@@ -238,10 +246,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!phone) {
       return new Response(JSON.stringify({ error: 'el teléfono no puede quedar vacío' }), { status: 400 });
     }
-    const normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = isPhoneLike(phone) ? normalizePhone(phone) : '';
     const others = await readLeads(redis);
     const isDuplicate = normalizedPhone
-      ? others.some((l) => l.id !== id && normalizePhone(l.phone) === normalizedPhone)
+      ? others.some((l) => l.id !== id && isPhoneLike(l.phone) && normalizePhone(l.phone) === normalizedPhone)
       : others.some((l) => l.id !== id && l.phone.trim().toLowerCase() === phone.toLowerCase());
     if (isDuplicate) {
       return new Response(JSON.stringify({ error: 'ya existe un lead guardado con ese teléfono o usuario' }), { status: 409 });
