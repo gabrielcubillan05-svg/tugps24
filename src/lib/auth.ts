@@ -66,7 +66,7 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   operador: ['novedades', 'reportes', 'tareas', 'chat'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'pagos'],
   supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'pagos'],
   admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos'],
 };
 
