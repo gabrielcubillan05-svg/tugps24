@@ -15,36 +15,14 @@ if (!canAccessPagos(session)) {
 
 <InternoLayout title="Verificación de pagos" active="pagos" session={session}>
   <div class="panel-card">
-    <h2>Subir comprobante</h2>
-    <p class="hint">Sube la foto del comprobante — el monto y la fecha se leen solos de la imagen. Revisa que hayan quedado bien (o complétalos si no se pudieron leer) y agrega el nombre de quien paga, que ayuda a distinguir pagos repetidos el mismo día.</p>
-    <form id="receiptForm" class="form-grid cols-4">
-      <div class="field field-full">
-        <label for="rp-file">Foto del comprobante</label>
-        <input id="rp-file" type="file" accept="image/*" required />
-        <p id="rp-extract-status" class="hint" style="margin:6px 0 0;">También puedes pegar la foto con Ctrl+V.</p>
-      </div>
-      <div class="field">
-        <label for="rp-amount">Monto</label>
-        <input id="rp-amount" type="number" min="1" step="1" placeholder="150000" required />
-      </div>
-      <div class="field">
-        <label for="rp-date">Fecha del pago</label>
-        <input id="rp-date" type="date" required />
-      </div>
-      <div class="field">
-        <label for="rp-payer">Nombre de quien paga</label>
-        <input id="rp-payer" type="text" placeholder="Ej: Juan Pérez" />
-      </div>
-      <div class="field">
-        <label for="rp-reference">Número de aprobación (opcional)</label>
-        <input id="rp-reference" type="text" placeholder="Como aparece en el comprobante" />
-      </div>
-      <div class="field">
-        <label for="rp-note">Nota (opcional)</label>
-        <input id="rp-note" type="text" placeholder="Ej: cuota de monitoreo agosto" />
-      </div>
-      <button class="btn field-full" type="submit">Guardar comprobante</button>
-    </form>
+    <h2>Subir comprobantes</h2>
+    <p class="hint">Selecciona o pega (Ctrl+V) hasta 20 fotos de comprobantes a la vez. El monto, la fecha y el nombre de quien paga se leen solos de cada imagen — revisa que hayan quedado bien (o complétalos si no se pudieron leer) antes de guardar.</p>
+    <div class="receipt-upload-row">
+      <input id="rp-file" type="file" accept="image/*" multiple />
+      <span class="hint" style="margin:0;">También puedes pegar varias fotos con Ctrl+V.</span>
+    </div>
+    <div id="pendingReceiptsQueue" class="pending-queue"></div>
+    <button class="btn" id="saveAllReceiptsBtn" type="button" disabled>Guardar comprobantes</button>
   </div>
 
   <div class="panel-card">
@@ -72,6 +50,25 @@ if (!canAccessPagos(session)) {
 </InternoLayout>
 
 <style is:global>
+  .receipt-upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pending-queue { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .pending-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .pending-item.has-error { border-color: var(--danger); }
+  .pending-thumb { width: 100%; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden; background: var(--ink-900, #0e0d0b); }
+  .pending-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .pending-fields { display: flex; flex-direction: column; gap: 5px; }
+  .pending-fields input { font-size: 12.5px; padding: 6px 8px; }
+  .pending-status { font-size: 11.5px; color: var(--slate); }
+  .pending-status.error { color: var(--danger); }
+  .pending-status.ok { color: var(--ok); }
   .receipt-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; }
   .receipt-item {
     background: var(--ink-800);
