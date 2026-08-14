@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { get } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, canAccessSection } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, canAccessPagos } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -27,7 +27,7 @@ export const GET: APIRoute = async ({ url, cookies }) => {
       return new Response('forbidden', { status: 403 });
     }
   } else if (path.startsWith('payments/')) {
-    if (!canAccessSection(session.role, 'pagos')) {
+    if (!canAccessPagos(session)) {
       return new Response('forbidden', { status: 403 });
     }
   } else if (path.startsWith('tasks/')) {

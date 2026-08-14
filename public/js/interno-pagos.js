@@ -29,9 +29,15 @@ document.addEventListener('DOMContentLoaded', function () {
   const rpExtractStatus = document.getElementById('rp-extract-status');
   rpDate.value = new Date().toISOString().slice(0, 10);
 
-  rpFile.addEventListener('change', function () {
-    const file = rpFile.files && rpFile.files[0];
+  function setReceiptFile(file) {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    rpFile.files = dt.files;
+  }
+
+  function handleReceiptFile(file) {
     if (!file) return;
+    setReceiptFile(file);
     rpExtractStatus.textContent = 'Leyendo el comprobante...';
     const formData = new FormData();
     formData.append('file', file);
@@ -50,6 +56,20 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {
         rpExtractStatus.textContent = 'No se pudo leer la imagen automáticamente, complétalo a mano.';
       });
+  }
+
+  rpFile.addEventListener('change', function () {
+    const file = rpFile.files && rpFile.files[0];
+    if (file) handleReceiptFile(file);
+  });
+
+  document.addEventListener('paste', function (e) {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    if (!imageItem) return;
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (file) handleReceiptFile(file);
   });
 
   const verifyReceiptsForm = document.getElementById('verifyReceiptsForm');

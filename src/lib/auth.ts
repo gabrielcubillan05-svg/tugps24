@@ -78,6 +78,22 @@ export function firstSectionFor(role: Role): Section | null {
   return ROLE_SECTIONS[role]?.[0] ?? null;
 }
 
+// Usuarios puntuales con acceso a Verificación de pagos aunque su rol no lo incluya,
+// además de admin (que ya lo tiene por ROLE_SECTIONS).
+const PAGOS_EXTRA_USERNAMES = ['kellylara', 'wilmararchila'];
+
+export function canAccessPagos(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'pagos') || PAGOS_EXTRA_USERNAMES.includes(session.username);
+}
+
+export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
+  const base = ROLE_SECTIONS[session.role] || [];
+  if (!base.includes('pagos') && canAccessPagos(session)) {
+    return [...base, 'pagos'];
+  }
+  return base;
+}
+
 export function canManageCompDays(role: Role): boolean {
   return role === 'supervisor' || role === 'gerente' || role === 'admin';
 }

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { put, del } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessPagos, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -34,7 +34,7 @@ export interface PaymentReceipt {
 
 async function requirePagos(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAccessSection(session.role, 'pagos')) return null;
+  if (!session || !canAccessPagos(session)) return null;
   return session;
 }
 

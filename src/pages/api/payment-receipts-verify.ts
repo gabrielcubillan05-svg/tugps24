@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import * as XLSX from 'xlsx';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessPagos, verifySameOrigin } from '../../lib/auth';
 import { readReceipts, REDIS_KEY, type PaymentReceipt } from './payment-receipts';
 
 export const prerender = false;
@@ -78,7 +78,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   }
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAccessSection(session.role, 'pagos')) {
+  if (!session || !canAccessPagos(session)) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();

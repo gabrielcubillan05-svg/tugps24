@@ -1,6 +1,6 @@
 ---
 import type { Session, Section } from '../lib/auth';
-import { ROLE_SECTIONS, SECTION_LABELS, SECTION_PATHS, ROLE_LABELS } from '../lib/auth';
+import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor } from '../lib/auth';
 
 export interface Props {
   title: string;
@@ -9,7 +9,7 @@ export interface Props {
 }
 
 const { title, active, session } = Astro.props;
-const sections = ROLE_SECTIONS[session.role] || [];
+const sections = sectionsFor(session);
 ---
 
 <!DOCTYPE html>
