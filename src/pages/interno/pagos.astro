@@ -72,12 +72,14 @@ if (!canAccessPagos(session)) {
     gap: 6px;
   }
   .pending-item.has-error { border-color: var(--danger); }
+  .pending-item.has-warning { border-color: var(--amber); }
   .pending-thumb { width: 100%; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden; background: var(--ink-900, #0e0d0b); }
   .pending-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .pending-fields { display: flex; flex-direction: column; gap: 5px; }
   .pending-fields input { font-size: 12.5px; padding: 6px 8px; }
   .pending-status { font-size: 11.5px; color: var(--slate); }
   .pending-status.error { color: var(--danger); }
+  .pending-status.warning { color: var(--amber); font-weight: 600; }
   .pending-status.ok { color: var(--ok); }
   .receipt-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; }
   .receipt-item {

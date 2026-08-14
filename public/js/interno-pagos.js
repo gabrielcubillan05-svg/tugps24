@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderPendingQueue() {
     pendingQueue.innerHTML = pendingReceipts.map((item) => `
-      <div class="pending-item ${item.status === 'error' ? 'has-error' : ''}" data-local-id="${item.localId}">
+      <div class="pending-item ${item.status === 'error' ? 'has-error' : ''} ${item.warning ? 'has-warning' : ''}" data-local-id="${item.localId}">
         <div class="pending-thumb"><img src="${item.previewUrl}" alt="Comprobante" /></div>
         <div class="pending-fields">
           <input type="number" min="1" step="1" placeholder="Monto" data-field="amount" data-local-id="${item.localId}" value="${item.amount || ''}" />
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <input type="text" placeholder="Nº aprobación (opcional)" data-field="reference" data-local-id="${item.localId}" value="${escapeHtml(item.reference || '')}" />
           <input type="text" placeholder="Nota (opcional)" data-field="note" data-local-id="${item.localId}" value="${escapeHtml(item.note || '')}" />
         </div>
-        <div class="pending-status ${item.status === 'error' ? 'error' : ''} ${item.status === 'listo' ? 'ok' : ''}">${escapeHtml(item.statusText || '')}</div>
+        <div class="pending-status ${item.status === 'error' ? 'error' : ''} ${item.warning ? 'warning' : ''} ${item.status === 'listo' && !item.warning ? 'ok' : ''}">${escapeHtml(item.statusText || '')}</div>
         <button class="btn-tiny btn-delete" data-action="remove-pending" data-local-id="${item.localId}" type="button">Quitar</button>
       </div>
     `).join('');
@@ -60,8 +60,15 @@ document.addEventListener('DOMContentLoaded', function () {
         if (data.amount) item.amount = data.amount;
         if (data.paymentDate) item.paymentDate = data.paymentDate;
         if (data.payerName) item.payerName = data.payerName;
+        if (data.reference) item.reference = data.reference;
+        if (data.mismatch) {
+          item.warning = true;
+          item.statusText = `⚠ Optimus registra ${fmtMoney(data.optimusAmount)} pero el comprobante dice ${fmtMoney(data.amount)}. Revisa antes de guardar.`;
+        } else {
+          item.warning = false;
+          item.statusText = data.amount || data.paymentDate ? 'Leído — revisa que esté bien.' : 'No se pudo leer, complétalo a mano.';
+        }
         item.status = 'listo';
-        item.statusText = data.amount || data.paymentDate ? 'Leído — revisa que esté bien.' : 'No se pudo leer, complétalo a mano.';
       })
       .catch(() => {
         item.status = 'listo';

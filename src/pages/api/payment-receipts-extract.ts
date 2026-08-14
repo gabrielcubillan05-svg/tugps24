@@ -34,7 +34,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
   if (!SUPPORTED_TYPES.includes(file.type)) {
     // Formato que el lector no soporta (ej. HEIC): se guarda igual, solo no se autocompleta.
-    return new Response(JSON.stringify({ amount: null, paymentDate: null, payerName: null }), {
+    return new Response(JSON.stringify({ amount: null, paymentDate: null, payerName: null, reference: null, mismatch: false }), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -43,8 +43,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const base64 = buffer.toString('base64');
   const today = new Date().toISOString().slice(0, 10);
 
-  const prompt = `Este es un comprobante de pago/transferencia de un banco colombiano. Lee la imagen y responde SOLO con un objeto JSON, sin texto adicional ni markdown, con este formato exacto:
-{"amount": <monto pagado, número entero en pesos colombianos sin puntos ni símbolos, o null si no se puede leer con confianza>, "paymentDate": "<fecha del pago en formato YYYY-MM-DD, o null si no se puede leer>", "payerName": "<nombre de quien envía/paga tal como aparece, o null si no aparece>"}
+  const prompt = `Esta imagen puede ser una de estas dos cosas:
+1. Una foto simple de un comprobante de transferencia bancaria (banco, monto, fecha, destinatario).
+2. Una captura de pantalla del sistema Optimus que muestra el registro interno de un pago (con campos como "Cliente", "Número", "Montos: Total/Aplicado/Pendiente") y que además incluye, dentro de la misma imagen, la foto del comprobante bancario real de esa transferencia (con su propio monto, fecha, banco y número de referencia).
+
+Lee la imagen y responde SOLO con un objeto JSON, sin texto adicional ni markdown, con este formato exacto:
+{"amount": <el monto que de verdad se transfirió según el comprobante bancario — NO el "Total" de Optimus si son distintos — número entero en pesos colombianos sin puntos ni símbolos, o null si no se puede leer con confianza>, "paymentDate": "<fecha del pago en formato YYYY-MM-DD, o null si no se puede leer>", "payerName": "<si la imagen trae el campo "Cliente" de un registro de Optimus, usa ese nombre; si no, usa el nombre de quien envía/paga en el comprobante; o null si no aparece>", "reference": "<número de referencia/aprobación del comprobante bancario si aparece, o null>", "optimusAmount": <si la imagen muestra un registro de Optimus con un monto "Total" registrado, ese número entero; o null si la imagen no es de Optimus>}
+Si el "optimusAmount" y el "amount" del comprobante no coinciden, repórtalos ambos tal cual los ves — no los ajustes ni asumas cuál es el correcto.
 Si el comprobante no muestra el año, asume el año actual (hoy es ${today}). Si no logras leer un dato con confianza, usa null en ese campo en vez de adivinar.`;
 
   let aiResponse: Response;
@@ -86,7 +91,7 @@ Si el comprobante no muestra el año, asume el año actual (hoy es ${today}). Si
   }
 
   const text: string = data?.content?.[0]?.text || '';
-  let parsed: { amount?: unknown; paymentDate?: unknown; payerName?: unknown } = {};
+  let parsed: { amount?: unknown; paymentDate?: unknown; payerName?: unknown; reference?: unknown; optimusAmount?: unknown } = {};
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
@@ -98,8 +103,12 @@ Si el comprobante no muestra el año, asume el año actual (hoy es ${today}). Si
   const amount = Number.isFinite(amountNum) && amountNum > 0 ? Math.round(amountNum) : null;
   const paymentDate = typeof parsed.paymentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.paymentDate) ? parsed.paymentDate : null;
   const payerName = typeof parsed.payerName === 'string' ? parsed.payerName.trim().slice(0, 120) : null;
+  const reference = typeof parsed.reference === 'string' ? parsed.reference.trim().slice(0, 60) : null;
+  const optimusAmountNum = Number(parsed.optimusAmount);
+  const optimusAmount = Number.isFinite(optimusAmountNum) && optimusAmountNum > 0 ? Math.round(optimusAmountNum) : null;
+  const mismatch = amount !== null && optimusAmount !== null && amount !== optimusAmount;
 
-  return new Response(JSON.stringify({ amount, paymentDate, payerName }), {
+  return new Response(JSON.stringify({ amount, paymentDate, payerName, reference, optimusAmount, mismatch }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };
