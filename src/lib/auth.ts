@@ -64,7 +64,7 @@ export const SECTION_PATHS: Record<Section, string> = {
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat'],
   operador: ['novedades', 'reportes', 'tareas', 'chat'],
-  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat'],
+  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'pagos'],
   supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat'],
   gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat'],
   admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos'],
