@@ -36,6 +36,16 @@ if (!canAccessPagos(session)) {
   </div>
 
   <div class="panel-card">
+    <h2>Comparar con Optimus</h2>
+    <p class="hint">Sube el Excel de pagos que exportas de Optimus (con columnas Cliente y Monto). Se compara contra los comprobantes verificados para detectar anomalías: pagos en Optimus sin comprobante, comprobantes sin registrar en Optimus, o montos que no coinciden.</p>
+    <form id="compareOptimusForm" class="verify-installs-form">
+      <input id="compareOptimusFile" type="file" accept=".xlsx,.xls,.csv" required />
+      <button class="btn-small" type="submit">Comparar</button>
+    </form>
+    <div id="compareOptimusResult"></div>
+  </div>
+
+  <div class="panel-card">
     <h2>Comprobantes</h2>
     <div class="tabs">
       <button class="tab-btn active" data-status="" type="button">Todos</button>
@@ -97,6 +107,14 @@ if (!canAccessPagos(session)) {
   .badge.no-encontrado { background: #e0563f22; color: var(--danger); }
   #verifyReceiptsResult .result-ok { color: var(--ok); }
   #verifyReceiptsResult .result-error { color: var(--danger); }
+  #compareOptimusResult .result-error { color: var(--danger); }
+  .optimus-stats-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 18px; }
+  .optimus-tables { display: flex; flex-direction: column; gap: 18px; }
+  .optimus-tables h3 { font-size: 13px; margin-bottom: 6px; }
+  .optimus-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .optimus-table th, .optimus-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  .optimus-table th { color: var(--slate); font-weight: 600; font-size: 11.5px; }
+  .optimus-table td.amount-bad { color: var(--danger); font-weight: 600; }
 </style>
 
 <script src="/js/interno-pagos.js" defer></script>

@@ -255,6 +255,103 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   });
 
+  const compareOptimusForm = document.getElementById('compareOptimusForm');
+  const compareOptimusFile = document.getElementById('compareOptimusFile');
+  const compareOptimusResult = document.getElementById('compareOptimusResult');
+
+  function renderOptimusReport(data) {
+    const s = data.stats;
+    const statsHtml = `
+      <div class="optimus-stats-row">
+        <div class="stat-box"><span class="n">${s.optimusCount}</span><span class="l">Pagos en Optimus</span></div>
+        <div class="stat-box"><span class="n">${s.receiptsUploadedCount}</span><span class="l">Comprobantes subidos</span></div>
+        <div class="stat-box"><span class="n">${s.receiptsVerifiedCount}</span><span class="l">Comprobantes verificados</span></div>
+        <div class="stat-box"><span class="n">${s.matchedCount}</span><span class="l">Coinciden bien</span></div>
+        <div class="stat-box overdue"><span class="n">${s.amountMismatchCount}</span><span class="l">Monto distinto</span></div>
+        <div class="stat-box overdue"><span class="n">${s.optimusOnlyCount}</span><span class="l">Optimus sin comprobante</span></div>
+        <div class="stat-box overdue"><span class="n">${s.receiptOnlyCount}</span><span class="l">Comprobante sin Optimus</span></div>
+      </div>
+    `;
+
+    const mismatchRows = data.amountMismatch.map((m) => `
+      <tr>
+        <td>${escapeHtml(m.cliente)}</td>
+        <td class="amount-bad">${fmtMoney(m.montoOptimus)}</td>
+        <td class="amount-bad">${fmtMoney(m.montoComprobante)}</td>
+        <td>${escapeHtml(m.payerName)}</td>
+      </tr>
+    `).join('');
+
+    const optimusOnlyRows = data.optimusOnly.map((o) => `
+      <tr>
+        <td>${escapeHtml(o.cliente)}</td>
+        <td>${fmtMoney(o.monto)}</td>
+        <td>${o.fecha ? fmtDateOnly(o.fecha) : ''}</td>
+        <td>${escapeHtml(o.numero)}</td>
+      </tr>
+    `).join('');
+
+    const receiptOnlyRows = data.receiptOnly.map((r) => `
+      <tr>
+        <td>${escapeHtml(r.payerName) || '<span class="hint" style="margin:0;">Sin nombre</span>'}</td>
+        <td>${fmtMoney(r.amount)}</td>
+        <td>${fmtDateOnly(r.paymentDate)}</td>
+      </tr>
+    `).join('');
+
+    compareOptimusResult.innerHTML = `
+      ${statsHtml}
+      <div class="optimus-tables">
+        <div>
+          <h3>Monto distinto (${data.amountMismatch.length})</h3>
+          <table class="optimus-table">
+            <thead><tr><th>Cliente</th><th>Monto Optimus</th><th>Monto comprobante</th><th>Comprobante de</th></tr></thead>
+            <tbody>${mismatchRows || '<tr><td colspan="4">Ninguno</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div>
+          <h3>En Optimus sin comprobante (${data.optimusOnly.length})</h3>
+          <table class="optimus-table">
+            <thead><tr><th>Cliente</th><th>Monto</th><th>Fecha</th><th>Número</th></tr></thead>
+            <tbody>${optimusOnlyRows || '<tr><td colspan="4">Ninguno</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Comprobante verificado sin registrar en Optimus (${data.receiptOnly.length})</h3>
+          <table class="optimus-table">
+            <thead><tr><th>Nombre</th><th>Monto</th><th>Fecha</th></tr></thead>
+            <tbody>${receiptOnlyRows || '<tr><td colspan="3">Ninguno</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  compareOptimusForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const file = compareOptimusFile.files && compareOptimusFile.files[0];
+    if (!file) return;
+    compareOptimusResult.innerHTML = 'Comparando...';
+    const submitBtn = compareOptimusForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/api/payment-receipts-compare-optimus', { method: 'POST', body: formData })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo procesar el archivo.');
+        renderOptimusReport(data);
+      })
+      .catch((err) => {
+        compareOptimusResult.innerHTML = `<p class="result-error">${escapeHtml(err.message || 'No se pudo procesar el archivo.')}</p>`;
+      })
+      .finally(() => {
+        submitBtn.disabled = false;
+      });
+  });
+
   receiptGallery.addEventListener('click', function (e) {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
