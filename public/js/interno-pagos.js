@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'No se pudo procesar el archivo.');
-        verifyReceiptsResult.innerHTML = `<p class="result-ok">${data.movementsRead} movimientos leídos · ${data.verified} comprobantes verificados · ${data.ambiguous} con varias coincidencias (revisar a mano) · ${data.notFound} sin encontrar.</p>`;
+        verifyReceiptsResult.innerHTML = `<p class="result-ok">${data.movementsRead} movimientos leídos · ${data.verified} comprobantes verificados · ${data.ambiguous} con varias coincidencias (revisar a mano) · ${data.notFound} sin encontrar${data.duplicateBlocked ? ` (${data.duplicateBlocked} posibles duplicados)` : ''}.</p>`;
         verifyReceiptsForm.reset();
         loadReceipts();
       })

@@ -69,6 +69,10 @@ function parseBankDate(raw: string): string | null {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function movementKey(m: { date: string; amount: number; description: string }): string {
+  return `${m.date}|${Math.round(m.amount)}|${m.description.trim().toUpperCase()}`;
+}
+
 export const POST: APIRoute = async ({ request, cookies }) => {
   if (!verifySameOrigin(request)) {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
@@ -142,17 +146,29 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   const receipts = await readReceipts(redis);
+  // Movimientos que ya quedaron ligados a un comprobante verificado en una subida anterior
+  // (posiblemente de otro día): no pueden volver a usarse para "aprobar" un comprobante
+  // duplicado, aunque el archivo de hoy también los incluya.
+  const claimedKeys = new Set(
+    receipts.filter((r) => r.status === 'verificado' && r.matchedMovementKey).map((r) => r.matchedMovementKey)
+  );
+
   const now = new Date().toISOString();
   const updates: Record<string, string> = {};
   let verified = 0;
   let ambiguous = 0;
   let notFound = 0;
+  let duplicateBlocked = 0;
 
   for (const receipt of receipts) {
     if (receipt.status === 'verificado') continue;
 
     let candidates = movements.filter(
-      (m) => !m.used && m.date === receipt.paymentDate && Math.round(m.amount) === Math.round(receipt.amount)
+      (m) =>
+        !m.used &&
+        !claimedKeys.has(movementKey(m)) &&
+        m.date === receipt.paymentDate &&
+        Math.round(m.amount) === Math.round(receipt.amount)
     );
 
     if (candidates.length > 1 && receipt.payerName) {
@@ -170,9 +186,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     if (candidates.length === 1) {
       const match = candidates[0];
+      const key = movementKey(match);
       match.used = true;
+      claimedKeys.add(key);
       receipt.status = 'verificado';
       receipt.matchedDetail = match.description ? `Coincide con: ${match.description}` : 'Coincide por monto y fecha';
+      receipt.matchedMovementKey = key;
       receipt.verifiedAt = now;
       receipt.updatedAt = now;
       updates[receipt.id] = JSON.stringify(receipt);
@@ -184,11 +203,19 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       updates[receipt.id] = JSON.stringify(receipt);
       ambiguous++;
     } else {
+      // Si hay un movimiento con ese monto y fecha pero ya está reclamado por otro
+      // comprobante verificado, es una señal de posible comprobante duplicado/reenviado.
+      const wasClaimedElsewhere = movements.some(
+        (m) => !m.used && claimedKeys.has(movementKey(m)) && m.date === receipt.paymentDate && Math.round(m.amount) === Math.round(receipt.amount)
+      );
       receipt.status = 'no-encontrado';
-      receipt.matchedDetail = 'No se encontró un movimiento con ese monto y fecha en el archivo del banco';
+      receipt.matchedDetail = wasClaimedElsewhere
+        ? 'Ese monto y fecha ya están ligados a otro comprobante verificado — posible duplicado'
+        : 'No se encontró un movimiento con ese monto y fecha en el archivo del banco';
       receipt.updatedAt = now;
       updates[receipt.id] = JSON.stringify(receipt);
       notFound++;
+      if (wasClaimedElsewhere) duplicateBlocked++;
     }
   }
 
@@ -201,7 +228,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     session,
     'payment_receipts_verify_upload',
     file.name,
-    `${verified} verificados, ${ambiguous} ambiguos, ${notFound} sin encontrar`
+    `${verified} verificados, ${ambiguous} ambiguos, ${notFound} sin encontrar (${duplicateBlocked} posibles duplicados)`
   );
 
   return new Response(
@@ -211,6 +238,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       verified,
       ambiguous,
       notFound,
+      duplicateBlocked,
     }),
     { headers: { 'Content-Type': 'application/json' } }
   );

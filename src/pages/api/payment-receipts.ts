@@ -24,6 +24,7 @@ export interface PaymentReceipt {
   contentType: string;
   status: ReceiptStatus;
   matchedDetail: string;
+  matchedMovementKey: string; // identifica el movimiento del banco ya reclamado, para que otro comprobante no lo reclame de nuevo en una subida posterior
   verifiedAt: string | null;
   uploadedBy: string;
   uploadedByName: string;
@@ -143,6 +144,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     contentType: file.type,
     status: 'pendiente',
     matchedDetail: '',
+    matchedMovementKey: '',
     verifiedAt: null,
     uploadedBy: session.username,
     uploadedByName: session.username,
@@ -190,6 +192,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const status = body.status as ReceiptStatus;
   receipt.status = status;
   receipt.matchedDetail = status === 'verificado' ? 'Verificado manualmente' : '';
+  // Al mover manualmente se libera el movimiento que tenía reclamado (si tenía uno),
+  // para que quede disponible por si el emparejamiento automático estaba equivocado.
+  receipt.matchedMovementKey = '';
   receipt.verifiedAt = status === 'verificado' ? new Date().toISOString() : null;
   receipt.updatedAt = new Date().toISOString();
 
