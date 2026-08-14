@@ -23,7 +23,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const receiptForm = document.getElementById('receiptForm');
   const rpDate = document.getElementById('rp-date');
+  const rpAmount = document.getElementById('rp-amount');
+  const rpPayer = document.getElementById('rp-payer');
+  const rpFile = document.getElementById('rp-file');
+  const rpExtractStatus = document.getElementById('rp-extract-status');
   rpDate.value = new Date().toISOString().slice(0, 10);
+
+  rpFile.addEventListener('change', function () {
+    const file = rpFile.files && rpFile.files[0];
+    if (!file) return;
+    rpExtractStatus.textContent = 'Leyendo el comprobante...';
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/api/payment-receipts-extract', { method: 'POST', body: formData })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'no se pudo leer');
+        const filled = [];
+        if (data.amount) { rpAmount.value = data.amount; filled.push('monto'); }
+        if (data.paymentDate) { rpDate.value = data.paymentDate; filled.push('fecha'); }
+        if (data.payerName) { rpPayer.value = data.payerName; filled.push('nombre'); }
+        rpExtractStatus.textContent = filled.length
+          ? `Se completó solo: ${filled.join(', ')}. Revisa que esté bien.`
+          : 'No se pudo leer nada de la imagen, complétalo a mano.';
+      })
+      .catch(() => {
+        rpExtractStatus.textContent = 'No se pudo leer la imagen automáticamente, complétalo a mano.';
+      });
+  });
 
   const verifyReceiptsForm = document.getElementById('verifyReceiptsForm');
   const verifyReceiptsFile = document.getElementById('verifyReceiptsFile');
