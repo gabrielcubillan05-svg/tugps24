@@ -16,6 +16,10 @@ if (!canAccessSection(session.role, 'estadisticas')) {
 <InternoLayout title="Estadísticas" active="estadisticas" session={session}>
   <div class="panel-card">
     <h2>CRM</h2>
+    <div class="filters">
+      <select id="crmCityFilter"><option value="">Todas las ciudades</option></select>
+      <select id="crmSecretaryFilter"><option value="">Todas las secretarias</option></select>
+    </div>
     <div class="stats-row" id="crmStatsRow"></div>
     <div class="stats-tables">
       <div>

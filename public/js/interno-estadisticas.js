@@ -29,36 +29,72 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
-  fetch('/api/dashboard-stats')
-    .then((res) => res.json())
-    .then((data) => {
-      if (!data || !data.crm || !data.novedades) throw new Error('sin datos');
+  const cityFilter = document.getElementById('crmCityFilter');
+  const secretaryFilter = document.getElementById('crmSecretaryFilter');
+  let filterOptionsLoaded = false;
 
-      const crm = data.crm;
-      const crmBoxes = [
-        { n: crm.total, l: 'Total leads' },
-        ...Object.entries(crm.byStatus).map(([status, n]) => ({ n, l: status })),
-        { n: crm.installedCount, l: 'Instalados' },
-        { n: crm.verifiedInstalledCount, l: 'Instalación verificada' },
-        { n: crm.last7DaysCount, l: 'Nuevos (7 días)' },
-        { n: crm.last30DaysCount, l: 'Nuevos (30 días)' },
-      ];
-      renderStatBoxes(crmStatsRow, crmBoxes);
-      renderTable(document.getElementById('crmByCityTable'), crm.byCity);
-      renderTable(document.getElementById('crmBySecretaryTable'), crm.bySecretary);
+  function loadCrmStats() {
+    const params = new URLSearchParams();
+    if (cityFilter.value) params.set('city', cityFilter.value);
+    if (secretaryFilter.value) params.set('secretary', secretaryFilter.value);
 
-      const nov = data.novedades;
-      const novBoxes = [
-        { n: nov.total, l: 'Total novedades' },
-        { n: nov.last7DaysCount, l: 'Últimos 7 días' },
-        { n: nov.last30DaysCount, l: 'Últimos 30 días' },
-      ];
-      renderStatBoxes(document.getElementById('novedadesStatsRow'), novBoxes);
-      renderTable(document.getElementById('novedadesByCategoryTable'), nov.byCategory);
-      renderTable(document.getElementById('novedadesByBranchTable'), nov.byBranch);
-      renderTable(document.getElementById('novedadesByOperatorTable'), nov.byOperator);
-    })
-    .catch(() => {
-      crmStatsRow.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
-    });
+    fetch('/api/dashboard-stats?' + params.toString())
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !data.crm) throw new Error('sin datos');
+        const crm = data.crm;
+
+        if (!filterOptionsLoaded) {
+          cityFilter.innerHTML = '<option value="">Todas las ciudades</option>' +
+            crm.cities.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+          secretaryFilter.innerHTML = '<option value="">Todas las secretarias</option>' +
+            crm.secretaries.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+          filterOptionsLoaded = true;
+        }
+
+        const crmBoxes = [
+          { n: crm.total, l: 'Total leads' },
+          ...Object.entries(crm.byStatus).map(([status, n]) => ({ n, l: status })),
+          { n: crm.installedCount, l: 'Instalados' },
+          { n: crm.verifiedInstalledCount, l: 'Instalación verificada' },
+          { n: crm.conversionRate + '%', l: 'Tasa de conversión' },
+          { n: crm.verifiedConversionRate + '%', l: 'Conversión verificada' },
+          { n: crm.last7DaysCount, l: 'Nuevos (7 días)' },
+          { n: crm.last30DaysCount, l: 'Nuevos (30 días)' },
+        ];
+        renderStatBoxes(crmStatsRow, crmBoxes);
+        renderTable(document.getElementById('crmByCityTable'), crm.byCity);
+        renderTable(document.getElementById('crmBySecretaryTable'), crm.bySecretary);
+      })
+      .catch(() => {
+        crmStatsRow.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
+      });
+  }
+
+  function loadNovedadesStats() {
+    fetch('/api/dashboard-stats')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !data.novedades) throw new Error('sin datos');
+        const nov = data.novedades;
+        const novBoxes = [
+          { n: nov.total, l: 'Total novedades' },
+          { n: nov.last7DaysCount, l: 'Últimos 7 días' },
+          { n: nov.last30DaysCount, l: 'Últimos 30 días' },
+        ];
+        renderStatBoxes(document.getElementById('novedadesStatsRow'), novBoxes);
+        renderTable(document.getElementById('novedadesByCategoryTable'), nov.byCategory);
+        renderTable(document.getElementById('novedadesByBranchTable'), nov.byBranch);
+        renderTable(document.getElementById('novedadesByOperatorTable'), nov.byOperator);
+      })
+      .catch(() => {
+        document.getElementById('novedadesStatsRow').innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
+      });
+  }
+
+  cityFilter.addEventListener('change', loadCrmStats);
+  secretaryFilter.addEventListener('change', loadCrmStats);
+
+  loadCrmStats();
+  loadNovedadesStats();
 });

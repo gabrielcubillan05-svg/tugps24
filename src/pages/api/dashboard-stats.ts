@@ -26,7 +26,7 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Record<string, numb
   return out;
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
+export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canAccessSection(session.role, 'estadisticas')) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -36,7 +36,19 @@ export const GET: APIRoute = async ({ cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const leads = await readLeads(redis);
+  const cityFilter = url.searchParams.get('city') || '';
+  const secretaryFilter = url.searchParams.get('secretary') || '';
+
+  const allLeads = await readLeads(redis);
+  const cities = [...new Set(allLeads.map((l) => l.city).filter(Boolean))].sort();
+  const secretaries = [...new Set(allLeads.map((l) => l.secretary).filter(Boolean))].sort();
+
+  const leads = allLeads.filter((l) => {
+    if (cityFilter && l.city !== cityFilter) return false;
+    if (secretaryFilter && l.secretary !== secretaryFilter) return false;
+    return true;
+  });
+
   const byStatus: Record<string, number> = {};
   for (const s of STATUSES) byStatus[s] = 0;
   for (const l of leads) byStatus[l.status] = (byStatus[l.status] || 0) + 1;
@@ -69,6 +81,9 @@ export const GET: APIRoute = async ({ cookies }) => {
   const reportsLast7Days = reports.filter((r) => now - new Date(r.createdAt).getTime() <= 7 * 24 * 60 * 60 * 1000).length;
   const reportsLast30Days = reports.filter((r) => now - new Date(r.createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000).length;
 
+  const conversionRate = leads.length ? Math.round((installedCount / leads.length) * 1000) / 10 : 0;
+  const verifiedConversionRate = leads.length ? Math.round((verifiedInstalledCount / leads.length) * 1000) / 10 : 0;
+
   return new Response(
     JSON.stringify({
       crm: {
@@ -78,8 +93,13 @@ export const GET: APIRoute = async ({ cookies }) => {
         bySecretary,
         installedCount,
         verifiedInstalledCount,
+        conversionRate,
+        verifiedConversionRate,
         last7DaysCount,
         last30DaysCount,
+        cities,
+        secretaries,
+        filters: { city: cityFilter, secretary: secretaryFilter },
       },
       novedades: {
         total: reports.length,
