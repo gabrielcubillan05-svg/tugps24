@@ -219,12 +219,37 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string };
+  let body: { id?: string; deleteAll?: boolean };
   try {
     body = await request.json();
   } catch {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
+
+  if (body.deleteAll) {
+    if (session.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    }
+    const all = await readReceipts(redis);
+    const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
+    if (token) {
+      await Promise.all(
+        all.map((r) =>
+          del(r.blobPathname, { token }).catch(() => {
+            // si falla el borrado del blob, igual quitamos el registro
+          })
+        )
+      );
+    }
+    if (all.length) {
+      await redis.hdel(REDIS_KEY, ...all.map((r) => r.id));
+    }
+    await logAudit(redis, session, 'payment_receipts_delete_all', `${all.length} comprobantes`);
+    return new Response(JSON.stringify({ ok: true, deleted: all.length }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const id = String(body.id || '');
   const raw = await redis.hget<string>(REDIS_KEY, id);
   if (!raw) {

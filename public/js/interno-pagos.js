@@ -387,5 +387,25 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  const deleteAllReceiptsBtn = document.getElementById('deleteAllReceiptsBtn');
+  if (deleteAllReceiptsBtn) {
+    deleteAllReceiptsBtn.addEventListener('click', function () {
+      if (!confirm(`¿Borrar TODOS los comprobantes (${allReceipts.length})? Esto no se puede deshacer.`)) return;
+      deleteAllReceiptsBtn.disabled = true;
+      fetch('/api/payment-receipts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteAll: true }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo borrar.');
+          loadReceipts();
+        })
+        .catch((err) => alert(err.message || 'No se pudo borrar.'))
+        .finally(() => { deleteAllReceiptsBtn.disabled = false; });
+    });
+  }
+
   loadReceipts();
 });

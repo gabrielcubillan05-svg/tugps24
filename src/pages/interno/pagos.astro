@@ -46,7 +46,12 @@ if (!canAccessPagos(session)) {
   </div>
 
   <div class="panel-card">
-    <h2>Comprobantes</h2>
+    <div class="panel-card-head">
+      <h2>Comprobantes</h2>
+      {session.role === 'admin' && (
+        <button class="btn-small btn-delete" id="deleteAllReceiptsBtn" type="button">Borrar todos los comprobantes</button>
+      )}
+    </div>
     <div class="tabs">
       <button class="tab-btn active" data-status="" type="button">Todos</button>
       <button class="tab-btn" data-status="pendiente" type="button">Pendientes</button>
@@ -60,6 +65,8 @@ if (!canAccessPagos(session)) {
 </InternoLayout>
 
 <style is:global>
+  .panel-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .panel-card-head h2 { margin-bottom: 0; }
   .receipt-upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .pending-queue { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 14px; }
   .pending-item {
