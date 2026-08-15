@@ -26,6 +26,24 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Record<string, numb
   return out;
 }
 
+function conversionRanking<T>(items: T[], keyFn: (item: T) => string, installedFn: (item: T) => boolean) {
+  const groups: Record<string, { total: number; installed: number }> = {};
+  for (const item of items) {
+    const key = keyFn(item) || 'Sin definir';
+    const g = groups[key] || (groups[key] = { total: 0, installed: 0 });
+    g.total++;
+    if (installedFn(item)) g.installed++;
+  }
+  return Object.entries(groups)
+    .map(([name, g]) => ({
+      name,
+      total: g.total,
+      installed: g.installed,
+      rate: g.total ? Math.round((g.installed / g.total) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.rate - a.rate || b.total - a.total);
+}
+
 export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canAccessSection(session.role, 'estadisticas')) {
@@ -84,6 +102,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const conversionRate = leads.length ? Math.round((installedCount / leads.length) * 1000) / 10 : 0;
   const verifiedConversionRate = leads.length ? Math.round((verifiedInstalledCount / leads.length) * 1000) / 10 : 0;
 
+  const cityRanking = conversionRanking(leads, (l) => l.city, (l) => l.installed);
+  const secretaryRanking = conversionRanking(leads, (l) => l.secretary, (l) => l.installed);
+
   return new Response(
     JSON.stringify({
       crm: {
@@ -99,6 +120,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         last30DaysCount,
         cities,
         secretaries,
+        cityRanking,
+        secretaryRanking,
         filters: { city: cityFilter, secretary: secretaryFilter },
       },
       novedades: {

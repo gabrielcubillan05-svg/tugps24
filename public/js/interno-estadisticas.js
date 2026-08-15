@@ -29,6 +29,19 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
+  function renderRankingTable(el, ranking) {
+    if (!ranking.length) {
+      el.innerHTML = '<tr><td>Sin datos</td></tr>';
+      return;
+    }
+    el.innerHTML = ranking.map((r) => `
+      <tr>
+        <td>${escapeHtml(r.name)} <span class="detail">(${r.total} / ${r.installed})</span></td>
+        <td>${r.rate}%</td>
+      </tr>
+    `).join('');
+  }
+
   const cityFilter = document.getElementById('crmCityFilter');
   const secretaryFilter = document.getElementById('crmSecretaryFilter');
   let filterOptionsLoaded = false;
@@ -65,6 +78,8 @@ document.addEventListener('DOMContentLoaded', function () {
         renderStatBoxes(crmStatsRow, crmBoxes);
         renderTable(document.getElementById('crmByCityTable'), crm.byCity);
         renderTable(document.getElementById('crmBySecretaryTable'), crm.bySecretary);
+        renderRankingTable(document.getElementById('crmCityRankingTable'), crm.cityRanking);
+        renderRankingTable(document.getElementById('crmSecretaryRankingTable'), crm.secretaryRanking);
       })
       .catch(() => {
         crmStatsRow.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
