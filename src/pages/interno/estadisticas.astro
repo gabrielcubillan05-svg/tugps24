@@ -1,0 +1,61 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'estadisticas')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Estadísticas" active="estadisticas" session={session}>
+  <div class="panel-card">
+    <h2>CRM</h2>
+    <div class="stats-row" id="crmStatsRow"></div>
+    <div class="stats-tables">
+      <div>
+        <h3>Por ciudad</h3>
+        <table class="stats-table" id="crmByCityTable"></table>
+      </div>
+      <div>
+        <h3>Por secretaria</h3>
+        <table class="stats-table" id="crmBySecretaryTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Novedades</h2>
+    <div class="stats-row" id="novedadesStatsRow"></div>
+    <div class="stats-tables">
+      <div>
+        <h3>Por tipo</h3>
+        <table class="stats-table" id="novedadesByCategoryTable"></table>
+      </div>
+      <div>
+        <h3>Por sucursal</h3>
+        <table class="stats-table" id="novedadesByBranchTable"></table>
+      </div>
+      <div>
+        <h3>Por operador</h3>
+        <table class="stats-table" id="novedadesByOperatorTable"></table>
+      </div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .stats-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 20px; }
+  .stats-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
+  .stats-tables h3 { font-size: 13.5px; margin-bottom: 8px; }
+  .stats-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .stats-table td { padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  .stats-table td:last-child { text-align: right; font-weight: 600; color: var(--amber); }
+</style>
+
+<script src="/js/interno-estadisticas.js" defer></script>

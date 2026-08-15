@@ -33,7 +33,8 @@ export type Section =
   | 'auditoria'
   | 'usuarios'
   | 'chat'
-  | 'pagos';
+  | 'pagos'
+  | 'estadisticas';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -46,6 +47,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   usuarios: 'Usuarios',
   chat: 'Chat',
   pagos: 'Verificación de pagos',
+  estadisticas: 'Estadísticas',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -59,6 +61,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   usuarios: '/interno/usuarios',
   chat: '/interno/chat',
   pagos: '/interno/pagos',
+  estadisticas: '/interno/estadisticas',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -67,7 +70,7 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat'],
   supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat'],
   gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
