@@ -111,12 +111,6 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     return ageHours > 24;
   }
 
-  function fmtHours(hours) {
-    if (hours < 1) return Math.round(hours * 60) + ' min';
-    if (hours < 48) return Math.round(hours) + ' h';
-    return Math.round(hours / 24) + ' días';
-  }
-
   function renderStats(stats) {
     const boxes = STATUSES.map((s) => `
       <div class="stat-box">
@@ -347,83 +341,34 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     }).join('')}</div>`;
   }
 
-  // Agrupa las variantes sueltas que quedaron de cuando "campaña" era texto libre
-  // (facebook / FACEBOOK / facebook promo aniversario, etc.) en las mismas categorías
-  // fijas del selector actual, para que la tabla de resultados no quede saturada.
-  function normalizeCampaignLabel(raw) {
-    const value = String(raw || '').trim();
-    if (!value) return 'Sin campaña';
-    const lower = value.toLowerCase();
-    if (CAMPAIGNS.includes(value)) return value;
-    if (/facebook|instagram|\bfb\b|\big\b/.test(lower)) return 'Facebook';
-    if (/recomend/.test(lower)) return 'Recomendado de cliente';
-    if (/oficina|interesad/.test(lower)) return 'Interesado en oficina';
-    return 'Otro';
-  }
-
   function renderResults(leads) {
     if (!resultsPanel) return;
-
-    const byCampaign = {};
-    leads.forEach((l) => {
-      const key = normalizeCampaignLabel(l.campaign);
-      const s = byCampaign[key] || (byCampaign[key] = { total: 0, converted: 0, verified: 0 });
-      s.total++;
-      if (l.status === 'Instalado') s.converted++;
-      if (l.verifiedInstalled) s.verified++;
-    });
-    const campaignRows = Object.entries(byCampaign)
-      .sort((a, b) => b[1].total - a[1].total)
-      .map(([name, s]) => `
-        <tr>
-          <td>${escapeHtml(name)}</td>
-          <td>${s.total}</td>
-          <td>${s.converted}</td>
-          <td>${s.verified}</td>
-          <td>${s.total ? Math.round((s.verified / s.total) * 100) : 0}%</td>
-        </tr>
-      `).join('');
 
     const bySecretary = {};
     leads.forEach((l) => {
       const key = l.secretary || 'Sin asignar';
-      const s = bySecretary[key] || (bySecretary[key] = { total: 0, contacted: 0, totalHours: 0, cold: 0 });
+      const s = bySecretary[key] || (bySecretary[key] = { total: 0, installed: 0 });
       s.total++;
-      if (l.notes && l.notes.length) {
-        const firstNote = l.notes[l.notes.length - 1];
-        const hours = (new Date(firstNote.date).getTime() - new Date(l.createdAt).getTime()) / 3600000;
-        if (hours >= 0) {
-          s.contacted++;
-          s.totalHours += hours;
-        }
-      } else if (isCold(l)) {
-        s.cold++;
-      }
+      if (l.status === 'Instalado') s.installed++;
     });
     const secretaryRows = Object.entries(bySecretary)
-      .sort((a, b) => b[1].total - a[1].total)
-      .map(([name, s]) => `
+      .map(([name, s]) => ({ name, ...s, rate: s.total ? Math.round((s.installed / s.total) * 1000) / 10 : 0 }))
+      .sort((a, b) => b.rate - a.rate || b.total - a.total)
+      .map((s) => `
         <tr>
-          <td>${escapeHtml(name)}</td>
+          <td>${escapeHtml(s.name)}</td>
           <td>${s.total}</td>
-          <td>${s.contacted ? fmtHours(s.totalHours / s.contacted) : '—'}</td>
-          <td>${s.cold}</td>
+          <td>${s.installed}</td>
+          <td>${s.rate}%</td>
         </tr>
       `).join('');
 
     resultsPanel.innerHTML = `
       <div class="results-grid">
         <div>
-          <h3>Por campaña</h3>
+          <h3>Por secretaria — ranking de conversión</h3>
           <table class="results-table">
-            <thead><tr><th>Campaña</th><th>Leads</th><th>Instalados</th><th>Instalación verificada</th><th>Tasa real</th></tr></thead>
-            <tbody>${campaignRows || '<tr><td colspan="5">Sin datos</td></tr>'}</tbody>
-          </table>
-        </div>
-        <div>
-          <h3>Por secretaria — tiempo de respuesta</h3>
-          <table class="results-table">
-            <thead><tr><th>Secretaria</th><th>Leads</th><th>Tiempo prom. 1er contacto</th><th>Sin contactar (+24h)</th></tr></thead>
+            <thead><tr><th>Secretaria</th><th>Leads</th><th>Instalados</th><th>% conversión</th></tr></thead>
             <tbody>${secretaryRows || '<tr><td colspan="4">Sin datos</td></tr>'}</tbody>
           </table>
         </div>
