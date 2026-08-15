@@ -89,6 +89,10 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
         <button class="btn-small" type="submit">Comparar y verificar</button>
       </form>
       <div id="verifyInstallsResult"></div>
+      <div class="undo-verify-row">
+        <button class="btn-small btn-delete" id="undoLastVerifyBtn" type="button">Deshacer la última verificación</button>
+        <span id="undoLastVerifyResult" class="hint" style="margin:0;"></span>
+      </div>
     </div>
   )}
 
@@ -199,6 +203,7 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .hint { color: var(--slate); font-size: 12.5px; margin-bottom: 12px; }
   .backfill-secretary-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
   .backfill-secretary-row .hint { margin: 0; }
+  .undo-verify-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
   .filtered-count { color: var(--slate); font-size: 12.5px; margin: -6px 0 12px; }
 
   .view-toggle { display: flex; gap: 8px; margin-bottom: 14px; }

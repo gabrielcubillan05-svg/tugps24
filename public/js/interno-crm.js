@@ -936,5 +936,28 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     });
   }
 
+  const undoLastVerifyBtn = document.getElementById('undoLastVerifyBtn');
+  if (undoLastVerifyBtn) {
+    const undoLastVerifyResult = document.getElementById('undoLastVerifyResult');
+    undoLastVerifyBtn.addEventListener('click', function () {
+      if (!confirm('¿Deshacer la última verificación de instalaciones? Esto revierte solo los leads que quedaron marcados en esa última subida, sin tocar los que los trabajadores marcaron a mano.')) return;
+      undoLastVerifyBtn.disabled = true;
+      undoLastVerifyResult.textContent = 'Deshaciendo...';
+      fetch('/api/leads-undo-last-verify', { method: 'POST' })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo deshacer.');
+          undoLastVerifyResult.textContent = data.reverted
+            ? `${data.reverted} lead(s) revertidos.`
+            : (data.message || 'No había nada que deshacer.');
+          loadLeads();
+        })
+        .catch((err) => {
+          undoLastVerifyResult.textContent = err.message || 'No se pudo deshacer.';
+        })
+        .finally(() => { undoLastVerifyBtn.disabled = false; });
+    });
+  }
+
   loadSecretaries().then(loadLeads);
 });
