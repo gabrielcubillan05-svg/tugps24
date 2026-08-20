@@ -431,16 +431,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       viewButtons.forEach((b) => b.classList.toggle('active', b === btn));
       leadsList.style.display = view === 'board' ? 'none' : '';
       if (leadsBoard) leadsBoard.style.display = view === 'board' ? '' : 'none';
-      try { localStorage.setItem('crmView', view); } catch {}
     });
   });
-  try {
-    const savedView = localStorage.getItem('crmView');
-    if (savedView === 'board') {
-      const boardBtn = document.querySelector('.view-btn[data-view="board"]');
-      if (boardBtn) boardBtn.click();
-    }
-  } catch {}
 
   if (leadsBoard) {
     leadsBoard.addEventListener('dragstart', function (e) {
