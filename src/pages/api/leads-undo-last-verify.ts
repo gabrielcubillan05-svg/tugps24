@@ -45,6 +45,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       lead.verifiedInstalled = false;
       lead.verifiedInstalledAt = null;
       lead.installed = false;
+      lead.installedAt = null;
       if (lead.status === 'Instalado') lead.status = 'Contactado';
       lead.updatedAt = now;
       updates[lead.id] = JSON.stringify(lead);

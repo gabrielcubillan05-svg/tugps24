@@ -26,6 +26,37 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Record<string, numb
   return out;
 }
 
+const AGE_DAY_THRESHOLDS = [1, 3, 5, 7, 10, 14, 21, 30];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Cuándo se instaló un lead, en el sentido más preciso disponible: la fecha exacta si
+// existe (installedAt, guardada desde que se agregó este campo), o la última edición
+// como aproximación para instalaciones marcadas antes de eso.
+function effectiveInstalledAt(lead: { installed: boolean; installedAt: string | null; updatedAt: string }) {
+  if (!lead.installed) return null;
+  return lead.installedAt || lead.updatedAt;
+}
+
+function conversionByAge(leads: { createdAt: string; installed: boolean; installedAt: string | null; updatedAt: string }[]) {
+  const nowMs = Date.now();
+  return AGE_DAY_THRESHOLDS.map((days) => {
+    const cutoffMs = days * DAY_MS;
+    let eligible = 0;
+    let converted = 0;
+    for (const l of leads) {
+      const ageMs = nowMs - new Date(l.createdAt).getTime();
+      if (ageMs < cutoffMs) continue; // aún no cumple esa edad, no cuenta en este punto de la curva
+      eligible++;
+      const installedAt = effectiveInstalledAt(l);
+      if (installedAt) {
+        const daysToInstall = (new Date(installedAt).getTime() - new Date(l.createdAt).getTime()) / DAY_MS;
+        if (daysToInstall <= days) converted++;
+      }
+    }
+    return { day: days, eligible, converted, rate: eligible ? Math.round((converted / eligible) * 1000) / 10 : 0 };
+  });
+}
+
 function conversionRanking<T>(items: T[], keyFn: (item: T) => string, installedFn: (item: T) => boolean) {
   const groups: Record<string, { total: number; installed: number }> = {};
   for (const item of items) {
@@ -105,6 +136,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const cityRanking = conversionRanking(leads, (l) => l.city, (l) => l.installed);
   const secretaryRanking = conversionRanking(leads, (l) => l.secretary, (l) => l.installed);
 
+  const ageCurve = conversionByAge(leads);
+  const approxInstallDatesCount = leads.filter((l) => l.installed && !l.installedAt).length;
+  const matureStep = ageCurve[ageCurve.length - 1];
+  const openLeadsCount = leads.filter((l) => !l.installed && l.status !== 'Perdido').length;
+  const projectedAdditionalInstalls = matureStep.eligible ? Math.round(openLeadsCount * (matureStep.rate / 100)) : null;
+  const projectedTotalInstalls = projectedAdditionalInstalls !== null ? installedCount + projectedAdditionalInstalls : null;
+
   return new Response(
     JSON.stringify({
       crm: {
@@ -122,6 +160,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         secretaries,
         cityRanking,
         secretaryRanking,
+        ageCurve,
+        approxInstallDatesCount,
+        openLeadsCount,
+        projectedAdditionalInstalls,
+        projectedTotalInstalls,
         filters: { city: cityFilter, secretary: secretaryFilter },
       },
       novedades: {

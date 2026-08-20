@@ -42,6 +42,14 @@ if (!canAccessSection(session.role, 'estadisticas')) {
   </div>
 
   <div class="panel-card">
+    <h2>Conversión acumulada por edad del lead</h2>
+    <p class="hint">De los leads que ya cumplieron cada edad, qué porcentaje ya estaba instalado a esa altura. Respeta los filtros de ciudad/secretaria de arriba.</p>
+    <p id="ageCurveApproxNote" class="hint" style="margin-top:-8px;"></p>
+    <table class="stats-table age-curve-table" id="ageCurveTable"></table>
+    <div class="stats-row" id="projectionStatsRow" style="margin-top:16px;"></div>
+  </div>
+
+  <div class="panel-card">
     <h2>Novedades</h2>
     <div class="stats-row" id="novedadesStatsRow"></div>
     <div class="stats-tables">
@@ -69,6 +77,12 @@ if (!canAccessSection(session.role, 'estadisticas')) {
   .stats-table td { padding: 5px 8px; border-bottom: 1px solid var(--line); }
   .stats-table td:last-child { text-align: right; font-weight: 600; color: var(--amber); }
   .ranking-table .detail { color: var(--slate); font-weight: 400; font-size: 11px; margin-left: 4px; }
+  .age-curve-table td:first-child { width: 90px; color: var(--slate); }
+  .age-curve-table .bar-cell { position: relative; }
+  .age-curve-table .bar-track { position: relative; height: 16px; background: var(--line); border-radius: 4px; overflow: hidden; min-width: 120px; }
+  .age-curve-table .bar-fill { position: absolute; inset: 0; background: var(--amber); border-radius: 4px 0 0 4px; }
+  .age-curve-table .bar-label { position: relative; z-index: 1; font-size: 11px; font-weight: 600; padding-left: 6px; line-height: 16px; color: #1a0f00; }
+  .age-curve-table td:last-child { color: var(--slate); font-weight: 400; text-align: left; }
 </style>
 
 <script src="/js/interno-estadisticas.js" defer></script>

@@ -34,6 +34,7 @@ export interface Lead {
   motosCount: number;
   carrosCount: number;
   installed: boolean;
+  installedAt: string | null;
   verifiedInstalled: boolean;
   verifiedInstalledAt: string | null;
   scheduledInstallDate: string | null;
@@ -76,7 +77,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -294,13 +295,16 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     lead.carrosCount = Math.max(0, parseInt(String(body.carrosCount), 10) || 0);
   }
   if (body.installed !== undefined) {
+    const wasInstalled = lead.installed;
     lead.installed = Boolean(body.installed);
     if (lead.installed) {
       lead.status = 'Instalado';
+      if (!wasInstalled) lead.installedAt = new Date().toISOString();
     } else if (lead.status === 'Instalado') {
       // Se desmarcó "instalado" (ej: se había marcado por error) — el estado no debe
       // quedarse pegado en "Instalado" si ya no lo está.
       lead.status = 'Contactado';
+      lead.installedAt = null;
     }
   }
   if (body.scheduledInstallDate !== undefined) {

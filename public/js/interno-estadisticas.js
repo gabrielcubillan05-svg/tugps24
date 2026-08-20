@@ -42,6 +42,23 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
+  function renderAgeCurve(curve) {
+    const el = document.getElementById('ageCurveTable');
+    const maxRate = Math.max(1, ...curve.map((c) => c.rate));
+    el.innerHTML = curve.map((c) => `
+      <tr>
+        <td>Día ${c.day}</td>
+        <td class="bar-cell">
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${(c.rate / maxRate) * 100}%"></div>
+            <span class="bar-label">${c.rate}%</span>
+          </div>
+        </td>
+        <td>${c.converted} / ${c.eligible} leads</td>
+      </tr>
+    `).join('');
+  }
+
   const cityFilter = document.getElementById('crmCityFilter');
   const secretaryFilter = document.getElementById('crmSecretaryFilter');
   let filterOptionsLoaded = false;
@@ -80,6 +97,25 @@ document.addEventListener('DOMContentLoaded', function () {
         renderTable(document.getElementById('crmBySecretaryTable'), crm.bySecretary);
         renderRankingTable(document.getElementById('crmCityRankingTable'), crm.cityRanking);
         renderRankingTable(document.getElementById('crmSecretaryRankingTable'), crm.secretaryRanking);
+
+        renderAgeCurve(crm.ageCurve);
+        const approxNote = document.getElementById('ageCurveApproxNote');
+        approxNote.textContent = crm.approxInstallDatesCount
+          ? `${crm.approxInstallDatesCount} instalación(es) no tienen fecha exacta de instalación (se marcaron antes de guardar ese dato) — se aproximaron con la fecha de última edición.`
+          : '';
+
+        const projectionBoxes = [
+          { n: crm.openLeadsCount, l: 'Leads abiertos (sin instalar/perder)' },
+          {
+            n: crm.projectedAdditionalInstalls !== null ? `+${crm.projectedAdditionalInstalls}` : 'N/A',
+            l: 'Instalaciones adicionales esperadas',
+          },
+          {
+            n: crm.projectedTotalInstalls !== null ? crm.projectedTotalInstalls : 'N/A',
+            l: 'Proyección total de instalaciones',
+          },
+        ];
+        renderStatBoxes(document.getElementById('projectionStatsRow'), projectionBoxes);
       })
       .catch(() => {
         crmStatsRow.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
