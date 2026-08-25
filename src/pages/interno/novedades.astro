@@ -66,11 +66,26 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
       <select id="employeeFilter">
         <option value="">Todos los empleados</option>
       </select>
+      <label class="date-field" title="Desde">
+        <span>Desde</span>
+        <input type="date" id="dateFromFilter" />
+      </label>
+      <label class="date-field" title="Hasta">
+        <span>Hasta</span>
+        <input type="date" id="dateToFilter" />
+      </label>
     </div>
+    <p id="truncatedNotice" class="hint" style="display:none;"></p>
     <div class="reports-list" id="reportsList">
       <div class="empty">Cargando reportes...</div>
     </div>
   </div>
 </InternoLayout>
+
+<style is:global>
+  #truncatedNotice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .filters .date-field { display: flex; flex-direction: column; gap: 2px; }
+  .filters .date-field span { color: var(--slate); font-size: 10.5px; }
+</style>
 
 <script src="/js/interno-novedades.js" defer></script>

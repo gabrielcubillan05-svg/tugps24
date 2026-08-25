@@ -46,6 +46,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const branchFilter = document.getElementById('branchFilter');
   const categoryFilter = document.getElementById('categoryFilter');
   const employeeFilter = document.getElementById('employeeFilter');
+  const dateFromFilter = document.getElementById('dateFromFilter');
+  const dateToFilter = document.getElementById('dateToFilter');
+  const truncatedNotice = document.getElementById('truncatedNotice');
+  let loadAll = false;
 
   function loadEmployeeFilter() {
     fetch('/api/users?role=operador,supervisor,gerente,admin')
@@ -94,12 +98,26 @@ document.addEventListener('DOMContentLoaded', function () {
     if (branchFilter.value) params.set('branch', branchFilter.value);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (employeeFilter.value) params.set('employee', employeeFilter.value);
+    if (dateFromFilter.value) params.set('dateFrom', dateFromFilter.value);
+    if (dateToFilter.value) params.set('dateTo', dateToFilter.value);
+    if (loadAll) params.set('all', '1');
 
     fetch('/api/reports?' + params.toString())
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        if (data && Array.isArray(data.reports)) renderReports(data.reports);
-        else reportsList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
+        if (data && Array.isArray(data.reports)) {
+          renderReports(data.reports);
+          if (data.truncated) {
+            truncatedNotice.style.display = '';
+            truncatedNotice.innerHTML = `Mostrando las ${data.reports.length} novedades más recientes de ${data.total}. Usa los filtros o el rango de fechas para buscar en el historial completo, o <button type="button" class="btn-small" id="loadAllBtn">carga todo el historial</button>.`;
+            const loadAllBtn = document.getElementById('loadAllBtn');
+            if (loadAllBtn) loadAllBtn.addEventListener('click', () => { loadAll = true; loadReports(); });
+          } else {
+            truncatedNotice.style.display = 'none';
+          }
+        } else {
+          reportsList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
+        }
       })
       .catch((err) => {
         reportsList.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(err.message || 'error de red')}.</div>`;
@@ -115,6 +133,8 @@ document.addEventListener('DOMContentLoaded', function () {
   branchFilter.addEventListener('change', loadReports);
   categoryFilter.addEventListener('change', loadReports);
   employeeFilter.addEventListener('change', loadReports);
+  dateFromFilter.addEventListener('change', loadReports);
+  dateToFilter.addEventListener('change', loadReports);
 
   loadEmployeeFilter();
 

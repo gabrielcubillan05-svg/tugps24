@@ -32,6 +32,8 @@ interface Report {
   createdById: string;
 }
 
+const DEFAULT_LIMIT = 200;
+
 export const GET: APIRoute = async ({ cookies, url }) => {
   if (!(await requireNovedades(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -42,7 +44,23 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const raw = (await redis.lrange<string>(REDIS_KEY, 0, -1)) || [];
+  const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+  const branch = url.searchParams.get('branch') || '';
+  const category = url.searchParams.get('category') || '';
+  const employee = url.searchParams.get('employee') || '';
+  const dateFrom = url.searchParams.get('dateFrom') || '';
+  const dateTo = url.searchParams.get('dateTo') || '';
+  const all = url.searchParams.get('all') === '1';
+
+  // Este registro crece todos los días desde hace meses — traer todo en cada carga
+  // (y cada 2 minutos por el auto-refresco) es lo que lo hacía lento. Sin filtros
+  // activos solo se traen las más recientes; buscar/filtrar sí revisa todo el historial.
+  const needsFullScan = Boolean(q || branch || category || employee || dateFrom || dateTo || all);
+  const total = await redis.llen(REDIS_KEY);
+  const raw = needsFullScan
+    ? (await redis.lrange<string>(REDIS_KEY, 0, -1)) || []
+    : (await redis.lrange<string>(REDIS_KEY, 0, DEFAULT_LIMIT - 1)) || [];
+
   let reports: Report[] = raw
     .map((r) => {
       try {
@@ -54,11 +72,6 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     .filter((r): r is Report => r !== null)
     .map((r) => ({ images: [], createdByName: '', createdById: '', ...r }));
 
-  const q = (url.searchParams.get('q') || '').trim().toLowerCase();
-  const branch = url.searchParams.get('branch') || '';
-  const category = url.searchParams.get('category') || '';
-  const employee = url.searchParams.get('employee') || '';
-
   if (q) {
     reports = reports.filter((r) =>
       r.plate.toLowerCase().includes(q) ||
@@ -69,10 +82,19 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (branch) reports = reports.filter((r) => r.branch === branch);
   if (category) reports = reports.filter((r) => r.category === category);
   if (employee) reports = reports.filter((r) => r.createdById === employee);
+  if (dateFrom) reports = reports.filter((r) => r.createdAt.slice(0, 10) >= dateFrom);
+  if (dateTo) reports = reports.filter((r) => r.createdAt.slice(0, 10) <= dateTo);
 
-  return new Response(JSON.stringify({ reports, categories: CATEGORIES, branches: BRANCHES }), {
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  });
+  return new Response(
+    JSON.stringify({
+      reports,
+      categories: CATEGORIES,
+      branches: BRANCHES,
+      total,
+      truncated: !needsFullScan && total > DEFAULT_LIMIT,
+    }),
+    { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
+  );
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
