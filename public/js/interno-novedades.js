@@ -46,8 +46,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const branchFilter = document.getElementById('branchFilter');
   const categoryFilter = document.getElementById('categoryFilter');
   const employeeFilter = document.getElementById('employeeFilter');
-  const dateFromFilter = document.getElementById('dateFromFilter');
-  const dateToFilter = document.getElementById('dateToFilter');
   const truncatedNotice = document.getElementById('truncatedNotice');
   let loadAll = false;
 
@@ -98,8 +96,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (branchFilter.value) params.set('branch', branchFilter.value);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (employeeFilter.value) params.set('employee', employeeFilter.value);
-    if (dateFromFilter.value) params.set('dateFrom', dateFromFilter.value);
-    if (dateToFilter.value) params.set('dateTo', dateToFilter.value);
     if (loadAll) params.set('all', '1');
 
     fetch('/api/reports?' + params.toString())
@@ -133,8 +129,6 @@ document.addEventListener('DOMContentLoaded', function () {
   branchFilter.addEventListener('change', loadReports);
   categoryFilter.addEventListener('change', loadReports);
   employeeFilter.addEventListener('change', loadReports);
-  dateFromFilter.addEventListener('change', loadReports);
-  dateToFilter.addEventListener('change', loadReports);
 
   loadEmployeeFilter();
 

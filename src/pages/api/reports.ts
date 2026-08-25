@@ -48,14 +48,12 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const branch = url.searchParams.get('branch') || '';
   const category = url.searchParams.get('category') || '';
   const employee = url.searchParams.get('employee') || '';
-  const dateFrom = url.searchParams.get('dateFrom') || '';
-  const dateTo = url.searchParams.get('dateTo') || '';
   const all = url.searchParams.get('all') === '1';
 
   // Este registro crece todos los días desde hace meses — traer todo en cada carga
   // (y cada 2 minutos por el auto-refresco) es lo que lo hacía lento. Sin filtros
   // activos solo se traen las más recientes; buscar/filtrar sí revisa todo el historial.
-  const needsFullScan = Boolean(q || branch || category || employee || dateFrom || dateTo || all);
+  const needsFullScan = Boolean(q || branch || category || employee || all);
   const total = await redis.llen(REDIS_KEY);
   const raw = needsFullScan
     ? (await redis.lrange<string>(REDIS_KEY, 0, -1)) || []
@@ -82,8 +80,6 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (branch) reports = reports.filter((r) => r.branch === branch);
   if (category) reports = reports.filter((r) => r.category === category);
   if (employee) reports = reports.filter((r) => r.createdById === employee);
-  if (dateFrom) reports = reports.filter((r) => r.createdAt.slice(0, 10) >= dateFrom);
-  if (dateTo) reports = reports.filter((r) => r.createdAt.slice(0, 10) <= dateTo);
 
   return new Response(
     JSON.stringify({
