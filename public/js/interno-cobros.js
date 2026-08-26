@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', function () {
   if (!cobrosList) return; // no autenticado o sin permiso
 
   const cobrosData = document.getElementById('cobrosData');
-  const currentRole = (cobrosData && cobrosData.dataset.role) || '';
   const currentUserName = (cobrosData && cobrosData.dataset.userName) || '';
 
   function escapeHtml(str) {
@@ -68,9 +67,10 @@ document.addEventListener('DOMContentLoaded', function () {
       assignees.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
     assigneeFilter.value = current;
 
-    // Las secretarias solo ven por defecto lo que les toca a ellas; pueden cambiarlo
-    // manualmente si necesitan ver otra persona.
-    if (currentRole === 'secretaria' && !defaultAssigneeApplied) {
+    // Cada quien ve por defecto solo lo que le toca a él/ella; puede cambiarlo
+    // manualmente si necesita ver a otra persona. Si su nombre no coincide con
+    // ningún asignado (ej. admin que no hace llamadas), se queda viendo todos.
+    if (!defaultAssigneeApplied) {
       const myFirstName = normalizeForMatch(currentUserName).split(/\s+/)[0];
       const match = assignees.find((a) => normalizeForMatch(a) === myFirstName);
       if (match) {
@@ -111,12 +111,10 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderStats(list) {
     const total = list.length;
     const contactados = list.filter((c) => c.contacted).length;
-    const deudaTotal = list.reduce((sum, c) => sum + (c.deuda || 0), 0);
     statsRow.innerHTML = `
       <div class="stat-box"><span class="n">${total}</span><span class="l">Total</span></div>
       <div class="stat-box"><span class="n">${contactados}</span><span class="l">Contactados</span></div>
       <div class="stat-box overdue"><span class="n">${total - contactados}</span><span class="l">Pendientes</span></div>
-      <div class="stat-box"><span class="n">${fmtMoney(deudaTotal)}</span><span class="l">Deuda total</span></div>
     `;
   }
 
