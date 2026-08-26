@@ -1,0 +1,89 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'cobros')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Cobranza especial WP" active="cobros" session={session}>
+  {canVerifyInstalls(session.role) && (
+    <div class="panel-card">
+      <h2>Subir lista de cobros</h2>
+      <p class="hint">Sube el Excel con la deuda de cada cliente (columnas Nombre, Sucursal, Deuda, Teléfono). Cada subida reemplaza la lista completa por la nueva y reparte los cobros equitativamente entre los nombres de abajo.</p>
+      <form id="cobrosUploadForm" class="verify-installs-form">
+        <input id="cobrosUploadFile" type="file" accept=".xlsx,.xls,.csv" required />
+        <button class="btn-small" type="submit">Subir lista</button>
+      </form>
+      <div class="field field-full" style="margin-top:10px;">
+        <label for="assigneesInput">Nombres para repartir (uno por línea o separados por coma)</label>
+        <textarea id="assigneesInput" rows="4" style="width:100%;">Yelitza
+Heydrich
+Alonso
+Helen
+Cristofer
+Joenys
+Melany
+Pierangela
+Ana</textarea>
+      </div>
+      <div id="cobrosUploadResult"></div>
+    </div>
+  )}
+
+  <div class="panel-card">
+    <h2>Rendimiento por persona</h2>
+    <table class="results-table" id="assigneeStatsTable"></table>
+  </div>
+
+  <div class="panel-card">
+    <h2>Cobros</h2>
+    <div class="stats-row" id="cobrosStatsRow"></div>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por nombre..." />
+      <select id="sucursalFilter"><option value="">Todas las sucursales</option></select>
+      <select id="assigneeFilter"><option value="">Todos los asignados</option></select>
+      <select id="estadoFilter">
+        <option value="">Todos</option>
+        <option value="pendiente">Pendientes</option>
+        <option value="contactado">Contactados</option>
+      </select>
+    </div>
+    <div class="cobros-list" id="cobrosList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .cobros-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .cobro-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .cobro-item.contacted { opacity: 0.6; }
+  .cobro-main { display: flex; flex-direction: column; gap: 3px; }
+  .cobro-name { font-weight: 700; font-size: 14.5px; }
+  .cobro-meta { color: var(--slate); font-size: 12px; }
+  .cobro-deuda { font-weight: 700; color: var(--amber); font-size: 15px; }
+  .cobro-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .results-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .results-table th, .results-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  .results-table th { color: var(--slate); font-weight: 600; font-size: 11.5px; }
+</style>
+
+<script src="/js/interno-cobros.js" defer></script>
