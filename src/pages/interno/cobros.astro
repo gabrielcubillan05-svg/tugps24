@@ -2,13 +2,13 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canUploadCobros, firstSectionFor, SECTION_PATHS, findUserById } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessCobros, canUploadCobros, firstSectionFor, SECTION_PATHS, findUserById } from '../../lib/auth';
 import { getRedis } from '../../lib/redis';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
 if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
-if (!canAccessSection(session.role, 'cobros')) {
+if (!canAccessCobros(session)) {
   const fallback = firstSectionFor(session.role);
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }

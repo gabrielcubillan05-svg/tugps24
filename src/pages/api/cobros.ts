@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import * as XLSX from 'xlsx';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, canUploadCobros, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessCobros, canUploadCobros, findUserById, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -66,7 +66,7 @@ function computeAssigneeStats(cobros: Cobro[]): AssigneeStat[] {
 
 async function requireCobros(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAccessSection(session.role, 'cobros')) return null;
+  if (!session || !canAccessCobros(session)) return null;
   return session;
 }
 
@@ -146,7 +146,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   }
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAccessSection(session.role, 'cobros') || !canUploadCobros(session)) {
+  if (!session || !canAccessCobros(session) || !canUploadCobros(session)) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();

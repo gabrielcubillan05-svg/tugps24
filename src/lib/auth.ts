@@ -92,12 +92,19 @@ export function canAccessPagos(session: Pick<Session, 'role' | 'username'>): boo
   return canAccessSection(session.role, 'pagos') || PAGOS_EXTRA_USERNAMES.includes(session.username);
 }
 
+// Usuarios puntuales con acceso a Cobranza especial WP aunque su rol no lo incluya.
+const COBROS_EXTRA_USERNAMES = ['alonsopadilla'];
+
+export function canAccessCobros(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'cobros') || COBROS_EXTRA_USERNAMES.includes(session.username);
+}
+
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
-  if (!base.includes('pagos') && canAccessPagos(session)) {
-    return [...base, 'pagos'];
-  }
-  return base;
+  const extra: Section[] = [];
+  if (!base.includes('pagos') && canAccessPagos(session)) extra.push('pagos');
+  if (!base.includes('cobros') && canAccessCobros(session)) extra.push('cobros');
+  return extra.length ? [...base, ...extra] : base;
 }
 
 export function canManageCompDays(role: Role): boolean {
