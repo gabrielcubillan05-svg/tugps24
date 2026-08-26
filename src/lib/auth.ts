@@ -116,6 +116,14 @@ export function canManageMediaAssets(role: Role): boolean {
   return role === 'supervisor' || role === 'gerente' || role === 'admin';
 }
 
+// Usuarios puntuales con permiso para subir listas de Cobranza especial WP aunque su
+// rol no lo incluya, además de supervisor/gerente/admin (que ya lo tienen).
+const COBROS_UPLOAD_EXTRA_USERNAMES = ['wilmararchila'];
+
+export function canUploadCobros(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canVerifyInstalls(session.role) || COBROS_UPLOAD_EXTRA_USERNAMES.includes(session.username);
+}
+
 export function canManageUsers(role: Role): boolean {
   return role === 'admin';
 }

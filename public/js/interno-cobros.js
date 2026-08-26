@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const cobrosList = document.getElementById('cobrosList');
   if (!cobrosList) return; // no autenticado o sin permiso
 
+  const cobrosData = document.getElementById('cobrosData');
+  const currentRole = (cobrosData && cobrosData.dataset.role) || '';
+  const currentUserName = (cobrosData && cobrosData.dataset.userName) || '';
+
   function escapeHtml(str) {
     return String(str || '')
       .replace(/&/g, '&amp;')
@@ -51,12 +55,29 @@ document.addEventListener('DOMContentLoaded', function () {
     sucursalFilter.value = current;
   }
 
+  let defaultAssigneeApplied = false;
+
+  function normalizeForMatch(str) {
+    return String(str || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+  }
+
   function populateAssigneeFilter() {
     const current = assigneeFilter.value;
     const assignees = [...new Set(allCobros.map((c) => c.assignedTo).filter(Boolean))].sort();
     assigneeFilter.innerHTML = '<option value="">Todos los asignados</option>' +
       assignees.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
     assigneeFilter.value = current;
+
+    // Las secretarias solo ven por defecto lo que les toca a ellas; pueden cambiarlo
+    // manualmente si necesitan ver otra persona.
+    if (currentRole === 'secretaria' && !defaultAssigneeApplied) {
+      const myFirstName = normalizeForMatch(currentUserName).split(/\s+/)[0];
+      const match = assignees.find((a) => normalizeForMatch(a) === myFirstName);
+      if (match) {
+        assigneeFilter.value = match;
+        defaultAssigneeApplied = true;
+      }
+    }
   }
 
   function fmtHours(hours) {

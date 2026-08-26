@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import * as XLSX from 'xlsx';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, canVerifyInstalls, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, canUploadCobros, findUserById, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -121,7 +121,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   }
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAccessSection(session.role, 'cobros') || !canVerifyInstalls(session.role)) {
+  if (!session || !canAccessSection(session.role, 'cobros') || !canUploadCobros(session)) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();

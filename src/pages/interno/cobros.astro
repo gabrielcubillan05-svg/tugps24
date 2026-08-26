@@ -2,7 +2,8 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canUploadCobros, firstSectionFor, SECTION_PATHS, findUserById } from '../../lib/auth';
+import { getRedis } from '../../lib/redis';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -11,10 +12,15 @@ if (!canAccessSection(session.role, 'cobros')) {
   const fallback = firstSectionFor(session.role);
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }
+
+const redis = getRedis();
+const currentUser = redis ? await findUserById(redis, session.userId) : null;
+const currentUserName = currentUser?.name || session.username;
 ---
 
 <InternoLayout title="Cobranza especial WP" active="cobros" session={session}>
-  {canVerifyInstalls(session.role) && (
+  <div id="cobrosData" data-role={session.role} data-user-name={currentUserName} style="display:none;"></div>
+  {canUploadCobros(session) && (
     <div class="panel-card">
       <h2>Subir lista de cobros</h2>
       <p class="hint">Sube el Excel con la deuda de cada cliente (columnas Nombre, Sucursal, Deuda, Teléfono). Cada subida reemplaza la lista completa por la nueva y reparte los cobros equitativamente entre los nombres de abajo.</p>
