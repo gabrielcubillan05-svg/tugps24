@@ -78,6 +78,14 @@ function normalizeNameForMatch(raw: unknown): string {
     .toLowerCase();
 }
 
+// Para usuarios con acceso puntual (username no coincide con el nombre usado al
+// repartir, ej. "chrisinstalador" en vez de "Cristofer"), se fija a mano el nombre
+// de reparto que le corresponde.
+const USERNAME_ASSIGNEE_OVERRIDE: Record<string, string> = {
+  alonsopadilla: 'Alonso',
+  chrisinstalador: 'Cristofer',
+};
+
 // Compara por el primer nombre, igual que el reparto (ej. "Yelitza Redondo" vs "Yelitza").
 function isAssignedToUser(assignedTo: string, userName: string): boolean {
   const a = normalizeNameForMatch(assignedTo);
@@ -132,7 +140,7 @@ export const GET: APIRoute = async ({ cookies }) => {
   let cobros = allCobros;
   if (!canUploadCobros(session)) {
     const user = await findUserById(redis, session.userId);
-    const userName = user?.name || session.username;
+    const userName = USERNAME_ASSIGNEE_OVERRIDE[session.username] || user?.name || session.username;
     cobros = allCobros.filter((c) => isAssignedToUser(c.assignedTo, userName));
   }
 
@@ -282,7 +290,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const cobro: Cobro = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
   const user = await findUserById(redis, session.userId);
-  const userName = user?.name || session.username;
+  const userName = USERNAME_ASSIGNEE_OVERRIDE[session.username] || user?.name || session.username;
 
   // Quien no puede subir listas (secretaria normal) solo puede marcar sus propios
   // cobros — el filtro del navegador es solo comodidad, esto es lo que realmente lo impide.
