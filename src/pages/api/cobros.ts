@@ -213,9 +213,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     );
   }
 
+  const existingCobros = await readCobros(redis);
+  const existingNumeros = new Set(existingCobros.map((c) => c.numero).filter(Boolean));
+
   const now = new Date().toISOString();
   const newCobros: Record<string, string> = {};
   let count = 0;
+  let skippedDuplicates = 0;
 
   for (const row of rows.slice(1)) {
     if (!row.length || row.every((c) => c === '')) continue;
@@ -223,11 +227,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const telefono = String(row[telefonoCol] ?? '').trim();
     const deuda = Number(row[deudaCol]) || 0;
     if (!nombre || !telefono) continue;
+    const numero = numeroCol >= 0 ? String(row[numeroCol] ?? '') : '';
+    if (numero && existingNumeros.has(numero)) {
+      skippedDuplicates++;
+      continue;
+    }
 
     const cobro: Cobro = {
       id: randomUUID(),
       nombre,
-      numero: numeroCol >= 0 ? String(row[numeroCol] ?? '') : '',
+      numero,
       sucursal: sucursalCol >= 0 ? String(row[sucursalCol] ?? '').trim() : '',
       facturasImpagas: impagasCol >= 0 ? Number(row[impagasCol]) || 0 : 0,
       fechaUltimoPago: ultPagoCol >= 0 ? excelSerialToISO(Number(row[ultPagoCol])) : null,
@@ -240,25 +249,54 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       createdAt: now,
       updatedAt: now,
     };
+    if (numero) existingNumeros.add(numero);
     newCobros[cobro.id] = JSON.stringify(cobro);
     count++;
   }
 
   if (!count) {
-    return new Response(JSON.stringify({ error: 'no se encontraron filas válidas (nombre, teléfono y deuda)' }), { status: 400 });
+    return new Response(
+      JSON.stringify({
+        error: skippedDuplicates
+          ? 'todas las filas ya estaban cargadas (mismo número de cliente)'
+          : 'no se encontraron filas válidas (nombre, teléfono y deuda)',
+      }),
+      { status: 400 }
+    );
   }
 
-  // Cada subida reemplaza la lista completa: es una foto del estado de la deuda al
-  // momento de exportar, no tiene sentido acumular listas viejas encima.
+  // Se agrega a la lista existente sin borrar nada — para eso está el botón
+  // "Borrar todo" aparte.
+  await redis.hset(REDIS_KEY, newCobros);
+
+  await logAudit(redis, session, 'cobros_upload', file.name, `${count} cobros agregados, ${skippedDuplicates} duplicados omitidos`);
+
+  return new Response(JSON.stringify({ count, skippedDuplicates }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+export const DELETE: APIRoute = async ({ request, cookies }) => {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
+  if (!session || session.role !== 'admin') {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
   const existingIds = Object.keys((await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {});
   if (existingIds.length) {
     await redis.hdel(REDIS_KEY, ...existingIds);
   }
-  await redis.hset(REDIS_KEY, newCobros);
 
-  await logAudit(redis, session, 'cobros_upload', file.name, `${count} cobros cargados`);
+  await logAudit(redis, session, 'cobros_delete_all', `${existingIds.length} cobros`);
 
-  return new Response(JSON.stringify({ count }), {
+  return new Response(JSON.stringify({ deleted: existingIds.length }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };

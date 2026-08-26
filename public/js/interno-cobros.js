@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'No se pudo subir el archivo.');
-          uploadResult.innerHTML = `<p class="result-ok">${data.count} cobros cargados.</p>`;
+          uploadResult.innerHTML = `<p class="result-ok">${data.count} cobros agregados${data.skippedDuplicates ? ` · ${data.skippedDuplicates} omitidos por estar repetidos` : ''}.</p>`;
           uploadForm.reset();
           loadCobros();
         })
@@ -262,6 +262,27 @@ document.addEventListener('DOMContentLoaded', function () {
         .finally(() => {
           submitBtn.disabled = false;
         });
+    });
+  }
+
+  const deleteAllBtn = document.getElementById('cobrosDeleteAllBtn');
+  if (deleteAllBtn) {
+    const deleteAllResult = document.getElementById('cobrosDeleteAllResult');
+    deleteAllBtn.addEventListener('click', function () {
+      if (!confirm(`¿Borrar TODOS los cobros (${allCobros.length})? Esto no se puede deshacer.`)) return;
+      deleteAllBtn.disabled = true;
+      deleteAllResult.textContent = 'Borrando...';
+      fetch('/api/cobros', { method: 'DELETE' })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo borrar.');
+          deleteAllResult.textContent = `${data.deleted} cobro(s) borrados.`;
+          loadCobros();
+        })
+        .catch((err) => {
+          deleteAllResult.textContent = err.message || 'No se pudo borrar.';
+        })
+        .finally(() => { deleteAllBtn.disabled = false; });
     });
   }
 
