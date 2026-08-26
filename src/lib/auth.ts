@@ -93,7 +93,7 @@ export function canAccessPagos(session: Pick<Session, 'role' | 'username'>): boo
 }
 
 // Usuarios puntuales con acceso a Cobranza especial WP aunque su rol no lo incluya.
-const COBROS_EXTRA_USERNAMES = ['alonsopadilla'];
+const COBROS_EXTRA_USERNAMES = ['alonsopadilla', 'chrisinstalador'];
 
 export function canAccessCobros(session: Pick<Session, 'role' | 'username'>): boolean {
   return canAccessSection(session.role, 'cobros') || COBROS_EXTRA_USERNAMES.includes(session.username);
