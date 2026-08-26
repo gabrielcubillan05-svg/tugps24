@@ -19,7 +19,7 @@ const currentUserName = currentUser?.name || session.username;
 ---
 
 <InternoLayout title="Cobranza especial WP" active="cobros" session={session}>
-  <div id="cobrosData" data-role={session.role} data-user-name={currentUserName} style="display:none;"></div>
+  <div id="cobrosData" data-role={session.role} data-user-name={currentUserName} data-can-see-all={canUploadCobros(session) ? '1' : ''} style="display:none;"></div>
   {canUploadCobros(session) && (
     <div class="panel-card">
       <h2>Subir lista de cobros</h2>

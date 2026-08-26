@@ -70,6 +70,21 @@ async function requireCobros(cookies: any) {
   return session;
 }
 
+function normalizeNameForMatch(raw: unknown): string {
+  return String(raw ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+// Compara por el primer nombre, igual que el reparto (ej. "Yelitza Redondo" vs "Yelitza").
+function isAssignedToUser(assignedTo: string, userName: string): boolean {
+  const a = normalizeNameForMatch(assignedTo);
+  const u = normalizeNameForMatch(userName).split(/\s+/)[0];
+  return !!a && a === u;
+}
+
 function normalizeHeader(raw: unknown): string {
   return String(raw ?? '')
     .normalize('NFD')
@@ -109,8 +124,18 @@ export const GET: APIRoute = async ({ cookies }) => {
   if (!redis) {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
-  const cobros = await readCobros(redis);
-  const assigneeStats = computeAssigneeStats(cobros);
+  const allCobros = await readCobros(redis);
+  const assigneeStats = computeAssigneeStats(allCobros);
+
+  // Quien no puede subir listas (secretaria normal) solo ve lo que le toca a ella —
+  // no puede cambiarlo desde el navegador, el servidor ya no le manda lo demás.
+  let cobros = allCobros;
+  if (!canUploadCobros(session)) {
+    const user = await findUserById(redis, session.userId);
+    const userName = user?.name || session.username;
+    cobros = allCobros.filter((c) => isAssignedToUser(c.assignedTo, userName));
+  }
+
   return new Response(JSON.stringify({ cobros, assigneeStats }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
@@ -256,12 +281,20 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   const cobro: Cobro = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
+  const user = await findUserById(redis, session.userId);
+  const userName = user?.name || session.username;
+
+  // Quien no puede subir listas (secretaria normal) solo puede marcar sus propios
+  // cobros — el filtro del navegador es solo comodidad, esto es lo que realmente lo impide.
+  if (!canUploadCobros(session) && !isAssignedToUser(cobro.assignedTo, userName)) {
+    return new Response(JSON.stringify({ error: 'este cobro no está asignado a ti' }), { status: 403 });
+  }
+
   if (body.contacted !== undefined) {
     cobro.contacted = Boolean(body.contacted);
     if (cobro.contacted) {
-      const user = await findUserById(redis, session.userId);
       cobro.contactedAt = new Date().toISOString();
-      cobro.contactedByName = user?.name || session.username;
+      cobro.contactedByName = userName;
     } else {
       cobro.contactedAt = null;
       cobro.contactedByName = '';

@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const cobrosData = document.getElementById('cobrosData');
   const currentRole = (cobrosData && cobrosData.dataset.role) || '';
   const currentUserName = (cobrosData && cobrosData.dataset.userName) || '';
+  const canSeeAll = !!(cobrosData && cobrosData.dataset.canSeeAll);
 
   function escapeHtml(str) {
     return String(str || '')
@@ -62,15 +63,21 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function populateAssigneeFilter() {
+    // Quien no puede subir listas ya solo recibe del servidor lo que le toca a
+    // ella — no tiene sentido mostrarle un filtro para "cambiar de usuario".
+    if (!canSeeAll) {
+      assigneeFilter.style.display = 'none';
+      return;
+    }
     const current = assigneeFilter.value;
     const assignees = [...new Set(allCobros.map((c) => c.assignedTo).filter(Boolean))].sort();
     assigneeFilter.innerHTML = '<option value="">Todos los asignados</option>' +
       assignees.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
     assigneeFilter.value = current;
 
-    // Cada quien ve por defecto solo lo que le toca a él/ella; puede cambiarlo
-    // manualmente si necesita ver a otra persona. Si su nombre no coincide con
-    // ningún asignado (ej. admin que no hace llamadas), se queda viendo todos.
+    // Por defecto se ve lo propio si el nombre coincide con algún asignado (ej. un
+    // supervisor que también hace llamadas); puede cambiarlo, a diferencia de una
+    // secretaria normal, porque sí tiene permiso para ver a todos.
     if (!defaultAssigneeApplied) {
       const myFirstName = normalizeForMatch(currentUserName).split(/\s+/)[0];
       const match = assignees.find((a) => normalizeForMatch(a) === myFirstName);
