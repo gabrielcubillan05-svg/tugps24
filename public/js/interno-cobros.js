@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (!cobrosList) return; // no autenticado o sin permiso
 
   const cobrosData = document.getElementById('cobrosData');
+  const currentRole = (cobrosData && cobrosData.dataset.role) || '';
   const currentUserName = (cobrosData && cobrosData.dataset.userName) || '';
 
   function escapeHtml(str) {
@@ -111,10 +112,14 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderStats(list) {
     const total = list.length;
     const contactados = list.filter((c) => c.contacted).length;
+    const deudaTotalBox = currentRole === 'admin'
+      ? `<div class="stat-box"><span class="n">${fmtMoney(list.reduce((sum, c) => sum + (c.deuda || 0), 0))}</span><span class="l">Deuda total</span></div>`
+      : '';
     statsRow.innerHTML = `
       <div class="stat-box"><span class="n">${total}</span><span class="l">Total</span></div>
       <div class="stat-box"><span class="n">${contactados}</span><span class="l">Contactados</span></div>
       <div class="stat-box overdue"><span class="n">${total - contactados}</span><span class="l">Pendientes</span></div>
+      ${deudaTotalBox}
     `;
   }
 
