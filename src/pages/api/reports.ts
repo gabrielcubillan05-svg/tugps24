@@ -33,6 +33,8 @@ interface Report {
 }
 
 const DEFAULT_LIMIT = 200;
+const SEARCH_CHUNK_SIZE = 1000;
+const SEARCH_MAX_SCAN = 10000;
 
 export const GET: APIRoute = async ({ cookies, url }) => {
   if (!(await requireNovedades(cookies))) {
@@ -50,14 +52,27 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const employee = url.searchParams.get('employee') || '';
   const all = url.searchParams.get('all') === '1';
 
-  // Este registro crece todos los días desde hace meses — traer todo en cada carga
-  // (y cada 2 minutos por el auto-refresco) es lo que lo hacía lento. Sin filtros
-  // activos solo se traen las más recientes; buscar/filtrar sí revisa todo el historial.
+  // Este registro crece todos los días desde hace meses (ya son ~30.000) — traer todo
+  // en cada carga (y cada 2 minutos por el auto-refresco) es lo que lo hacía lento, y
+  // pedirlo TODO de una sola vez al buscar rompía la respuesta por el tamaño. Sin
+  // filtros activos solo se traen las más recientes; al buscar/filtrar se trae en
+  // bloques hasta un tope, no el historial completo de golpe.
   const needsFullScan = Boolean(q || branch || category || employee || all);
   const total = await redis.llen(REDIS_KEY);
-  const raw = needsFullScan
-    ? (await redis.lrange<string>(REDIS_KEY, 0, -1)) || []
-    : (await redis.lrange<string>(REDIS_KEY, 0, DEFAULT_LIMIT - 1)) || [];
+  let raw: string[] = [];
+  if (needsFullScan) {
+    let offset = 0;
+    while (offset < SEARCH_MAX_SCAN) {
+      const chunk = (await redis.lrange<string>(REDIS_KEY, offset, offset + SEARCH_CHUNK_SIZE - 1)) || [];
+      if (!chunk.length) break;
+      raw = raw.concat(chunk);
+      offset += chunk.length;
+      if (chunk.length < SEARCH_CHUNK_SIZE) break;
+    }
+  } else {
+    raw = (await redis.lrange<string>(REDIS_KEY, 0, DEFAULT_LIMIT - 1)) || [];
+  }
+  const scannedCount = raw.length;
 
   let reports: Report[] = raw
     .map((r) => {
@@ -88,6 +103,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       branches: BRANCHES,
       total,
       truncated: !needsFullScan && total > DEFAULT_LIMIT,
+      searchIncomplete: needsFullScan && scannedCount < total,
+      scannedCount,
     }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );

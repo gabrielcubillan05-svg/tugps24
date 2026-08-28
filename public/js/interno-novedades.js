@@ -105,9 +105,12 @@ document.addEventListener('DOMContentLoaded', function () {
           renderReports(data.reports);
           if (data.truncated) {
             truncatedNotice.style.display = '';
-            truncatedNotice.innerHTML = `Mostrando las ${data.reports.length} novedades más recientes de ${data.total}. Usa los filtros o el rango de fechas para buscar en el historial completo, o <button type="button" class="btn-small" id="loadAllBtn">carga todo el historial</button>.`;
+            truncatedNotice.innerHTML = `Mostrando las ${data.reports.length} novedades más recientes de ${data.total}. Usa los filtros para buscar más atrás, o <button type="button" class="btn-small" id="loadAllBtn">revisa más historial</button>.`;
             const loadAllBtn = document.getElementById('loadAllBtn');
             if (loadAllBtn) loadAllBtn.addEventListener('click', () => { loadAll = true; loadReports(); });
+          } else if (data.searchIncomplete) {
+            truncatedNotice.style.display = '';
+            truncatedNotice.textContent = `Se buscó en las ${data.scannedCount} novedades más recientes de ${data.total} — si no encuentras lo que buscas, puede ser de hace más tiempo.`;
           } else {
             truncatedNotice.style.display = 'none';
           }
