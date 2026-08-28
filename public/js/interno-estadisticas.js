@@ -137,6 +137,14 @@ document.addEventListener('DOMContentLoaded', function () {
         renderTable(document.getElementById('novedadesByCategoryTable'), nov.byCategory);
         renderTable(document.getElementById('novedadesByBranchTable'), nov.byBranch);
         renderTable(document.getElementById('novedadesByOperatorTable'), nov.byOperator);
+
+        const scanNote = document.getElementById('novedadesScanNote');
+        if (nov.scannedCount < nov.total) {
+          scanNote.style.display = '';
+          scanNote.textContent = `Las tablas de abajo se calculan sobre las ${nov.scannedCount} novedades más recientes de ${nov.total} en total (para no sobrecargar la base de datos).`;
+        } else {
+          scanNote.style.display = 'none';
+        }
       })
       .catch(() => {
         document.getElementById('novedadesStatsRow').innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';

@@ -6,6 +6,8 @@ import { readLeads, STATUSES } from './leads';
 export const prerender = false;
 
 const REPORTS_KEY = 'internal:reports';
+const REPORTS_CHUNK_SIZE = 1000;
+const REPORTS_MAX_SCAN = 10000;
 const REPORT_CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Monitoreo a', 'Monitoreo en', 'Monitoreo vía', 'Monitoreo retornando', 'Otro'];
 
 interface Report {
@@ -110,7 +112,21 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const last7DaysCount = leads.filter((l) => now - new Date(l.createdAt).getTime() <= 7 * 24 * 60 * 60 * 1000).length;
   const last30DaysCount = leads.filter((l) => now - new Date(l.createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000).length;
 
-  const rawReports = (await redis.lrange<string>(REPORTS_KEY, 0, -1)) || [];
+  // Pedir el historial completo de novedades (~30.000) de un solo golpe rompía la
+  // respuesta contra Upstash por tamaño (límite de 10MB por pedido). Se trae en
+  // bloques hasta un tope de las más recientes en vez de todo de una vez.
+  const reportsTotal = await redis.llen(REPORTS_KEY);
+  let rawReports: string[] = [];
+  {
+    let offset = 0;
+    while (offset < REPORTS_MAX_SCAN) {
+      const chunk = (await redis.lrange<string>(REPORTS_KEY, offset, offset + REPORTS_CHUNK_SIZE - 1)) || [];
+      if (!chunk.length) break;
+      rawReports = rawReports.concat(chunk);
+      offset += chunk.length;
+      if (chunk.length < REPORTS_CHUNK_SIZE) break;
+    }
+  }
   const reports: Report[] = rawReports
     .map((r) => {
       try {
@@ -168,7 +184,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         filters: { city: cityFilter, secretary: secretaryFilter },
       },
       novedades: {
-        total: reports.length,
+        total: reportsTotal,
+        scannedCount: reports.length,
         byCategory: reportsByCategory,
         byBranch: reportsByBranch,
         byOperator: reportsByOperator,
