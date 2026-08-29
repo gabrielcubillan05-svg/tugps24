@@ -35,6 +35,7 @@ interface Report {
 const DEFAULT_LIMIT = 200;
 const SEARCH_CHUNK_SIZE = 1000;
 const SEARCH_MAX_SCAN = 10000;
+const SEARCH_MAX_SCAN_CEILING = 100000; // tope duro para que no se pida algo descontrolado
 
 export const GET: APIRoute = async ({ cookies, url }) => {
   if (!(await requireNovedades(cookies))) {
@@ -51,18 +52,23 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const category = url.searchParams.get('category') || '';
   const employee = url.searchParams.get('employee') || '';
   const all = url.searchParams.get('all') === '1';
+  const requestedScanLimit = parseInt(url.searchParams.get('scanLimit') || '', 10);
+  const scanLimit = Number.isFinite(requestedScanLimit) && requestedScanLimit > 0
+    ? Math.min(requestedScanLimit, SEARCH_MAX_SCAN_CEILING)
+    : SEARCH_MAX_SCAN;
 
   // Este registro crece todos los días desde hace meses (ya son ~30.000) — traer todo
   // en cada carga (y cada 2 minutos por el auto-refresco) es lo que lo hacía lento, y
   // pedirlo TODO de una sola vez al buscar rompía la respuesta por el tamaño. Sin
   // filtros activos solo se traen las más recientes; al buscar/filtrar se trae en
-  // bloques hasta un tope, no el historial completo de golpe.
+  // bloques hasta un tope (ampliable con scanLimit si el operador pide seguir
+  // buscando más atrás), no el historial completo de golpe.
   const needsFullScan = Boolean(q || branch || category || employee || all);
   const total = await redis.llen(REDIS_KEY);
   let raw: string[] = [];
   if (needsFullScan) {
     let offset = 0;
-    while (offset < SEARCH_MAX_SCAN) {
+    while (offset < scanLimit) {
       const chunk = (await redis.lrange<string>(REDIS_KEY, offset, offset + SEARCH_CHUNK_SIZE - 1)) || [];
       if (!chunk.length) break;
       raw = raw.concat(chunk);
@@ -105,6 +111,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       truncated: !needsFullScan && total > DEFAULT_LIMIT,
       searchIncomplete: needsFullScan && scannedCount < total,
       scannedCount,
+      scanLimit,
     }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );

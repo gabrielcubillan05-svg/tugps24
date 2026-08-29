@@ -48,6 +48,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const employeeFilter = document.getElementById('employeeFilter');
   const truncatedNotice = document.getElementById('truncatedNotice');
   let loadAll = false;
+  let scanLimit = null;
+
+  function resetScanLimit() {
+    scanLimit = null;
+  }
 
   function loadEmployeeFilter() {
     fetch('/api/users?role=operador,supervisor,gerente,admin')
@@ -97,6 +102,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (employeeFilter.value) params.set('employee', employeeFilter.value);
     if (loadAll) params.set('all', '1');
+    if (scanLimit) params.set('scanLimit', String(scanLimit));
 
     fetch('/api/reports?' + params.toString())
       .then(async (res) => {
@@ -110,7 +116,16 @@ document.addEventListener('DOMContentLoaded', function () {
             if (loadAllBtn) loadAllBtn.addEventListener('click', () => { loadAll = true; loadReports(); });
           } else if (data.searchIncomplete) {
             truncatedNotice.style.display = '';
-            truncatedNotice.textContent = `Se buscó en las ${data.scannedCount} novedades más recientes de ${data.total} — si no encuentras lo que buscas, puede ser de hace más tiempo.`;
+            truncatedNotice.innerHTML = `Se buscó en las ${data.scannedCount} novedades más recientes de ${data.total} — si no encuentras lo que buscas, puede ser de hace más tiempo. <button type="button" class="btn-small" id="scanMoreBtn">Seguir buscando más atrás</button>`;
+            const scanMoreBtn = document.getElementById('scanMoreBtn');
+            if (scanMoreBtn) {
+              scanMoreBtn.addEventListener('click', () => {
+                scanLimit = (data.scanLimit || 10000) + 10000;
+                scanMoreBtn.disabled = true;
+                scanMoreBtn.textContent = 'Buscando...';
+                loadReports();
+              });
+            }
           } else {
             truncatedNotice.style.display = 'none';
           }
@@ -124,14 +139,20 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function debouncedLoad() {
+    resetScanLimit();
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(loadReports, 250);
   }
 
+  function loadWithResetScan() {
+    resetScanLimit();
+    loadReports();
+  }
+
   searchInput.addEventListener('input', debouncedLoad);
-  branchFilter.addEventListener('change', loadReports);
-  categoryFilter.addEventListener('change', loadReports);
-  employeeFilter.addEventListener('change', loadReports);
+  branchFilter.addEventListener('change', loadWithResetScan);
+  categoryFilter.addEventListener('change', loadWithResetScan);
+  employeeFilter.addEventListener('change', loadWithResetScan);
 
   loadEmployeeFilter();
 
