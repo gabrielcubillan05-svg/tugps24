@@ -1,0 +1,78 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { BRANCHES } from '../api/cuadrantes';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'cuadrantes')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Cuadrantes de policía" active="cuadrantes" session={session}>
+  <div id="cuadrantesData" data-can-delete={canVerifyInstalls(session.role) ? '1' : ''} style="display:none;"></div>
+
+  <div class="panel-card">
+    <h2>Agregar cuadrante</h2>
+    <p class="hint">Números de cuadrante de policía por ciudad, para tenerlos a la mano si hay que llamar por un robo u otra emergencia.</p>
+    <form id="cuadranteForm" class="form-grid">
+      <div class="field">
+        <label for="ciudad">Ciudad</label>
+        <select id="ciudad" required>
+          <option value="">Selecciona una ciudad</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+      </div>
+      <div class="field">
+        <label for="numero">Número de cuadrante</label>
+        <input id="numero" type="text" placeholder="Ej: Cuadrante 12" required />
+      </div>
+      <div class="field">
+        <label for="telefono">Teléfono (opcional)</label>
+        <input id="telefono" type="text" placeholder="Ej: 300 000 0000" />
+      </div>
+      <div class="field field-note">
+        <label for="nota">Nota (opcional)</label>
+        <input id="nota" type="text" placeholder="Ej: cubre el barrio Centro" />
+      </div>
+      <button class="btn field-full" type="submit">Guardar</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Cuadrantes registrados</h2>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por ciudad, número o nota..." />
+      <select id="ciudadFilter"><option value="">Todas las ciudades</option></select>
+    </div>
+    <div class="cuadrantes-list" id="cuadrantesList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .cuadrantes-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .cuadrante-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .cuadrante-main { display: flex; flex-direction: column; gap: 3px; }
+  .cuadrante-title { font-weight: 700; font-size: 14.5px; }
+  .cuadrante-meta { color: var(--slate); font-size: 12px; }
+  .cuadrante-actions { display: flex; gap: 8px; align-items: center; }
+</style>
+
+<script src="/js/interno-cuadrantes.js" defer></script>

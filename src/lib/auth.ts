@@ -35,7 +35,8 @@ export type Section =
   | 'chat'
   | 'pagos'
   | 'estadisticas'
-  | 'cobros';
+  | 'cobros'
+  | 'cuadrantes';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -50,6 +51,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   pagos: 'Verificación de pagos',
   estadisticas: 'Estadísticas',
   cobros: 'Cobranza especial WP',
+  cuadrantes: 'Cuadrantes de policía',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -65,15 +67,16 @@ export const SECTION_PATHS: Record<Section, string> = {
   pagos: '/interno/pagos',
   estadisticas: '/interno/estadisticas',
   cobros: '/interno/cobros',
+  cuadrantes: '/interno/cuadrantes',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
-  tecnico: ['tareas', 'chat'],
-  operador: ['novedades', 'reportes', 'tareas', 'chat'],
-  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros'],
-  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros'],
+  tecnico: ['tareas', 'chat', 'cuadrantes'],
+  operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes'],
+  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes'],
+  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
