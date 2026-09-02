@@ -1,0 +1,103 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { CATEGORIES, BRANCHES, STATUSES } from '../api/casos-importantes';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'casos-importantes')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Casos importantes" active="casos-importantes" session={session}>
+  <div class="panel-card">
+    <h2>Nuevo caso importante</h2>
+    <form id="casoForm">
+      <div class="form-grid">
+        <div class="field">
+          <label for="plate">Placa / identificador</label>
+          <input id="plate" type="text" placeholder="GKX740" required />
+        </div>
+        <div class="field">
+          <label for="branch">Sucursal</label>
+          <select id="branch" required>
+            <option value="">Selecciona una sucursal</option>
+            {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="category">Categoría</label>
+          <select id="category" required>
+            <option value="">Selecciona una categoría</option>
+            {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div class="field field-note">
+          <label for="description">Descripción del caso</label>
+          <textarea id="description" placeholder="Qué pasó, a quién se llamó, en qué va" required></textarea>
+        </div>
+        <div class="field field-note">
+          <label for="images">Fotos (opcional, máx. 4) — puedes pegar una captura con Ctrl+V</label>
+          <input id="images" type="file" accept="image/*" multiple />
+          <div class="image-preview" id="imagePreview"></div>
+        </div>
+      </div>
+      <button class="btn" type="submit">Guardar caso</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Casos</h2>
+    <div class="tabs">
+      <button class="tab-btn active" data-status="" type="button">Todos</button>
+      {STATUSES.map((s) => <button class="tab-btn" data-status={s} type="button">{s}</button>)}
+    </div>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por placa, sucursal o descripción..." />
+      <select id="branchFilter">
+        <option value="">Todas las sucursales</option>
+        {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+      </select>
+      <select id="categoryFilter">
+        <option value="">Todas las categorías</option>
+        {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
+      </select>
+    </div>
+    <div class="casos-list" id="casosList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .casos-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .caso-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .caso-item.status-Finalizado { opacity: 0.7; }
+  .caso-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .caso-plate { font-weight: 700; font-size: 15px; }
+  .caso-description { font-size: 13px; margin-bottom: 10px; white-space: pre-wrap; }
+  .caso-images { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .caso-images img { width: 90px; height: 90px; object-fit: cover; border-radius: 8px; }
+  .caso-meta { color: var(--slate); font-size: 12px; margin-bottom: 10px; }
+  .caso-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .caso-add-note-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .caso-add-note-row input { flex: 1; }
+  .caso-notes-list { display: flex; flex-direction: column; gap: 6px; }
+  .caso-note-item { font-size: 12.5px; background: var(--ink-900, #0e0d0b); border-radius: 6px; padding: 6px 10px; }
+  .caso-note-date { color: var(--slate); font-size: 11px; margin-right: 8px; }
+  .badge.status-Abierto { background: #e0563f22; color: var(--danger); }
+  .badge.status-En-seguimiento { background: #ff7a1a29; color: var(--amber); }
+  .badge.status-Finalizado { background: #2f8a4f33; color: var(--ok); }
+</style>
+
+<script src="/js/interno-casos-importantes.js" defer></script>

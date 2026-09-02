@@ -30,6 +30,10 @@ export const GET: APIRoute = async ({ url, cookies }) => {
     if (!canAccessPagos(session)) {
       return new Response('forbidden', { status: 403 });
     }
+  } else if (path.startsWith('casos/')) {
+    if (!canAccessSection(session.role, 'casos-importantes')) {
+      return new Response('forbidden', { status: 403 });
+    }
   } else if (path.startsWith('tasks/')) {
     const match = path.match(TASK_PATH_RE);
     const isManager = session.role === 'supervisor' || session.role === 'gerente' || session.role === 'admin';

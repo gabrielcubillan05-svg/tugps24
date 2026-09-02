@@ -36,7 +36,8 @@ export type Section =
   | 'pagos'
   | 'estadisticas'
   | 'cobros'
-  | 'cuadrantes';
+  | 'cuadrantes'
+  | 'casos-importantes';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -52,6 +53,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   estadisticas: 'Estadísticas',
   cobros: 'Cobranza especial WP',
   cuadrantes: 'Cuadrantes de policía',
+  'casos-importantes': 'Casos importantes',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -68,15 +70,16 @@ export const SECTION_PATHS: Record<Section, string> = {
   estadisticas: '/interno/estadisticas',
   cobros: '/interno/cobros',
   cuadrantes: '/interno/cuadrantes',
+  'casos-importantes': '/interno/casos-importantes',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'cuadrantes'],
-  operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes'],
+  operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes'],
-  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes'],
+  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
