@@ -3,7 +3,7 @@ export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
 import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
-import { CATEGORIES, BRANCHES, STATUSES } from '../api/casos-importantes';
+import { CATEGORIES, BRANCHES } from '../api/casos-importantes';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -55,7 +55,10 @@ if (!canAccessSection(session.role, 'casos-importantes')) {
     <h2>Casos</h2>
     <div class="tabs">
       <button class="tab-btn active" data-status="" type="button">Todos</button>
-      {STATUSES.map((s) => <button class="tab-btn" data-status={s} type="button">{s}</button>)}
+      <button class="tab-btn" data-status="pendiente" type="button">Pendientes</button>
+      <button class="tab-btn" data-status="Abierto" type="button">Abierto</button>
+      <button class="tab-btn" data-status="En seguimiento" type="button">En seguimiento</button>
+      <button class="tab-btn" data-status="Finalizado" type="button">Finalizadas</button>
     </div>
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por placa, sucursal o descripción..." />

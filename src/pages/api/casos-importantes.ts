@@ -85,7 +85,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   }
   if (branch) casos = casos.filter((c) => c.branch === branch);
   if (category) casos = casos.filter((c) => c.category === category);
-  if (status) casos = casos.filter((c) => c.status === status);
+  if (status === 'pendiente') casos = casos.filter((c) => c.status !== 'Finalizado');
+  else if (status) casos = casos.filter((c) => c.status === status);
 
   return new Response(
     JSON.stringify({ casos, categories: CATEGORIES, branches: BRANCHES, statuses: STATUSES }),
