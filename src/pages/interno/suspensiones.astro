@@ -1,0 +1,106 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSuspensiones, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { BRANCHES } from '../api/suspensiones';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSuspensiones(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Suspensiones" active="suspensiones" session={session}>
+  <div id="suspensionesData" data-role={session.role} style="display:none;"></div>
+
+  <div class="panel-card">
+    <h2>Nuevo caso de suspensión</h2>
+    <p class="hint">El operador registra el caso del cliente que quiere suspender y lo asigna al gerente o secretaria correspondiente para buscarle una solución.</p>
+    <form id="suspensionForm" class="form-grid">
+      <div class="field">
+        <label for="clientName">Cliente</label>
+        <input id="clientName" type="text" placeholder="Nombre del cliente" required />
+      </div>
+      <div class="field">
+        <label for="clientPhone">Teléfono (opcional)</label>
+        <input id="clientPhone" type="text" placeholder="300 000 0000" />
+      </div>
+      <div class="field">
+        <label for="branch">Sucursal</label>
+        <select id="branch" required>
+          <option value="">Selecciona una sucursal</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+      </div>
+      <div class="field">
+        <label for="assignTo">Asignar a (gerente o secretaria)</label>
+        <select id="assignTo" required>
+          <option value="">Cargando...</option>
+        </select>
+      </div>
+      <div class="field field-note">
+        <label for="reason">Motivo por el que quiere suspender</label>
+        <textarea id="reason" placeholder="Qué le pasó al cliente, qué está pidiendo" required></textarea>
+      </div>
+      <button class="btn field-full" type="submit">Guardar caso</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Estadísticas</h2>
+    <div class="stats-row" id="statsRow"></div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Casos</h2>
+    <div class="tabs">
+      <button class="tab-btn active" data-status="" type="button">Todos</button>
+      <button class="tab-btn" data-status="abierto" type="button">Abiertos</button>
+      <button class="tab-btn" data-status="Resuelto" type="button">Resueltos</button>
+      <button class="tab-btn" data-status="Suspendido" type="button">Suspendidos</button>
+    </div>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por cliente, sucursal o motivo..." />
+      <select id="branchFilter">
+        <option value="">Todas las sucursales</option>
+        {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+      </select>
+    </div>
+    <div class="suspensiones-list" id="suspensionesList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .suspensiones-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .suspension-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .suspension-item.closed { opacity: 0.7; }
+  .suspension-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .suspension-client { font-weight: 700; font-size: 15px; }
+  .suspension-reason { font-size: 13px; margin-bottom: 8px; white-space: pre-wrap; }
+  .suspension-meta { color: var(--slate); font-size: 12px; margin-bottom: 10px; }
+  .suspension-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .suspension-timeline { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .timeline-item { font-size: 12.5px; background: var(--ink-900, #0e0d0b); border-radius: 6px; padding: 6px 10px; }
+  .timeline-date { color: var(--slate); font-size: 11px; margin-right: 8px; }
+  .suspension-add-note-row { display: flex; gap: 8px; }
+  .suspension-add-note-row input { flex: 1; }
+  .badge.status-Nuevo { background: #e0563f22; color: var(--danger); }
+  .badge.status-En-revisión { background: #ff7a1a29; color: var(--amber); }
+  .badge.status-Escalado-a-Josué { background: #4a90d922; color: #7ab8ec; }
+  .badge.status-En-tesorería { background: #4a90d922; color: #7ab8ec; }
+  .badge.status-Resuelto { background: #2f8a4f33; color: var(--ok); }
+  .badge.status-Suspendido { background: #e0563f22; color: var(--danger); }
+</style>
+
+<script src="/js/interno-suspensiones.js" defer></script>
