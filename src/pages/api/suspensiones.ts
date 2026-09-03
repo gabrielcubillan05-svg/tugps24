@@ -9,6 +9,7 @@ import {
   canAccessSuspensiones,
   findUserById,
   findUserByUsername,
+  getUsers,
   JOSUE_USERNAME,
   WILMAR_USERNAME,
   verifySameOrigin,
@@ -284,7 +285,11 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     const josue = await findUserByUsername(redis, JOSUE_USERNAME);
     if (!josue) {
-      return new Response(JSON.stringify({ error: 'no se encontró el usuario de Josué en el sistema' }), { status: 500 });
+      const allUsers = await getUsers(redis);
+      return new Response(JSON.stringify({
+        error: 'no se encontró el usuario de Josué en el sistema',
+        detail: `Buscando el username "${JOSUE_USERNAME}" entre ${allUsers.length} usuario(s): ${allUsers.map((u) => u.username).join(', ') || '(ninguno)'}`,
+      }), { status: 500 });
     }
     caso.assignedToId = josue.id;
     caso.assignedToName = josue.name;
@@ -300,7 +305,11 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     const wilmar = await findUserByUsername(redis, WILMAR_USERNAME);
     if (!wilmar) {
-      return new Response(JSON.stringify({ error: 'no se encontró el usuario de tesorería en el sistema' }), { status: 500 });
+      const allUsers = await getUsers(redis);
+      return new Response(JSON.stringify({
+        error: 'no se encontró el usuario de tesorería en el sistema',
+        detail: `Buscando el username "${WILMAR_USERNAME}" entre ${allUsers.length} usuario(s): ${allUsers.map((u) => u.username).join(', ') || '(ninguno)'}`,
+      }), { status: 500 });
     }
     caso.assignedToId = wilmar.id;
     caso.assignedToName = wilmar.name;

@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function () {
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el caso.');
+        if (!res.ok) throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || 'No se pudo actualizar el caso.');
         loadSuspensiones();
       })
       .catch((err) => alert(err.message || 'No se pudo actualizar el caso.'));
