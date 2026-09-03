@@ -110,10 +110,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const parts = [];
 
+    if ((isAssignee || isOverrideRole || isJosue) && (c.status === 'Nuevo' || c.status === 'En revisión')) {
+      parts.push(`<button class="btn-small" data-action="escalate" data-id="${c.id}" type="button">Escalar a Josué</button>`);
+    }
+
     if ((isAssignee || isOverrideRole) && OPEN_STATUSES.includes(c.status)) {
-      if (c.status === 'Nuevo' || c.status === 'En revisión') {
-        parts.push(`<button class="btn-small" data-action="escalate" data-id="${c.id}" type="button">Escalar a Josué</button>`);
-      }
       parts.push(`<button class="btn-small btn-done" data-action="resolve" data-id="${c.id}" type="button">Resolver (cliente se queda)</button>`);
       parts.push(`<button class="btn-small btn-delete" data-action="suspend" data-id="${c.id}" type="button">Suspender (sin solución)</button>`);
     }

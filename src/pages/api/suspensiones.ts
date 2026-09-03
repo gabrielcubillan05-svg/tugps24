@@ -345,7 +345,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     addEvent(caso, 'note', note, actorName, now);
   } else if (action === 'escalate') {
-    if (!isCurrentAssignee && !isOverride) {
+    if (!isCurrentAssignee && !isOverride && !isJosue) {
       return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado puede escalarlo' }), { status: 403 });
     }
     if (caso.status !== 'Nuevo' && caso.status !== 'En revisión') {
