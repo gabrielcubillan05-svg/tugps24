@@ -25,6 +25,33 @@ const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
 const CLOSED_STATUSES = ['Resuelto', 'Suspendido'];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+function isJosueSession(session: { username: string }): boolean {
+  return session.username.toLowerCase() === JOSUE_USERNAME.toLowerCase();
+}
+function isTesoreriaSession(session: { username: string }): boolean {
+  return session.username.toLowerCase() === WILMAR_USERNAME.toLowerCase();
+}
+
+async function uploadRequestPhoto(photoFile: File): Promise<{ path?: string; error?: string; status?: number }> {
+  if (!photoFile.type.startsWith('image/')) {
+    return { error: 'la foto de la solicitud debe ser una imagen', status: 400 };
+  }
+  if (photoFile.size > MAX_IMAGE_BYTES) {
+    return { error: 'la foto debe pesar menos de 8MB', status: 400 };
+  }
+  const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    return { error: 'almacenamiento de imágenes no configurado', status: 503 };
+  }
+  try {
+    const id = randomUUID();
+    const blob = await put(`suspensiones/${id}`, photoFile, { access: 'private', token, addRandomSuffix: false });
+    return { path: blob.pathname };
+  } catch (err) {
+    return { error: 'fallo al subir la foto: ' + (err instanceof Error ? err.message : String(err)), status: 500 };
+  }
+}
+
 interface TimelineEvent {
   id: string;
   type: string;
@@ -142,9 +169,10 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const branch = url.searchParams.get('branch') || '';
   const status = url.searchParams.get('status') || '';
+  const dateFrom = url.searchParams.get('dateFrom') || '';
+  const dateTo = url.searchParams.get('dateTo') || '';
 
   const all = await readSuspensiones(redis);
-  const stats = computeStats(all);
 
   let casos = all;
   if (q) {
@@ -159,6 +187,10 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (status === 'abierto') casos = casos.filter((c) => OPEN_STATUSES.includes(c.status));
   else if (status === 'porFinalizar') casos = casos.filter((c) => CLOSED_STATUSES.includes(c.status) && !c.finalized);
   else if (status) casos = casos.filter((c) => c.status === status);
+  if (dateFrom) casos = casos.filter((c) => c.createdAt >= dateFrom);
+  if (dateTo) casos = casos.filter((c) => c.createdAt <= dateTo + 'T23:59:59.999Z');
+
+  const stats = computeStats(casos);
 
   const casosWithUrl = casos.map((c) => ({
     ...c,
@@ -172,8 +204,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       statuses: STATUSES,
       stats,
       currentUserId: session.userId,
-      isTesoreria: session.username === WILMAR_USERNAME,
-      isJosue: session.username === JOSUE_USERNAME,
+      isTesoreria: isTesoreriaSession(session),
+      isJosue: isJosueSession(session),
     }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
@@ -201,7 +233,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const assignToId = String(form.get('assignToId') || '').trim();
   const photoFile = form.get('photo');
 
-  if (!clientName || !branch || !reason || !assignToId) {
+  if (!plate || !branch || !reason || !assignToId) {
     return new Response(JSON.stringify({ error: 'faltan campos obligatorios' }), { status: 400 });
   }
   if (!BRANCHES.includes(branch)) {
@@ -215,26 +247,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   let requestPhotoPath: string | null = null;
   if (photoFile instanceof File && photoFile.size > 0) {
-    if (!photoFile.type.startsWith('image/')) {
-      return new Response(JSON.stringify({ error: 'la foto de la solicitud debe ser una imagen' }), { status: 400 });
+    const uploaded = await uploadRequestPhoto(photoFile);
+    if (uploaded.error) {
+      return new Response(JSON.stringify({ error: uploaded.error }), { status: uploaded.status || 500 });
     }
-    if (photoFile.size > MAX_IMAGE_BYTES) {
-      return new Response(JSON.stringify({ error: 'la foto debe pesar menos de 8MB' }), { status: 400 });
-    }
-    const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'almacenamiento de imágenes no configurado' }), { status: 503 });
-    }
-    try {
-      const id = randomUUID();
-      const blob = await put(`suspensiones/${id}`, photoFile, { access: 'private', token, addRandomSuffix: false });
-      requestPhotoPath = blob.pathname;
-    } catch (err) {
-      return new Response(
-        JSON.stringify({ error: 'fallo al subir la foto', detail: err instanceof Error ? err.message : String(err) }),
-        { status: 500 }
-      );
-    }
+    requestPhotoPath = uploaded.path || null;
   }
 
   const creator = await findUserById(redis, session.userId);
@@ -294,11 +311,25 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; action?: string; note?: string; targetUserId?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  let body: { id?: string; action?: string; note?: string; targetUserId?: string; clientName?: string };
+  let photoFile: File | null = null;
+  const contentType = request.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData();
+    body = {
+      id: String(form.get('id') || ''),
+      action: String(form.get('action') || ''),
+      note: String(form.get('note') || ''),
+      clientName: String(form.get('clientName') || ''),
+    };
+    const maybePhoto = form.get('photo');
+    if (maybePhoto instanceof File && maybePhoto.size > 0) photoFile = maybePhoto;
+  } else {
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+    }
   }
 
   const id = String(body.id || '');
@@ -325,8 +356,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const isOverride = session.role === 'admin' || session.role === 'supervisor';
   const isCurrentAssignee = session.userId === caso.assignedToId;
   const isCreator = session.userId === caso.createdById;
-  const isJosue = session.username === JOSUE_USERNAME;
-  const isTesoreria = session.username === WILMAR_USERNAME;
+  const isJosue = isJosueSession(session);
+  const isTesoreria = isTesoreriaSession(session);
 
   async function notify(userId: string, message: string) {
     try {
@@ -344,6 +375,23 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'la nota no puede estar vacía' }), { status: 400 });
     }
     addEvent(caso, 'note', note, actorName, now);
+  } else if (action === 'updateInfo') {
+    if (!isCurrentAssignee && !isOverride) {
+      return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado puede completar esta información' }), { status: 403 });
+    }
+    if (caso.finalized) {
+      return new Response(JSON.stringify({ error: 'este caso ya fue finalizado' }), { status: 400 });
+    }
+    const newClientName = String(body.clientName || '').trim();
+    if (photoFile) {
+      const uploaded = await uploadRequestPhoto(photoFile);
+      if (uploaded.error) {
+        return new Response(JSON.stringify({ error: uploaded.error }), { status: uploaded.status || 500 });
+      }
+      caso.requestPhotoPath = uploaded.path || caso.requestPhotoPath;
+    }
+    if (newClientName) caso.clientName = newClientName;
+    addEvent(caso, 'info-updated', `${actorName} completó la información del caso`, actorName, now);
   } else if (action === 'escalate') {
     if (!isCurrentAssignee && !isOverride && !isJosue) {
       return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado puede escalarlo' }), { status: 403 });

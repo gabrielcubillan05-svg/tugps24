@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', function () {
       parts.push(`
         <span class="suspension-reassign">
           <select data-reassign="any" data-id="${c.id}"><option value="">Asignación especial a...</option>${userOptions(anyUsers)}</select>
-          <button class="btn-small" data-action="reassign" data-id="${c.id}" type="button">Asignar (Josué)</button>
+          <button class="btn-small" data-action="reassign" data-id="${c.id}" type="button">Asignar</button>
         </span>
       `);
     }
@@ -143,13 +143,22 @@ document.addEventListener('DOMContentLoaded', function () {
     suspensionesList.innerHTML = casos.map((c) => `
       <div class="suspension-item ${!OPEN_STATUSES.includes(c.status) ? 'closed' : ''}" data-id="${c.id}">
         <div class="suspension-top">
-          <span class="suspension-client">${escapeHtml(c.clientName)}${c.plate ? ' · ' + escapeHtml(c.plate) : ''} · ${escapeHtml(c.branch)}</span>
+          <span class="suspension-client">${c.clientName ? escapeHtml(c.clientName) : 'Cliente sin nombre'}${c.plate ? ' · ' + escapeHtml(c.plate) : ''} · ${escapeHtml(c.branch)}</span>
           <span class="badge ${statusClass(c.status)}">${escapeHtml(c.status)}</span>
         </div>
         <p class="suspension-reason">${escapeHtml(c.reason)}</p>
         ${c.requestPhotoUrl ? `
           <div class="suspension-photo">
             <a href="${c.requestPhotoUrl}" target="_blank" rel="noopener"><img src="${c.requestPhotoUrl}" alt="Solicitud del cliente" loading="lazy" /></a>
+          </div>
+        ` : ''}
+        ${!c.finalized && (c.assignedToId === currentUserId || isOverrideRole) ? `
+          <div class="suspension-complete-info">
+            <span class="hint-label">Completar información del cliente</span>
+            <input type="text" data-complete-name data-id="${c.id}" value="${escapeHtml(c.clientName)}" placeholder="Nombre del cliente" />
+            <input type="file" accept="image/*" data-complete-photo data-id="${c.id}" />
+            <span class="complete-photo-preview" data-complete-preview data-id="${c.id}"></span>
+            <button class="btn-small" data-action="updateInfo" data-id="${c.id}" type="button">Guardar información</button>
           </div>
         ` : ''}
         <div class="suspension-meta">
@@ -175,12 +184,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let allCasos = [];
   let currentTab = '';
+  const pendingInfoPhotos = {};
+
+  suspensionesList.addEventListener('change', function (e) {
+    const input = e.target.closest('input[data-complete-photo]');
+    if (!input) return;
+    const id = input.getAttribute('data-id');
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (pendingInfoPhotos[id]) URL.revokeObjectURL(pendingInfoPhotos[id].url);
+    pendingInfoPhotos[id] = { file, url: URL.createObjectURL(file) };
+    const preview = suspensionesList.querySelector(`[data-complete-preview][data-id="${id}"]`);
+    if (preview) preview.innerHTML = `<img src="${pendingInfoPhotos[id].url}" alt="Previsualización" />`;
+    input.value = '';
+  });
 
   function loadSuspensiones() {
     const params = new URLSearchParams();
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
     if (branchFilter.value) params.set('branch', branchFilter.value);
     if (currentTab) params.set('status', currentTab);
+    if (dateFromFilter.value) params.set('dateFrom', dateFromFilter.value);
+    if (dateToFilter.value) params.set('dateTo', dateToFilter.value);
 
     fetch('/api/suspensiones?' + params.toString())
       .then(async (res) => {
@@ -203,6 +228,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const searchInput = document.getElementById('searchInput');
   const branchFilter = document.getElementById('branchFilter');
+  const dateFromFilter = document.getElementById('dateFromFilter');
+  const dateToFilter = document.getElementById('dateToFilter');
   const tabButtons = document.querySelectorAll('.tab-btn[data-status]');
 
   let debounceTimer;
@@ -211,6 +238,8 @@ document.addEventListener('DOMContentLoaded', function () {
     debounceTimer = setTimeout(loadSuspensiones, 250);
   });
   branchFilter.addEventListener('change', loadSuspensiones);
+  dateFromFilter.addEventListener('change', loadSuspensiones);
+  dateToFilter.addEventListener('change', loadSuspensiones);
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', function () {
       tabButtons.forEach((b) => b.classList.remove('active'));
@@ -220,7 +249,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  suspensionesList.addEventListener('click', function (e) {
+  suspensionesList.addEventListener('click', async function (e) {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const action = btn.getAttribute('data-action');
@@ -235,6 +264,36 @@ document.addEventListener('DOMContentLoaded', function () {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action, note }),
       }).then(loadSuspensiones);
+      return;
+    }
+
+    if (action === 'updateInfo') {
+      const nameInput = suspensionesList.querySelector(`input[data-complete-name][data-id="${id}"]`);
+      const clientName = nameInput ? nameInput.value.trim() : '';
+      const pending = pendingInfoPhotos[id];
+      btn.disabled = true;
+      try {
+        const formData = new FormData();
+        formData.set('id', id);
+        formData.set('action', action);
+        formData.set('clientName', clientName);
+        if (pending) {
+          const compressed = await compressImage(pending.file, 1600, 0.75);
+          formData.append('photo', compressed, 'foto.jpg');
+        }
+        const res = await fetch('/api/suspensiones', { method: 'PATCH', body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar la información.');
+        if (pending) {
+          URL.revokeObjectURL(pending.url);
+          delete pendingInfoPhotos[id];
+        }
+        loadSuspensiones();
+      } catch (err) {
+        alert(err.message || 'No se pudo guardar la información.');
+      } finally {
+        btn.disabled = false;
+      }
       return;
     }
 
@@ -270,66 +329,17 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch((err) => alert(err.message || 'No se pudo actualizar el caso.'));
   });
 
-  // --- Formulario de creación (foto con paste/compresión, igual que Novedades) ---
-  const photoInput = document.getElementById('photo');
-  const imagePreview = document.getElementById('imagePreview');
-  let pendingPhoto = null;
-
-  function renderImagePreview() {
-    if (!pendingPhoto) {
-      imagePreview.innerHTML = '';
-      return;
-    }
-    imagePreview.innerHTML = `
-      <div class="thumb" data-index="0">
-        <img src="${pendingPhoto.url}" alt="Previsualización" />
-        <button type="button" data-remove="0" aria-label="Quitar imagen">×</button>
-      </div>
-    `;
-  }
-
-  function setPendingPhoto(file) {
-    if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url);
-    pendingPhoto = { file, url: URL.createObjectURL(file) };
-    renderImagePreview();
-  }
-
-  if (photoInput) {
-    photoInput.addEventListener('change', () => {
-      const file = photoInput.files && photoInput.files[0];
-      if (file) setPendingPhoto(file);
-      photoInput.value = '';
-    });
-  }
-
-  if (imagePreview) {
-    imagePreview.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-remove]');
-      if (!btn) return;
-      if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url);
-      pendingPhoto = null;
-      renderImagePreview();
-    });
-  }
-
+  // --- Formulario de creación (el operador solo registra sucursal, placa, motivo y teléfono) ---
   const suspensionForm = document.getElementById('suspensionForm');
-  suspensionForm.addEventListener('paste', (e) => {
-    const items = Array.from(e.clipboardData?.items || []);
-    const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
-    if (!imageItem) return;
-    const file = imageItem.getAsFile();
-    if (file) setPendingPhoto(file);
-  });
 
   suspensionForm.addEventListener('submit', async function (e) {
     e.preventDefault();
-    const clientName = document.getElementById('clientName').value.trim();
     const clientPhone = document.getElementById('clientPhone').value.trim();
     const plate = document.getElementById('plate').value.trim();
     const branch = document.getElementById('branch').value;
     const assignToId = document.getElementById('assignTo').value;
     const reason = document.getElementById('reason').value.trim();
-    if (!clientName || !plate || !branch || !assignToId || !reason) return;
+    if (!plate || !branch || !assignToId || !reason) return;
 
     const submitBtn = suspensionForm.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
@@ -337,18 +347,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     try {
       const formData = new FormData();
-      formData.set('clientName', clientName);
       formData.set('clientPhone', clientPhone);
       formData.set('plate', plate);
       formData.set('branch', branch);
       formData.set('assignToId', assignToId);
       formData.set('reason', reason);
-
-      if (pendingPhoto) {
-        submitBtn.textContent = 'Procesando foto...';
-        const compressed = await compressImage(pendingPhoto.file, 1600, 0.75);
-        formData.append('photo', compressed, 'foto.jpg');
-      }
 
       submitBtn.textContent = 'Guardando...';
       const res = await fetch('/api/suspensiones', { method: 'POST', body: formData });
@@ -357,9 +360,6 @@ document.addEventListener('DOMContentLoaded', function () {
         throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || `error ${res.status}`);
       }
       suspensionForm.reset();
-      if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url);
-      pendingPhoto = null;
-      renderImagePreview();
       loadSuspensiones();
     } catch (err) {
       alert('No se pudo guardar el caso: ' + (err.message || 'intenta de nuevo.'));

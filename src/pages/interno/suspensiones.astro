@@ -19,14 +19,10 @@ if (!canAccessSuspensiones(session)) {
 
   <div class="panel-card">
     <h2>Nuevo caso de suspensión</h2>
-    <p class="hint">El operador registra el caso del cliente que quiere suspender y lo asigna al gerente o secretaria correspondiente para buscarle una solución.</p>
+    <p class="hint">El operador registra la sucursal, la placa, el motivo y el teléfono, y lo asigna al gerente o secretaria correspondiente. La secretaria completa después el nombre del cliente y la foto de la solicitud.</p>
     <form id="suspensionForm" class="form-grid">
       <div class="field">
-        <label for="clientName">Cliente</label>
-        <input id="clientName" type="text" placeholder="Nombre del cliente" required />
-      </div>
-      <div class="field">
-        <label for="clientPhone">Teléfono (opcional)</label>
+        <label for="clientPhone">Teléfono del cliente</label>
         <input id="clientPhone" type="text" placeholder="300 000 0000" />
       </div>
       <div class="field">
@@ -49,11 +45,6 @@ if (!canAccessSuspensiones(session)) {
       <div class="field field-note">
         <label for="reason">Motivo por el que quiere suspender</label>
         <textarea id="reason" placeholder="Qué le pasó al cliente, qué está pidiendo" required></textarea>
-      </div>
-      <div class="field field-note">
-        <label for="photo">Foto de la solicitud del cliente (opcional) — puedes pegar una captura con Ctrl+V</label>
-        <input id="photo" type="file" accept="image/*" />
-        <div class="image-preview" id="imagePreview"></div>
       </div>
       <button class="btn field-full" type="submit">Guardar caso</button>
     </form>
@@ -79,6 +70,8 @@ if (!canAccessSuspensiones(session)) {
         <option value="">Todas las sucursales</option>
         {BRANCHES.map((b) => <option value={b}>{b}</option>)}
       </select>
+      <label class="date-filter-label">Desde <input id="dateFromFilter" type="date" /></label>
+      <label class="date-filter-label">Hasta <input id="dateToFilter" type="date" /></label>
     </div>
     <div class="suspensiones-list" id="suspensionesList">
       <div class="empty">Cargando...</div>
@@ -107,8 +100,23 @@ if (!canAccessSuspensiones(session)) {
   .suspension-add-note-row input { flex: 1; }
   .suspension-photo { margin-bottom: 10px; }
   .suspension-photo img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; }
+  .date-filter-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--slate); }
   .suspension-reassign { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .suspension-reassign select { min-width: 160px; }
+  .suspension-complete-info {
+    background: var(--ink-900, #0e0d0b);
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .suspension-complete-info .hint-label { width: 100%; font-size: 12px; color: var(--slate); margin-bottom: 2px; }
+  .suspension-complete-info input[type="text"] { min-width: 180px; flex: 1; }
+  .suspension-complete-info .complete-photo-preview img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; }
   .badge.status-Nuevo { background: #e0563f22; color: var(--danger); }
   .badge.status-En-revisión { background: #ff7a1a29; color: var(--amber); }
   .badge.status-Escalado-a-Josué { background: #4a90d922; color: #7ab8ec; }
