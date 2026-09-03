@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { get } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, canAccessSection, canAccessPagos } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, canAccessPagos, canAccessSuspensiones } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -32,6 +32,10 @@ export const GET: APIRoute = async ({ url, cookies }) => {
     }
   } else if (path.startsWith('casos/')) {
     if (!canAccessSection(session.role, 'casos-importantes')) {
+      return new Response('forbidden', { status: 403 });
+    }
+  } else if (path.startsWith('suspensiones/')) {
+    if (!canAccessSuspensiones(session)) {
       return new Response('forbidden', { status: 403 });
     }
   } else if (path.startsWith('tasks/')) {

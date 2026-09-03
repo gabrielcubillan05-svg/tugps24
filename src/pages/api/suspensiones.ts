@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
+import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
@@ -11,7 +12,6 @@ import {
   findUserByUsername,
   getUsers,
   JOSUE_USERNAME,
-  WILMAR_USERNAME,
   verifySameOrigin,
 } from '../../lib/auth';
 
@@ -21,6 +21,7 @@ const REDIS_KEY = 'internal:suspensiones';
 export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 export const STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'En tesorería', 'Resuelto', 'Suspendido'];
 const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'En tesorería'];
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 interface TimelineEvent {
   id: string;
@@ -34,13 +35,13 @@ interface Suspension {
   id: string;
   clientName: string;
   clientPhone: string;
+  plate: string;
   branch: string;
   reason: string;
+  requestPhotoPath: string | null;
   status: string;
   assignedToId: string;
   assignedToName: string;
-  branchAssigneeId: string;
-  branchAssigneeName: string;
   timeline: TimelineEvent[];
   createdAt: string;
   updatedAt: string;
@@ -65,7 +66,7 @@ async function readSuspensiones(redis: any): Promise<Suspension[]> {
       }
     })
     .filter((s): s is Suspension => s !== null)
-    .map((s) => ({ timeline: [], clientPhone: '', ...s }))
+    .map((s) => ({ timeline: [], clientPhone: '', plate: '', requestPhotoPath: null, ...s }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -131,6 +132,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (q) {
     casos = casos.filter((c) =>
       c.clientName.toLowerCase().includes(q) ||
+      c.plate.toLowerCase().includes(q) ||
       c.reason.toLowerCase().includes(q) ||
       c.branch.toLowerCase().includes(q)
     );
@@ -139,8 +141,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (status === 'abierto') casos = casos.filter((c) => OPEN_STATUSES.includes(c.status));
   else if (status) casos = casos.filter((c) => c.status === status);
 
+  const casosWithUrl = casos.map((c) => ({
+    ...c,
+    requestPhotoUrl: c.requestPhotoPath ? '/api/blob-file?path=' + encodeURIComponent(c.requestPhotoPath) : null,
+  }));
+
   return new Response(
-    JSON.stringify({ casos, branches: BRANCHES, statuses: STATUSES, stats, currentUserId: session.userId }),
+    JSON.stringify({ casos: casosWithUrl, branches: BRANCHES, statuses: STATUSES, stats, currentUserId: session.userId }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };
@@ -158,18 +165,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { clientName?: string; clientPhone?: string; branch?: string; reason?: string; assignToId?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
-  }
-
-  const clientName = String(body.clientName || '').trim();
-  const clientPhone = String(body.clientPhone || '').trim();
-  const branch = String(body.branch || '').trim();
-  const reason = String(body.reason || '').trim();
-  const assignToId = String(body.assignToId || '').trim();
+  const form = await request.formData();
+  const clientName = String(form.get('clientName') || '').trim();
+  const clientPhone = String(form.get('clientPhone') || '').trim();
+  const plate = String(form.get('plate') || '').trim();
+  const branch = String(form.get('branch') || '').trim();
+  const reason = String(form.get('reason') || '').trim();
+  const assignToId = String(form.get('assignToId') || '').trim();
+  const photoFile = form.get('photo');
 
   if (!clientName || !branch || !reason || !assignToId) {
     return new Response(JSON.stringify({ error: 'faltan campos obligatorios' }), { status: 400 });
@@ -183,6 +186,30 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'selecciona un gerente o secretaria válido' }), { status: 400 });
   }
 
+  let requestPhotoPath: string | null = null;
+  if (photoFile instanceof File && photoFile.size > 0) {
+    if (!photoFile.type.startsWith('image/')) {
+      return new Response(JSON.stringify({ error: 'la foto de la solicitud debe ser una imagen' }), { status: 400 });
+    }
+    if (photoFile.size > MAX_IMAGE_BYTES) {
+      return new Response(JSON.stringify({ error: 'la foto debe pesar menos de 8MB' }), { status: 400 });
+    }
+    const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'almacenamiento de imágenes no configurado' }), { status: 503 });
+    }
+    try {
+      const id = randomUUID();
+      const blob = await put(`suspensiones/${id}`, photoFile, { access: 'private', token, addRandomSuffix: false });
+      requestPhotoPath = blob.pathname;
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ error: 'fallo al subir la foto', detail: err instanceof Error ? err.message : String(err) }),
+        { status: 500 }
+      );
+    }
+  }
+
   const creator = await findUserById(redis, session.userId);
   const now = new Date().toISOString();
 
@@ -190,13 +217,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     id: randomUUID(),
     clientName,
     clientPhone,
+    plate,
     branch,
     reason,
+    requestPhotoPath,
     status: 'Nuevo',
     assignedToId: assignee.id,
     assignedToName: assignee.name,
-    branchAssigneeId: assignee.id,
-    branchAssigneeName: assignee.name,
     timeline: [],
     createdAt: now,
     updatedAt: now,
@@ -237,7 +264,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; action?: string; note?: string };
+  let body: { id?: string; action?: string; note?: string; targetUserId?: string };
   try {
     body = await request.json();
   } catch {
@@ -251,7 +278,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const caso: Suspension = { timeline: [], clientPhone: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const caso: Suspension = { timeline: [], clientPhone: '', plate: '', requestPhotoPath: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
 
   const actor = await findUserById(redis, session.userId);
   const actorName = actor?.name || session.username;
@@ -303,19 +330,19 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (caso.status !== 'Escalado a Josué') {
       return new Response(JSON.stringify({ error: 'este caso no está con Josué' }), { status: 400 });
     }
-    const wilmar = await findUserByUsername(redis, WILMAR_USERNAME);
-    if (!wilmar) {
-      const allUsers = await getUsers(redis);
-      return new Response(JSON.stringify({
-        error: 'no se encontró el usuario de tesorería en el sistema',
-        detail: `Buscando el username "${WILMAR_USERNAME}" entre ${allUsers.length} usuario(s): ${allUsers.map((u) => u.username).join(', ') || '(ninguno)'}`,
-      }), { status: 500 });
+    const targetUserId = String(body.targetUserId || '').trim();
+    if (!targetUserId) {
+      return new Response(JSON.stringify({ error: 'selecciona a quién en tesorería se le asigna' }), { status: 400 });
     }
-    caso.assignedToId = wilmar.id;
-    caso.assignedToName = wilmar.name;
+    const target = await findUserById(redis, targetUserId);
+    if (!target || !target.active) {
+      return new Response(JSON.stringify({ error: 'selecciona un usuario activo válido' }), { status: 400 });
+    }
+    caso.assignedToId = target.id;
+    caso.assignedToName = target.name;
     caso.status = 'En tesorería';
-    addEvent(caso, 'sent-tesoreria', `${actorName} pasó el caso a tesorería (${wilmar.name})${note ? ': ' + note : ''}`, actorName, now);
-    await notify(wilmar.id, `Caso de suspensión en tesorería: ${caso.clientName} (${caso.branch})`);
+    addEvent(caso, 'sent-tesoreria', `${actorName} pasó el caso a tesorería (${target.name})${note ? ': ' + note : ''}`, actorName, now);
+    await notify(target.id, `Caso de suspensión en tesorería: ${caso.clientName} (${caso.branch})`);
   } else if (action === 'returnToBranch') {
     if (!isCurrentAssignee && !isOverride) {
       return new Response(JSON.stringify({ error: 'no tienes permiso sobre este caso' }), { status: 403 });
@@ -323,17 +350,25 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (caso.status !== 'Escalado a Josué' && caso.status !== 'En tesorería') {
       return new Response(JSON.stringify({ error: 'este caso no se puede devolver desde su estado actual' }), { status: 400 });
     }
-    caso.assignedToId = caso.branchAssigneeId;
-    caso.assignedToName = caso.branchAssigneeName;
-    caso.status = 'En revisión';
-    addEvent(caso, 'returned', `${actorName} devolvió el caso a ${caso.branchAssigneeName}${note ? ': ' + note : ''}`, actorName, now);
-    await notify(caso.branchAssigneeId, `Caso de suspensión devuelto: ${caso.clientName} (${caso.branch})`);
-  } else if (action === 'resolve' || action === 'suspend') {
-    if (!isCurrentAssignee && !isOverride) {
-      return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado puede cerrarlo' }), { status: 403 });
+    const targetUserId = String(body.targetUserId || '').trim();
+    if (!targetUserId) {
+      return new Response(JSON.stringify({ error: 'selecciona a qué gerente o secretaria se devuelve' }), { status: 400 });
     }
-    if (!OPEN_STATUSES.includes(caso.status)) {
-      return new Response(JSON.stringify({ error: 'este caso ya está cerrado' }), { status: 400 });
+    const target = await findUserById(redis, targetUserId);
+    if (!target || !target.active || (target.role !== 'gerente' && target.role !== 'secretaria')) {
+      return new Response(JSON.stringify({ error: 'selecciona un gerente o secretaria válido' }), { status: 400 });
+    }
+    caso.assignedToId = target.id;
+    caso.assignedToName = target.name;
+    caso.status = 'En revisión';
+    addEvent(caso, 'returned', `${actorName} devolvió el caso a ${target.name}${note ? ': ' + note : ''}`, actorName, now);
+    await notify(target.id, `Caso de suspensión devuelto: ${caso.clientName} (${caso.branch})`);
+  } else if (action === 'resolve' || action === 'suspend') {
+    if (caso.status !== 'En tesorería') {
+      return new Response(JSON.stringify({ error: 'solo tesorería puede cerrar definitivamente el caso, una vez que lo tenga asignado' }), { status: 400 });
+    }
+    if (!isCurrentAssignee && !isOverride) {
+      return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado en tesorería puede cerrarlo' }), { status: 403 });
     }
     caso.status = action === 'resolve' ? 'Resuelto' : 'Suspendido';
     const label = action === 'resolve' ? 'Resuelto — el cliente se queda' : 'Suspendido — no se encontró solución';

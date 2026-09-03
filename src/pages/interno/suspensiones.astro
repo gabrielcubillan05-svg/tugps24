@@ -30,6 +30,10 @@ if (!canAccessSuspensiones(session)) {
         <input id="clientPhone" type="text" placeholder="300 000 0000" />
       </div>
       <div class="field">
+        <label for="plate">Placa o placas</label>
+        <input id="plate" type="text" placeholder="Ej: GKX740, ABC123" required />
+      </div>
+      <div class="field">
         <label for="branch">Sucursal</label>
         <select id="branch" required>
           <option value="">Selecciona una sucursal</option>
@@ -45,6 +49,11 @@ if (!canAccessSuspensiones(session)) {
       <div class="field field-note">
         <label for="reason">Motivo por el que quiere suspender</label>
         <textarea id="reason" placeholder="Qué le pasó al cliente, qué está pidiendo" required></textarea>
+      </div>
+      <div class="field field-note">
+        <label for="photo">Foto de la solicitud del cliente (opcional) — puedes pegar una captura con Ctrl+V</label>
+        <input id="photo" type="file" accept="image/*" />
+        <div class="image-preview" id="imagePreview"></div>
       </div>
       <button class="btn field-full" type="submit">Guardar caso</button>
     </form>
@@ -95,6 +104,10 @@ if (!canAccessSuspensiones(session)) {
   .timeline-date { color: var(--slate); font-size: 11px; margin-right: 8px; }
   .suspension-add-note-row { display: flex; gap: 8px; }
   .suspension-add-note-row input { flex: 1; }
+  .suspension-photo { margin-bottom: 10px; }
+  .suspension-photo img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; }
+  .suspension-reassign { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .suspension-reassign select { min-width: 160px; }
   .badge.status-Nuevo { background: #e0563f22; color: var(--danger); }
   .badge.status-En-revisión { background: #ff7a1a29; color: var(--amber); }
   .badge.status-Escalado-a-Josué { background: #4a90d922; color: #7ab8ec; }

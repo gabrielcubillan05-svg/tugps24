@@ -62,8 +62,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     canAccessSuspensiones(session) &&
     requestedRoles.length > 0 &&
     requestedRoles.every((r) => SUSPENSIONES_ASSIGNEE_ROLES.includes(r));
+  // Para el selector de "pasar a tesorería": no sabemos con qué rol está esa persona,
+  // así que se deja ver a todos los activos en vez de filtrar por rol.
+  const canSuspensionesAny = canAccessSuspensiones(session) && requestedRoles.length === 0 && url.searchParams.get('any') === '1';
 
-  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts && !canReportesOperadores && !canNovedadesAuthors && !canSuspensionesAssignees) {
+  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts && !canReportesOperadores && !canNovedadesAuthors && !canSuspensionesAssignees && !canSuspensionesAny) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -76,6 +79,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     if (requestedRoles.length) users = users.filter((u) => requestedRoles.includes(u.role));
   } else if (canCrmContacts || canReportesOperadores || canNovedadesAuthors || canSuspensionesAssignees) {
     users = users.filter((u) => requestedRoles.includes(u.role) && u.active);
+  } else if (canSuspensionesAny) {
+    users = users.filter((u) => u.active);
   } else if (canHorario || canChat) {
     users = users.filter((u) => u.active);
   }
