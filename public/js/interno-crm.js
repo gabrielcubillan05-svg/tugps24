@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const secretaryFilter = document.getElementById('secretaryFilter');
   const statusFilter = document.getElementById('statusFilter');
   const vehicleTypeFilter = document.getElementById('vehicleTypeFilter');
+  const monthFilter = document.getElementById('monthFilter');
   const overdueFilter = document.getElementById('overdueFilter');
   const dateFromFilter = document.getElementById('dateFromFilter');
   const dateToFilter = document.getElementById('dateToFilter');
@@ -111,6 +112,17 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     return ageHours > 24;
   }
 
+  function computeStats(leads) {
+    const byStatus = {};
+    STATUSES.forEach((s) => { byStatus[s] = 0; });
+    leads.forEach((l) => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+    return {
+      total: leads.length,
+      byStatus,
+      overdueCount: leads.filter((l) => l.overdue).length,
+    };
+  }
+
   function renderStats(stats) {
     const boxes = STATUSES.map((s) => `
       <div class="stat-box">
@@ -125,9 +137,17 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     `;
   }
 
+  const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  function monthLabel(ym) {
+    const [y, m] = ym.split('-');
+    const name = MONTH_NAMES[parseInt(m, 10) - 1] || ym;
+    return name.charAt(0).toUpperCase() + name.slice(1) + ' ' + y;
+  }
+
   function populateDynamicFilters(leads) {
     const cities = [...new Set(leads.map((l) => l.city).filter(Boolean))].sort();
     const secretaries = [...new Set(leads.map((l) => l.secretary).filter(Boolean))].sort();
+    const months = [...new Set(leads.map((l) => (l.createdAt || '').slice(0, 7)).filter(Boolean))].sort().reverse();
 
     const currentCity = cityFilter.value;
     cityFilter.innerHTML = '<option value="">Todas las ciudades</option>' +
@@ -138,6 +158,11 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     secretaryFilter.innerHTML = '<option value="">Todas las secretarias</option>' +
       secretaries.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     secretaryFilter.value = currentSec;
+
+    const currentMonth = monthFilter.value;
+    monthFilter.innerHTML = '<option value="">Todos los meses</option>' +
+      months.map((m) => `<option value="${m}">${escapeHtml(monthLabel(m))}</option>`).join('');
+    monthFilter.value = currentMonth;
   }
 
   function getFilteredLeads() {
@@ -146,6 +171,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     const secretary = secretaryFilter.value;
     const status = statusFilter.value;
     const vehicleType = vehicleTypeFilter.value;
+    const month = monthFilter.value;
     const onlyOverdue = overdueFilter.checked;
     const dateFrom = dateFromFilter.value;
     const dateTo = dateToFilter.value;
@@ -161,6 +187,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       if (secretary && l.secretary !== secretary) return false;
       if (status && l.status !== status) return false;
       if (vehicleType && l.vehicleType !== vehicleType) return false;
+      if (month && (l.createdAt || '').slice(0, 7) !== month) return false;
       if (onlyOverdue && !l.overdue) return false;
       if (dateFrom || dateTo) {
         const created = l.createdAt ? l.createdAt.slice(0, 10) : '';
@@ -385,6 +412,9 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   }
 
   function renderCurrentView() {
+    const filtered = getFilteredLeads();
+    renderStats(computeStats(filtered));
+    renderResults(filtered);
     renderLeads();
     renderBoard();
     renderFilteredCount();
@@ -399,10 +429,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           return;
         }
         allLeads = data.leads;
-        renderStats(data.stats);
         populateDynamicFilters(allLeads);
         renderCurrentView();
-        renderResults(allLeads);
       })
       .catch(() => {
         leadsList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
@@ -420,6 +448,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   secretaryFilter.addEventListener('change', renderCurrentView);
   statusFilter.addEventListener('change', renderCurrentView);
   vehicleTypeFilter.addEventListener('change', renderCurrentView);
+  monthFilter.addEventListener('change', renderCurrentView);
   overdueFilter.addEventListener('change', renderCurrentView);
   dateFromFilter.addEventListener('change', renderCurrentView);
   dateToFilter.addEventListener('change', renderCurrentView);
