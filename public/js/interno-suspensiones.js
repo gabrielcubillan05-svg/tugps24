@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const currentRole = (suspensionesData && suspensionesData.dataset.role) || '';
   const isOverrideRole = currentRole === 'admin' || currentRole === 'supervisor';
   let currentUserId = '';
+  let isJosue = false;
+  let isTesoreria = false;
 
   function escapeHtml(str) {
     return String(str || '')
@@ -55,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'En tesorería'];
+  const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
 
   let branchAssignees = [];
   let anyUsers = [];
@@ -92,6 +94,8 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="stat-box overdue"><span class="n">${stats.suspendedCount}</span><span class="l">Suspendidos</span></div>
       <div class="stat-box"><span class="n">${stats.resolutionRate !== null ? stats.resolutionRate + '%' : '—'}</span><span class="l">Tasa de retención</span></div>
       <div class="stat-box"><span class="n">${stats.avgResolutionHours !== null ? fmtHours(stats.avgResolutionHours) : '—'}</span><span class="l">Tiempo prom. de cierre</span></div>
+      <div class="stat-box overdue"><span class="n">${stats.pendingFinalizacion}</span><span class="l">Por finalizar (tesorería)</span></div>
+      <div class="stat-box"><span class="n">${stats.finalizedCount}</span><span class="l">Finalizados</span></div>
     `;
   }
 
@@ -101,31 +105,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function actionsFor(c) {
     const isAssignee = c.assignedToId === currentUserId;
-    if (!isAssignee && !isOverrideRole) return '';
-    if (!OPEN_STATUSES.includes(c.status)) return '';
+    const canJosueReassign = (isJosue || isOverrideRole) && OPEN_STATUSES.includes(c.status);
+    const canFinalize = (isTesoreria || isOverrideRole) && !c.finalized && (c.status === 'Resuelto' || c.status === 'Suspendido');
 
     const parts = [];
-    if (c.status === 'Nuevo' || c.status === 'En revisión') {
-      parts.push(`<button class="btn-small" data-action="escalate" data-id="${c.id}" type="button">Escalar a Josué</button>`);
-    }
-    if (c.status === 'Escalado a Josué') {
-      parts.push(`
-        <span class="suspension-reassign">
-          <select data-reassign="tesoreria" data-id="${c.id}"><option value="">Elige tesorería...</option>${userOptions(anyUsers)}</select>
-          <button class="btn-small" data-action="sendToTesoreria" data-id="${c.id}" type="button">Pasar a tesorería</button>
-        </span>
-      `);
-      parts.push(`
-        <span class="suspension-reassign">
-          <select data-reassign="branch" data-id="${c.id}"><option value="">Elige gerente/secretaria...</option>${userOptions(branchAssignees)}</select>
-          <button class="btn-small" data-action="returnToBranch" data-id="${c.id}" type="button">Devolver a sucursal</button>
-        </span>
-      `);
-    }
-    if (c.status === 'En tesorería') {
+
+    if ((isAssignee || isOverrideRole) && OPEN_STATUSES.includes(c.status)) {
+      if (c.status === 'Nuevo' || c.status === 'En revisión') {
+        parts.push(`<button class="btn-small" data-action="escalate" data-id="${c.id}" type="button">Escalar a Josué</button>`);
+      }
       parts.push(`<button class="btn-small btn-done" data-action="resolve" data-id="${c.id}" type="button">Resolver (cliente se queda)</button>`);
       parts.push(`<button class="btn-small btn-delete" data-action="suspend" data-id="${c.id}" type="button">Suspender (sin solución)</button>`);
     }
+
+    if (canJosueReassign) {
+      parts.push(`
+        <span class="suspension-reassign">
+          <select data-reassign="any" data-id="${c.id}"><option value="">Asignación especial a...</option>${userOptions(anyUsers)}</select>
+          <button class="btn-small" data-action="reassign" data-id="${c.id}" type="button">Asignar (Josué)</button>
+        </span>
+      `);
+    }
+
+    if (canFinalize) {
+      parts.push(`<button class="btn-small btn-done" data-action="finalize" data-id="${c.id}" type="button">Caso finalizado</button>`);
+    }
+
     return parts.join('');
   }
 
@@ -149,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="suspension-meta">
           Asignado a ${escapeHtml(c.assignedToName)} · Creado por ${escapeHtml(c.createdByName)} el ${fmtDate(c.createdAt)}
           ${c.clientPhone ? ` · Tel: ${escapeHtml(c.clientPhone)}` : ''}
+          ${c.finalized ? ` · Finalizado por ${escapeHtml(c.finalizedByName)} el ${fmtDate(c.finalizedAt)}` : ''}
         </div>
         ${c.timeline && c.timeline.length ? `
           <div class="suspension-timeline">
@@ -156,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         ` : ''}
         <div class="suspension-actions">${actionsFor(c)}</div>
-        ${OPEN_STATUSES.includes(c.status) && (c.assignedToId === currentUserId || isOverrideRole || c.createdById === currentUserId) ? `
+        ${!c.finalized && (c.assignedToId === currentUserId || isOverrideRole || c.createdById === currentUserId) ? `
           <div class="suspension-add-note-row">
             <input type="text" placeholder="Agregar nota de seguimiento..." data-note-input data-id="${c.id}" />
             <button class="btn-small" data-action="addNote" data-id="${c.id}" type="button">Agregar</button>
@@ -180,6 +186,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.casos)) {
           currentUserId = data.currentUserId || '';
+          isJosue = Boolean(data.isJosue);
+          isTesoreria = Boolean(data.isTesoreria);
           allCasos = data.casos;
           renderStats(data.stats);
           renderList(allCasos);
@@ -231,9 +239,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const body = { id, action };
 
-    if (action === 'sendToTesoreria' || action === 'returnToBranch') {
-      const kind = action === 'sendToTesoreria' ? 'tesoreria' : 'branch';
-      const select = suspensionesList.querySelector(`select[data-reassign="${kind}"][data-id="${id}"]`);
+    if (action === 'reassign') {
+      const select = suspensionesList.querySelector(`select[data-reassign="any"][data-id="${id}"]`);
       const targetUserId = select ? select.value : '';
       if (!targetUserId) {
         alert('Selecciona a quién se le asigna antes de continuar.');
@@ -243,8 +250,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (action === 'suspend' && !confirm('¿Confirmas que no se encontró solución y el cliente se suspende?')) return;
+    if (action === 'finalize' && !confirm('¿Confirmas que este caso queda finalizado por tesorería?')) return;
 
-    if (action === 'escalate' || action === 'sendToTesoreria' || action === 'returnToBranch' || action === 'resolve' || action === 'suspend') {
+    if (action === 'escalate' || action === 'reassign' || action === 'resolve' || action === 'suspend' || action === 'finalize') {
       body.note = prompt('Nota (opcional) sobre esta acción:') || '';
     }
 

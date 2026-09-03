@@ -12,6 +12,7 @@ import {
   findUserByUsername,
   getUsers,
   JOSUE_USERNAME,
+  WILMAR_USERNAME,
   verifySameOrigin,
 } from '../../lib/auth';
 
@@ -19,8 +20,9 @@ export const prerender = false;
 
 const REDIS_KEY = 'internal:suspensiones';
 export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
-export const STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'En tesorería', 'Resuelto', 'Suspendido'];
-const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'En tesorería'];
+export const STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'Resuelto', 'Suspendido'];
+const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
+const CLOSED_STATUSES = ['Resuelto', 'Suspendido'];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 interface TimelineEvent {
@@ -42,6 +44,9 @@ interface Suspension {
   status: string;
   assignedToId: string;
   assignedToName: string;
+  finalized: boolean;
+  finalizedAt: string | null;
+  finalizedByName: string;
   timeline: TimelineEvent[];
   createdAt: string;
   updatedAt: string;
@@ -66,7 +71,16 @@ async function readSuspensiones(redis: any): Promise<Suspension[]> {
       }
     })
     .filter((s): s is Suspension => s !== null)
-    .map((s) => ({ timeline: [], clientPhone: '', plate: '', requestPhotoPath: null, ...s }))
+    .map((s) => ({
+      timeline: [],
+      clientPhone: '',
+      plate: '',
+      requestPhotoPath: null,
+      finalized: false,
+      finalizedAt: null,
+      finalizedByName: '',
+      ...s,
+    }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -80,10 +94,12 @@ function computeStats(casos: Suspension[]) {
   for (const s of STATUSES) byStatus[s] = 0;
   for (const c of casos) byStatus[c.status] = (byStatus[c.status] || 0) + 1;
 
-  const closed = casos.filter((c) => c.status === 'Resuelto' || c.status === 'Suspendido');
+  const closed = casos.filter((c) => CLOSED_STATUSES.includes(c.status));
   const resolvedCount = byStatus['Resuelto'] || 0;
   const suspendedCount = byStatus['Suspendido'] || 0;
   const resolutionRate = closed.length ? Math.round((resolvedCount / closed.length) * 1000) / 10 : null;
+  const pendingFinalizacion = closed.filter((c) => !c.finalized).length;
+  const finalizedCount = closed.filter((c) => c.finalized).length;
 
   let totalHours = 0;
   let withTime = 0;
@@ -107,6 +123,8 @@ function computeStats(casos: Suspension[]) {
     suspendedCount,
     resolutionRate,
     avgResolutionHours,
+    pendingFinalizacion,
+    finalizedCount,
     byBranch,
   };
 }
@@ -139,6 +157,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   }
   if (branch) casos = casos.filter((c) => c.branch === branch);
   if (status === 'abierto') casos = casos.filter((c) => OPEN_STATUSES.includes(c.status));
+  else if (status === 'porFinalizar') casos = casos.filter((c) => CLOSED_STATUSES.includes(c.status) && !c.finalized);
   else if (status) casos = casos.filter((c) => c.status === status);
 
   const casosWithUrl = casos.map((c) => ({
@@ -147,7 +166,15 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   }));
 
   return new Response(
-    JSON.stringify({ casos: casosWithUrl, branches: BRANCHES, statuses: STATUSES, stats, currentUserId: session.userId }),
+    JSON.stringify({
+      casos: casosWithUrl,
+      branches: BRANCHES,
+      statuses: STATUSES,
+      stats,
+      currentUserId: session.userId,
+      isTesoreria: session.username === WILMAR_USERNAME,
+      isJosue: session.username === JOSUE_USERNAME,
+    }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };
@@ -224,6 +251,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     status: 'Nuevo',
     assignedToId: assignee.id,
     assignedToName: assignee.name,
+    finalized: false,
+    finalizedAt: null,
+    finalizedByName: '',
     timeline: [],
     createdAt: now,
     updatedAt: now,
@@ -278,7 +308,16 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const caso: Suspension = { timeline: [], clientPhone: '', plate: '', requestPhotoPath: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const caso: Suspension = {
+    timeline: [],
+    clientPhone: '',
+    plate: '',
+    requestPhotoPath: null,
+    finalized: false,
+    finalizedAt: null,
+    finalizedByName: '',
+    ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
+  };
 
   const actor = await findUserById(redis, session.userId);
   const actorName = actor?.name || session.username;
@@ -286,6 +325,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const isOverride = session.role === 'admin' || session.role === 'supervisor';
   const isCurrentAssignee = session.userId === caso.assignedToId;
   const isCreator = session.userId === caso.createdById;
+  const isJosue = session.username === JOSUE_USERNAME;
+  const isTesoreria = session.username === WILMAR_USERNAME;
 
   async function notify(userId: string, message: string) {
     try {
@@ -323,16 +364,16 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     caso.status = 'Escalado a Josué';
     addEvent(caso, 'escalated', `${actorName} escaló el caso a ${josue.name}${note ? ': ' + note : ''}`, actorName, now);
     await notify(josue.id, `Caso de suspensión escalado: ${caso.clientName} (${caso.branch})`);
-  } else if (action === 'sendToTesoreria') {
-    if (!isCurrentAssignee && !isOverride) {
-      return new Response(JSON.stringify({ error: 'solo Josué puede pasar este caso a tesorería' }), { status: 403 });
+  } else if (action === 'reassign') {
+    if (!isJosue && !isOverride) {
+      return new Response(JSON.stringify({ error: 'solo Josué puede hacer una asignación especial de este caso' }), { status: 403 });
     }
-    if (caso.status !== 'Escalado a Josué') {
-      return new Response(JSON.stringify({ error: 'este caso no está con Josué' }), { status: 400 });
+    if (!OPEN_STATUSES.includes(caso.status)) {
+      return new Response(JSON.stringify({ error: 'este caso ya está cerrado' }), { status: 400 });
     }
     const targetUserId = String(body.targetUserId || '').trim();
     if (!targetUserId) {
-      return new Response(JSON.stringify({ error: 'selecciona a quién en tesorería se le asigna' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'selecciona a quién se le asigna el caso' }), { status: 400 });
     }
     const target = await findUserById(redis, targetUserId);
     if (!target || !target.active) {
@@ -340,41 +381,44 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     caso.assignedToId = target.id;
     caso.assignedToName = target.name;
-    caso.status = 'En tesorería';
-    addEvent(caso, 'sent-tesoreria', `${actorName} pasó el caso a tesorería (${target.name})${note ? ': ' + note : ''}`, actorName, now);
-    await notify(target.id, `Caso de suspensión en tesorería: ${caso.clientName} (${caso.branch})`);
-  } else if (action === 'returnToBranch') {
-    if (!isCurrentAssignee && !isOverride) {
-      return new Response(JSON.stringify({ error: 'no tienes permiso sobre este caso' }), { status: 403 });
-    }
-    if (caso.status !== 'Escalado a Josué' && caso.status !== 'En tesorería') {
-      return new Response(JSON.stringify({ error: 'este caso no se puede devolver desde su estado actual' }), { status: 400 });
-    }
-    const targetUserId = String(body.targetUserId || '').trim();
-    if (!targetUserId) {
-      return new Response(JSON.stringify({ error: 'selecciona a qué gerente o secretaria se devuelve' }), { status: 400 });
-    }
-    const target = await findUserById(redis, targetUserId);
-    if (!target || !target.active || (target.role !== 'gerente' && target.role !== 'secretaria')) {
-      return new Response(JSON.stringify({ error: 'selecciona un gerente o secretaria válido' }), { status: 400 });
-    }
-    caso.assignedToId = target.id;
-    caso.assignedToName = target.name;
-    caso.status = 'En revisión';
-    addEvent(caso, 'returned', `${actorName} devolvió el caso a ${target.name}${note ? ': ' + note : ''}`, actorName, now);
-    await notify(target.id, `Caso de suspensión devuelto: ${caso.clientName} (${caso.branch})`);
+    if (caso.status === 'Escalado a Josué') caso.status = 'En revisión';
+    addEvent(caso, 'reassigned', `${actorName} asignó el caso a ${target.name}${note ? ': ' + note : ''}`, actorName, now);
+    await notify(target.id, `Caso de suspensión asignado: ${caso.clientName} (${caso.branch})`);
   } else if (action === 'resolve' || action === 'suspend') {
-    if (caso.status !== 'En tesorería') {
-      return new Response(JSON.stringify({ error: 'solo tesorería puede cerrar definitivamente el caso, una vez que lo tenga asignado' }), { status: 400 });
+    if (!OPEN_STATUSES.includes(caso.status)) {
+      return new Response(JSON.stringify({ error: 'este caso ya está cerrado' }), { status: 400 });
     }
     if (!isCurrentAssignee && !isOverride) {
-      return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado en tesorería puede cerrarlo' }), { status: 403 });
+      return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado puede cerrarlo' }), { status: 403 });
     }
     caso.status = action === 'resolve' ? 'Resuelto' : 'Suspendido';
     const label = action === 'resolve' ? 'Resuelto — el cliente se queda' : 'Suspendido — no se encontró solución';
-    addEvent(caso, action, `${actorName} cerró el caso: ${label}${note ? '. ' + note : ''}`, actorName, now);
+    addEvent(caso, action, `${actorName} marcó el caso: ${label}${note ? '. ' + note : ''}`, actorName, now);
     if (caso.createdById !== session.userId) {
       await notify(caso.createdById, `Caso de suspensión ${action === 'resolve' ? 'resuelto' : 'cerrado sin solución'}: ${caso.clientName}`);
+    }
+    try {
+      const wilmar = await findUserByUsername(redis, WILMAR_USERNAME);
+      if (wilmar) await notify(wilmar.id, `Caso pendiente de finalizar en tesorería: ${caso.clientName} (${caso.branch})`);
+    } catch {
+      // no debe tumbar la actualización si no se encuentra a tesorería
+    }
+  } else if (action === 'finalize') {
+    if (!isTesoreria && !isOverride) {
+      return new Response(JSON.stringify({ error: 'solo tesorería puede finalizar el caso' }), { status: 403 });
+    }
+    if (!CLOSED_STATUSES.includes(caso.status)) {
+      return new Response(JSON.stringify({ error: 'el caso debe estar resuelto o suspendido antes de finalizarlo' }), { status: 400 });
+    }
+    if (caso.finalized) {
+      return new Response(JSON.stringify({ error: 'este caso ya fue finalizado' }), { status: 400 });
+    }
+    caso.finalized = true;
+    caso.finalizedAt = now;
+    caso.finalizedByName = actorName;
+    addEvent(caso, 'finalized', `${actorName} marcó el caso como finalizado${note ? ': ' + note : ''}`, actorName, now);
+    if (caso.createdById !== session.userId) {
+      await notify(caso.createdById, `Caso de suspensión finalizado por tesorería: ${caso.clientName}`);
     }
   } else {
     return new Response(JSON.stringify({ error: 'acción inválida' }), { status: 400 });

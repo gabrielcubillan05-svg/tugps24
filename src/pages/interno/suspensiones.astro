@@ -71,6 +71,7 @@ if (!canAccessSuspensiones(session)) {
       <button class="tab-btn" data-status="abierto" type="button">Abiertos</button>
       <button class="tab-btn" data-status="Resuelto" type="button">Resueltos</button>
       <button class="tab-btn" data-status="Suspendido" type="button">Suspendidos</button>
+      <button class="tab-btn" data-status="porFinalizar" type="button">Por finalizar</button>
     </div>
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por cliente, sucursal o motivo..." />
@@ -111,7 +112,6 @@ if (!canAccessSuspensiones(session)) {
   .badge.status-Nuevo { background: #e0563f22; color: var(--danger); }
   .badge.status-En-revisión { background: #ff7a1a29; color: var(--amber); }
   .badge.status-Escalado-a-Josué { background: #4a90d922; color: #7ab8ec; }
-  .badge.status-En-tesorería { background: #4a90d922; color: #7ab8ec; }
   .badge.status-Resuelto { background: #2f8a4f33; color: var(--ok); }
   .badge.status-Suspendido { background: #e0563f22; color: var(--danger); }
 </style>
