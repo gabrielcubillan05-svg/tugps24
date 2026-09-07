@@ -38,7 +38,8 @@ export type Section =
   | 'cobros'
   | 'cuadrantes'
   | 'casos-importantes'
-  | 'suspensiones';
+  | 'suspensiones'
+  | 'solicitudes-administrativas';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -56,6 +57,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   cuadrantes: 'Cuadrantes de policía',
   'casos-importantes': 'Casos importantes',
   suspensiones: 'Suspensiones',
+  'solicitudes-administrativas': 'Solicitudes Administrativas',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -74,15 +76,16 @@ export const SECTION_PATHS: Record<Section, string> = {
   cuadrantes: '/interno/cuadrantes',
   'casos-importantes': '/interno/casos-importantes',
   suspensiones: '/interno/suspensiones',
+  'solicitudes-administrativas': '/interno/solicitudes-administrativas',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'cuadrantes'],
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
-  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'suspensiones'],
-  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones'],
+  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
+  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -118,12 +121,21 @@ export function canAccessSuspensiones(session: Pick<Session, 'role' | 'username'
   return canAccessSection(session.role, 'suspensiones') || SUSPENSIONES_EXTRA_USERNAMES.includes(session.username);
 }
 
+// Kelly y Wilmar son quienes atienden las Solicitudes Administrativas sin importar su rol.
+export const KELLY_USERNAME = 'kellylara';
+const SOLICITUDES_EXTRA_USERNAMES = [KELLY_USERNAME, WILMAR_USERNAME];
+
+export function canAccessSolicitudesAdministrativas(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'solicitudes-administrativas') || SOLICITUDES_EXTRA_USERNAMES.includes(session.username);
+}
+
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
   if (!base.includes('pagos') && canAccessPagos(session)) extra.push('pagos');
   if (!base.includes('cobros') && canAccessCobros(session)) extra.push('cobros');
   if (!base.includes('suspensiones') && canAccessSuspensiones(session)) extra.push('suspensiones');
+  if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
   return extra.length ? [...base, ...extra] : base;
 }
 

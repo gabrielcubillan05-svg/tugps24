@@ -1,0 +1,101 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSolicitudesAdministrativas, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { REQUEST_TYPES } from '../api/solicitudes-administrativas';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSolicitudesAdministrativas(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Solicitudes Administrativas" active="solicitudes-administrativas" session={session}>
+  <div class="panel-card">
+    <h2>Nueva solicitud</h2>
+    <p class="hint">Las solicitudes quedan visibles automáticamente para Kelly Lara y Wilmar Archila, quienes les dan solución.</p>
+    <form id="solicitudForm" class="form-grid">
+      <div class="field">
+        <label for="clientName">Nombre del cliente</label>
+        <input id="clientName" type="text" placeholder="Nombre del cliente" required />
+      </div>
+      <div class="field">
+        <label for="requestType">Tipo de solicitud</label>
+        <select id="requestType" required>
+          <option value="">Selecciona un tipo</option>
+          {REQUEST_TYPES.map((t) => <option value={t}>{t}</option>)}
+        </select>
+      </div>
+      <div class="field">
+        <label for="dueDate">Fecha de vencimiento (opcional)</label>
+        <input id="dueDate" type="date" />
+      </div>
+      <div class="field field-note">
+        <label for="description">Descripción (opcional)</label>
+        <textarea id="description" placeholder="Detalles de la solicitud"></textarea>
+      </div>
+      <button class="btn field-full" type="submit">Guardar solicitud</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Estadísticas</h2>
+    <div class="stats-row" id="statsRow"></div>
+    <div class="type-stats" id="typeStats"></div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Solicitudes</h2>
+    <div class="tabs">
+      <button class="tab-btn active" data-status="" type="button">Todas</button>
+      <button class="tab-btn" data-status="Pendiente" type="button">Pendientes</button>
+      <button class="tab-btn" data-status="Completada" type="button">Completadas</button>
+      <button class="tab-btn" data-status="No completada" type="button">No completadas</button>
+    </div>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por cliente o descripción..." />
+      <select id="typeFilter">
+        <option value="">Todos los tipos</option>
+        {REQUEST_TYPES.map((t) => <option value={t}>{t}</option>)}
+      </select>
+      <select id="monthFilter"><option value="">Todos los meses</option></select>
+    </div>
+    <div class="solicitudes-list" id="solicitudesList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .type-stats { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .type-stats-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .type-stats-row .n { color: var(--slate); }
+  .solicitudes-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .solicitud-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .solicitud-item.closed { opacity: 0.7; }
+  .solicitud-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .solicitud-client { font-weight: 700; font-size: 15px; }
+  .solicitud-type { font-size: 13px; color: var(--slate); margin-bottom: 6px; }
+  .solicitud-description { font-size: 13px; margin-bottom: 8px; white-space: pre-wrap; }
+  .solicitud-meta { color: var(--slate); font-size: 12px; margin-bottom: 10px; }
+  .solicitud-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .solicitud-timeline { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .timeline-item { font-size: 12.5px; background: var(--ink-900, #0e0d0b); border-radius: 6px; padding: 6px 10px; }
+  .timeline-date { color: var(--slate); font-size: 11px; margin-right: 8px; }
+  .solicitud-add-note-row { display: flex; gap: 8px; }
+  .solicitud-add-note-row input { flex: 1; }
+  .badge.status-Pendiente { background: #ff7a1a29; color: var(--amber); }
+  .badge.status-Completada { background: #2f8a4f33; color: var(--ok); }
+  .badge.status-No-completada { background: #e0563f22; color: var(--danger); }
+</style>
+
+<script src="/js/interno-solicitudes-administrativas.js" defer></script>
