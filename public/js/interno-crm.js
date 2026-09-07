@@ -411,10 +411,32 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       : `${count} lead(s) con estos filtros.`;
   }
 
+  function hasActiveQuery() {
+    return !!(
+      searchInput.value.trim() ||
+      cityFilter.value ||
+      secretaryFilter.value ||
+      statusFilter.value ||
+      vehicleTypeFilter.value ||
+      monthFilter.value ||
+      overdueFilter.checked ||
+      dateFromFilter.value ||
+      dateToFilter.value
+    );
+  }
+
   function renderCurrentView() {
     const filtered = getFilteredLeads();
     renderStats(computeStats(filtered));
     renderResults(filtered);
+
+    if (!hasActiveQuery()) {
+      leadsList.innerHTML = `<div class="empty">Hay ${allLeads.length} lead(s) en total. Busca por nombre/teléfono o usa un filtro (ciudad, estado, mes, etc.) para verlos aquí.</div>`;
+      leadsBoard.innerHTML = '';
+      filteredCount.textContent = '';
+      return;
+    }
+
     renderLeads();
     renderBoard();
     renderFilteredCount();
