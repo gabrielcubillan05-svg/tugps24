@@ -163,7 +163,13 @@ document.addEventListener('DOMContentLoaded', function () {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action, note }),
-      }).then(loadSolicitudes);
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo agregar la nota.');
+          loadSolicitudes();
+        })
+        .catch((err) => alert(err.message || 'No se pudo agregar la nota.'));
       return;
     }
 
