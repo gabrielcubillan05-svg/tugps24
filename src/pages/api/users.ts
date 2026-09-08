@@ -18,6 +18,7 @@ import {
   canAccessSuspensiones,
   destroyAllSessionsForUser,
   verifySameOrigin,
+  BRANCHES,
   type Role,
   type User,
 } from '../../lib/auth';
@@ -102,7 +103,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { username?: string; name?: string; password?: string; role?: string };
+  let body: { username?: string; name?: string; password?: string; role?: string; branch?: string };
   try {
     body = await request.json();
   } catch {
@@ -113,12 +114,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const name = String(body.name || '').trim();
   const password = String(body.password || '');
   const role = String(body.role || '') as Role;
+  const branch = String(body.branch || '').trim();
 
   if (!username || !name || !password || !ROLES.includes(role)) {
     return new Response(JSON.stringify({ error: 'campos incompletos o rol inválido' }), { status: 400 });
   }
   if (password.length < 8) {
     return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
+  }
+  if (branch && !BRANCHES.includes(branch)) {
+    return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
   }
   if (await findUserByUsername(redis, username)) {
     return new Response(JSON.stringify({ error: 'ese usuario ya existe' }), { status: 409 });
@@ -131,6 +136,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     name,
     passwordHash: hashPassword(password),
     role,
+    branch: branch || null,
     active: true,
     createdAt: now,
     updatedAt: now,
@@ -160,6 +166,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     active?: boolean;
     password?: string;
     currentPassword?: string;
+    branch?: string;
   };
   try {
     body = await request.json();
@@ -186,7 +193,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   if (!isAdmin) {
     // Autoservicio: un usuario solo puede cambiar su propia contraseña, nada más.
-    if (body.name !== undefined || body.role !== undefined || body.active !== undefined) {
+    if (body.name !== undefined || body.role !== undefined || body.active !== undefined || body.branch !== undefined) {
       return new Response(JSON.stringify({ error: 'no autorizado para editar esos campos' }), { status: 403 });
     }
     if (!body.password) {
@@ -217,6 +224,13 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'rol inválido' }), { status: 400 });
     }
     user.role = body.role as Role;
+  }
+  if (body.branch !== undefined) {
+    const branch = String(body.branch || '').trim();
+    if (branch && !BRANCHES.includes(branch)) {
+      return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
+    }
+    user.branch = branch || null;
   }
   if (body.password !== undefined && body.password !== '') {
     if (String(body.password).length < 8) {

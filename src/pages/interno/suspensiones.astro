@@ -19,7 +19,7 @@ if (!canAccessSuspensiones(session)) {
 
   <div class="panel-card">
     <h2>Nuevo caso de suspensión</h2>
-    <p class="hint">El operador registra la sucursal, la placa, el motivo y el teléfono, y lo asigna al gerente o secretaria correspondiente. La secretaria completa después el nombre del cliente y la foto de la solicitud.</p>
+    <p class="hint">El operador registra la sucursal, la placa, el motivo y el teléfono. El caso se asigna automáticamente a la secretaria de esa sucursal (o al gerente si no hay secretaria configurada). Ella completa después el nombre del cliente y la foto de la solicitud.</p>
     <form id="suspensionForm" class="form-grid">
       <div class="field">
         <label for="clientPhone">Teléfono del cliente</label>
@@ -34,12 +34,6 @@ if (!canAccessSuspensiones(session)) {
         <select id="branch" required>
           <option value="">Selecciona una sucursal</option>
           {BRANCHES.map((b) => <option value={b}>{b}</option>)}
-        </select>
-      </div>
-      <div class="field">
-        <label for="assignTo">Asignar a (gerente o secretaria)</label>
-        <select id="assignTo" required>
-          <option value="">Cargando...</option>
         </select>
       </div>
       <div class="field field-note">
@@ -57,6 +51,7 @@ if (!canAccessSuspensiones(session)) {
 
   <div class="panel-card">
     <h2>Casos</h2>
+    <div id="viewerBranchNotice" class="hint" style="display:none;"></div>
     <div class="tabs">
       <button class="tab-btn active" data-status="" type="button">Todos</button>
       <button class="tab-btn" data-status="abierto" type="button">Abiertos</button>

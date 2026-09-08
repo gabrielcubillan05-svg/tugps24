@@ -59,21 +59,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
 
-  let branchAssignees = [];
   let anyUsers = [];
-
-  function loadAssignees() {
-    fetch('/api/users?role=gerente,secretaria')
-      .then((res) => res.json())
-      .then((data) => {
-        const select = document.getElementById('assignTo');
-        if (!data || !Array.isArray(data.users)) return;
-        branchAssignees = data.users.slice().sort((a, b) => a.name.localeCompare(b.name));
-        select.innerHTML = '<option value="">Selecciona una persona</option>' +
-          branchAssignees.map((u) => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}${u.role === 'gerente' ? ' (Gerente)' : ' (Secretaria)'}</option>`).join('');
-      })
-      .catch(() => {});
-  }
 
   function loadAnyUsers() {
     fetch('/api/users?any=1')
@@ -153,8 +139,9 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         ` : ''}
         ${!c.finalized && (c.assignedToId === currentUserId || isOverrideRole) ? `
-          <div class="suspension-complete-info">
+          <div class="suspension-complete-info" data-id="${c.id}">
             <span class="hint-label">Completar información del cliente</span>
+            <span class="hint-label">Puedes pegar una foto con Ctrl+V dentro de este bloque.</span>
             <input type="text" data-complete-name data-id="${c.id}" value="${escapeHtml(c.clientName)}" placeholder="Nombre del cliente" />
             <input type="file" accept="image/*" data-complete-photo data-id="${c.id}" />
             <span class="complete-photo-preview" data-complete-preview data-id="${c.id}"></span>
@@ -186,17 +173,34 @@ document.addEventListener('DOMContentLoaded', function () {
   let currentTab = '';
   const pendingInfoPhotos = {};
 
+  function setPendingInfoPhoto(id, file) {
+    if (!id || !file) return;
+    if (pendingInfoPhotos[id]) URL.revokeObjectURL(pendingInfoPhotos[id].url);
+    pendingInfoPhotos[id] = { file, url: URL.createObjectURL(file) };
+    const preview = suspensionesList.querySelector(`[data-complete-preview][data-id="${id}"]`);
+    if (preview) preview.innerHTML = `<img src="${pendingInfoPhotos[id].url}" alt="Previsualización" />`;
+  }
+
   suspensionesList.addEventListener('change', function (e) {
     const input = e.target.closest('input[data-complete-photo]');
     if (!input) return;
     const id = input.getAttribute('data-id');
     const file = input.files && input.files[0];
     if (!file) return;
-    if (pendingInfoPhotos[id]) URL.revokeObjectURL(pendingInfoPhotos[id].url);
-    pendingInfoPhotos[id] = { file, url: URL.createObjectURL(file) };
-    const preview = suspensionesList.querySelector(`[data-complete-preview][data-id="${id}"]`);
-    if (preview) preview.innerHTML = `<img src="${pendingInfoPhotos[id].url}" alt="Previsualización" />`;
+    setPendingInfoPhoto(id, file);
     input.value = '';
+  });
+
+  suspensionesList.addEventListener('paste', function (e) {
+    const block = e.target.closest('.suspension-complete-info');
+    if (!block) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    if (!imageItem) return;
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    e.preventDefault();
+    setPendingInfoPhoto(block.getAttribute('data-id'), file);
   });
 
   function loadSuspensiones() {
@@ -217,6 +221,22 @@ document.addEventListener('DOMContentLoaded', function () {
           allCasos = data.casos;
           renderStats(data.stats);
           renderList(allCasos);
+
+          const notice = document.getElementById('viewerBranchNotice');
+          if (notice) {
+            if (data.viewerRole === 'secretaria' && !data.viewerBranch) {
+              notice.style.display = '';
+              notice.textContent = 'Tu usuario no tiene una sucursal asignada, así que no puedes ver casos. Pide al administrador que te asigne una sucursal en Usuarios.';
+            } else if (data.viewerRole === 'secretaria') {
+              notice.style.display = '';
+              notice.textContent = `Mostrando solo los casos de tu sucursal: ${data.viewerBranch}.`;
+            } else if (data.viewerRole === 'operador') {
+              notice.style.display = '';
+              notice.textContent = 'Mostrando solo los casos que tú creaste.';
+            } else {
+              notice.style.display = 'none';
+            }
+          }
         } else {
           suspensionesList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
         }
@@ -337,9 +357,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const clientPhone = document.getElementById('clientPhone').value.trim();
     const plate = document.getElementById('plate').value.trim();
     const branch = document.getElementById('branch').value;
-    const assignToId = document.getElementById('assignTo').value;
     const reason = document.getElementById('reason').value.trim();
-    if (!plate || !branch || !assignToId || !reason) return;
+    if (!plate || !branch || !reason) return;
 
     const submitBtn = suspensionForm.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
@@ -350,7 +369,6 @@ document.addEventListener('DOMContentLoaded', function () {
       formData.set('clientPhone', clientPhone);
       formData.set('plate', plate);
       formData.set('branch', branch);
-      formData.set('assignToId', assignToId);
       formData.set('reason', reason);
 
       submitBtn.textContent = 'Guardando...';
@@ -369,7 +387,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  loadAssignees();
   loadAnyUsers();
   loadSuspensiones();
 });

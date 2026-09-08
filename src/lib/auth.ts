@@ -177,7 +177,10 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   mustChangePassword?: boolean;
+  branch?: string | null;
 }
+
+export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 
 export interface Session {
   userId: string;

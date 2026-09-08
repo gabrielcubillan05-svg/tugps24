@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, ROLES, ROLE_LABELS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, ROLES, ROLE_LABELS, BRANCHES } from '../../lib/auth';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -35,6 +35,13 @@ if (!canAccessSection(session.role, 'usuarios')) {
         <div class="field">
           <label for="u-password">Contraseña inicial (mín. 8 caracteres)</label>
           <input id="u-password" type="text" placeholder="Ej: TuGps2026" required />
+        </div>
+        <div class="field">
+          <label for="u-branch">Sucursal (para secretaria/gerente)</label>
+          <select id="u-branch">
+            <option value="">Sin sucursal asignada</option>
+            {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+          </select>
         </div>
       </div>
       <button class="btn" type="submit">Crear usuario</button>

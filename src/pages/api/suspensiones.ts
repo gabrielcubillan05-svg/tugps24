@@ -174,7 +174,16 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const all = await readSuspensiones(redis);
 
+  let viewerBranch: string | null = null;
   let casos = all;
+  if (session.role === 'operador') {
+    casos = casos.filter((c) => c.createdById === session.userId);
+  } else if (session.role === 'secretaria') {
+    const viewer = await findUserById(redis, session.userId);
+    viewerBranch = viewer?.branch || null;
+    casos = viewerBranch ? casos.filter((c) => c.branch === viewerBranch) : [];
+  }
+
   if (q) {
     casos = casos.filter((c) =>
       c.clientName.toLowerCase().includes(q) ||
@@ -206,6 +215,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       currentUserId: session.userId,
       isTesoreria: isTesoreriaSession(session),
       isJosue: isJosueSession(session),
+      viewerRole: session.role,
+      viewerBranch,
     }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
@@ -230,19 +241,23 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const plate = String(form.get('plate') || '').trim();
   const branch = String(form.get('branch') || '').trim();
   const reason = String(form.get('reason') || '').trim();
-  const assignToId = String(form.get('assignToId') || '').trim();
   const photoFile = form.get('photo');
 
-  if (!plate || !branch || !reason || !assignToId) {
+  if (!plate || !branch || !reason) {
     return new Response(JSON.stringify({ error: 'faltan campos obligatorios' }), { status: 400 });
   }
   if (!BRANCHES.includes(branch)) {
     return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
   }
 
-  const assignee = await findUserById(redis, assignToId);
-  if (!assignee || !assignee.active || (assignee.role !== 'gerente' && assignee.role !== 'secretaria')) {
-    return new Response(JSON.stringify({ error: 'selecciona un gerente o secretaria válido' }), { status: 400 });
+  const usersInBranch = (await getUsers(redis)).filter((u) => u.active && u.branch === branch);
+  const assignee =
+    usersInBranch.find((u) => u.role === 'secretaria') || usersInBranch.find((u) => u.role === 'gerente');
+  if (!assignee) {
+    return new Response(
+      JSON.stringify({ error: `No hay una secretaria ni un gerente configurado para "${branch}". Pide al administrador que le asigne esa sucursal a alguien en Usuarios.` }),
+      { status: 400 }
+    );
   }
 
   let requestPhotoPath: string | null = null;
