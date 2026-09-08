@@ -2,6 +2,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const usersList = document.getElementById('usersList');
   if (!usersList) return;
 
+  const usuariosData = document.getElementById('usuariosData');
+  const isLimited = !!(usuariosData && usuariosData.dataset.limited);
   const userForm = document.getElementById('userForm');
   const userFormError = document.getElementById('userFormError');
   const seedBtn = document.getElementById('seedBtn');
@@ -44,17 +46,19 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="user-meta">Usuario: ${escapeHtml(u.username)}${u.branch ? ` · Sucursal: ${escapeHtml(u.branch)}` : ''}</div>
         <div class="user-controls">
+          ${isLimited ? '' : `
           <select data-action="role" data-id="${u.id}">
             ${roles.map((r) => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
-          </select>
+          </select>`}
           <select data-action="branch" data-id="${u.id}">
             <option value="" ${!u.branch ? 'selected' : ''}>Sin sucursal asignada</option>
             ${BRANCHES.map((b) => `<option value="${b}" ${b === u.branch ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
+          ${isLimited ? '' : `
           <button class="btn-small" data-action="reset-password" data-id="${u.id}" type="button">Restablecer clave</button>
           <button class="btn-small ${u.active ? 'btn-delete' : 'btn-done'}" data-action="toggle-active" data-id="${u.id}" type="button">
             ${u.active ? 'Desactivar' : 'Activar'}
-          </button>
+          </button>`}
         </div>
       </div>
     `).join('');
@@ -80,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
   searchInput.addEventListener('input', renderUsers);
   roleFilter.addEventListener('change', renderUsers);
 
-  userForm.addEventListener('submit', function (e) {
+  if (userForm) userForm.addEventListener('submit', function (e) {
     e.preventDefault();
     userFormError.style.display = 'none';
     const username = document.getElementById('u-username').value.trim();
@@ -110,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .finally(() => { submitBtn.disabled = false; });
   });
 
-  seedBtn.addEventListener('click', function () {
+  if (seedBtn) seedBtn.addEventListener('click', function () {
     if (!confirm('¿Cargar los empleados del archivo? Se crearán los que falten con clave 1234.')) return;
     seedBtn.disabled = true;
     fetch('/api/seed-users', { method: 'POST' })

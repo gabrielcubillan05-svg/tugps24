@@ -2,18 +2,22 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, ROLES, ROLE_LABELS, BRANCHES } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canManageUsers, canSetUserBranches, firstSectionFor, SECTION_PATHS, ROLES, ROLE_LABELS, BRANCHES } from '../../lib/auth';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
 if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
-if (!canAccessSection(session.role, 'usuarios')) {
+const isFullAdmin = canManageUsers(session.role);
+if (!isFullAdmin && !canSetUserBranches(session)) {
   const fallback = firstSectionFor(session.role);
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }
 ---
 
 <InternoLayout title="Usuarios" active="usuarios" session={session}>
+  <div id="usuariosData" data-limited={isFullAdmin ? '' : '1'} style="display:none;"></div>
+
+  {isFullAdmin && (
   <div class="panel-card">
     <h2>Nuevo usuario</h2>
     <form id="userForm">
@@ -57,9 +61,11 @@ if (!canAccessSection(session.role, 'usuarios')) {
     <button class="btn-ghost" id="seedBtn" type="button">Cargar empleados</button>
     <p id="seedResult" style="display:none; margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></p>
   </div>
+  )}
 
   <div class="panel-card">
     <h2>Usuarios</h2>
+    {!isFullAdmin && <p class="hint">Solo puedes asignarle la sucursal a cada usuario.</p>}
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por nombre o usuario..." />
       <select id="roleFilter">

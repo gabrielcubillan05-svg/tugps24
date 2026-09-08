@@ -129,6 +129,14 @@ export function canAccessSolicitudesAdministrativas(session: Pick<Session, 'role
   return canAccessSection(session.role, 'solicitudes-administrativas') || SOLICITUDES_EXTRA_USERNAMES.includes(session.username);
 }
 
+// Josué y Wilmar necesitan poder configurarle la sucursal a cada usuario (para la
+// auto-asignación de Suspensiones), sin darles el resto de permisos de administración.
+const BRANCH_MANAGER_USERNAMES = [JOSUE_USERNAME, WILMAR_USERNAME];
+
+export function canSetUserBranches(session: Pick<Session, 'username'>): boolean {
+  return BRANCH_MANAGER_USERNAMES.includes(session.username.toLowerCase());
+}
+
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
@@ -136,6 +144,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Sectio
   if (!base.includes('cobros') && canAccessCobros(session)) extra.push('cobros');
   if (!base.includes('suspensiones') && canAccessSuspensiones(session)) extra.push('suspensiones');
   if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
+  if (!base.includes('usuarios') && canSetUserBranches(session)) extra.push('usuarios');
   return extra.length ? [...base, ...extra] : base;
 }
 

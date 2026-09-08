@@ -16,6 +16,7 @@ import {
   canAssignTasks,
   canAccessSection,
   canAccessSuspensiones,
+  canSetUserBranches,
   destroyAllSessionsForUser,
   verifySameOrigin,
   BRANCHES,
@@ -66,8 +67,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // Para el selector de "pasar a tesorería": no sabemos con qué rol está esa persona,
   // así que se deja ver a todos los activos en vez de filtrar por rol.
   const canSuspensionesAny = canAccessSuspensiones(session) && requestedRoles.length === 0 && url.searchParams.get('any') === '1';
+  // Josué y Wilmar necesitan ver el listado completo de usuarios (activos e inactivos)
+  // para poder configurarle la sucursal a cada uno, sin tener el resto de permisos de admin.
+  const canBranchManage = canSetUserBranches(session) && requestedRoles.length === 0;
 
-  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts && !canReportesOperadores && !canNovedadesAuthors && !canSuspensionesAssignees && !canSuspensionesAny) {
+  if (!isPrivileged && !canHorario && !canChat && !canCrmContacts && !canReportesOperadores && !canNovedadesAuthors && !canSuspensionesAssignees && !canSuspensionesAny && !canBranchManage) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -76,7 +80,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
   let users = await getUsers(redis);
-  if (isPrivileged) {
+  if (isPrivileged || canBranchManage) {
     if (requestedRoles.length) users = users.filter((u) => requestedRoles.includes(u.role));
   } else if (canCrmContacts || canReportesOperadores || canNovedadesAuthors || canSuspensionesAssignees) {
     users = users.filter((u) => requestedRoles.includes(u.role) && u.active);
@@ -177,7 +181,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const id = String(body.id || '');
   const isSelf = id === session.userId;
   const isAdmin = canManageUsers(session.role);
-  if (!isSelf && !isAdmin) {
+  const isBranchManager = !isAdmin && !isSelf && canSetUserBranches(session);
+  if (!isSelf && !isAdmin && !isBranchManager) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
@@ -189,6 +194,25 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const user = await findUserById(redis, id);
   if (!user) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+  }
+
+  if (isBranchManager) {
+    // Josué y Wilmar solo pueden configurarle la sucursal a otros usuarios, nada más.
+    if (body.name !== undefined || body.role !== undefined || body.active !== undefined || body.password !== undefined || body.currentPassword !== undefined) {
+      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal de este usuario' }), { status: 403 });
+    }
+    if (body.branch === undefined) {
+      return new Response(JSON.stringify({ error: 'falta la sucursal' }), { status: 400 });
+    }
+    const branch = String(body.branch || '').trim();
+    if (branch && !BRANCHES.includes(branch)) {
+      return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
+    }
+    user.branch = branch || null;
+    user.updatedAt = new Date().toISOString();
+    await saveUser(redis, user);
+    await logAudit(redis, session, 'user_branch_update', user.username, branch || '(sin sucursal)');
+    return new Response(JSON.stringify({ user: publicUser(user) }), { headers: { 'Content-Type': 'application/json' } });
   }
 
   if (!isAdmin) {
