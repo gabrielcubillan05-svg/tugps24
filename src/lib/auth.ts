@@ -98,7 +98,7 @@ export function firstSectionFor(role: Role): Section | null {
 
 // Usuarios puntuales con acceso a Verificación de pagos aunque su rol no lo incluya,
 // además de admin (que ya lo tiene por ROLE_SECTIONS).
-const PAGOS_EXTRA_USERNAMES = ['kellylara', 'wilmararchila'];
+const PAGOS_EXTRA_USERNAMES = ['kellylara', 'wilmar'];
 
 export function canAccessPagos(session: Pick<Session, 'role' | 'username'>): boolean {
   return canAccessSection(session.role, 'pagos') || PAGOS_EXTRA_USERNAMES.includes(session.username);
@@ -114,7 +114,7 @@ export function canAccessCobros(session: Pick<Session, 'role' | 'username'>): bo
 // Josué (da la solución) y Wilmar (tesorería) siempre necesitan ver Suspensiones,
 // sin importar su rol, porque son parte fija del flujo de escalamiento.
 export const JOSUE_USERNAME = 'josuegonzalez';
-export const WILMAR_USERNAME = 'wilmararchila';
+export const WILMAR_USERNAME = 'wilmar';
 const SUSPENSIONES_EXTRA_USERNAMES = [JOSUE_USERNAME, WILMAR_USERNAME];
 
 export function canAccessSuspensiones(session: Pick<Session, 'role' | 'username'>): boolean {
@@ -157,7 +157,7 @@ export function canManageMediaAssets(role: Role): boolean {
 
 // Usuarios puntuales con permiso para subir listas de Cobranza especial WP aunque su
 // rol no lo incluya, además de supervisor/gerente/admin (que ya lo tienen).
-const COBROS_UPLOAD_EXTRA_USERNAMES = ['wilmararchila'];
+const COBROS_UPLOAD_EXTRA_USERNAMES = ['wilmar'];
 
 export function canUploadCobros(session: Pick<Session, 'role' | 'username'>): boolean {
   return canVerifyInstalls(session.role) || COBROS_UPLOAD_EXTRA_USERNAMES.includes(session.username);
