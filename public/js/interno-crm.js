@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const canManageMedia = !!(crmData && crmData.dataset.canManageMedia);
   const canSetStatus = !!(crmData && crmData.dataset.canSetStatus);
   const isAdmin = !!(crmData && crmData.dataset.isAdmin);
+  const currentRole = (crmData && crmData.dataset.role) || '';
+  const currentUserName = (crmData && crmData.dataset.userName) || '';
 
   const statsRow = document.getElementById('statsRow');
   const leadForm = document.getElementById('leadForm');
@@ -145,6 +147,12 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     return name.charAt(0).toUpperCase() + name.slice(1) + ' ' + y;
   }
 
+  function normalizeForMatch(str) {
+    return String(str || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+  }
+
+  let defaultSecretaryApplied = false;
+
   function populateDynamicFilters(leads) {
     const cities = [...new Set(leads.map((l) => l.city).filter(Boolean))].sort();
     const secretaries = [...new Set(leads.map((l) => l.secretary).filter(Boolean))].sort();
@@ -159,6 +167,17 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     secretaryFilter.innerHTML = '<option value="">Todas las secretarias</option>' +
       secretaries.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     secretaryFilter.value = currentSec;
+
+    // A una secretaria se le precarga su propia cola al entrar, para que no tenga que
+    // buscarse cada vez — puede cambiarlo, no es una restricción de acceso.
+    if (!defaultSecretaryApplied && currentRole === 'secretaria' && !currentSec) {
+      const myFirstName = normalizeForMatch(currentUserName).split(/\s+/)[0];
+      const match = secretaries.find((s) => normalizeForMatch(s).split(/\s+/)[0] === myFirstName);
+      if (match) {
+        secretaryFilter.value = match;
+        defaultSecretaryApplied = true;
+      }
+    }
 
     const currentMonth = monthFilter.value;
     monthFilter.innerHTML = '<option value="">Todos los meses</option>' +
@@ -335,12 +354,37 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     }).join('');
   }
 
+  function fmtAgo(iso) {
+    const hours = (Date.now() - new Date(iso).getTime()) / 3600000;
+    if (hours < 1) return 'hace un momento';
+    if (hours < 24) return `hace ${Math.round(hours)} h`;
+    return `hace ${Math.round(hours / 24)} día(s)`;
+  }
+
+  // Etapa del agente IA (Andrés): distinta del "status" del pipeline (columna del tablero),
+  // esta cuenta si la IA sigue hablando con el lead, ya lo entregó o lo escaló.
+  function aiStageBadge(l) {
+    if (l.source !== 'whatsapp-ads' && !l.aiStage) return '';
+    switch (l.aiStage) {
+      case 'en_conversacion':
+        return '<span class="badge badge-ai">🤖 IA conversando</span>';
+      case 'entregado':
+        return `<span class="badge badge-ai-done">🤖 Entregado${l.aiHandoffAt ? ' ' + fmtAgo(l.aiHandoffAt) : ''}</span>`;
+      case 'escalado':
+        return `<span class="badge badge-ai-escalated">🤖 Escalado${l.aiHandoffAt ? ' ' + fmtAgo(l.aiHandoffAt) : ''}</span>`;
+      default:
+        return '';
+    }
+  }
+
   function renderBoardCard(l) {
     return `
       <div class="board-card ${l.overdue ? 'overdue' : ''}" draggable="${canSetStatus}" data-id="${l.id}">
         <div class="board-card-name">${escapeHtml(l.name)}</div>
         <div class="board-card-meta">${escapeHtml(l.phone)}${l.city ? ' · ' + escapeHtml(l.city) : ''}</div>
+        ${l.secretary ? `<div class="board-card-secretary">👤 ${escapeHtml(l.secretary)}</div>` : ''}
         <div class="board-card-badges">
+          ${aiStageBadge(l)}
           ${l.overdue ? '<span class="badge overdue-badge">Atrasado</span>' : ''}
           ${l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">✓ Verificado</span>' : ''}
           ${l.installed && !l.verifiedInstalled ? '<span class="badge badge-unverified">⚠ Sin verificar</span>' : ''}
@@ -432,15 +476,18 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     renderStats(computeStats(filtered));
     renderResults(filtered);
 
+    // El tablero siempre se ve completo (agrupado por etapa, se navega solo) — es la vista
+    // principal para el seguimiento del día a día. La lista detallada sigue pidiendo un
+    // filtro para no cargar de más.
+    renderBoard();
+
     if (!hasActiveQuery()) {
-      leadsList.innerHTML = `<div class="empty">Hay ${allLeads.length} lead(s) en total. Busca por nombre/teléfono o usa un filtro (ciudad, estado, mes, etc.) para verlos aquí.</div>`;
-      leadsBoard.innerHTML = '';
+      leadsList.innerHTML = `<div class="empty">Hay ${allLeads.length} lead(s) en total. Busca por nombre/teléfono o usa un filtro (ciudad, estado, mes, etc.) para verlos en la lista.</div>`;
       filteredCount.textContent = '';
       return;
     }
 
     renderLeads();
-    renderBoard();
     renderFilteredCount();
   }
 

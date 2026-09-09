@@ -2,7 +2,8 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, canManageMediaAssets, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, canVerifyInstalls, canManageMediaAssets, firstSectionFor, SECTION_PATHS, findUserById } from '../../lib/auth';
+import { getRedis } from '../../lib/redis';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -12,13 +13,17 @@ if (!canAccessSection(session.role, 'crm')) {
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }
 
+const redis = getRedis();
+const currentUser = redis ? await findUserById(redis, session.userId) : null;
+const currentUserName = currentUser?.name || session.username;
+
 const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Agendado', 'Instalado', 'Perdido'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina', 'Otro'];
 ---
 
 <InternoLayout title="CRM" active="crm" session={session}>
-  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} data-campaigns={JSON.stringify(CAMPAIGNS)} data-can-manage-media={canManageMediaAssets(session.role) ? '1' : ''} data-can-set-status={canVerifyInstalls(session.role) ? '1' : ''} data-is-admin={session.role === 'admin' ? '1' : ''} style="display:none;"></div>
+  <div id="crmData" data-statuses={JSON.stringify(STATUSES)} data-branches={JSON.stringify(BRANCHES)} data-campaigns={JSON.stringify(CAMPAIGNS)} data-can-manage-media={canManageMediaAssets(session.role) ? '1' : ''} data-can-set-status={canVerifyInstalls(session.role) ? '1' : ''} data-is-admin={session.role === 'admin' ? '1' : ''} data-role={session.role} data-user-name={currentUserName} style="display:none;"></div>
 
   <div class="stats-row" id="statsRow"></div>
   <br />
@@ -162,13 +167,13 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
     </div>
     <div class="filtered-count" id="filteredCount"></div>
     <div class="view-toggle">
-      <button type="button" class="btn-small view-btn active" data-view="list">Lista</button>
-      <button type="button" class="btn-small view-btn" data-view="board">Tablero</button>
+      <button type="button" class="btn-small view-btn" data-view="list">Lista</button>
+      <button type="button" class="btn-small view-btn active" data-view="board">Tablero</button>
     </div>
-    <div class="leads-list" id="leadsList">
+    <div class="leads-list" id="leadsList" style="display:none;">
       <div class="empty">Cargando...</div>
     </div>
-    <div class="leads-board" id="leadsBoard" style="display:none;"></div>
+    <div class="leads-board" id="leadsBoard"></div>
   </div>
 </InternoLayout>
 
@@ -202,6 +207,9 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .badge.badge-unverified { background: #ff7a1a29; color: var(--amber); }
   .badge.badge-cold { background: #e0563f22; color: var(--danger); }
   .badge.badge-meta { background: #4a90d922; color: #7ab8ec; }
+  .badge.badge-ai { background: #8a5cf622; color: #b79bfa; }
+  .badge.badge-ai-done { background: #2f8a4f33; color: var(--ok); }
+  .badge.badge-ai-escalated { background: #e0563f22; color: var(--danger); }
   .hint { color: var(--slate); font-size: 12.5px; margin-bottom: 12px; }
   .backfill-secretary-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
   .backfill-secretary-row .hint { margin: 0; }
@@ -237,7 +245,8 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .board-card.dragging { opacity: 0.45; }
   .board-card.overdue { border-color: var(--danger); }
   .board-card-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
-  .board-card-meta { color: var(--slate); font-size: 11.5px; margin-bottom: 6px; }
+  .board-card-meta { color: var(--slate); font-size: 11.5px; margin-bottom: 2px; }
+  .board-card-secretary { color: var(--slate); font-size: 11.5px; margin-bottom: 6px; }
   .board-card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
   .board-card-badges .badge { font-size: 10px; padding: 1px 7px; }
   .btn-tiny { display: inline-block; font-size: 11px; padding: 4px 9px; border-radius: 999px; }
