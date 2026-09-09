@@ -233,6 +233,14 @@ export const POST: APIRoute = async ({ request }) => {
           const fromPhone = normalizePhone(String(msg.from || ''));
           const text = msg.text?.body ? String(msg.text.body) : '';
           if (!fromPhone || !text) continue;
+
+          // Meta puede reenviar el mismo mensaje varias veces (reintentos); nos quedamos
+          // solo con el primer intento usando el id del mensaje como llave de una sola vez.
+          if (msg.id) {
+            const isNew = await redis.set(`internal:whatsapp-msg-seen:${msg.id}`, '1', { nx: true, ex: 86400 });
+            if (!isNew) continue;
+          }
+
           const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
           await handleInboundMessage(redis, fromPhone, text, contactName);
         }
