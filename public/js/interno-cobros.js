@@ -298,6 +298,51 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  const sendAllReminderBtn = document.getElementById('cobrosSendAllReminderBtn');
+  if (sendAllReminderBtn) {
+    const sendAllReminderResult = document.getElementById('cobrosSendAllReminderResult');
+    sendAllReminderBtn.addEventListener('click', function () {
+      const pendientes = allCobros.filter((c) => !c.templateSentAt && isPhoneLike(c.telefono)).length;
+      if (!pendientes) {
+        sendAllReminderResult.textContent = 'No hay cobros pendientes de recordatorio.';
+        return;
+      }
+      if (!confirm(`¿Enviar el recordatorio de pago por WhatsApp a los ${pendientes} cobros pendientes? A partir de ahí, la agente IA de cobranza sigue cada conversación.`)) return;
+      sendAllReminderBtn.disabled = true;
+
+      let totalSent = 0;
+      let totalFailed = 0;
+
+      function nextBatch() {
+        sendAllReminderResult.textContent = `Enviando... ${totalSent} enviados hasta ahora.`;
+        fetch('/api/cobros', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sendWhatsappReminderAll' }),
+        })
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo enviar el recordatorio.');
+            totalSent += data.sent || 0;
+            totalFailed += data.failed || 0;
+            if (data.remaining > 0) {
+              nextBatch();
+            } else {
+              sendAllReminderResult.textContent = `Listo: ${totalSent} recordatorio(s) enviado(s)${totalFailed ? `, ${totalFailed} fallido(s)` : ''}.`;
+              sendAllReminderBtn.disabled = false;
+              loadCobros();
+            }
+          })
+          .catch((err) => {
+            sendAllReminderResult.textContent = err.message || 'No se pudo enviar el recordatorio.';
+            sendAllReminderBtn.disabled = false;
+            loadCobros();
+          });
+      }
+      nextBatch();
+    });
+  }
+
   const deleteAllBtn = document.getElementById('cobrosDeleteAllBtn');
   if (deleteAllBtn) {
     const deleteAllResult = document.getElementById('cobrosDeleteAllResult');

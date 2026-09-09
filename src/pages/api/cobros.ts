@@ -332,6 +332,44 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   } catch {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
+
+  // Envía la plantilla a TODOS los cobros pendientes de una sola vez (el botón llama esto
+  // repetidas veces hasta que "remaining" llegue a 0, para no arriesgar un timeout con listas grandes).
+  if (body.action === 'sendWhatsappReminderAll') {
+    if (!canUploadCobros(session)) {
+      return new Response(JSON.stringify({ error: 'no autorizado' }), { status: 403 });
+    }
+    const BATCH_SIZE = 40;
+    const allCobros = await readCobros(redis);
+    const pending = allCobros.filter((c) => !c.templateSentAt && normalizePhone(c.telefono).length >= 10);
+    const batch = pending.slice(0, BATCH_SIZE);
+    let sent = 0;
+    let failed = 0;
+
+    for (const cobro of batch) {
+      const phone = normalizePhone(cobro.telefono);
+      const result = await sendWhatsappTemplate(phone, REMINDER_TEMPLATE_NAME, REMINDER_TEMPLATE_LANGUAGE, [
+        cobro.nombre.trim().split(/\s+/)[0] || cobro.nombre,
+        '$' + Math.round(cobro.deuda).toLocaleString('es-CO'),
+      ]);
+      if (result.ok) {
+        cobro.templateSentAt = new Date().toISOString();
+        cobro.aiStage = 'en_conversacion';
+        cobro.updatedAt = cobro.templateSentAt;
+        await redis.hset(REDIS_KEY, { [cobro.id]: JSON.stringify(cobro) });
+        sent++;
+      } else {
+        failed++;
+      }
+    }
+
+    await logAudit(redis, session, 'cobros_whatsapp_reminder_bulk', `${sent} enviados`, failed ? `${failed} fallidos` : '');
+    return new Response(
+      JSON.stringify({ sent, failed, remaining: pending.length - batch.length, totalPending: pending.length }),
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   const id = String(body.id || '');
   const raw = await redis.hget<string>(REDIS_KEY, id);
   if (!raw) {

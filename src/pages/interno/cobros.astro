@@ -57,6 +57,12 @@ Ana</textarea>
 
   <div class="panel-card">
     <h2>Cobros</h2>
+    {canUploadCobros(session) && (
+      <div class="undo-verify-row" style="margin-bottom:14px;">
+        <button class="btn-small" id="cobrosSendAllReminderBtn" type="button">Enviar recordatorio IA a todos (WhatsApp)</button>
+        <span id="cobrosSendAllReminderResult" class="hint" style="margin:0;"></span>
+      </div>
+    )}
     <div class="stats-row" id="cobrosStatsRow"></div>
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por nombre..." />
