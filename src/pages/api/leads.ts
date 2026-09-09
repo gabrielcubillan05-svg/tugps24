@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, findUserById, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -210,6 +210,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     carrosCount?: number;
     installed?: boolean;
     scheduledInstallDate?: string | null;
+    resetAiStage?: boolean;
   };
   try {
     body = await request.json();
@@ -321,6 +322,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (lead.scheduledInstallDate && ['Nuevo', 'Contactado', 'Cotizado'].includes(lead.status)) {
       lead.status = 'Agendado';
     }
+  }
+  if (body.resetAiStage) {
+    if (!canManageUsers(session.role)) {
+      return new Response(JSON.stringify({ error: 'solo un administrador puede reiniciar la conversación con el agente' }), { status: 403 });
+    }
+    lead.aiStage = 'en_conversacion';
+    lead.aiHandoffAt = null;
+    lead.notes = [{ text: `${session.username} reinició la conversación con el agente IA.`, date: new Date().toISOString() }, ...lead.notes];
   }
   if (body.addNote) {
     lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];

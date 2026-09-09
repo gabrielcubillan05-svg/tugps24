@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const CAMPAIGNS = JSON.parse((crmData && crmData.dataset.campaigns) || '[]');
   const canManageMedia = !!(crmData && crmData.dataset.canManageMedia);
   const canSetStatus = !!(crmData && crmData.dataset.canSetStatus);
+  const isAdmin = !!(crmData && crmData.dataset.isAdmin);
 
   const statsRow = document.getElementById('statsRow');
   const leadForm = document.getElementById('leadForm');
@@ -317,6 +318,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           </button>
           ` : ''}
           <button class="btn-small" data-action="quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
+          ${isAdmin && (l.aiStage === 'entregado' || l.aiStage === 'escalado') ? `<button class="btn-small" data-action="reset-ai" data-id="${l.id}" type="button" title="Hace que el agente IA vuelva a responderle a este lead">Reiniciar conversación IA</button>` : ''}
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
         </div>
         <div class="add-note-row">
@@ -625,6 +627,21 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       }).then(loadLeads);
     } else if (action === 'quote') {
       generateQuoteForLead(id, btn);
+    } else if (action === 'reset-ai') {
+      if (!confirm('¿Reiniciar la conversación con el agente IA para este lead? Volverá a responderle automáticamente.')) return;
+      fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, resetAiStage: true }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'No se pudo reiniciar la conversación.');
+          }
+          loadLeads();
+        })
+        .catch((err) => alert(err.message || 'No se pudo reiniciar la conversación.'));
     } else if (action === 'toggle-installed') {
       const lead = allLeads.find((l) => l.id === id);
       const installed = !(lead && lead.installed);
