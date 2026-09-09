@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const assigneeFilter = document.getElementById('assigneeFilter');
   const estadoFilter = document.getElementById('estadoFilter');
   const statsRow = document.getElementById('cobrosStatsRow');
-  const assigneeStatsTable = document.getElementById('assigneeStatsTable');
+  const agentStatsRow = document.getElementById('agentStatsRow');
 
   let allCobros = [];
 
@@ -88,31 +88,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function fmtHours(hours) {
-    if (hours < 1) return Math.round(hours * 60) + ' min';
-    if (hours < 48) return Math.round(hours) + ' h';
-    return Math.round(hours / 24) + ' días';
-  }
-
-  function renderAssigneeStats(assigneeStats) {
-    if (!assigneeStatsTable) return;
-    if (!assigneeStats.length) {
-      assigneeStatsTable.innerHTML = '<tr><td>Sin datos</td></tr>';
-      return;
-    }
-    assigneeStatsTable.innerHTML = `
-      <thead><tr><th>Persona</th><th>Asignados</th><th>Contactados</th><th>% avance</th><th>Tiempo prom. de contacto</th></tr></thead>
-      <tbody>
-        ${assigneeStats.map((a) => `
-          <tr>
-            <td>${escapeHtml(a.name)}</td>
-            <td>${a.total}</td>
-            <td>${a.contacted}</td>
-            <td>${a.total ? Math.round((a.contacted / a.total) * 100) : 0}%</td>
-            <td>${a.avgContactHours !== null ? fmtHours(a.avgContactHours) : '—'}</td>
-          </tr>
-        `).join('')}
-      </tbody>
+  function renderAgentStats(agentStats) {
+    if (!agentStatsRow || !agentStats) return;
+    agentStatsRow.innerHTML = `
+      <div class="stat-box"><span class="n">${agentStats.total}</span><span class="l">Total</span></div>
+      <div class="stat-box"><span class="n">${agentStats.templateSent}</span><span class="l">Recordatorios enviados</span></div>
+      <div class="stat-box"><span class="n">${agentStats.enConversacion}</span><span class="l">En conversación</span></div>
+      <div class="stat-box"><span class="n">${agentStats.acuerdo}</span><span class="l">Acuerdos de pago</span></div>
+      <div class="stat-box overdue"><span class="n">${agentStats.escalado}</span><span class="l">Escalados</span></div>
+      <div class="stat-box"><span class="n">${fmtMoney(agentStats.deudaEnAcuerdo)}</span><span class="l">Deuda en acuerdo</span></div>
     `;
   }
 
@@ -187,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function () {
         allCobros = data.cobros;
         populateSucursalFilter();
         populateAssigneeFilter();
-        renderAssigneeStats(data.assigneeStats || []);
+        renderAgentStats(data.agentStats);
         renderList();
       })
       .catch(() => {
@@ -209,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
         renderList();
         fetch('/api/cobros')
           .then((r) => r.json())
-          .then((d) => { if (d && Array.isArray(d.assigneeStats)) renderAssigneeStats(d.assigneeStats); })
+          .then((d) => { if (d && d.agentStats) renderAgentStats(d.agentStats); })
           .catch(() => {});
       })
       .catch(() => {});

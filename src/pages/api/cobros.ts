@@ -37,38 +37,49 @@ export interface Cobro {
   lastOutboundAt?: string | null;
 }
 
-interface AssigneeStat {
-  name: string;
+interface AgentStats {
   total: number;
-  contacted: number;
-  avgContactHours: number | null;
+  templateSent: number;
+  sinIniciar: number;
+  enConversacion: number;
+  acuerdo: number;
+  escalado: number;
+  deudaTotal: number;
+  deudaEnAcuerdo: number;
 }
 
-function computeAssigneeStats(cobros: Cobro[]): AssigneeStat[] {
-  const groups: Record<string, { total: number; contacted: number; totalHours: number; contactedWithTime: number }> = {};
+// Ya no se reparte entre trabajadores — la agente IA (Valentina) gestiona la cobranza
+// primero, así que las estadísticas que importan son por etapa de esa conversación.
+function computeAgentStats(cobros: Cobro[]): AgentStats {
+  const stats: AgentStats = {
+    total: cobros.length,
+    templateSent: 0,
+    sinIniciar: 0,
+    enConversacion: 0,
+    acuerdo: 0,
+    escalado: 0,
+    deudaTotal: 0,
+    deudaEnAcuerdo: 0,
+  };
   for (const c of cobros) {
-    const key = c.assignedTo || 'Sin asignar';
-    const g = groups[key] || (groups[key] = { total: 0, contacted: 0, totalHours: 0, contactedWithTime: 0 });
-    g.total++;
-    if (c.contacted) {
-      g.contacted++;
-      if (c.contactedAt) {
-        const hours = (new Date(c.contactedAt).getTime() - new Date(c.createdAt).getTime()) / 3600000;
-        if (hours >= 0) {
-          g.totalHours += hours;
-          g.contactedWithTime++;
-        }
-      }
+    if (c.templateSentAt) stats.templateSent++;
+    stats.deudaTotal += c.deuda || 0;
+    switch (c.aiStage) {
+      case 'en_conversacion':
+        stats.enConversacion++;
+        break;
+      case 'acuerdo':
+        stats.acuerdo++;
+        stats.deudaEnAcuerdo += c.deuda || 0;
+        break;
+      case 'escalado':
+        stats.escalado++;
+        break;
+      default:
+        stats.sinIniciar++;
     }
   }
-  return Object.entries(groups)
-    .map(([name, g]) => ({
-      name,
-      total: g.total,
-      contacted: g.contacted,
-      avgContactHours: g.contactedWithTime ? Math.round((g.totalHours / g.contactedWithTime) * 10) / 10 : null,
-    }))
-    .sort((a, b) => b.contacted - a.contacted || b.total - a.total);
+  return stats;
 }
 
 async function requireCobros(cookies: any) {
@@ -141,7 +152,7 @@ export const GET: APIRoute = async ({ cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
   const allCobros = await readCobros(redis);
-  const assigneeStats = computeAssigneeStats(allCobros);
+  const agentStats = computeAgentStats(allCobros);
 
   // Quien no puede subir listas (secretaria normal) solo ve lo que le toca a ella —
   // no puede cambiarlo desde el navegador, el servidor ya no le manda lo demás.
@@ -152,7 +163,7 @@ export const GET: APIRoute = async ({ cookies }) => {
     cobros = allCobros.filter((c) => isAssignedToUser(c.assignedTo, userName));
   }
 
-  return new Response(JSON.stringify({ cobros, assigneeStats }), {
+  return new Response(JSON.stringify({ cobros, agentStats }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
