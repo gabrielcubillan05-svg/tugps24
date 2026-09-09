@@ -13,7 +13,7 @@ export const REDIS_KEY = 'internal:cobros';
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 
 const REMINDER_TEMPLATE_NAME = 'recordatorio_pago';
-const REMINDER_TEMPLATE_LANGUAGE = 'es';
+const REMINDER_TEMPLATE_LANGUAGE = 'es_CO'; // la plantilla quedó aprobada como "Spanish (COL)", no "es" genérico
 
 export interface Cobro {
   id: string;

@@ -7,7 +7,7 @@ import { appendHistory } from './whatsapp-webhook';
 export const prerender = false;
 
 const TEMPLATE_NAME = 'seguimiento_interesado';
-const TEMPLATE_LANGUAGE = 'es';
+const TEMPLATE_LANGUAGE = 'es_CO'; // crear la plantilla como "Español (COL)" en Meta, igual que recordatorio_pago
 const COLD_INTERVAL_DAYS = 7; // cada cuánto se reintenta un lead frío
 const MAX_COLD_FOLLOW_UPS = 8; // ~2 meses de intentos semanales, luego se deja en paz
 const MIN_INACTIVE_DAYS = 7; // no tocar a alguien que sigue escribiendo activamente
