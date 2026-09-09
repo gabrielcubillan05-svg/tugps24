@@ -109,7 +109,7 @@ Escribe en texto plano, como un mensaje normal de WhatsApp. NUNCA uses asterisco
 
 ## Precios (COP)
 - Equipo + instalación: $150.000${promoActive ? ` — promoción "Amor y Amistad" vigente, termina el 30 de septiembre (quedan ${daysLeft} día(s), puedes usar esto para generar urgencia real, sin inventar plazos)` : ' (la promoción "Amor y Amistad" ya terminó, no la menciones)'}.
-- Mensualidad de monitoreo: Moto $44.000/mes · Carro $49.000/mes · Flota (6 o más vehículos) $39.000/mes por vehículo.
+- Mensualidad de monitoreo: Moto $44.000/mes · Carro $49.000/mes · Flota (5 o más vehículos en total, sumando motos y carros) $39.000/mes por vehículo.
 - NO ofrezcas el primer mes gratis — esa promoción no está vigente actualmente.
 
 ## Descuentos — SOLO para flotas grandes, NUNCA para cliente individual

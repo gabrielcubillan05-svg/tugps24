@@ -93,6 +93,43 @@ function newLeadFromWhatsapp(phone: string, name: string, now: string): Lead {
   };
 }
 
+const UNSUPPORTED_TYPE_LABELS: Record<string, string> = {
+  audio: 'un audio',
+  image: 'una foto',
+  video: 'un video',
+  document: 'un documento',
+  sticker: 'un sticker',
+  location: 'una ubicación',
+};
+
+async function handleUnsupportedMessage(redis: any, fromPhone: string, msgType: string): Promise<void> {
+  const allLeads = await readLeads(redis);
+  const lead = allLeads.find((l) => normalizePhone(l.phone) === fromPhone);
+
+  // Si ya lo tiene un humano, solo le avisamos a esa persona — no le respondemos nosotros.
+  if (lead && (lead.aiStage === 'entregado' || lead.aiStage === 'escalado')) {
+    if (lead.secretary) {
+      const users = await getUsers(redis);
+      const assignee = users.find((u) => u.name === lead.secretary && u.active);
+      if (assignee) {
+        await pushNotification(redis, assignee.id, {
+          type: 'crm-whatsapp',
+          message: `${lead.name} envió ${UNSUPPORTED_TYPE_LABELS[msgType] || 'un archivo'} por WhatsApp (revísalo directo en WhatsApp).`,
+          link: '/interno/crm',
+        });
+      }
+    } else {
+      await notifyJosue(redis, `${lead.name} (escalado) envió ${UNSUPPORTED_TYPE_LABELS[msgType] || 'un archivo'} por WhatsApp.`);
+    }
+    return;
+  }
+
+  await sendWhatsappText(
+    fromPhone,
+    `Recibí ${UNSUPPORTED_TYPE_LABELS[msgType] || 'tu archivo'}, pero por ahora solo puedo leer mensajes de texto 😊 ¿Me puedes escribir tu mensaje?`
+  );
+}
+
 async function handleInboundMessage(redis: any, fromPhone: string, text: string, contactName: string): Promise<void> {
   const now = new Date().toISOString();
   const allLeads = await readLeads(redis);
@@ -229,10 +266,8 @@ export const POST: APIRoute = async ({ request }) => {
         const messages = Array.isArray(value.messages) ? value.messages : [];
         const contacts = Array.isArray(value.contacts) ? value.contacts : [];
         for (const msg of messages) {
-          if (msg.type !== 'text') continue; // fase 1: solo mensajes de texto
           const fromPhone = normalizePhone(String(msg.from || ''));
-          const text = msg.text?.body ? String(msg.text.body) : '';
-          if (!fromPhone || !text) continue;
+          if (!fromPhone) continue;
 
           // Meta puede reenviar el mismo mensaje varias veces (reintentos); nos quedamos
           // solo con el primer intento usando el id del mensaje como llave de una sola vez.
@@ -240,6 +275,16 @@ export const POST: APIRoute = async ({ request }) => {
             const isNew = await redis.set(`internal:whatsapp-msg-seen:${msg.id}`, '1', { nx: true, ex: 86400 });
             if (!isNew) continue;
           }
+
+          if (msg.type !== 'text') {
+            // Fase 1: no transcribimos audio ni leemos imágenes/documentos — le avisamos
+            // al cliente en vez de dejarlo en silencio, salvo que ya lo tenga un humano.
+            await handleUnsupportedMessage(redis, fromPhone, msg.type);
+            continue;
+          }
+
+          const text = msg.text?.body ? String(msg.text.body) : '';
+          if (!text) continue;
 
           const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
           await handleInboundMessage(redis, fromPhone, text, contactName);
