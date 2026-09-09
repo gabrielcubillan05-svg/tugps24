@@ -159,7 +159,7 @@ export async function runSalesAgent(history: AgentMessage[], newMessage: string)
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 800,
+        max_tokens: 2048,
         system: buildSystemPrompt(),
         messages,
         tools: TOOLS,
@@ -192,6 +192,15 @@ export async function runSalesAgent(history: AgentMessage[], newMessage: string)
     } else if (block.type === 'tool_use' && typeof block.name === 'string') {
       toolCalls.push({ name: block.name, input: block.input || {} });
     }
+  }
+
+  if (!reply.trim()) {
+    console.error(
+      'sales-agent: respuesta sin texto',
+      'stop_reason=', data?.stop_reason,
+      'block_types=', (data?.content || []).map((b: any) => b.type).join(','),
+      'usage=', JSON.stringify(data?.usage || {})
+    );
   }
 
   return { reply: reply.trim() || null, toolCalls };
