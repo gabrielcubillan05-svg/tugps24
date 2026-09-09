@@ -40,7 +40,8 @@ export type Section =
   | 'casos-importantes'
   | 'suspensiones'
   | 'solicitudes-administrativas'
-  | 'seguimiento-masivos';
+  | 'seguimiento-masivos'
+  | 'conversaciones-whatsapp';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -60,6 +61,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   suspensiones: 'Suspensiones',
   'solicitudes-administrativas': 'Solicitudes Administrativas',
   'seguimiento-masivos': 'Seguimiento a clientes masivos',
+  'conversaciones-whatsapp': 'Conversaciones WhatsApp',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -80,6 +82,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   suspensiones: '/interno/suspensiones',
   'solicitudes-administrativas': '/interno/solicitudes-administrativas',
   'seguimiento-masivos': '/interno/seguimiento-masivos',
+  'conversaciones-whatsapp': '/interno/conversaciones-whatsapp',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -156,6 +159,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Sectio
   if (!base.includes('suspensiones') && canAccessSuspensiones(session)) extra.push('suspensiones');
   if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
   if (!base.includes('usuarios') && canSetUserBranches(session)) extra.push('usuarios');
+  if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
   return extra.length ? [...base, ...extra] : base;
 }
 
