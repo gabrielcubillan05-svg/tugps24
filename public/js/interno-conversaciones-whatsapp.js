@@ -33,6 +33,11 @@ document.addEventListener('DOMContentLoaded', function () {
     return new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
+  function fmtTime(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+  }
+
   function fmtMoney(n) {
     return '$' + Number(n || 0).toLocaleString('es-CO');
   }
@@ -99,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const body = data.history.length
           ? data.history.map((m) => `
             <div class="msg-bubble ${m.role === 'user' ? 'user' : 'assistant'}">
-              <span class="who">${m.role === 'user' ? escapeHtml(conv.name || 'Cliente') : agentName}</span>
+              <span class="who">${m.role === 'user' ? escapeHtml(conv.name || 'Cliente') : agentName}${m.at ? ' · ' + fmtTime(m.at) : ''}</span>
               ${escapeHtml(m.content)}
             </div>
           `).join('')

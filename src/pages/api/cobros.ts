@@ -24,7 +24,7 @@ const MAX_HISTORY = 60;
 async function logCobroReminderSent(redis: any, cobroId: string, nombre: string, deuda: number): Promise<void> {
   const firstName = nombre.trim().split(/\s+/)[0] || nombre;
   const monto = '$' + Math.round(deuda).toLocaleString('es-CO');
-  const entry = { role: 'assistant', content: `[Plantilla ${REMINDER_TEMPLATE_NAME}] Hola ${firstName}, tienes un saldo pendiente de ${monto} por el servicio de monitoreo GPS. Escríbenos si quieres resolverlo o tienes alguna duda.` };
+  const entry = { role: 'assistant', at: new Date().toISOString(), content: `[Plantilla ${REMINDER_TEMPLATE_NAME}] Hola ${firstName}, tienes un saldo pendiente de ${monto} por el servicio de monitoreo GPS. Escríbenos si quieres resolverlo o tienes alguna duda.` };
   const raw = await redis.hget<string>(COBRO_CONVERSATIONS_KEY, cobroId);
   let current: unknown[] = [];
   if (raw) {

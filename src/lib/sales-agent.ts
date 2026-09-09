@@ -17,6 +17,7 @@ const BRANCH_ADDRESSES: Record<string, string> = {
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
+  at?: string;
 }
 
 export interface AgentToolCall {
@@ -210,7 +211,9 @@ export async function runSalesAgent(history: AgentMessage[], newMessage: string)
     return { reply: null, toolCalls: [] };
   }
 
-  const messages: any[] = [...history, { role: 'user', content: newMessage }];
+  // Claude no acepta campos extra en los mensajes — se manda solo role/content, la hora
+  // (history[].at) es solo para el visor interno.
+  const messages: any[] = [...history.map(({ role, content }) => ({ role, content })), { role: 'user', content: newMessage }];
 
   const data = await callAnthropic(apiKey, messages);
   if (!data) {

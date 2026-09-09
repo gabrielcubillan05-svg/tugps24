@@ -60,7 +60,8 @@ export async function readHistory(redis: any, leadId: string): Promise<AgentMess
 
 export async function appendHistory(redis: any, leadId: string, entries: AgentMessage[]): Promise<void> {
   const current = await readHistory(redis, leadId);
-  const updated = [...current, ...entries].slice(-MAX_HISTORY);
+  const stamped = entries.map((e) => ({ at: new Date().toISOString(), ...e }));
+  const updated = [...current, ...stamped].slice(-MAX_HISTORY);
   await redis.hset(CONVERSATIONS_KEY, { [leadId]: JSON.stringify(updated) });
 }
 
@@ -77,7 +78,8 @@ export async function readCobroHistory(redis: any, cobroId: string): Promise<Age
 
 async function appendCobroHistory(redis: any, cobroId: string, entries: AgentMessage[]): Promise<void> {
   const current = await readCobroHistory(redis, cobroId);
-  const updated = [...current, ...entries].slice(-MAX_HISTORY);
+  const stamped = entries.map((e) => ({ at: new Date().toISOString(), ...e }));
+  const updated = [...current, ...stamped].slice(-MAX_HISTORY);
   await redis.hset(COBRO_CONVERSATIONS_KEY, { [cobroId]: JSON.stringify(updated) });
 }
 

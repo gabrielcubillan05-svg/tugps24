@@ -3,6 +3,7 @@ const MODEL = 'claude-sonnet-5';
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
+  at?: string;
 }
 
 export interface AgentToolCall {
@@ -138,7 +139,9 @@ export async function runCollectionsAgent(
   }
 
   const systemPrompt = buildSystemPrompt(ctx.nombre, ctx.deuda, ctx.facturasImpagas);
-  const messages: any[] = [...history, { role: 'user', content: newMessage }];
+  // Claude no acepta campos extra en los mensajes — se manda solo role/content, la hora
+  // (history[].at) es solo para el visor interno.
+  const messages: any[] = [...history.map(({ role, content }) => ({ role, content })), { role: 'user', content: newMessage }];
 
   const data = await callAnthropic(apiKey, messages, systemPrompt);
   if (!data) {
