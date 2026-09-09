@@ -1,0 +1,45 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canManageAiAgents, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canManageAiAgents(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Agentes IA" active="agentes-ia" session={session}>
+  <div class="panel-card">
+    <h2>Costo de los agentes</h2>
+    <p class="hint">Tarifa de Claude Sonnet (USD por millón de tokens) y la tasa de cambio a pesos — ajústalas si cambian.</p>
+    <div class="cost-config-row">
+      <label>USD → COP <input id="usdToCop" type="number" step="1" min="0" /></label>
+      <label>Precio entrada (USD/M tokens) <input id="inputPrice" type="number" step="0.01" min="0" /></label>
+      <label>Precio salida (USD/M tokens) <input id="outputPrice" type="number" step="0.01" min="0" /></label>
+      <button class="btn-small" id="saveCostConfigBtn" type="button">Guardar</button>
+      <span id="costConfigResult" class="hint" style="margin:0;"></span>
+    </div>
+  </div>
+
+  <div id="agentsList"></div>
+</InternoLayout>
+
+<style is:global>
+  .cost-config-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
+  .cost-config-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--slate); }
+  .cost-config-row input { width: 140px; }
+  .agent-card { margin-bottom: 16px; }
+  .agent-usage-row { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 0 14px; }
+  .agent-usage-stat { display: flex; flex-direction: column; }
+  .agent-usage-stat .n { font-weight: 700; font-size: 17px; }
+  .agent-usage-stat .l { color: var(--slate); font-size: 11.5px; }
+  .agent-instructions textarea { width: 100%; min-height: 110px; }
+  .agent-instructions-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+</style>
+
+<script src="/js/interno-agentes-ia.js" defer></script>

@@ -11,6 +11,7 @@ import { runCollectionsAgent } from '../../lib/collections-agent';
 import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
 import { readCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { readAgentMedia } from './whatsapp-agent-media';
+import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 
 export const prerender = false;
 
@@ -204,7 +205,9 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   if (lead.aiStage === 'sin_iniciar' || !lead.aiStage) lead.aiStage = 'en_conversacion';
 
   const history = await readHistory(redis, lead.id);
-  const agentResult = await runSalesAgent(history, text);
+  const extraInstructions = await getExtraInstructions(redis, 'andres');
+  const agentResult = await runSalesAgent(history, text, extraInstructions);
+  await recordAgentUsage(redis, 'andres', agentResult.usage);
 
   const fallbackByTool: Record<string, string> = {
     escalar_urgente: 'Dame un momento, ya te conecto con alguien de nuestro equipo para ayudarte mejor con esto.',
@@ -333,11 +336,14 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
   if (cobro.aiStage === 'sin_iniciar' || !cobro.aiStage) cobro.aiStage = 'en_conversacion';
 
   const history = await readCobroHistory(redis, cobro.id);
-  const agentResult = await runCollectionsAgent(history, text, {
-    nombre: cobro.nombre,
-    deuda: cobro.deuda,
-    facturasImpagas: cobro.facturasImpagas,
-  });
+  const extraInstructions = await getExtraInstructions(redis, 'valentina');
+  const agentResult = await runCollectionsAgent(
+    history,
+    text,
+    { nombre: cobro.nombre, deuda: cobro.deuda, facturasImpagas: cobro.facturasImpagas },
+    extraInstructions
+  );
+  await recordAgentUsage(redis, 'valentina', agentResult.usage);
 
   const fallbackByTool: Record<string, string> = {
     escalar_urgente: 'Dame un momento, ya te comunico con alguien de nuestro equipo para revisar esto.',

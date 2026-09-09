@@ -41,7 +41,8 @@ export type Section =
   | 'suspensiones'
   | 'solicitudes-administrativas'
   | 'seguimiento-masivos'
-  | 'conversaciones-whatsapp';
+  | 'conversaciones-whatsapp'
+  | 'agentes-ia';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -62,6 +63,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'solicitudes-administrativas': 'Solicitudes Administrativas',
   'seguimiento-masivos': 'Seguimiento a clientes masivos',
   'conversaciones-whatsapp': 'Conversaciones WhatsApp',
+  'agentes-ia': 'Agentes IA',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -83,6 +85,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   'solicitudes-administrativas': '/interno/solicitudes-administrativas',
   'seguimiento-masivos': '/interno/seguimiento-masivos',
   'conversaciones-whatsapp': '/interno/conversaciones-whatsapp',
+  'agentes-ia': '/interno/agentes-ia',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -139,6 +142,12 @@ export function canViewWhatsappConversations(session: Pick<Session, 'username'>)
   return session.username.toLowerCase() === CONVERSATIONS_VIEWER_USERNAME;
 }
 
+// Configurar los agentes de IA (instrucciones extra, costo) es igual de exclusivo que el
+// visor de conversaciones — misma cuenta única.
+export function canManageAiAgents(session: Pick<Session, 'username'>): boolean {
+  return canViewWhatsappConversations(session);
+}
+
 export function canAccessSolicitudesAdministrativas(session: Pick<Session, 'role' | 'username'>): boolean {
   return canAccessSection(session.role, 'solicitudes-administrativas') || SOLICITUDES_EXTRA_USERNAMES.includes(session.username);
 }
@@ -160,6 +169,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Sectio
   if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
   if (!base.includes('usuarios') && canSetUserBranches(session)) extra.push('usuarios');
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
+  if (canManageAiAgents(session)) extra.push('agentes-ia');
   return extra.length ? [...base, ...extra] : base;
 }
 

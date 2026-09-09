@@ -14,6 +14,7 @@ export interface AgentToolCall {
 export interface AgentResult {
   reply: string | null;
   toolCalls: AgentToolCall[];
+  usage: { inputTokens: number; outputTokens: number };
 }
 
 const TOOLS = [
@@ -52,7 +53,7 @@ const TOOLS = [
   },
 ];
 
-function buildSystemPrompt(nombre: string, deuda: number, facturasImpagas: number): string {
+function buildSystemPrompt(nombre: string, deuda: number, facturasImpagas: number, extraInstructions?: string): string {
   const deudaFmt = '$' + Math.round(deuda).toLocaleString('es-CO');
   return `Eres Valentina, encargada de cobranza de TuGPS24 (empresa colombiana de GPS para vehículos). Le escribes por WhatsApp a ${nombre}, quien tiene un saldo pendiente de ${deudaFmt}${facturasImpagas ? ` (${facturasImpagas} factura(s) sin pagar)` : ''} por el servicio de monitoreo. NUNCA digas que eres una inteligencia artificial ni un bot — eres una persona real del equipo de cartera.
 
@@ -75,7 +76,8 @@ Texto plano, sin asteriscos ni markdown. Mensajes cortos, como WhatsApp real.
 - NUNCA ofrezcas condonar o descontar la deuda por tu cuenta.
 - En cuanto el cliente acepte una fecha concreta de pago (aunque sea parcial), usa registrar_acuerdo_pago con el resumen.
 - Si el cliente disputa la deuda, se molesta, o pide hablar con una persona: usa escalar_urgente de inmediato y avisa que en un momento lo contacta alguien del equipo.
-- SIEMPRE responde con un mensaje de texto para el cliente, incluso cuando uses una herramienta.`;
+- SIEMPRE responde con un mensaje de texto para el cliente, incluso cuando uses una herramienta.` +
+    (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
 }
 
 async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: string): Promise<any | null> {
@@ -128,25 +130,35 @@ function extractReplyAndTools(data: any): { reply: string; toolCalls: AgentToolC
   return { reply: reply.trim(), toolCalls };
 }
 
+function usageOf(data: any): { inputTokens: number; outputTokens: number } {
+  return {
+    inputTokens: Number(data?.usage?.input_tokens) || 0,
+    outputTokens: Number(data?.usage?.output_tokens) || 0,
+  };
+}
+
 export async function runCollectionsAgent(
   history: AgentMessage[],
   newMessage: string,
-  ctx: { nombre: string; deuda: number; facturasImpagas: number }
+  ctx: { nombre: string; deuda: number; facturasImpagas: number },
+  extraInstructions?: string
 ): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
+  const noUsage = { inputTokens: 0, outputTokens: 0 };
   if (!apiKey) {
-    return { reply: null, toolCalls: [] };
+    return { reply: null, toolCalls: [], usage: noUsage };
   }
 
-  const systemPrompt = buildSystemPrompt(ctx.nombre, ctx.deuda, ctx.facturasImpagas);
+  const systemPrompt = buildSystemPrompt(ctx.nombre, ctx.deuda, ctx.facturasImpagas, extraInstructions);
   // Claude no acepta campos extra en los mensajes — se manda solo role/content, la hora
   // (history[].at) es solo para el visor interno.
   const messages: any[] = [...history.map(({ role, content }) => ({ role, content })), { role: 'user', content: newMessage }];
 
   const data = await callAnthropic(apiKey, messages, systemPrompt);
   if (!data) {
-    return { reply: null, toolCalls: [] };
+    return { reply: null, toolCalls: [], usage: noUsage };
   }
+  const usage = usageOf(data);
 
   const first = extractReplyAndTools(data);
 
@@ -163,12 +175,15 @@ export async function runCollectionsAgent(
 
     const followUpData = await callAnthropic(apiKey, followUpMessages, systemPrompt);
     if (followUpData) {
+      const followUpUsage = usageOf(followUpData);
+      usage.inputTokens += followUpUsage.inputTokens;
+      usage.outputTokens += followUpUsage.outputTokens;
       const second = extractReplyAndTools(followUpData);
       if (second.reply) {
-        return { reply: second.reply, toolCalls: [...first.toolCalls, ...second.toolCalls] };
+        return { reply: second.reply, toolCalls: [...first.toolCalls, ...second.toolCalls], usage };
       }
     }
   }
 
-  return { reply: first.reply || null, toolCalls: first.toolCalls };
+  return { reply: first.reply || null, toolCalls: first.toolCalls, usage };
 }

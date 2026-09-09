@@ -28,6 +28,7 @@ export interface AgentToolCall {
 export interface AgentResult {
   reply: string | null;
   toolCalls: AgentToolCall[];
+  usage: { inputTokens: number; outputTokens: number };
 }
 
 const TOOLS = [
@@ -87,7 +88,7 @@ const TOOLS = [
   },
 ];
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(extraInstructions?: string): string {
   const now = new Date();
   const deadline = new Date(PROMO_DEADLINE);
   const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / 86400000));
@@ -152,10 +153,11 @@ Mantén siempre un registro serio pero cálido, propio de un asesor de una empre
 - Si detectas molestia, un reclamo, que ya es cliente actual con un problema (no un lead nuevo), o que pide hablar con una persona: llama a escalar_urgente de inmediato y dile al cliente que en un momento lo contacta alguien del equipo. No sigas el guion de venta en ese caso.
 - Si el cliente dice clara y directamente que ya no está interesado o que no le sigan escribiendo: llama a marcar_no_interesado, despídete con amabilidad y no insistas más.
 
-Hoy es ${now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}.`;
+Hoy es ${now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}.` +
+    (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
 }
 
-async function callAnthropic(apiKey: string, messages: unknown[]): Promise<any | null> {
+async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: string): Promise<any | null> {
   let res: Response;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -168,7 +170,7 @@ async function callAnthropic(apiKey: string, messages: unknown[]): Promise<any |
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 2048,
-        system: buildSystemPrompt(),
+        system: systemPrompt,
         messages,
         tools: TOOLS,
       }),
@@ -205,20 +207,31 @@ function extractReplyAndTools(data: any): { reply: string; toolCalls: AgentToolC
   return { reply: reply.trim(), toolCalls };
 }
 
-export async function runSalesAgent(history: AgentMessage[], newMessage: string): Promise<AgentResult> {
+function usageOf(data: any): { inputTokens: number; outputTokens: number } {
+  return {
+    inputTokens: Number(data?.usage?.input_tokens) || 0,
+    outputTokens: Number(data?.usage?.output_tokens) || 0,
+  };
+}
+
+export async function runSalesAgent(history: AgentMessage[], newMessage: string, extraInstructions?: string): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
+  const noUsage = { inputTokens: 0, outputTokens: 0 };
   if (!apiKey) {
-    return { reply: null, toolCalls: [] };
+    return { reply: null, toolCalls: [], usage: noUsage };
   }
+
+  const systemPrompt = buildSystemPrompt(extraInstructions);
 
   // Claude no acepta campos extra en los mensajes — se manda solo role/content, la hora
   // (history[].at) es solo para el visor interno.
   const messages: any[] = [...history.map(({ role, content }) => ({ role, content })), { role: 'user', content: newMessage }];
 
-  const data = await callAnthropic(apiKey, messages);
+  const data = await callAnthropic(apiKey, messages, systemPrompt);
   if (!data) {
-    return { reply: null, toolCalls: [] };
+    return { reply: null, toolCalls: [], usage: noUsage };
   }
+  const usage = usageOf(data);
 
   const first = extractReplyAndTools(data);
 
@@ -236,11 +249,14 @@ export async function runSalesAgent(history: AgentMessage[], newMessage: string)
       { role: 'user', content: toolResults },
     ];
 
-    const followUpData = await callAnthropic(apiKey, followUpMessages);
+    const followUpData = await callAnthropic(apiKey, followUpMessages, systemPrompt);
     if (followUpData) {
+      const followUpUsage = usageOf(followUpData);
+      usage.inputTokens += followUpUsage.inputTokens;
+      usage.outputTokens += followUpUsage.outputTokens;
       const second = extractReplyAndTools(followUpData);
       if (second.reply) {
-        return { reply: second.reply, toolCalls: [...first.toolCalls, ...second.toolCalls] };
+        return { reply: second.reply, toolCalls: [...first.toolCalls, ...second.toolCalls], usage };
       }
     }
   }
@@ -254,5 +270,5 @@ export async function runSalesAgent(history: AgentMessage[], newMessage: string)
     );
   }
 
-  return { reply: first.reply || null, toolCalls: first.toolCalls };
+  return { reply: first.reply || null, toolCalls: first.toolCalls, usage };
 }
