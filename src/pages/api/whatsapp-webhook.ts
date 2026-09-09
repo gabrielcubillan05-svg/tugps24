@@ -64,7 +64,7 @@ export async function appendHistory(redis: any, leadId: string, entries: AgentMe
   await redis.hset(CONVERSATIONS_KEY, { [leadId]: JSON.stringify(updated) });
 }
 
-async function readCobroHistory(redis: any, cobroId: string): Promise<AgentMessage[]> {
+export async function readCobroHistory(redis: any, cobroId: string): Promise<AgentMessage[]> {
   const raw = await redis.hget<string>(COBRO_CONVERSATIONS_KEY, cobroId);
   if (!raw) return [];
   try {

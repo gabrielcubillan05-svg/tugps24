@@ -15,13 +15,19 @@ if (!canViewWhatsappConversations(session)) {
 
 <InternoLayout title="Conversaciones de WhatsApp" active="conversaciones-whatsapp" session={session}>
   <div class="panel-card">
-    <h2>Conversaciones del agente IA (Andrés)</h2>
+    <h2>Conversaciones de los agentes IA</h2>
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por nombre o teléfono..." />
+      <select id="agentFilter">
+        <option value="">Ambos agentes</option>
+        <option value="andres">Andrés (ventas)</option>
+        <option value="valentina">Valentina (cobranza)</option>
+      </select>
       <select id="stageFilter">
         <option value="">Todos los estados</option>
         <option value="en_conversacion">En conversación</option>
         <option value="entregado">Entregado a sucursal</option>
+        <option value="acuerdo">Acuerdo de pago</option>
         <option value="escalado">Escalado</option>
         <option value="sin_iniciar">Sin iniciar</option>
       </select>
@@ -58,6 +64,9 @@ if (!canViewWhatsappConversations(session)) {
   .conversation-row.active { border-color: var(--amber); background: #ff7a1a14; }
   .conversation-row .name { font-weight: 700; font-size: 13.5px; }
   .conversation-row .meta { color: var(--slate); font-size: 11.5px; margin-top: 2px; }
+  .agent-tag { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }
+  .agent-tag.agent-andres { background: #4a90d922; color: #7ab8ec; }
+  .agent-tag.agent-valentina { background: #8a5cf622; color: #b79bfa; }
   .conversation-thread {
     flex: 1;
     min-width: 0;

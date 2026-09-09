@@ -4,18 +4,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const conversationThread = document.getElementById('conversationThread');
   const searchInput = document.getElementById('searchInput');
+  const agentFilter = document.getElementById('agentFilter');
   const stageFilter = document.getElementById('stageFilter');
 
-  let allLeads = [];
-  let selectedId = null;
+  let allConversations = [];
+  let selectedKey = null;
   let pollTimer = null;
 
   const STAGE_LABELS = {
     sin_iniciar: 'Sin iniciar',
     en_conversacion: 'En conversación',
     entregado: 'Entregado',
+    acuerdo: 'Acuerdo de pago',
     escalado: 'Escalado',
   };
+
+  const AGENT_LABELS = { andres: 'Andrés (ventas)', valentina: 'Valentina (cobranza)' };
 
   function escapeHtml(str) {
     return String(str || '')
@@ -29,17 +33,21 @@ document.addEventListener('DOMContentLoaded', function () {
     return new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
+  function fmtMoney(n) {
+    return '$' + Number(n || 0).toLocaleString('es-CO');
+  }
+
   function renderList() {
-    if (!allLeads.length) {
+    if (!allConversations.length) {
       conversationsList.innerHTML = '<div class="empty">No hay conversaciones con esos filtros.</div>';
       return;
     }
-    conversationsList.innerHTML = allLeads.map((l) => `
-      <div class="conversation-row ${l.id === selectedId ? 'active' : ''}" data-id="${l.id}">
-        <div class="name">${escapeHtml(l.name)}</div>
+    conversationsList.innerHTML = allConversations.map((c) => `
+      <div class="conversation-row ${c.key === selectedKey ? 'active' : ''}" data-key="${c.key}">
+        <div class="name">${escapeHtml(c.name)} <span class="agent-tag agent-${c.agent}">${c.agent === 'andres' ? 'Andrés' : 'Valentina'}</span></div>
         <div class="meta">
-          ${escapeHtml(l.phone)}${l.city ? ' · ' + escapeHtml(l.city) : ''}<br />
-          ${STAGE_LABELS[l.aiStage] || l.aiStage} · ${fmtDate(l.lastInboundAt || l.createdAt)}
+          ${escapeHtml(c.phone)}${c.city ? ' · ' + escapeHtml(c.city) : ''}${c.deuda ? ' · ' + fmtMoney(c.deuda) : ''}<br />
+          ${STAGE_LABELS[c.aiStage] || c.aiStage} · ${fmtDate(c.lastInboundAt || c.createdAt)}
         </div>
       </div>
     `).join('');
@@ -48,16 +56,17 @@ document.addEventListener('DOMContentLoaded', function () {
   function loadList() {
     const params = new URLSearchParams();
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
+    if (agentFilter.value) params.set('agent', agentFilter.value);
     if (stageFilter.value) params.set('aiStage', stageFilter.value);
 
     fetch('/api/whatsapp-conversations?' + params.toString())
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        if (!Array.isArray(data.leads)) {
+        if (!Array.isArray(data.conversations)) {
           conversationsList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
           return;
         }
-        allLeads = data.leads;
+        allConversations = data.conversations;
         renderList();
       })
       .catch(() => {
@@ -65,29 +74,31 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
-  function loadThread(id, silent) {
-    const lead = allLeads.find((l) => l.id === id);
-    fetch('/api/whatsapp-conversations?id=' + encodeURIComponent(id))
+  function loadThread(key, silent) {
+    const conv = allConversations.find((c) => c.key === key);
+    if (!conv) return;
+    fetch('/api/whatsapp-conversations?id=' + encodeURIComponent(conv.id) + '&agent=' + encodeURIComponent(conv.agent))
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!Array.isArray(data.history)) {
           if (!silent) conversationThread.innerHTML = '<div class="empty">No se pudo cargar la conversación.</div>';
           return;
         }
-        const header = lead ? `
+        const header = `
           <div class="thread-header">
-            <div class="name">${escapeHtml(lead.name)}</div>
+            <div class="name">${escapeHtml(conv.name)} <span class="agent-tag agent-${conv.agent}">${AGENT_LABELS[conv.agent]}</span></div>
             <div class="meta">
-              ${escapeHtml(lead.phone)}${lead.city ? ' · ' + escapeHtml(lead.city) : ''}${lead.vehicleType ? ' · ' + escapeHtml(lead.vehicleType) : ''}
-              · ${STAGE_LABELS[lead.aiStage] || lead.aiStage}
-              ${lead.secretary ? ' · Asignado a: ' + escapeHtml(lead.secretary) : ''}
+              ${escapeHtml(conv.phone)}${conv.city ? ' · ' + escapeHtml(conv.city) : ''}${conv.vehicleType ? ' · ' + escapeHtml(conv.vehicleType) : ''}${conv.deuda ? ' · ' + fmtMoney(conv.deuda) : ''}
+              · ${STAGE_LABELS[conv.aiStage] || conv.aiStage}
+              ${conv.secretary ? ' · Asignado a: ' + escapeHtml(conv.secretary) : ''}
             </div>
           </div>
-        ` : '';
+        `;
+        const agentName = conv.agent === 'valentina' ? 'Valentina (IA)' : 'Andrés (IA)';
         const wasAtBottom = conversationThread.scrollTop + conversationThread.clientHeight >= conversationThread.scrollHeight - 20;
         conversationThread.innerHTML = header + data.history.map((m) => `
           <div class="msg-bubble ${m.role === 'user' ? 'user' : 'assistant'}">
-            <span class="who">${m.role === 'user' ? escapeHtml(lead ? lead.name : 'Cliente') : 'Andrés (IA)'}</span>
+            <span class="who">${m.role === 'user' ? escapeHtml(conv.name || 'Cliente') : agentName}</span>
             ${escapeHtml(m.content)}
           </div>
         `).join('') || header + '<div class="empty">Todavía no hay mensajes.</div>';
@@ -100,18 +111,18 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
-  function selectConversation(id) {
-    selectedId = id;
+  function selectConversation(key) {
+    selectedKey = key;
     renderList();
-    loadThread(id, false);
+    loadThread(key, false);
     if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(() => loadThread(id, true), 8000);
+    pollTimer = setInterval(() => loadThread(key, true), 8000);
   }
 
   conversationsList.addEventListener('click', function (e) {
     const row = e.target.closest('.conversation-row');
     if (!row) return;
-    selectConversation(row.getAttribute('data-id'));
+    selectConversation(row.getAttribute('data-key'));
   });
 
   let debounceTimer;
@@ -119,6 +130,7 @@ document.addEventListener('DOMContentLoaded', function () {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(loadList, 250);
   });
+  agentFilter.addEventListener('change', loadList);
   stageFilter.addEventListener('change', loadList);
 
   loadList();

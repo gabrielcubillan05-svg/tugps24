@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { SESSION_COOKIE, getSession, canViewWhatsappConversations } from '../../lib/auth';
 import { readLeads } from './leads';
-import { readHistory } from './whatsapp-webhook';
+import { readCobros } from './cobros';
+import { readHistory, readCobroHistory } from './whatsapp-webhook';
 import { getRedis } from '../../lib/redis';
 
 export const prerender = false;
@@ -23,9 +24,10 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   }
 
   const id = url.searchParams.get('id');
+  const agentParam = url.searchParams.get('agent') || '';
 
   if (id) {
-    const history = await readHistory(redis, id);
+    const history = agentParam === 'valentina' ? await readCobroHistory(redis, id) : await readHistory(redis, id);
     return new Response(JSON.stringify({ history }), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
@@ -33,31 +35,55 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const aiStage = url.searchParams.get('aiStage') || '';
+  const agentFilter = url.searchParams.get('agent') || '';
 
   const allLeads = await readLeads(redis);
-  let leads = allLeads.filter((l) => l.source === 'whatsapp-ads');
-  if (q) {
-    leads = leads.filter((l) => l.name.toLowerCase().includes(q) || l.phone.toLowerCase().includes(q));
-  }
-  if (aiStage) {
-    leads = leads.filter((l) => (l.aiStage || 'sin_iniciar') === aiStage);
-  }
-  leads.sort((a, b) => (b.lastInboundAt || b.updatedAt).localeCompare(a.lastInboundAt || a.updatedAt));
+  const leadItems = allLeads
+    .filter((l) => l.source === 'whatsapp-ads')
+    .map((l) => ({
+      key: `andres:${l.id}`,
+      id: l.id,
+      agent: 'andres' as const,
+      name: l.name,
+      phone: l.phone,
+      city: l.city,
+      vehicleType: l.vehicleType,
+      aiStage: l.aiStage || 'sin_iniciar',
+      secretary: l.secretary,
+      lastInboundAt: l.lastInboundAt,
+      lastOutboundAt: l.lastOutboundAt,
+      createdAt: l.createdAt,
+      updatedAt: l.updatedAt,
+      deuda: null as number | null,
+    }));
 
-  const summaries = leads.map((l) => ({
-    id: l.id,
-    name: l.name,
-    phone: l.phone,
-    city: l.city,
-    vehicleType: l.vehicleType,
-    aiStage: l.aiStage || 'sin_iniciar',
-    secretary: l.secretary,
-    lastInboundAt: l.lastInboundAt,
-    lastOutboundAt: l.lastOutboundAt,
-    createdAt: l.createdAt,
+  const allCobros = await readCobros(redis);
+  const cobroItems = allCobros.map((c) => ({
+    key: `valentina:${c.id}`,
+    id: c.id,
+    agent: 'valentina' as const,
+    name: c.nombre,
+    phone: c.telefono,
+    city: c.sucursal,
+    vehicleType: '',
+    aiStage: c.aiStage || 'sin_iniciar',
+    secretary: c.assignedTo,
+    lastInboundAt: c.lastInboundAt,
+    lastOutboundAt: c.lastOutboundAt,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    deuda: c.deuda,
   }));
 
-  return new Response(JSON.stringify({ leads: summaries }), {
+  let items = [...leadItems, ...cobroItems];
+  if (agentFilter) items = items.filter((i) => i.agent === agentFilter);
+  if (q) items = items.filter((i) => i.name.toLowerCase().includes(q) || i.phone.toLowerCase().includes(q));
+  if (aiStage) items = items.filter((i) => i.aiStage === aiStage);
+  items.sort((a, b) =>
+    (b.lastInboundAt || b.updatedAt || b.createdAt).localeCompare(a.lastInboundAt || a.updatedAt || a.createdAt)
+  );
+
+  return new Response(JSON.stringify({ conversations: items }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
