@@ -349,5 +349,30 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  const clearAssignmentsBtn = document.getElementById('cobrosClearAssignmentsBtn');
+  if (clearAssignmentsBtn) {
+    const clearAssignmentsResult = document.getElementById('cobrosClearAssignmentsResult');
+    clearAssignmentsBtn.addEventListener('click', function () {
+      if (!confirm('¿Quitar la asignación a trabajador de TODOS los cobros? Quedarán "Sin asignar" (la agente IA los gestiona igual).')) return;
+      clearAssignmentsBtn.disabled = true;
+      clearAssignmentsResult.textContent = 'Quitando asignaciones...';
+      fetch('/api/cobros', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clearAllAssignments' }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo quitar las asignaciones.');
+          clearAssignmentsResult.textContent = `${data.cleared} cobro(s) quedaron sin asignar.`;
+          loadCobros();
+        })
+        .catch((err) => {
+          clearAssignmentsResult.textContent = err.message || 'No se pudo quitar las asignaciones.';
+        })
+        .finally(() => { clearAssignmentsBtn.disabled = false; });
+    });
+  }
+
   loadCobros();
 });

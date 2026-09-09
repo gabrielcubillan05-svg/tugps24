@@ -29,22 +29,16 @@ const currentUserName = currentUser?.name || session.username;
         <button class="btn-small" type="submit">Subir lista</button>
       </form>
       <div class="field field-full" style="margin-top:10px;">
-        <label for="assigneesInput">Nombres para repartir (uno por línea o separados por coma)</label>
-        <textarea id="assigneesInput" rows="4" style="width:100%;">Yelitza
-Heydrich
-Alonso
-Helen
-Cristofer
-Joenys
-Melany
-Pierangela
-Ana</textarea>
+        <label for="assigneesInput">Nombres para repartir (opcional — la agente IA (Valentina) gestiona primero; solo llena esto si de verdad quieres repartir estos cobros entre trabajadores)</label>
+        <textarea id="assigneesInput" rows="4" style="width:100%;" placeholder="Déjalo vacío para no asignar a nadie"></textarea>
       </div>
       <div id="cobrosUploadResult"></div>
       {session.role === 'admin' && (
         <div class="undo-verify-row" style="margin-top:14px;">
           <button class="btn-small btn-delete" id="cobrosDeleteAllBtn" type="button">Borrar todo</button>
           <span id="cobrosDeleteAllResult" class="hint" style="margin:0;"></span>
+          <button class="btn-small" id="cobrosClearAssignmentsBtn" type="button">Quitar todas las asignaciones a trabajadores</button>
+          <span id="cobrosClearAssignmentsResult" class="hint" style="margin:0;"></span>
         </div>
       )}
     </div>

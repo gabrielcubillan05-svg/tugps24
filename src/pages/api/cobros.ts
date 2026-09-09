@@ -406,6 +406,29 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
 
+  // Quita la asignación a trabajador de TODOS los cobros — quedan "Sin asignar" para que
+  // los gestione primero la agente IA (Valentina), sin importar cómo se hayan repartido antes.
+  if (body.action === 'clearAllAssignments') {
+    if (session.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'no autorizado' }), { status: 403 });
+    }
+    const allCobros = await readCobros(redis);
+    const toClear = allCobros.filter((c) => c.assignedTo);
+    const changed: Record<string, string> = {};
+    for (const cobro of toClear) {
+      cobro.assignedTo = '';
+      cobro.updatedAt = new Date().toISOString();
+      changed[cobro.id] = JSON.stringify(cobro);
+    }
+    if (Object.keys(changed).length) {
+      await redis.hset(REDIS_KEY, changed);
+    }
+    await logAudit(redis, session, 'cobros_clear_assignments', `${toClear.length} cobros`);
+    return new Response(JSON.stringify({ cleared: toClear.length }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   // Envía la plantilla a TODOS los cobros pendientes de una sola vez (el botón llama esto
   // repetidas veces hasta que "remaining" llegue a 0, para no arriesgar un timeout con listas grandes).
   if (body.action === 'sendWhatsappReminderAll') {
