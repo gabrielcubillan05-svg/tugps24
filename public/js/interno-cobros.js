@@ -148,9 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ? `<a class="btn-small btn-wa" href="${waLink(c.telefono, messageFor(c.nombre, c.deuda))}" target="_blank" rel="noopener" data-action="wa-sent" data-id="${c.id}">WhatsApp</a>`
             : `<span class="btn-small" title="Teléfono inválido: ${escapeHtml(c.telefono)}">Teléfono inválido</span>`}
           ${canSeeAll && isPhoneLike(c.telefono)
-            ? c.templateSentAt
-              ? `<span class="btn-small" title="Enviado el ${new Date(c.templateSentAt).toLocaleString('es-CO')}">✓ Recordatorio IA enviado</span>`
-              : `<button class="btn-small" data-action="send-reminder" data-id="${c.id}" type="button">Recordatorio IA (WhatsApp)</button>`
+            ? `<button class="btn-small" data-action="send-reminder" data-id="${c.id}" type="button" title="${c.templateSentAt ? 'Enviado el ' + new Date(c.templateSentAt).toLocaleString('es-CO') : ''}">${c.templateSentAt ? '↻ Reenviar recordatorio IA' : 'Recordatorio IA (WhatsApp)'}</button>`
             : ''}
           <button class="btn-small ${c.contacted ? 'btn-done' : ''}" data-action="toggle-contacted" data-id="${c.id}" type="button">
             ${c.contacted ? '✓ Contactado' : 'Marcar contactado'}
@@ -205,7 +203,11 @@ document.addEventListener('DOMContentLoaded', function () {
   estadoFilter.addEventListener('change', renderList);
 
   function sendReminder(id, btn) {
-    if (!confirm('¿Enviar el recordatorio de pago por WhatsApp? A partir de la respuesta del cliente, la agente IA de cobranza sigue la conversación.')) return;
+    const cobro = allCobros.find((c) => c.id === id);
+    const confirmMsg = cobro && cobro.templateSentAt
+      ? '¿Reenviar el recordatorio de pago por WhatsApp? Ya se le había enviado antes.'
+      : '¿Enviar el recordatorio de pago por WhatsApp? A partir de la respuesta del cliente, la agente IA de cobranza sigue la conversación.';
+    if (!confirm(confirmMsg)) return;
     btn.disabled = true;
     btn.textContent = 'Enviando...';
     fetch('/api/cobros', {
@@ -222,8 +224,7 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .catch((err) => {
         alert(err.message || 'No se pudo enviar el recordatorio.');
-        btn.disabled = false;
-        btn.textContent = 'Recordatorio IA (WhatsApp)';
+        renderList();
       });
   }
 
