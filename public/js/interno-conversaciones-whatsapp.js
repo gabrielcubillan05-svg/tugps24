@@ -96,12 +96,15 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
         const agentName = conv.agent === 'valentina' ? 'Valentina (IA)' : 'Andrés (IA)';
         const wasAtBottom = conversationThread.scrollTop + conversationThread.clientHeight >= conversationThread.scrollHeight - 20;
-        conversationThread.innerHTML = header + data.history.map((m) => `
-          <div class="msg-bubble ${m.role === 'user' ? 'user' : 'assistant'}">
-            <span class="who">${m.role === 'user' ? escapeHtml(conv.name || 'Cliente') : agentName}</span>
-            ${escapeHtml(m.content)}
-          </div>
-        `).join('') || header + '<div class="empty">Todavía no hay mensajes.</div>';
+        const body = data.history.length
+          ? data.history.map((m) => `
+            <div class="msg-bubble ${m.role === 'user' ? 'user' : 'assistant'}">
+              <span class="who">${m.role === 'user' ? escapeHtml(conv.name || 'Cliente') : agentName}</span>
+              ${escapeHtml(m.content)}
+            </div>
+          `).join('')
+          : '<div class="empty">Todavía no hay mensajes.</div>';
+        conversationThread.innerHTML = header + body;
         if (!silent || wasAtBottom) {
           conversationThread.scrollTop = conversationThread.scrollHeight;
         }

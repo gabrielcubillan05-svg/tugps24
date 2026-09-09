@@ -15,6 +15,30 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const REMINDER_TEMPLATE_NAME = 'recordatorio_pago';
 const REMINDER_TEMPLATE_LANGUAGE = 'es_CO'; // la plantilla quedó aprobada como "Spanish (COL)", no "es" genérico
 
+// Mismo historial que lee/escribe whatsapp-webhook.ts (duplicado a propósito, como el resto
+// de helpers de los agentes) — para que el envío del recordatorio quede visible en el visor
+// de conversaciones aunque el cliente todavía no haya respondido nada.
+const COBRO_CONVERSATIONS_KEY = 'internal:cobro-whatsapp-conversations';
+const MAX_HISTORY = 60;
+
+async function logCobroReminderSent(redis: any, cobroId: string, nombre: string, deuda: number): Promise<void> {
+  const firstName = nombre.trim().split(/\s+/)[0] || nombre;
+  const monto = '$' + Math.round(deuda).toLocaleString('es-CO');
+  const entry = { role: 'assistant', content: `[Plantilla ${REMINDER_TEMPLATE_NAME}] Hola ${firstName}, tienes un saldo pendiente de ${monto} por el servicio de monitoreo GPS. Escríbenos si quieres resolverlo o tienes alguna duda.` };
+  const raw = await redis.hget<string>(COBRO_CONVERSATIONS_KEY, cobroId);
+  let current: unknown[] = [];
+  if (raw) {
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(parsed)) current = parsed;
+    } catch {
+      // ignora historial corrupto, empieza de nuevo
+    }
+  }
+  const updated = [...current, entry].slice(-MAX_HISTORY);
+  await redis.hset(COBRO_CONVERSATIONS_KEY, { [cobroId]: JSON.stringify(updated) });
+}
+
 export interface Cobro {
   id: string;
   nombre: string;
@@ -405,6 +429,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
         cobro.aiStage = 'en_conversacion';
         cobro.updatedAt = cobro.templateSentAt;
         await redis.hset(REDIS_KEY, { [cobro.id]: JSON.stringify(cobro) });
+        await logCobroReminderSent(redis, cobro.id, cobro.nombre, cobro.deuda);
         sent++;
       } else {
         failed++;
@@ -453,6 +478,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     cobro.aiStage = 'en_conversacion';
     cobro.updatedAt = cobro.templateSentAt;
     await redis.hset(REDIS_KEY, { [id]: JSON.stringify(cobro) });
+    await logCobroReminderSent(redis, cobro.id, cobro.nombre, cobro.deuda);
     await logAudit(redis, session, 'cobro_whatsapp_reminder', cobro.nombre, cobro.telefono);
     return new Response(JSON.stringify({ cobro }), { headers: { 'Content-Type': 'application/json' } });
   }
