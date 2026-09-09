@@ -5,6 +5,7 @@ import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { getUsers, findUserByUsername, JOSUE_USERNAME } from '../../lib/auth';
 import { sendWhatsappText, verifyMetaSignature } from '../../lib/whatsapp';
+import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
 
@@ -276,17 +277,23 @@ export const POST: APIRoute = async ({ request }) => {
             if (!isNew) continue;
           }
 
-          if (msg.type !== 'text') {
-            // Fase 1: no transcribimos audio ni leemos imágenes/documentos — le avisamos
-            // al cliente en vez de dejarlo en silencio, salvo que ya lo tenga un humano.
+          const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
+
+          let text = '';
+          if (msg.type === 'text') {
+            text = msg.text?.body ? String(msg.text.body) : '';
+          } else if (msg.type === 'audio' && msg.audio?.id) {
+            text = (await transcribeWhatsappAudio(String(msg.audio.id))) || '';
+          }
+
+          if (!text) {
+            // No se pudo transcribir el audio, o es un tipo que no leemos (foto, video,
+            // documento, sticker, ubicación) — avisamos al cliente en vez de dejarlo en
+            // silencio, salvo que el caso ya lo tenga un humano.
             await handleUnsupportedMessage(redis, fromPhone, msg.type);
             continue;
           }
 
-          const text = msg.text?.body ? String(msg.text.body) : '';
-          if (!text) continue;
-
-          const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
           await handleInboundMessage(redis, fromPhone, text, contactName);
         }
       }
