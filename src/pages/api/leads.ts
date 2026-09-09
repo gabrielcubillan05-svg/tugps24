@@ -60,7 +60,12 @@ export interface Lead {
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', ''];
 
 export function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '');
+  const digits = phone.replace(/\D/g, '');
+  // Los celulares colombianos se guardan muchas veces sin el indicativo (10 dígitos,
+  // empiezan por 3) — Meta siempre necesita el número completo (57 + 10 dígitos) tanto
+  // para reconocer quién escribe como para poder enviarle un mensaje.
+  if (digits.length === 10 && digits.startsWith('3')) return '57' + digits;
+  return digits;
 }
 
 // Un "usuario de WhatsApp" (ej: @eliacaturbina07) puede traer dígitos sueltos que no
