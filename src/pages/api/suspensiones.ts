@@ -171,6 +171,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const status = url.searchParams.get('status') || '';
   const dateFrom = url.searchParams.get('dateFrom') || '';
   const dateTo = url.searchParams.get('dateTo') || '';
+  const assignedTo = url.searchParams.get('assignedTo') || '';
 
   const all = await readSuspensiones(redis);
 
@@ -198,6 +199,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   else if (status) casos = casos.filter((c) => c.status === status);
   if (dateFrom) casos = casos.filter((c) => c.createdAt >= dateFrom);
   if (dateTo) casos = casos.filter((c) => c.createdAt <= dateTo + 'T23:59:59.999Z');
+  if (assignedTo) casos = casos.filter((c) => c.assignedToId === assignedTo);
 
   const stats = computeStats(casos);
 
@@ -206,12 +208,21 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     requestPhotoUrl: c.requestPhotoPath ? '/api/blob-file?path=' + encodeURIComponent(c.requestPhotoPath) : null,
   }));
 
+  const assigneesMap = new Map<string, string>();
+  for (const c of all) {
+    if (c.assignedToId) assigneesMap.set(c.assignedToId, c.assignedToName);
+  }
+  const assignees = Array.from(assigneesMap.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return new Response(
     JSON.stringify({
       casos: casosWithUrl,
       branches: BRANCHES,
       statuses: STATUSES,
       stats,
+      assignees,
       currentUserId: session.userId,
       isTesoreria: isTesoreriaSession(session),
       isJosue: isJosueSession(session),

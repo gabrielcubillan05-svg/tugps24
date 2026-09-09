@@ -38,6 +38,11 @@ if (!canAccessSolicitudesAdministrativas(session)) {
         <label for="description">Descripción (opcional)</label>
         <textarea id="description" placeholder="Detalles de la solicitud"></textarea>
       </div>
+      <div class="field field-note">
+        <label for="photo">Foto (opcional) — puedes pegar una captura con Ctrl+V</label>
+        <input id="photo" type="file" accept="image/*" />
+        <div class="image-preview" id="imagePreview"></div>
+      </div>
       <button class="btn field-full" type="submit">Guardar solicitud</button>
     </form>
   </div>
@@ -86,6 +91,8 @@ if (!canAccessSolicitudesAdministrativas(session)) {
   .solicitud-client { font-weight: 700; font-size: 15px; }
   .solicitud-type { font-size: 13px; color: var(--slate); margin-bottom: 6px; }
   .solicitud-description { font-size: 13px; margin-bottom: 8px; white-space: pre-wrap; }
+  .solicitud-photo { margin-bottom: 10px; }
+  .solicitud-photo img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; }
   .solicitud-meta { color: var(--slate); font-size: 12px; margin-bottom: 10px; }
   .solicitud-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
   .solicitud-timeline { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }

@@ -210,6 +210,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (currentTab) params.set('status', currentTab);
     if (dateFromFilter.value) params.set('dateFrom', dateFromFilter.value);
     if (dateToFilter.value) params.set('dateTo', dateToFilter.value);
+    if (assignedToFilter.value) params.set('assignedTo', assignedToFilter.value);
 
     fetch('/api/suspensiones?' + params.toString())
       .then(async (res) => {
@@ -221,6 +222,13 @@ document.addEventListener('DOMContentLoaded', function () {
           allCasos = data.casos;
           renderStats(data.stats);
           renderList(allCasos);
+
+          if (Array.isArray(data.assignees)) {
+            const current = assignedToFilter.value;
+            assignedToFilter.innerHTML = '<option value="">Todos los asignados</option>' +
+              data.assignees.map((a) => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}</option>`).join('');
+            assignedToFilter.value = current;
+          }
 
           const notice = document.getElementById('viewerBranchNotice');
           if (notice) {
@@ -250,6 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const branchFilter = document.getElementById('branchFilter');
   const dateFromFilter = document.getElementById('dateFromFilter');
   const dateToFilter = document.getElementById('dateToFilter');
+  const assignedToFilter = document.getElementById('assignedToFilter');
   const tabButtons = document.querySelectorAll('.tab-btn[data-status]');
 
   let debounceTimer;
@@ -260,6 +269,7 @@ document.addEventListener('DOMContentLoaded', function () {
   branchFilter.addEventListener('change', loadSuspensiones);
   dateFromFilter.addEventListener('change', loadSuspensiones);
   dateToFilter.addEventListener('change', loadSuspensiones);
+  assignedToFilter.addEventListener('change', loadSuspensiones);
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', function () {
       tabButtons.forEach((b) => b.classList.remove('active'));

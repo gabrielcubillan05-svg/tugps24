@@ -24,6 +24,33 @@ document.addEventListener('DOMContentLoaded', function () {
     return 'status-' + String(status || '').replace(/\s+/g, '-');
   }
 
+  function compressImage(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = () => { img.src = reader.result; };
+      reader.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('No se pudo comprimir la imagen'));
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   function monthLabel(ym) {
     const [y, m] = ym.split('-');
@@ -75,6 +102,11 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <p class="solicitud-type">${escapeHtml(s.requestType)}</p>
         ${s.description ? `<p class="solicitud-description">${escapeHtml(s.description)}</p>` : ''}
+        ${s.imageUrl ? `
+          <div class="solicitud-photo">
+            <a href="${s.imageUrl}" target="_blank" rel="noopener"><img src="${s.imageUrl}" alt="Foto de la solicitud" loading="lazy" /></a>
+          </div>
+        ` : ''}
         <div class="solicitud-meta">
           Creado por ${escapeHtml(s.createdByName)} el ${fmtDate(s.createdAt)}
           ${s.dueDate ? ` · Vence: ${escapeHtml(s.dueDate)}` : ''}
@@ -192,7 +224,56 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch((err) => alert(err.message || 'No se pudo actualizar la solicitud.'));
   });
 
+  const photoInput = document.getElementById('photo');
+  const imagePreview = document.getElementById('imagePreview');
+  let pendingPhoto = null;
+
+  function renderImagePreview() {
+    if (!pendingPhoto) {
+      imagePreview.innerHTML = '';
+      return;
+    }
+    imagePreview.innerHTML = `
+      <div class="thumb" data-index="0">
+        <img src="${pendingPhoto.url}" alt="Previsualización" />
+        <button type="button" data-remove="0" aria-label="Quitar imagen">×</button>
+      </div>
+    `;
+  }
+
+  function setPendingPhoto(file) {
+    if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url);
+    pendingPhoto = { file, url: URL.createObjectURL(file) };
+    renderImagePreview();
+  }
+
+  if (photoInput) {
+    photoInput.addEventListener('change', () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (file) setPendingPhoto(file);
+      photoInput.value = '';
+    });
+  }
+
+  if (imagePreview) {
+    imagePreview.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-remove]');
+      if (!btn) return;
+      if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url);
+      pendingPhoto = null;
+      renderImagePreview();
+    });
+  }
+
   const solicitudForm = document.getElementById('solicitudForm');
+  solicitudForm.addEventListener('paste', (e) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    if (!imageItem) return;
+    const file = imageItem.getAsFile();
+    if (file) setPendingPhoto(file);
+  });
+
   solicitudForm.addEventListener('submit', async function (e) {
     e.preventDefault();
     const clientName = document.getElementById('clientName').value.trim();
@@ -206,17 +287,28 @@ document.addEventListener('DOMContentLoaded', function () {
     const originalLabel = submitBtn.textContent;
 
     try {
+      const formData = new FormData();
+      formData.set('clientName', clientName);
+      formData.set('requestType', requestType);
+      formData.set('dueDate', dueDate);
+      formData.set('description', description);
+
+      if (pendingPhoto) {
+        submitBtn.textContent = 'Procesando foto...';
+        const compressed = await compressImage(pendingPhoto.file, 1600, 0.75);
+        formData.append('photo', compressed, 'foto.jpg');
+      }
+
       submitBtn.textContent = 'Guardando...';
-      const res = await fetch('/api/solicitudes-administrativas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientName, requestType, dueDate, description }),
-      });
+      const res = await fetch('/api/solicitudes-administrativas', { method: 'POST', body: formData });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `error ${res.status}`);
       }
       solicitudForm.reset();
+      if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url);
+      pendingPhoto = null;
+      renderImagePreview();
       loadSolicitudes();
     } catch (err) {
       alert('No se pudo guardar la solicitud: ' + (err.message || 'intenta de nuevo.'));

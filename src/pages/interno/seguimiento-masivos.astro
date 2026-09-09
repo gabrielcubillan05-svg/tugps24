@@ -1,0 +1,95 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { BRANCHES } from '../api/seguimiento-masivos';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'seguimiento-masivos')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Seguimiento a clientes masivos" active="seguimiento-masivos" session={session}>
+  <div class="panel-card">
+    <h2>Nuevo cliente masivo</h2>
+    <p class="hint">Registra clientes de flota para llevarles seguimiento postventa: cambios en su flota, recaudo mensual, y notas de cada contacto.</p>
+    <form id="clienteForm" class="form-grid">
+      <div class="field">
+        <label for="clientName">Nombre del cliente</label>
+        <input id="clientName" type="text" placeholder="Nombre o razón social" required />
+      </div>
+      <div class="field">
+        <label for="phone">Teléfono</label>
+        <input id="phone" type="text" placeholder="300 000 0000" required />
+      </div>
+      <div class="field">
+        <label for="branch">Sucursal (opcional)</label>
+        <select id="branch">
+          <option value="">Sin definir</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+      </div>
+      <div class="field">
+        <label for="vehicleCount">Cantidad actual de vehículos</label>
+        <input id="vehicleCount" type="number" min="0" placeholder="0" />
+      </div>
+      <div class="field">
+        <label for="monthlyRevenue">Recaudo mensual (COP)</label>
+        <input id="monthlyRevenue" type="number" min="0" placeholder="0" />
+      </div>
+      <div class="field field-note">
+        <label for="initialNote">Resumen inicial (opcional)</label>
+        <textarea id="initialNote" placeholder="Detalle del primer contacto o estado actual"></textarea>
+      </div>
+      <button class="btn field-full" type="submit">Guardar cliente</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Resumen</h2>
+    <div class="stats-row" id="statsRow"></div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Clientes masivos</h2>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por cliente o teléfono..." />
+      <select id="branchFilter">
+        <option value="">Todas las sucursales</option>
+        {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+      </select>
+    </div>
+    <div class="clientes-list" id="clientesList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .clientes-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .cliente-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .cliente-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .cliente-name { font-weight: 700; font-size: 15px; }
+  .cliente-meta { color: var(--slate); font-size: 12.5px; margin-bottom: 10px; }
+  .cliente-edit-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: flex-end; }
+  .cliente-edit-row .field { display: flex; flex-direction: column; gap: 2px; }
+  .cliente-edit-row label { color: var(--slate); font-size: 10.5px; }
+  .cliente-edit-row input, .cliente-edit-row select { width: 150px; padding: 7px 9px; font-size: 12.5px; }
+  .cliente-timeline { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .timeline-item { font-size: 12.5px; background: var(--ink-900, #0e0d0b); border-radius: 6px; padding: 6px 10px; }
+  .timeline-date { color: var(--slate); font-size: 11px; margin-right: 8px; }
+  .cliente-add-note-row { display: flex; gap: 8px; }
+  .cliente-add-note-row input { flex: 1; }
+</style>
+
+<script src="/js/interno-seguimiento-masivos.js" defer></script>

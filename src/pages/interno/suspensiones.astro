@@ -65,6 +65,7 @@ if (!canAccessSuspensiones(session)) {
         <option value="">Todas las sucursales</option>
         {BRANCHES.map((b) => <option value={b}>{b}</option>)}
       </select>
+      <select id="assignedToFilter"><option value="">Todos los asignados</option></select>
       <label class="date-filter-label">Desde <input id="dateFromFilter" type="date" /></label>
       <label class="date-filter-label">Hasta <input id="dateToFilter" type="date" /></label>
     </div>

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
+import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
@@ -32,6 +33,7 @@ export const REQUEST_TYPES = [
 ];
 
 export const STATUSES = ['Pendiente', 'Completada', 'No completada'];
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 interface TimelineEvent {
   id: string;
@@ -47,6 +49,7 @@ interface Solicitud {
   requestType: string;
   description: string;
   dueDate: string | null;
+  imagePath: string | null;
   status: string;
   timeline: TimelineEvent[];
   createdAt: string;
@@ -74,7 +77,7 @@ async function readSolicitudes(redis: any): Promise<Solicitud[]> {
       }
     })
     .filter((s): s is Solicitud => s !== null)
-    .map((s) => ({ timeline: [], dueDate: null, resolvedAt: null, resolvedByName: '', ...s }))
+    .map((s) => ({ timeline: [], dueDate: null, imagePath: null, resolvedAt: null, resolvedByName: '', ...s }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -141,9 +144,14 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const stats = computeStats(items);
 
+  const itemsWithUrl = items.map((s) => ({
+    ...s,
+    imageUrl: s.imagePath ? '/api/blob-file?path=' + encodeURIComponent(s.imagePath) : null,
+  }));
+
   return new Response(
     JSON.stringify({
-      solicitudes: items,
+      solicitudes: itemsWithUrl,
       requestTypes: REQUEST_TYPES,
       statuses: STATUSES,
       stats,
@@ -167,23 +175,42 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { clientName?: string; requestType?: string; description?: string; dueDate?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
-  }
-
-  const clientName = String(body.clientName || '').trim();
-  const requestType = String(body.requestType || '').trim();
-  const description = String(body.description || '').trim();
-  const dueDate = body.dueDate ? String(body.dueDate).trim() : null;
+  const form = await request.formData();
+  const clientName = String(form.get('clientName') || '').trim();
+  const requestType = String(form.get('requestType') || '').trim();
+  const description = String(form.get('description') || '').trim();
+  const dueDate = form.get('dueDate') ? String(form.get('dueDate')).trim() : null;
+  const photoFile = form.get('photo');
 
   if (!clientName || !requestType) {
     return new Response(JSON.stringify({ error: 'faltan campos obligatorios' }), { status: 400 });
   }
   if (!REQUEST_TYPES.includes(requestType)) {
     return new Response(JSON.stringify({ error: 'tipo de solicitud inválido' }), { status: 400 });
+  }
+
+  let imagePath: string | null = null;
+  if (photoFile instanceof File && photoFile.size > 0) {
+    if (!photoFile.type.startsWith('image/')) {
+      return new Response(JSON.stringify({ error: 'la foto debe ser una imagen' }), { status: 400 });
+    }
+    if (photoFile.size > MAX_IMAGE_BYTES) {
+      return new Response(JSON.stringify({ error: 'la foto debe pesar menos de 8MB' }), { status: 400 });
+    }
+    const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'almacenamiento de imágenes no configurado' }), { status: 503 });
+    }
+    try {
+      const blobId = randomUUID();
+      const blob = await put(`solicitudes-admin/${blobId}`, photoFile, { access: 'private', token, addRandomSuffix: false });
+      imagePath = blob.pathname;
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ error: 'fallo al subir la foto', detail: err instanceof Error ? err.message : String(err) }),
+        { status: 500 }
+      );
+    }
   }
 
   const creator = await findUserById(redis, session.userId);
@@ -195,6 +222,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     requestType,
     description,
     dueDate,
+    imagePath,
     status: 'Pendiente',
     timeline: [],
     createdAt: now,
@@ -243,7 +271,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const sol: Solicitud = { timeline: [], dueDate: null, resolvedAt: null, resolvedByName: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const sol: Solicitud = { timeline: [], dueDate: null, imagePath: null, resolvedAt: null, resolvedByName: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
 
   const actor = await findUserById(redis, session.userId);
   const actorName = actor?.name || session.username;

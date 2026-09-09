@@ -39,7 +39,8 @@ export type Section =
   | 'cuadrantes'
   | 'casos-importantes'
   | 'suspensiones'
-  | 'solicitudes-administrativas';
+  | 'solicitudes-administrativas'
+  | 'seguimiento-masivos';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -58,6 +59,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'casos-importantes': 'Casos importantes',
   suspensiones: 'Suspensiones',
   'solicitudes-administrativas': 'Solicitudes Administrativas',
+  'seguimiento-masivos': 'Seguimiento a clientes masivos',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -77,15 +79,16 @@ export const SECTION_PATHS: Record<Section, string> = {
   'casos-importantes': '/interno/casos-importantes',
   suspensiones: '/interno/suspensiones',
   'solicitudes-administrativas': '/interno/solicitudes-administrativas',
+  'seguimiento-masivos': '/interno/seguimiento-masivos',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'cuadrantes'],
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas'],
+  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
