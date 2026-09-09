@@ -11,7 +11,7 @@ import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './
 
 export const prerender = false;
 
-const CONVERSATIONS_KEY = 'internal:lead-whatsapp-conversations';
+export const CONVERSATIONS_KEY = 'internal:lead-whatsapp-conversations';
 const MAX_HISTORY = 60;
 const WHATSAPP_ACTOR = { userId: 'whatsapp-agent', username: 'Agente IA (Andrés)' };
 
@@ -29,7 +29,7 @@ export const GET: APIRoute = async ({ url }) => {
   return new Response('forbidden', { status: 403 });
 };
 
-async function readHistory(redis: any, leadId: string): Promise<AgentMessage[]> {
+export async function readHistory(redis: any, leadId: string): Promise<AgentMessage[]> {
   const raw = await redis.hget<string>(CONVERSATIONS_KEY, leadId);
   if (!raw) return [];
   try {
@@ -40,7 +40,7 @@ async function readHistory(redis: any, leadId: string): Promise<AgentMessage[]> 
   }
 }
 
-async function appendHistory(redis: any, leadId: string, entries: AgentMessage[]): Promise<void> {
+export async function appendHistory(redis: any, leadId: string, entries: AgentMessage[]): Promise<void> {
   const current = await readHistory(redis, leadId);
   const updated = [...current, ...entries].slice(-MAX_HISTORY);
   await redis.hset(CONVERSATIONS_KEY, { [leadId]: JSON.stringify(updated) });
