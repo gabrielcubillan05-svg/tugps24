@@ -140,14 +140,7 @@ Escribe en texto plano, como un mensaje normal de WhatsApp. NUNCA uses asterisco
 Hoy es ${now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}.`;
 }
 
-export async function runSalesAgent(history: AgentMessage[], newMessage: string): Promise<AgentResult> {
-  const apiKey = import.meta.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return { reply: null, toolCalls: [] };
-  }
-
-  const messages = [...history, { role: 'user' as const, content: newMessage }];
-
+async function callAnthropic(apiKey: string, messages: unknown[]): Promise<any | null> {
   let res: Response;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -167,23 +160,24 @@ export async function runSalesAgent(history: AgentMessage[], newMessage: string)
     });
   } catch (err) {
     console.error('sales-agent: fetch failed', err instanceof Error ? err.message : String(err));
-    return { reply: null, toolCalls: [] };
+    return null;
   }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     console.error('sales-agent: Anthropic respondió', res.status, detail.slice(0, 500));
-    return { reply: null, toolCalls: [] };
+    return null;
   }
 
-  let data: any;
   try {
-    data = await res.json();
+    return await res.json();
   } catch (err) {
     console.error('sales-agent: respuesta inválida', err instanceof Error ? err.message : String(err));
-    return { reply: null, toolCalls: [] };
+    return null;
   }
+}
 
+function extractReplyAndTools(data: any): { reply: string; toolCalls: AgentToolCall[] } {
   let reply = '';
   const toolCalls: AgentToolCall[] = [];
   for (const block of data?.content || []) {
@@ -193,15 +187,55 @@ export async function runSalesAgent(history: AgentMessage[], newMessage: string)
       toolCalls.push({ name: block.name, input: block.input || {} });
     }
   }
+  return { reply: reply.trim(), toolCalls };
+}
 
-  if (!reply.trim()) {
+export async function runSalesAgent(history: AgentMessage[], newMessage: string): Promise<AgentResult> {
+  const apiKey = import.meta.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return { reply: null, toolCalls: [] };
+  }
+
+  const messages: any[] = [...history, { role: 'user', content: newMessage }];
+
+  const data = await callAnthropic(apiKey, messages);
+  if (!data) {
+    return { reply: null, toolCalls: [] };
+  }
+
+  const first = extractReplyAndTools(data);
+
+  // Cuando el modelo solo usa herramientas y no deja texto para el cliente (pasa sobre
+  // todo con mensajes cortos/genéricos), le pedimos una segunda vuelta para que redacte
+  // la respuesta, en vez de mostrarle al cliente un mensaje genérico de respaldo.
+  if (!first.reply && first.toolCalls.length && data.content?.some((b: any) => b.type === 'tool_use')) {
+    const toolResults = data.content
+      .filter((b: any) => b.type === 'tool_use')
+      .map((b: any) => ({ type: 'tool_result', tool_use_id: b.id, content: 'Registrado.' }));
+
+    const followUpMessages = [
+      ...messages,
+      { role: 'assistant', content: data.content },
+      { role: 'user', content: toolResults },
+    ];
+
+    const followUpData = await callAnthropic(apiKey, followUpMessages);
+    if (followUpData) {
+      const second = extractReplyAndTools(followUpData);
+      if (second.reply) {
+        return { reply: second.reply, toolCalls: [...first.toolCalls, ...second.toolCalls] };
+      }
+    }
+  }
+
+  if (!first.reply) {
     console.error(
       'sales-agent: respuesta sin texto',
       'stop_reason=', data?.stop_reason,
       'block_types=', (data?.content || []).map((b: any) => b.type).join(','),
-      'usage=', JSON.stringify(data?.usage || {})
+      'tools=', first.toolCalls.map((t) => t.name).join(',')
     );
   }
 
-  return { reply: reply.trim() || null, toolCalls };
+  return { reply: first.reply || null, toolCalls: first.toolCalls };
 }
