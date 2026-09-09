@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { SESSION_COOKIE, getSession, canViewWhatsappConversations } from '../../lib/auth';
-import { readLeads } from './leads';
+import { readLeads, normalizePhone } from './leads';
 import { readCobros } from './cobros';
 import { readHistory, readCobroHistory } from './whatsapp-webhook';
 import { getRedis } from '../../lib/redis';
@@ -63,7 +63,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     id: c.id,
     agent: 'valentina' as const,
     name: c.nombre,
-    phone: c.telefono,
+    phone: normalizePhone(c.telefono) || c.telefono,
     city: c.sucursal,
     vehicleType: '',
     aiStage: c.aiStage || 'sin_iniciar',

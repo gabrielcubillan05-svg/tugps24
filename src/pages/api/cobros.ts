@@ -282,7 +282,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const deuda = Number(row[deudaCol]) || 0;
     if (!nombre) continue;
     const numero = numeroCol >= 0 ? String(row[numeroCol] ?? '') : '';
-    const telefono = telefonoCol >= 0 ? String(row[telefonoCol] ?? '').trim() : '';
+    const telefonoRaw = telefonoCol >= 0 ? String(row[telefonoCol] ?? '').trim() : '';
+    const telefono = telefonoRaw ? normalizePhone(telefonoRaw) : '';
     const sucursal = sucursalCol >= 0 ? String(row[sucursalCol] ?? '').trim() : '';
     const facturasImpagas = impagasCol >= 0 ? Number(row[impagasCol]) || 0 : 0;
     const fechaUltimoPago = ultPagoCol >= 0 ? excelSerialToISO(Number(row[ultPagoCol])) : null;
