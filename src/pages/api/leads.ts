@@ -38,12 +38,17 @@ export interface Lead {
   verifiedInstalled: boolean;
   verifiedInstalledAt: string | null;
   scheduledInstallDate: string | null;
-  source: 'manual' | 'meta-leadgen';
+  source: 'manual' | 'meta-leadgen' | 'whatsapp-ads';
   metaLeadId: string | null;
   createdByName: string;
   notes: Note[];
   createdAt: string;
   updatedAt: string;
+  // --- Agente IA de ventas por WhatsApp (opcional, solo aplica a leads de ese canal) ---
+  aiStage?: 'sin_iniciar' | 'en_conversacion' | 'entregado' | 'escalado';
+  aiHandoffAt?: string | null;
+  lastInboundAt?: string | null;
+  lastOutboundAt?: string | null;
 }
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', ''];
@@ -77,7 +82,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -232,6 +237,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     source: 'manual',
     metaLeadId: null,
     createdByName: '',
+    aiStage: 'sin_iniciar',
+    aiHandoffAt: null,
+    lastInboundAt: null,
+    lastOutboundAt: null,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
