@@ -200,7 +200,18 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'el archivo no tiene filas de datos' }), { status: 400 });
   }
 
-  const header = rows[0].map(normalizeHeader);
+  // Algunos reportes (ej. exportados directo del software de rastreo) traen una fila de
+  // título y una fila en blanco antes del encabezado real — se busca la fila que
+  // realmente tiene "Nombre" en vez de asumir que es la primera.
+  const headerRowIndex = (() => {
+    const maxScan = Math.min(rows.length, 15);
+    for (let i = 0; i < maxScan; i++) {
+      if (rows[i].map(normalizeHeader).includes('nombre')) return i;
+    }
+    return 0;
+  })();
+
+  const header = rows[headerRowIndex].map(normalizeHeader);
   const nombreCol = header.indexOf('nombre');
   const numeroCol = header.findIndex((h) => h === 'numero' || h === 'número');
   const sucursalCol = header.indexOf('sucursal');
@@ -214,30 +225,50 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const assigneesRaw = String(form.get('assignees') || '').trim();
   const assignees = assigneesRaw ? assigneesRaw.split(/[\n,]/).map((n) => n.trim()).filter(Boolean) : [];
 
-  if (nombreCol < 0 || telefonoCol < 0 || deudaCol < 0) {
+  if (nombreCol < 0 || deudaCol < 0) {
     return new Response(
-      JSON.stringify({ error: 'no se encontraron las columnas "Nombre", "Teléfono" y "Deuda" en el archivo' }),
+      JSON.stringify({ error: 'no se encontraron las columnas "Nombre" y "Deuda" en el archivo' }),
       { status: 400 }
     );
   }
 
   const existingCobros = await readCobros(redis);
-  const existingNumeros = new Set(existingCobros.map((c) => c.numero).filter(Boolean));
+  const existingByNumero = new Map(existingCobros.filter((c) => c.numero).map((c) => [c.numero, c] as const));
 
   const now = new Date().toISOString();
-  const newCobros: Record<string, string> = {};
+  const changedCobros: Record<string, string> = {};
   let count = 0;
-  let skippedDuplicates = 0;
+  let updated = 0;
+  let skippedNoPhone = 0;
 
-  for (const row of rows.slice(1)) {
+  for (const row of rows.slice(headerRowIndex + 1)) {
     if (!row.length || row.every((c) => c === '')) continue;
     const nombre = String(row[nombreCol] ?? '').trim();
-    const telefono = String(row[telefonoCol] ?? '').trim();
     const deuda = Number(row[deudaCol]) || 0;
-    if (!nombre || !telefono) continue;
+    if (!nombre) continue;
     const numero = numeroCol >= 0 ? String(row[numeroCol] ?? '') : '';
-    if (numero && existingNumeros.has(numero)) {
-      skippedDuplicates++;
+    const telefono = telefonoCol >= 0 ? String(row[telefonoCol] ?? '').trim() : '';
+    const sucursal = sucursalCol >= 0 ? String(row[sucursalCol] ?? '').trim() : '';
+    const facturasImpagas = impagasCol >= 0 ? Number(row[impagasCol]) || 0 : 0;
+    const fechaUltimoPago = ultPagoCol >= 0 ? excelSerialToISO(Number(row[ultPagoCol])) : null;
+
+    // Reportes recurrentes del mismo cliente (mismo "Número") solo traen el saldo
+    // actualizado, sin teléfono — se actualiza el registro ya cargado en vez de omitirlo.
+    const existing = numero ? existingByNumero.get(numero) : undefined;
+    if (existing) {
+      existing.deuda = deuda;
+      if (facturasImpagas) existing.facturasImpagas = facturasImpagas;
+      if (fechaUltimoPago) existing.fechaUltimoPago = fechaUltimoPago;
+      if (sucursal) existing.sucursal = sucursal;
+      if (telefono) existing.telefono = telefono;
+      existing.updatedAt = now;
+      changedCobros[existing.id] = JSON.stringify(existing);
+      updated++;
+      continue;
+    }
+
+    if (!telefono) {
+      skippedNoPhone++;
       continue;
     }
 
@@ -245,9 +276,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       id: randomUUID(),
       nombre,
       numero,
-      sucursal: sucursalCol >= 0 ? String(row[sucursalCol] ?? '').trim() : '',
-      facturasImpagas: impagasCol >= 0 ? Number(row[impagasCol]) || 0 : 0,
-      fechaUltimoPago: ultPagoCol >= 0 ? excelSerialToISO(Number(row[ultPagoCol])) : null,
+      sucursal,
+      facturasImpagas,
+      fechaUltimoPago,
       deuda,
       telefono,
       assignedTo: assignees.length ? assignees[count % assignees.length] : '',
@@ -261,29 +292,35 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       lastInboundAt: null,
       lastOutboundAt: null,
     };
-    if (numero) existingNumeros.add(numero);
-    newCobros[cobro.id] = JSON.stringify(cobro);
+    if (numero) existingByNumero.set(numero, cobro);
+    changedCobros[cobro.id] = JSON.stringify(cobro);
     count++;
   }
 
-  if (!count) {
+  if (!count && !updated) {
     return new Response(
       JSON.stringify({
-        error: skippedDuplicates
-          ? 'todas las filas ya estaban cargadas (mismo número de cliente)'
-          : 'no se encontraron filas válidas (nombre, teléfono y deuda)',
+        error: skippedNoPhone
+          ? `no se encontraron filas nuevas para agregar (${skippedNoPhone} sin teléfono y sin un registro previo que lo tenga)`
+          : 'no se encontraron filas válidas (nombre y deuda)',
       }),
       { status: 400 }
     );
   }
 
-  // Se agrega a la lista existente sin borrar nada — para eso está el botón
+  // Se agrega/actualiza sobre la lista existente sin borrar nada — para eso está el botón
   // "Borrar todo" aparte.
-  await redis.hset(REDIS_KEY, newCobros);
+  await redis.hset(REDIS_KEY, changedCobros);
 
-  await logAudit(redis, session, 'cobros_upload', file.name, `${count} cobros agregados, ${skippedDuplicates} duplicados omitidos`);
+  await logAudit(
+    redis,
+    session,
+    'cobros_upload',
+    file.name,
+    `${count} cobros agregados, ${updated} actualizados, ${skippedNoPhone} omitidos sin teléfono`
+  );
 
-  return new Response(JSON.stringify({ count, skippedDuplicates }), {
+  return new Response(JSON.stringify({ count, updated, skippedNoPhone }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };

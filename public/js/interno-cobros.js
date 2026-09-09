@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'No se pudo subir el archivo.');
-          uploadResult.innerHTML = `<p class="result-ok">${data.count} cobros agregados${data.skippedDuplicates ? ` · ${data.skippedDuplicates} omitidos por estar repetidos` : ''}.</p>`;
+          uploadResult.innerHTML = `<p class="result-ok">${data.count} cobro(s) nuevo(s)${data.updated ? ` · ${data.updated} actualizado(s) (mismo número de cliente)` : ''}${data.skippedNoPhone ? ` · ${data.skippedNoPhone} omitido(s) por no tener teléfono` : ''}.</p>`;
           uploadForm.reset();
           loadCobros();
         })
