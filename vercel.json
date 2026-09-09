@@ -3,6 +3,10 @@
     {
       "path": "/api/whatsapp-followup-cron",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/whatsapp-cold-followup-cron",
+      "schedule": "0 14 * * *"
     }
   ]
 }

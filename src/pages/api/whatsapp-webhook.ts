@@ -257,6 +257,10 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
       const motivo = String(call.input?.motivo || 'Sin motivo especificado');
       lead.notes = [{ text: `[Agente IA] Escalado: ${motivo}`, date: now }, ...lead.notes];
       await notifyJosue(redis, `Urgente — lead de WhatsApp escalado: ${lead.name} (${lead.phone}) — ${motivo}`);
+    } else if (call.name === 'marcar_no_interesado') {
+      const motivo = String(call.input?.motivo || 'Sin motivo especificado');
+      if (!lead.installed) lead.status = 'Perdido';
+      lead.notes = [{ text: `[Agente IA] Marcado sin interés: ${motivo}`, date: now }, ...lead.notes];
     }
   }
 

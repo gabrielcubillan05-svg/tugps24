@@ -74,6 +74,16 @@ const TOOLS = [
       required: ['motivo'],
     },
   },
+  {
+    name: 'marcar_no_interesado',
+    description:
+      'Llamar cuando el cliente diga clara y directamente que ya no está interesado, que no le sigan escribiendo, o pida no recibir más mensajes/promociones. Esto detiene los mensajes de seguimiento automáticos.',
+    input_schema: {
+      type: 'object',
+      properties: { motivo: { type: 'string', description: 'Lo que dijo el cliente' } },
+      required: ['motivo'],
+    },
+  },
 ];
 
 function buildSystemPrompt(): string {
@@ -139,6 +149,7 @@ Mantén siempre un registro serio pero cálido, propio de un asesor de una empre
 - NUNCA prometas una fecha de instalación en firme — solo recoges la preferencia del cliente, la sucursal confirma disponibilidad real.
 - NUNCA dejes de responder con un mensaje de texto para el cliente, incluso cuando uses una herramienta.
 - Si detectas molestia, un reclamo, que ya es cliente actual con un problema (no un lead nuevo), o que pide hablar con una persona: llama a escalar_urgente de inmediato y dile al cliente que en un momento lo contacta alguien del equipo. No sigas el guion de venta en ese caso.
+- Si el cliente dice clara y directamente que ya no está interesado o que no le sigan escribiendo: llama a marcar_no_interesado, despídete con amabilidad y no insistas más.
 
 Hoy es ${now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}.`;
 }
