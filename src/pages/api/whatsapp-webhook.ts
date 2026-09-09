@@ -7,14 +7,18 @@ import { getUsers, findUserByUsername, JOSUE_USERNAME } from '../../lib/auth';
 import { sendWhatsappText, sendWhatsappMedia, verifyMetaSignature } from '../../lib/whatsapp';
 import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
+import { runCollectionsAgent } from '../../lib/collections-agent';
 import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { readCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { readAgentMedia } from './whatsapp-agent-media';
 
 export const prerender = false;
 
 export const CONVERSATIONS_KEY = 'internal:lead-whatsapp-conversations';
+const COBRO_CONVERSATIONS_KEY = 'internal:cobro-whatsapp-conversations';
 const MAX_HISTORY = 60;
 const WHATSAPP_ACTOR = { userId: 'whatsapp-agent', username: 'Agente IA (Andrés)' };
+const COLLECTIONS_ACTOR = { userId: 'whatsapp-collections-agent', username: 'Agente IA (Valentina)' };
 
 // Traduce la ciudad que confirma el cliente a la clave de material configurada en
 // /interno/whatsapp-agent-media para esa sucursal.
@@ -58,6 +62,23 @@ export async function appendHistory(redis: any, leadId: string, entries: AgentMe
   const current = await readHistory(redis, leadId);
   const updated = [...current, ...entries].slice(-MAX_HISTORY);
   await redis.hset(CONVERSATIONS_KEY, { [leadId]: JSON.stringify(updated) });
+}
+
+async function readCobroHistory(redis: any, cobroId: string): Promise<AgentMessage[]> {
+  const raw = await redis.hget<string>(COBRO_CONVERSATIONS_KEY, cobroId);
+  if (!raw) return [];
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function appendCobroHistory(redis: any, cobroId: string, entries: AgentMessage[]): Promise<void> {
+  const current = await readCobroHistory(redis, cobroId);
+  const updated = [...current, ...entries].slice(-MAX_HISTORY);
+  await redis.hset(COBRO_CONVERSATIONS_KEY, { [cobroId]: JSON.stringify(updated) });
 }
 
 async function findBranchAssignee(redis: any, branch: string) {
@@ -260,6 +281,100 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   }
 }
 
+function normalizeNameForMatch(raw: unknown): string {
+  return String(raw ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+async function notifyCobroAssigneeOrJosue(redis: any, cobro: Cobro, message: string): Promise<void> {
+  const assignedName = normalizeNameForMatch(cobro.assignedTo).split(/\s+/)[0];
+  if (assignedName) {
+    const users = await getUsers(redis);
+    const assignee = users.find((u) => u.active && normalizeNameForMatch(u.name).split(/\s+/)[0] === assignedName);
+    if (assignee) {
+      await pushNotification(redis, assignee.id, { type: 'crm-whatsapp', message, link: '/interno/cobros' });
+      return;
+    }
+  }
+  await notifyJosue(redis, message);
+}
+
+async function handleUnsupportedCobroMessage(redis: any, cobro: Cobro, msgType: string): Promise<void> {
+  await notifyCobroAssigneeOrJosue(
+    redis,
+    cobro,
+    `${cobro.nombre} (cobranza) envió ${UNSUPPORTED_TYPE_LABELS[msgType] || 'un archivo'} por WhatsApp (revísalo directo en WhatsApp).`
+  );
+}
+
+async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string): Promise<void> {
+  const now = new Date().toISOString();
+  const fromPhone = normalizePhone(cobro.telefono);
+  cobro.lastInboundAt = now;
+  cobro.updatedAt = now;
+
+  // Si ya se escaló, la IA no vuelve a contestar sola: solo registra el mensaje y avisa.
+  if (cobro.aiStage === 'escalado') {
+    await redis.hset(COBROS_KEY, { [cobro.id]: JSON.stringify(cobro) });
+    await appendCobroHistory(redis, cobro.id, [{ role: 'user', content: text }]);
+    await notifyCobroAssigneeOrJosue(redis, cobro, `${cobro.nombre} (cobranza, escalado) volvió a escribir por WhatsApp: "${text.slice(0, 80)}"`);
+    return;
+  }
+
+  if (cobro.aiStage === 'sin_iniciar' || !cobro.aiStage) cobro.aiStage = 'en_conversacion';
+
+  const history = await readCobroHistory(redis, cobro.id);
+  const agentResult = await runCollectionsAgent(history, text, {
+    nombre: cobro.nombre,
+    deuda: cobro.deuda,
+    facturasImpagas: cobro.facturasImpagas,
+  });
+
+  const fallbackByTool: Record<string, string> = {
+    escalar_urgente: 'Dame un momento, ya te comunico con alguien de nuestro equipo para revisar esto.',
+    registrar_pago_reportado: 'Perfecto, en breve tesorería confirma tu pago.',
+    registrar_acuerdo_pago: 'Listo, quedamos así entonces.',
+  };
+  let replyText = agentResult.reply;
+  if (!replyText) {
+    const firstTool = agentResult.toolCalls[0]?.name;
+    replyText = (firstTool && fallbackByTool[firstTool]) || 'Gracias por tu mensaje, dame un momento.';
+  }
+
+  for (const call of agentResult.toolCalls) {
+    if (call.name === 'registrar_acuerdo_pago') {
+      cobro.aiStage = 'acuerdo';
+      const resumen = String(call.input?.resumen || 'Acuerdo de pago registrado por el agente IA.');
+      await logAudit(redis, COLLECTIONS_ACTOR, 'cobro_acuerdo_pago', cobro.nombre, resumen);
+      await notifyCobroAssigneeOrJosue(redis, cobro, `Acuerdo de pago con ${cobro.nombre} (${cobro.telefono}): ${resumen}`);
+    } else if (call.name === 'registrar_pago_reportado') {
+      const detalle = String(call.input?.detalle || 'Sin detalle');
+      await logAudit(redis, COLLECTIONS_ACTOR, 'cobro_pago_reportado', cobro.nombre, detalle);
+      await notifyCobroAssigneeOrJosue(redis, cobro, `${cobro.nombre} (${cobro.telefono}) dice que ya pagó — verificar en tesorería: ${detalle}`);
+    } else if (call.name === 'escalar_urgente') {
+      cobro.aiStage = 'escalado';
+      const motivo = String(call.input?.motivo || 'Sin motivo especificado');
+      await logAudit(redis, COLLECTIONS_ACTOR, 'cobro_escalado', cobro.nombre, motivo);
+      await notifyJosue(redis, `Urgente — cobranza de WhatsApp escalada: ${cobro.nombre} (${cobro.telefono}) — ${motivo}`);
+    }
+  }
+
+  cobro.updatedAt = new Date().toISOString();
+  cobro.lastOutboundAt = cobro.updatedAt;
+
+  await redis.hset(COBROS_KEY, { [cobro.id]: JSON.stringify(cobro) });
+  await appendCobroHistory(redis, cobro.id, [
+    { role: 'user', content: text },
+    { role: 'assistant', content: replyText },
+  ]);
+  await logAudit(redis, COLLECTIONS_ACTOR, 'cobro_whatsapp_message', cobro.nombre, cobro.telefono);
+
+  await sendWhatsappText(fromPhone, replyText);
+}
+
 async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: string): Promise<void> {
   try {
     const media = await readAgentMedia(redis);
@@ -323,6 +438,11 @@ export const POST: APIRoute = async ({ request }) => {
 
           const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
 
+          // Si el número corresponde a un cobro cargado en Cobranza Masiva, lo maneja la
+          // agente de cobranza (Valentina) — nunca cae en el flujo de ventas (Andrés).
+          const allCobros = await readCobros(redis);
+          const cobro = allCobros.find((c) => normalizePhone(c.telefono) === fromPhone);
+
           let text = '';
           if (msg.type === 'text') {
             text = msg.text?.body ? String(msg.text.body) : '';
@@ -334,11 +454,19 @@ export const POST: APIRoute = async ({ request }) => {
             // No se pudo transcribir el audio, o es un tipo que no leemos (foto, video,
             // documento, sticker, ubicación) — avisamos al cliente en vez de dejarlo en
             // silencio, salvo que el caso ya lo tenga un humano.
-            await handleUnsupportedMessage(redis, fromPhone, msg.type);
+            if (cobro) {
+              await handleUnsupportedCobroMessage(redis, cobro, msg.type);
+            } else {
+              await handleUnsupportedMessage(redis, fromPhone, msg.type);
+            }
             continue;
           }
 
-          await handleInboundMessage(redis, fromPhone, text, contactName);
+          if (cobro) {
+            await handleCollectionsMessage(redis, cobro, text);
+          } else {
+            await handleInboundMessage(redis, fromPhone, text, contactName);
+          }
         }
       }
     }

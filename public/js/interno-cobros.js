@@ -163,6 +163,11 @@ document.addEventListener('DOMContentLoaded', function () {
           ${isPhoneLike(c.telefono)
             ? `<a class="btn-small btn-wa" href="${waLink(c.telefono, messageFor(c.nombre, c.deuda))}" target="_blank" rel="noopener" data-action="wa-sent" data-id="${c.id}">WhatsApp</a>`
             : `<span class="btn-small" title="Teléfono inválido: ${escapeHtml(c.telefono)}">Teléfono inválido</span>`}
+          ${canSeeAll && isPhoneLike(c.telefono)
+            ? c.templateSentAt
+              ? `<span class="btn-small" title="Enviado el ${new Date(c.templateSentAt).toLocaleString('es-CO')}">✓ Recordatorio IA enviado</span>`
+              : `<button class="btn-small" data-action="send-reminder" data-id="${c.id}" type="button">Recordatorio IA (WhatsApp)</button>`
+            : ''}
           <button class="btn-small ${c.contacted ? 'btn-done' : ''}" data-action="toggle-contacted" data-id="${c.id}" type="button">
             ${c.contacted ? '✓ Contactado' : 'Marcar contactado'}
           </button>
@@ -215,12 +220,40 @@ document.addEventListener('DOMContentLoaded', function () {
   assigneeFilter.addEventListener('change', renderList);
   estadoFilter.addEventListener('change', renderList);
 
+  function sendReminder(id, btn) {
+    if (!confirm('¿Enviar el recordatorio de pago por WhatsApp? A partir de la respuesta del cliente, la agente IA de cobranza sigue la conversación.')) return;
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    fetch('/api/cobros', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action: 'sendWhatsappReminder' }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.cobro) throw new Error(data.error || 'No se pudo enviar el recordatorio.');
+        const idx = allCobros.findIndex((c) => c.id === id);
+        if (idx >= 0) allCobros[idx] = data.cobro;
+        renderList();
+      })
+      .catch((err) => {
+        alert(err.message || 'No se pudo enviar el recordatorio.');
+        btn.disabled = false;
+        btn.textContent = 'Recordatorio IA (WhatsApp)';
+      });
+  }
+
   cobrosList.addEventListener('click', function (e) {
     const waLinkEl = e.target.closest('a[data-action="wa-sent"]');
     if (waLinkEl) {
       // Al abrir WhatsApp se marca como contactado automáticamente; se puede
       // desmarcar con el botón si fue sin querer.
       setContacted(waLinkEl.getAttribute('data-id'), true);
+      return;
+    }
+    const reminderBtn = e.target.closest('button[data-action="send-reminder"]');
+    if (reminderBtn) {
+      sendReminder(reminderBtn.getAttribute('data-id'), reminderBtn);
       return;
     }
     const btn = e.target.closest('button[data-action="toggle-contacted"]');

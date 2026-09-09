@@ -4,16 +4,18 @@ import * as XLSX from 'xlsx';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessCobros, canUploadCobros, findUserById, verifySameOrigin } from '../../lib/auth';
+import { sendWhatsappTemplate } from '../../lib/whatsapp';
+import { normalizePhone } from './leads';
 
 export const prerender = false;
 
-const REDIS_KEY = 'internal:cobros';
+export const REDIS_KEY = 'internal:cobros';
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 
-// Reparto por defecto si no se especifica otra lista al subir el archivo.
-const DEFAULT_ASSIGNEES = ['Yelitza', 'Heydrich', 'Alonso', 'Helen', 'Cristofer', 'Joenys', 'Melany', 'Pierangela', 'Ana'];
+const REMINDER_TEMPLATE_NAME = 'recordatorio_pago';
+const REMINDER_TEMPLATE_LANGUAGE = 'es';
 
-interface Cobro {
+export interface Cobro {
   id: string;
   nombre: string;
   numero: string;
@@ -28,6 +30,11 @@ interface Cobro {
   contactedByName: string;
   createdAt: string;
   updatedAt: string;
+  // --- Agente IA de cobranza por WhatsApp (opcional) ---
+  aiStage?: 'sin_iniciar' | 'en_conversacion' | 'acuerdo' | 'escalado';
+  templateSentAt?: string | null;
+  lastInboundAt?: string | null;
+  lastOutboundAt?: string | null;
 }
 
 interface AssigneeStat {
@@ -109,7 +116,7 @@ function excelSerialToISO(serial: number): string | null {
   return d.toISOString().slice(0, 10);
 }
 
-async function readCobros(redis: any): Promise<Cobro[]> {
+export async function readCobros(redis: any): Promise<Cobro[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {
@@ -120,6 +127,7 @@ async function readCobros(redis: any): Promise<Cobro[]> {
       }
     })
     .filter((c): c is Cobro => c !== null)
+    .map((c) => ({ aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, ...c }))
     .sort((a, b) => b.deuda - a.deuda);
 }
 
@@ -201,10 +209,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const impagasCol = header.findIndex((h) => h.includes('impagas'));
   const ultPagoCol = header.findIndex((h) => h.includes('pago'));
 
+  // Ya no se reparte automáticamente entre trabajadores: el agente de cobranza por WhatsApp
+  // se encarga primero. Solo queda asignado a alguien si se escribe explícitamente aquí.
   const assigneesRaw = String(form.get('assignees') || '').trim();
-  const assignees = assigneesRaw
-    ? assigneesRaw.split(/[\n,]/).map((n) => n.trim()).filter(Boolean)
-    : DEFAULT_ASSIGNEES;
+  const assignees = assigneesRaw ? assigneesRaw.split(/[\n,]/).map((n) => n.trim()).filter(Boolean) : [];
 
   if (nombreCol < 0 || telefonoCol < 0 || deudaCol < 0) {
     return new Response(
@@ -248,6 +256,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       contactedByName: '',
       createdAt: now,
       updatedAt: now,
+      aiStage: 'sin_iniciar',
+      templateSentAt: null,
+      lastInboundAt: null,
+      lastOutboundAt: null,
     };
     if (numero) existingNumeros.add(numero);
     newCobros[cobro.id] = JSON.stringify(cobro);
@@ -314,7 +326,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; contacted?: boolean };
+  let body: { id?: string; contacted?: boolean; action?: string };
   try {
     body = await request.json();
   } catch {
@@ -325,7 +337,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const cobro: Cobro = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const cobro: Cobro = { aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
 
   const user = await findUserById(redis, session.userId);
   const userName = USERNAME_ASSIGNEE_OVERRIDE[session.username] || user?.name || session.username;
@@ -334,6 +346,29 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   // cobros — el filtro del navegador es solo comodidad, esto es lo que realmente lo impide.
   if (!canUploadCobros(session) && !isAssignedToUser(cobro.assignedTo, userName)) {
     return new Response(JSON.stringify({ error: 'este cobro no está asignado a ti' }), { status: 403 });
+  }
+
+  if (body.action === 'sendWhatsappReminder') {
+    if (!canUploadCobros(session)) {
+      return new Response(JSON.stringify({ error: 'no autorizado' }), { status: 403 });
+    }
+    const phone = normalizePhone(cobro.telefono);
+    if (!phone) {
+      return new Response(JSON.stringify({ error: 'el teléfono de este cobro no es válido' }), { status: 400 });
+    }
+    const result = await sendWhatsappTemplate(phone, REMINDER_TEMPLATE_NAME, REMINDER_TEMPLATE_LANGUAGE, [
+      cobro.nombre.trim().split(/\s+/)[0] || cobro.nombre,
+      '$' + Math.round(cobro.deuda).toLocaleString('es-CO'),
+    ]);
+    if (!result.ok) {
+      return new Response(JSON.stringify({ error: result.error || 'no se pudo enviar el recordatorio' }), { status: 502 });
+    }
+    cobro.templateSentAt = new Date().toISOString();
+    cobro.aiStage = 'en_conversacion';
+    cobro.updatedAt = cobro.templateSentAt;
+    await redis.hset(REDIS_KEY, { [id]: JSON.stringify(cobro) });
+    await logAudit(redis, session, 'cobro_whatsapp_reminder', cobro.nombre, cobro.telefono);
+    return new Response(JSON.stringify({ cobro }), { headers: { 'Content-Type': 'application/json' } });
   }
 
   if (body.contacted !== undefined) {
