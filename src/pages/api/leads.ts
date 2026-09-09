@@ -51,6 +51,7 @@ export interface Lead {
   lastOutboundAt?: string | null;
   followUpCount?: number;
   lastFollowUpAt?: string | null;
+  mediaSentAt?: string | null;
 }
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', ''];
@@ -84,7 +85,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -246,6 +247,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     lastOutboundAt: null,
     followUpCount: 0,
     lastFollowUpAt: null,
+    mediaSentAt: null,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 

@@ -1,0 +1,50 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canManageUsers, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canManageUsers(session.role)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Material del agente de WhatsApp" active="" session={session}>
+  <div class="panel-card">
+    <h2>Material del agente de WhatsApp (Andrés)</h2>
+    <p class="hint">
+      Sube los archivos con <code>node scripts/upload-wa-media.mjs "carpeta"</code> desde tu terminal (con tu propio
+      BLOB_READ_WRITE_TOKEN), y pega aquí la URL pública que te devuelva cada uno. El video/foto que subas para
+      "sucursal X" se manda automáticamente cuando el cliente confirme que es de esa ciudad. El video central se
+      manda siempre, en cuanto se sepa el tipo de vehículo y la ciudad.
+    </p>
+    <div class="media-config-list" id="mediaConfigList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .media-config-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .media-config-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .media-config-row .label { flex: 0 0 320px; font-size: 13px; }
+  .media-config-row .label .type-tag { color: var(--slate); font-size: 11px; margin-left: 6px; }
+  .media-config-row input[type="text"] { flex: 1; min-width: 220px; }
+  .media-config-row .status-ok { color: var(--ok); font-size: 12px; }
+  .media-config-row .status-missing { color: var(--slate); font-size: 12px; }
+</style>
+
+<script src="/js/interno-whatsapp-agent-media.js" defer></script>

@@ -4,16 +4,30 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { getUsers, findUserByUsername, JOSUE_USERNAME } from '../../lib/auth';
-import { sendWhatsappText, verifyMetaSignature } from '../../lib/whatsapp';
+import { sendWhatsappText, sendWhatsappMedia, verifyMetaSignature } from '../../lib/whatsapp';
 import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { readAgentMedia } from './whatsapp-agent-media';
 
 export const prerender = false;
 
 export const CONVERSATIONS_KEY = 'internal:lead-whatsapp-conversations';
 const MAX_HISTORY = 60;
 const WHATSAPP_ACTOR = { userId: 'whatsapp-agent', username: 'Agente IA (Andrés)' };
+
+// Traduce la ciudad que confirma el cliente a la clave de material configurada en
+// /interno/whatsapp-agent-media para esa sucursal.
+const BRANCH_MEDIA_KEY: Record<string, string> = {
+  Riohacha: 'sucursal_riohacha',
+  Valledupar: 'sucursal_valledupar',
+  'Santa Marta': 'sucursal_santamarta',
+  Maicao: 'sucursal_maicao',
+  Atlántico: 'sucursal_atlantico',
+  Bucaramanga: 'sucursal_bucaramanga',
+  Medellín: 'sucursal_medellin',
+  Montería: 'sucursal_monteria',
+};
 
 // Meta llama a este GET una sola vez para verificar que el webhook es tuyo. Reusa el mismo
 // verify_token ya configurado para el webhook de Meta Lead Ads (son dos suscripciones
@@ -236,6 +250,36 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   await logAudit(redis, WHATSAPP_ACTOR, isNewLead ? 'lead_whatsapp_create' : 'lead_whatsapp_message', lead.name, lead.phone);
 
   await sendWhatsappText(fromPhone, replyText);
+
+  // En cuanto sabemos tipo de vehículo y ciudad, reforzamos con el video de la central de
+  // monitoreo (siempre), una recuperación real, y la foto de la sucursal — una sola vez por lead.
+  if (!lead.mediaSentAt && lead.vehicleType && lead.city) {
+    await sendReinforcementMedia(redis, lead, fromPhone);
+    lead.mediaSentAt = new Date().toISOString();
+    await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+  }
+}
+
+async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: string): Promise<void> {
+  try {
+    const media = await readAgentMedia(redis);
+
+    if (media.central_video) {
+      await sendWhatsappMedia(toPhone, 'video', media.central_video, 'Así funciona nuestra central de monitoreo 24/7 — esto es lo que nos diferencia.');
+    }
+    if (media.recuperacion_video_1) {
+      await sendWhatsappMedia(toPhone, 'video', media.recuperacion_video_1, 'Una recuperación real de uno de nuestros clientes.');
+    }
+    if (media.recuperacion_foto_1) {
+      await sendWhatsappMedia(toPhone, 'image', media.recuperacion_foto_1, 'Uno de los vehículos que hemos recuperado.');
+    }
+    const branchKey = BRANCH_MEDIA_KEY[lead.city];
+    if (branchKey && media[branchKey]) {
+      await sendWhatsappMedia(toPhone, 'image', media[branchKey], `Nuestra sucursal en ${lead.city}.`);
+    }
+  } catch {
+    // no debe tumbar el flujo si falla el envío de material adicional
+  }
 }
 
 export const POST: APIRoute = async ({ request }) => {

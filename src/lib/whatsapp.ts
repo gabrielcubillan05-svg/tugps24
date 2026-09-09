@@ -44,3 +44,38 @@ export async function sendWhatsappText(to: string, body: string): Promise<{ ok: 
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+export async function sendWhatsappMedia(
+  to: string,
+  type: 'image' | 'video',
+  link: string,
+  caption?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const token = import.meta.env.META_WHATSAPP_TOKEN || import.meta.env.META_PAGE_ACCESS_TOKEN;
+  const phoneNumberId = import.meta.env.META_PHONE_NUMBER_ID;
+  if (!token || !phoneNumberId) {
+    return { ok: false, error: 'WhatsApp no configurado (falta META_PHONE_NUMBER_ID o el token)' };
+  }
+  try {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type,
+        [type]: caption ? { link, caption } : { link },
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      return { ok: false, error: `Meta respondió ${res.status}: ${detail.slice(0, 300)}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
