@@ -128,6 +128,14 @@ export function canAccessSuspensiones(session: Pick<Session, 'role' | 'username'
 export const KELLY_USERNAME = 'kellylara';
 const SOLICITUDES_EXTRA_USERNAMES = [KELLY_USERNAME, WILMAR_USERNAME];
 
+// El visor de conversaciones de WhatsApp es exclusivo de esta cuenta puntual — ni siquiera
+// otros administradores deben poder verlo.
+const CONVERSATIONS_VIEWER_USERNAME = 'admin';
+
+export function canViewWhatsappConversations(session: Pick<Session, 'username'>): boolean {
+  return session.username.toLowerCase() === CONVERSATIONS_VIEWER_USERNAME;
+}
+
 export function canAccessSolicitudesAdministrativas(session: Pick<Session, 'role' | 'username'>): boolean {
   return canAccessSection(session.role, 'solicitudes-administrativas') || SOLICITUDES_EXTRA_USERNAMES.includes(session.username);
 }

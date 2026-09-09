@@ -42,6 +42,7 @@ for (const file of files) {
     token,
     contentType,
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
   const publicUrl = `${SITE_URL}/api/whatsapp-media-file?path=${encodeURIComponent(blob.pathname)}`;
   console.log(`${file} -> ${publicUrl}`);
