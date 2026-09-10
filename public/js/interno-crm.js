@@ -326,6 +326,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
             <option value="Moto" ${l.vehicleType === 'Moto' ? 'selected' : ''}>Moto</option>
             <option value="Carro" ${l.vehicleType === 'Carro' ? 'selected' : ''}>Carro</option>
             <option value="Flota" ${l.vehicleType === 'Flota' ? 'selected' : ''}>Flota</option>
+            <option value="Máquina Amarilla" ${l.vehicleType === 'Máquina Amarilla' ? 'selected' : ''}>Máquina Amarilla</option>
           </select>
           <button class="btn-small" data-action="edit" data-id="${l.id}" type="button">Editar</button>
           <button class="btn-small ${l.installed ? 'btn-done' : ''}" data-action="toggle-installed" data-id="${l.id}" type="button">

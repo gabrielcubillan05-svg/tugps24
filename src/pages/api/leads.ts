@@ -57,7 +57,7 @@ export interface Lead {
   lastColdFollowUpAt?: string | null;
 }
 
-const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', ''];
+const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', 'Máquina Amarilla', ''];
 
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');

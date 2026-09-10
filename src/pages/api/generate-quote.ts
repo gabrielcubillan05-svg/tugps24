@@ -51,7 +51,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
-  let body: { client?: string; document?: string; email?: string; branch?: string; motos?: number; carros?: number; leadId?: string };
+  let body: { client?: string; document?: string; email?: string; branch?: string; motos?: number; carros?: number; maquinasAmarillas?: number; leadId?: string };
   try {
     body = await request.json();
   } catch {
@@ -65,11 +65,12 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const branch = String(body.branch || 'Riohacha').trim();
   const motos = Math.max(0, Number(body.motos) || 0);
   const carros = Math.max(0, Number(body.carros) || 0);
+  const maquinasAmarillas = Math.max(0, Number(body.maquinasAmarillas) || 0);
   const leadId = String(body.leadId || '').trim();
   const totalVehiculos = motos + carros;
 
-  if (totalVehiculos <= 0) {
-    return new Response(JSON.stringify({ error: 'debe indicar al menos un vehículo' }), { status: 400 });
+  if (totalVehiculos + maquinasAmarillas <= 0) {
+    return new Response(JSON.stringify({ error: 'debe indicar al menos un vehículo o máquina amarilla' }), { status: 400 });
   }
 
   const INSTALACION_UNIT = 150000;
@@ -79,6 +80,14 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
 
   const totalInstalacion = totalVehiculos * INSTALACION_UNIT;
   const totalMensual = motos * mensualidadMoto + carros * mensualidadCarro;
+
+  // Máquina amarilla (equipo pesado/construcción): producto aparte, incluye certificado y
+  // plaqueta, y se factura por semestre (no mensual como motos/carros).
+  const MAQUINA_AMARILLA_INSTALACION_UNIT = 450000;
+  const MAQUINA_AMARILLA_SEMESTRE_UNIT = 414000;
+  const totalMaquinaAmarillaInstalacion = maquinasAmarillas * MAQUINA_AMARILLA_INSTALACION_UNIT;
+  const totalMaquinaAmarillaSemestre = maquinasAmarillas * MAQUINA_AMARILLA_SEMESTRE_UNIT;
+  const totalMaquinaAmarillaPrimerPago = totalMaquinaAmarillaInstalacion + totalMaquinaAmarillaSemestre;
 
   const SEDE_PHOTOS: [string, string][] = [
     ['Riohacha', '/img/branches/riohacha/facade.jpg'],
@@ -287,48 +296,69 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     });
 
     let y = PAGE_H - 140;
-    const colX = [40, 220, 320, 430];
-    const headers = ['Tipo', 'Cantidad', 'Instalación c/u', 'Mensualidad c/u'];
-    page.drawRectangle({ x: 40, y: y - 6, width: PAGE_W - 80, height: 26, color: C.ink900 });
-    headers.forEach((h, i) => {
-      page.drawText(h, { x: colX[i] + 6, y: y, size: 10, font: fontBold, color: C.amber });
-    });
-    y -= 34;
 
-    function row(tipo: string, cant: number, mensual: number) {
-      if (cant <= 0) return;
-      page.drawText(tipo, { x: colX[0] + 6, y, size: 11, font: fontRegular, color: C.black });
-      page.drawText(String(cant), { x: colX[1] + 6, y, size: 11, font: fontRegular, color: C.black });
-      page.drawText(money(INSTALACION_UNIT), { x: colX[2] + 6, y, size: 11, font: fontRegular, color: C.black });
-      page.drawText(money(mensual), { x: colX[3] + 6, y, size: 11, font: fontRegular, color: C.black });
-      y -= 24;
-    }
-    row('Motos', motos, mensualidadMoto);
-    row('Carros', carros, mensualidadCarro);
+    if (totalVehiculos > 0) {
+      const colX = [40, 220, 320, 430];
+      const headers = ['Tipo', 'Cantidad', 'Instalación c/u', 'Mensualidad c/u'];
+      page.drawRectangle({ x: 40, y: y - 6, width: PAGE_W - 80, height: 26, color: C.ink900 });
+      headers.forEach((h, i) => {
+        page.drawText(h, { x: colX[i] + 6, y: y, size: 10, font: fontBold, color: C.amber });
+      });
+      y -= 34;
 
-    y -= 10;
-    page.drawRectangle({ x: 40, y, width: PAGE_W - 80, height: 1, color: C.slate });
-    y -= 30;
+      function row(tipo: string, cant: number, mensual: number) {
+        if (cant <= 0) return;
+        page.drawText(tipo, { x: colX[0] + 6, y, size: 11, font: fontRegular, color: C.black });
+        page.drawText(String(cant), { x: colX[1] + 6, y, size: 11, font: fontRegular, color: C.black });
+        page.drawText(money(INSTALACION_UNIT), { x: colX[2] + 6, y, size: 11, font: fontRegular, color: C.black });
+        page.drawText(money(mensual), { x: colX[3] + 6, y, size: 11, font: fontRegular, color: C.black });
+        y -= 24;
+      }
+      row('Motos', motos, mensualidadMoto);
+      row('Carros', carros, mensualidadCarro);
 
-    page.drawText('Total instalación (pago único):', { x: 40, y, size: 12, font: fontRegular, color: C.black });
-    page.drawText(money(totalInstalacion), { x: 320, y, size: 14, font: fontBold, color: C.ink900 });
-    y -= 26;
-    page.drawText('Mensualidad total (desde el 2º mes):', { x: 40, y, size: 12, font: fontRegular, color: C.black });
-    page.drawText(money(totalMensual) + '/mes', { x: 320, y, size: 14, font: fontBold, color: C.ink900 });
-    y -= 30;
-
-    page.drawRectangle({ x: 40, y: y - 8, width: PAGE_W - 80, height: 36, color: rgb(1, 0.9, 0.8) });
-    page.drawText('Incluido: primer mes de monitoreo GRATIS', {
-      x: 52, y: y + 6, size: 11.5, font: fontBold, color: rgb(0.75, 0.35, 0.05),
-    });
-    y -= 50;
-
-    if (flota) {
-      page.drawText(
-        `Tarifa especial de flota aplicada: al superar 5 vehículos, todos pasan a ${money(39000)}/mes cada uno.`,
-        { x: 40, y, size: 10, font: fontRegular, color: C.slate }
-      );
+      y -= 10;
+      page.drawRectangle({ x: 40, y, width: PAGE_W - 80, height: 1, color: C.slate });
       y -= 30;
+
+      page.drawText('Total instalación (pago único):', { x: 40, y, size: 12, font: fontRegular, color: C.black });
+      page.drawText(money(totalInstalacion), { x: 320, y, size: 14, font: fontBold, color: C.ink900 });
+      y -= 26;
+      page.drawText('Mensualidad total (desde el 2º mes):', { x: 40, y, size: 12, font: fontRegular, color: C.black });
+      page.drawText(money(totalMensual) + '/mes', { x: 320, y, size: 14, font: fontBold, color: C.ink900 });
+      y -= 30;
+
+      page.drawRectangle({ x: 40, y: y - 8, width: PAGE_W - 80, height: 36, color: rgb(1, 0.9, 0.8) });
+      page.drawText('Incluido: primer mes de monitoreo GRATIS', {
+        x: 52, y: y + 6, size: 11.5, font: fontBold, color: rgb(0.75, 0.35, 0.05),
+      });
+      y -= 50;
+
+      if (flota) {
+        page.drawText(
+          `Tarifa especial de flota aplicada: al superar 5 vehículos, todos pasan a ${money(39000)}/mes cada uno.`,
+          { x: 40, y, size: 10, font: fontRegular, color: C.slate }
+        );
+        y -= 30;
+      }
+    }
+
+    if (maquinasAmarillas > 0) {
+      page.drawRectangle({ x: 40, y: y - 8, width: PAGE_W - 260, height: 100, color: C.ink800 });
+      page.drawText('Máquina amarilla (GPS con certificado y plaqueta)', {
+        x: 52, y: y + 74, size: 11.5, font: fontBold, color: C.amber,
+      });
+      page.drawText(`Cantidad: ${maquinasAmarillas}`, { x: 52, y: y + 54, size: 10.5, font: fontRegular, color: C.paper });
+      page.drawText(`Instalación + GPS (pago único): ${money(MAQUINA_AMARILLA_INSTALACION_UNIT)} c/u = ${money(totalMaquinaAmarillaInstalacion)}`, {
+        x: 52, y: y + 36, size: 10.5, font: fontRegular, color: C.paper,
+      });
+      page.drawText(`Semestre de monitoreo: ${money(MAQUINA_AMARILLA_SEMESTRE_UNIT)} c/u (equivale a ${money(69000)}/mes) = ${money(totalMaquinaAmarillaSemestre)}`, {
+        x: 52, y: y + 18, size: 10.5, font: fontRegular, color: C.paper,
+      });
+      page.drawText(`Total primer pago: ${money(totalMaquinaAmarillaPrimerPago)}`, {
+        x: 52, y: y, size: 12, font: fontBold, color: C.amber,
+      });
+      y -= 116;
     }
 
     drawContainImage(page, priceImg, PAGE_W - 220, 60, 180, 220, C.paper);
@@ -382,7 +412,13 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
 
   const redis = getRedis();
   if (redis) {
-    await logAudit(redis, session, 'quote_generate', clientLabel, `${branch} · ${motos} moto(s) + ${carros} carro(s)`);
+    await logAudit(
+      redis,
+      session,
+      'quote_generate',
+      clientLabel,
+      `${branch} · ${motos} moto(s) + ${carros} carro(s)${maquinasAmarillas ? ` + ${maquinasAmarillas} máquina(s) amarilla(s)` : ''}`
+    );
 
     if (leadId) {
       try {

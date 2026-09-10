@@ -226,8 +226,10 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
       lead.vehicleType = String(call.input.tipo);
       const cantidad = Number(call.input.cantidad);
       if (Number.isFinite(cantidad) && cantidad > 0) {
+        // Máquina Amarilla no cuenta como carro — no tiene su propio contador numérico,
+        // la cantidad queda igual reflejada en el resumen de marcar_calificado.
         if (lead.vehicleType === 'Moto') lead.motosCount = cantidad;
-        else lead.carrosCount = cantidad;
+        else if (lead.vehicleType === 'Carro' || lead.vehicleType === 'Flota') lead.carrosCount = cantidad;
       }
     } else if (call.name === 'marcar_calificado') {
       lead.aiStage = 'entregado';
