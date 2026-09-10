@@ -324,15 +324,9 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       page.drawText('Total instalación (pago único):', { x: 40, y, size: 12, font: fontRegular, color: C.black });
       page.drawText(money(totalInstalacion), { x: 320, y, size: 14, font: fontBold, color: C.ink900 });
       y -= 26;
-      page.drawText('Mensualidad total (desde el 2º mes):', { x: 40, y, size: 12, font: fontRegular, color: C.black });
+      page.drawText('Mensualidad total:', { x: 40, y, size: 12, font: fontRegular, color: C.black });
       page.drawText(money(totalMensual) + '/mes', { x: 320, y, size: 14, font: fontBold, color: C.ink900 });
-      y -= 30;
-
-      page.drawRectangle({ x: 40, y: y - 8, width: PAGE_W - 80, height: 36, color: rgb(1, 0.9, 0.8) });
-      page.drawText('Incluido: primer mes de monitoreo GRATIS', {
-        x: 52, y: y + 6, size: 11.5, font: fontBold, color: rgb(0.75, 0.35, 0.05),
-      });
-      y -= 50;
+      y -= 40;
 
       if (flota) {
         page.drawText(
