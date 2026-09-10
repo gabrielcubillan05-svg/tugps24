@@ -33,7 +33,6 @@ export type Section =
   | 'auditoria'
   | 'usuarios'
   | 'chat'
-  | 'pagos'
   | 'estadisticas'
   | 'cobros'
   | 'cuadrantes'
@@ -54,7 +53,6 @@ export const SECTION_LABELS: Record<Section, string> = {
   auditoria: 'Auditoría',
   usuarios: 'Usuarios',
   chat: 'Chat',
-  pagos: 'Verificación de pagos',
   estadisticas: 'Estadísticas',
   cobros: 'Cobranza especial WP',
   cuadrantes: 'Cuadrantes de policía',
@@ -76,7 +74,6 @@ export const SECTION_PATHS: Record<Section, string> = {
   auditoria: '/interno/auditoria',
   usuarios: '/interno/usuarios',
   chat: '/interno/chat',
-  pagos: '/interno/pagos',
   estadisticas: '/interno/estadisticas',
   cobros: '/interno/cobros',
   cuadrantes: '/interno/cuadrantes',
@@ -94,7 +91,7 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
   supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
   gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'pagos', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -103,14 +100,6 @@ export function canAccessSection(role: Role, section: Section): boolean {
 
 export function firstSectionFor(role: Role): Section | null {
   return ROLE_SECTIONS[role]?.[0] ?? null;
-}
-
-// Usuarios puntuales con acceso a Verificación de pagos aunque su rol no lo incluya,
-// además de admin (que ya lo tiene por ROLE_SECTIONS).
-const PAGOS_EXTRA_USERNAMES = ['kellylara', 'wilmar'];
-
-export function canAccessPagos(session: Pick<Session, 'role' | 'username'>): boolean {
-  return canAccessSection(session.role, 'pagos') || PAGOS_EXTRA_USERNAMES.includes(session.username);
 }
 
 // Usuarios puntuales con acceso a Cobranza especial WP aunque su rol no lo incluya.
@@ -163,7 +152,6 @@ export function canSetUserBranches(session: Pick<Session, 'username'>): boolean 
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
-  if (!base.includes('pagos') && canAccessPagos(session)) extra.push('pagos');
   if (!base.includes('cobros') && canAccessCobros(session)) extra.push('cobros');
   if (!base.includes('suspensiones') && canAccessSuspensiones(session)) extra.push('suspensiones');
   if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
