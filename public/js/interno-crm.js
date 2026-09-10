@@ -824,41 +824,6 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     URL.revokeObjectURL(url);
   });
 
-  const verifyInstallsForm = document.getElementById('verifyInstallsForm');
-  if (verifyInstallsForm) {
-    const verifyInstallsFile = document.getElementById('verifyInstallsFile');
-    const verifyInstallsResult = document.getElementById('verifyInstallsResult');
-    verifyInstallsForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      const file = verifyInstallsFile.files && verifyInstallsFile.files[0];
-      if (!file) return;
-      verifyInstallsResult.innerHTML = 'Comparando...';
-      const submitBtn = verifyInstallsForm.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      fetch('/api/leads-verify-installs', { method: 'POST', body: formData })
-        .then(async (res) => {
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || 'No se pudo procesar el archivo.');
-          const unmatchedHtml = data.unmatchedPhones && data.unmatchedPhones.length
-            ? `<div class="unmatched-list">Teléfonos en el archivo sin lead en el CRM (${data.unmatchedCount}): ${data.unmatchedPhones.map(escapeHtml).join(', ')}${data.unmatchedCount > data.unmatchedPhones.length ? '…' : ''}</div>`
-            : '';
-          verifyInstallsResult.innerHTML = `<p class="result-ok">${data.ordersWithPhone} órdenes leídas · ${data.matched} coincidieron con un lead · ${data.newlyVerified} quedaron verificadas ahora.</p>${unmatchedHtml}`;
-          verifyInstallsForm.reset();
-          loadLeads();
-        })
-        .catch((err) => {
-          verifyInstallsResult.innerHTML = `<p class="result-error">${escapeHtml(err.message || 'No se pudo procesar el archivo.')}</p>`;
-        })
-        .finally(() => {
-          submitBtn.disabled = false;
-        });
-    });
-  }
-
   const mediaGallery = document.getElementById('mediaGallery');
   if (mediaGallery) {
     function renderMediaGallery(assets) {
@@ -986,29 +951,6 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           backfillSecretaryResult.textContent = err.message || 'No se pudo asignar.';
         })
         .finally(() => { backfillSecretaryBtn.disabled = false; });
-    });
-  }
-
-  const undoLastVerifyBtn = document.getElementById('undoLastVerifyBtn');
-  if (undoLastVerifyBtn) {
-    const undoLastVerifyResult = document.getElementById('undoLastVerifyResult');
-    undoLastVerifyBtn.addEventListener('click', function () {
-      if (!confirm('¿Deshacer la última verificación de instalaciones? Esto revierte solo los leads que quedaron marcados en esa última subida, sin tocar los que los trabajadores marcaron a mano.')) return;
-      undoLastVerifyBtn.disabled = true;
-      undoLastVerifyResult.textContent = 'Deshaciendo...';
-      fetch('/api/leads-undo-last-verify', { method: 'POST' })
-        .then(async (res) => {
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || 'No se pudo deshacer.');
-          undoLastVerifyResult.textContent = data.reverted
-            ? `${data.reverted} lead(s) revertidos.`
-            : (data.message || 'No había nada que deshacer.');
-          loadLeads();
-        })
-        .catch((err) => {
-          undoLastVerifyResult.textContent = err.message || 'No se pudo deshacer.';
-        })
-        .finally(() => { undoLastVerifyBtn.disabled = false; });
     });
   }
 

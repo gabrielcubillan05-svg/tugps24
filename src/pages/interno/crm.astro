@@ -86,22 +86,6 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
     </form>
   </div>
 
-  {canVerifyInstalls(session.role) && (
-    <div class="panel-card">
-      <h2>Verificar instalaciones</h2>
-      <p class="hint">Sube el Excel con las órdenes de instalación reales (debe tener una columna de teléfono/celular). Se compara contra los leads del CRM para confirmar cuáles se instalaron de verdad, sin depender de lo que marque el operador.</p>
-      <form id="verifyInstallsForm" class="verify-installs-form">
-        <input id="verifyInstallsFile" type="file" accept=".xlsx,.xls,.csv" required />
-        <button class="btn-small" type="submit">Comparar y verificar</button>
-      </form>
-      <div id="verifyInstallsResult"></div>
-      <div class="undo-verify-row">
-        <button class="btn-small btn-delete" id="undoLastVerifyBtn" type="button">Deshacer la última verificación</button>
-        <span id="undoLastVerifyResult" class="hint" style="margin:0;"></span>
-      </div>
-    </div>
-  )}
-
   {false /* Recursos para WhatsApp: oculto temporalmente para todos */ && (
     <div class="panel-card">
       <h2>Recursos para WhatsApp</h2>
@@ -215,7 +199,6 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .hint { color: var(--slate); font-size: 12.5px; margin-bottom: 12px; }
   .backfill-secretary-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
   .backfill-secretary-row .hint { margin: 0; }
-  .undo-verify-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
   .filtered-count { color: var(--slate); font-size: 12.5px; margin: -6px 0 12px; }
 
   .view-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -288,12 +271,6 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .media-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .media-label { font-size: 12.5px; font-weight: 600; }
   .media-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  .verify-installs-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .verify-installs-form input[type="file"] { flex: 1; min-width: 200px; }
-  #verifyInstallsResult { margin-top: 12px; font-size: 13px; }
-  #verifyInstallsResult .result-ok { color: var(--ok); }
-  #verifyInstallsResult .result-error { color: var(--danger); }
-  #verifyInstallsResult .unmatched-list { color: var(--slate); font-size: 12px; margin-top: 6px; }
   .notes-list { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
   .notes-list .note-item { font-size: 12.5px; color: var(--paper-dim); }
   .notes-list .note-item .note-date { color: var(--slate); font-size: 11px; margin-right: 6px; }
