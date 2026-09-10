@@ -13,7 +13,7 @@ async function requireCrm(cookies: any) {
 }
 
 export const REDIS_KEY = 'internal:leads';
-export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Agendado', 'Instalado', 'Perdido'];
+export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Concretado por el agente', 'Agendado', 'Instalado', 'Perdido'];
 
 interface Note {
   text: string;
@@ -340,7 +340,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.scheduledInstallDate !== undefined) {
     lead.scheduledInstallDate = body.scheduledInstallDate || null;
-    if (lead.scheduledInstallDate && ['Nuevo', 'Contactado', 'Cotizado'].includes(lead.status)) {
+    if (lead.scheduledInstallDate && ['Nuevo', 'Contactado', 'Cotizado', 'Concretado por el agente'].includes(lead.status)) {
       lead.status = 'Agendado';
     }
   }

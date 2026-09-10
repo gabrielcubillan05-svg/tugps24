@@ -89,11 +89,11 @@ async function findBranchAssignee(redis: any, branch: string) {
   return users.find((u) => u.role === 'secretaria') || users.find((u) => u.role === 'gerente') || null;
 }
 
-async function notifyJosue(redis: any, message: string): Promise<void> {
+async function notifyJosue(redis: any, message: string, type: string = 'crm-whatsapp'): Promise<void> {
   try {
     const josue = await findUserByUsername(redis, JOSUE_USERNAME);
     if (josue) {
-      await pushNotification(redis, josue.id, { type: 'crm-whatsapp', message, link: '/interno/crm' });
+      await pushNotification(redis, josue.id, { type, message, link: '/interno/crm' });
     }
   } catch {
     // no debe tumbar el procesamiento del mensaje
@@ -234,7 +234,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
     } else if (call.name === 'marcar_calificado') {
       lead.aiStage = 'entregado';
       lead.aiHandoffAt = now;
-      if (lead.status === 'Nuevo') lead.status = 'Contactado';
+      if (lead.status !== 'Instalado') lead.status = 'Concretado por el agente';
       if (call.input?.fecha_preferida) lead.scheduledInstallDate = String(call.input.fecha_preferida);
       const summary = String(call.input?.resumen || 'Lead calificado por el agente IA.');
       lead.notes = [{ text: `[Agente IA] ${summary}`, date: now }, ...lead.notes];
@@ -245,18 +245,18 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
           lead.secretary = assignee.name;
           try {
             await pushNotification(redis, assignee.id, {
-              type: 'crm-whatsapp',
-              message: `Lead calificado por el agente IA: ${lead.name} (${lead.city}) — ${summary}`,
+              type: 'crm-urgent',
+              message: `🚨 Lead concretado por el agente IA: ${lead.name} (${lead.city}) — ${summary}`,
               link: '/interno/crm',
             });
           } catch {
             // no debe tumbar el procesamiento del mensaje
           }
         } else {
-          await notifyJosue(redis, `Lead calificado sin secretaria/gerente configurado para "${lead.city}": ${lead.name} (${lead.phone})`);
+          await notifyJosue(redis, `Lead concretado sin secretaria/gerente configurado para "${lead.city}": ${lead.name} (${lead.phone})`, 'crm-urgent');
         }
       } else {
-        await notifyJosue(redis, `Lead calificado sin ciudad definida: ${lead.name} (${lead.phone}) — ${summary}`);
+        await notifyJosue(redis, `Lead concretado sin ciudad definida: ${lead.name} (${lead.phone}) — ${summary}`, 'crm-urgent');
       }
     } else if (call.name === 'escalar_urgente') {
       lead.aiStage = 'escalado';

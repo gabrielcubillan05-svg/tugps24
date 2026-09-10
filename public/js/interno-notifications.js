@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     notifList.innerHTML = notifications.map((n) => `
-      <a class="notif-item ${n.read ? '' : 'unread'}" href="${n.link || '#'}" data-id="${n.id}">
+      <a class="notif-item ${n.read ? '' : 'unread'} ${n.type === 'crm-urgent' ? 'urgent' : ''}" href="${n.link || '#'}" data-id="${n.id}">
         ${escapeHtml(n.message)}
         <span class="notif-time">${fmtRelative(n.createdAt)}</span>
       </a>
