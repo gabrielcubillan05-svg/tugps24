@@ -97,6 +97,39 @@ export async function readLeads(redis: any): Promise<Lead[]> {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+export interface SalesAgentStats {
+  total: number;
+  sinIniciar: number;
+  enConversacion: number;
+  concretados: number;
+  escalados: number;
+  sinInteres: number;
+}
+
+// Resultados del agente IA (Andrés) — solo cuenta leads que llegaron por WhatsApp Ads,
+// que es el único canal donde él conversa de verdad con el cliente.
+export function computeSalesAgentStats(leads: Lead[]): SalesAgentStats {
+  const touched = leads.filter((l) => l.source === 'whatsapp-ads');
+  const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0 };
+  for (const l of touched) {
+    switch (l.aiStage) {
+      case 'en_conversacion':
+        stats.enConversacion++;
+        break;
+      case 'entregado':
+        stats.concretados++;
+        break;
+      case 'escalado':
+        stats.escalados++;
+        break;
+      default:
+        stats.sinIniciar++;
+    }
+    if (l.status === 'Perdido') stats.sinInteres++;
+  }
+  return stats;
+}
+
 export const GET: APIRoute = async ({ cookies }) => {
   if (!(await requireCrm(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });

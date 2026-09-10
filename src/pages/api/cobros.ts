@@ -65,7 +65,7 @@ export interface Cobro {
   derivedToSales?: boolean;
 }
 
-interface AgentStats {
+export interface AgentStats {
   total: number;
   templateSent: number;
   sinIniciar: number;
@@ -78,7 +78,7 @@ interface AgentStats {
 
 // Ya no se reparte entre trabajadores — la agente IA (Valentina) gestiona la cobranza
 // primero, así que las estadísticas que importan son por etapa de esa conversación.
-function computeAgentStats(cobros: Cobro[]): AgentStats {
+export function computeAgentStats(cobros: Cobro[]): AgentStats {
   const stats: AgentStats = {
     total: cobros.length,
     templateSent: 0,

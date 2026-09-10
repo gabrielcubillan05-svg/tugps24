@@ -29,10 +29,40 @@ document.addEventListener('DOMContentLoaded', function () {
     return Number(n || 0).toLocaleString('es-CO');
   }
 
+  function renderResults(a) {
+    if (!a.results) return '';
+    const r = a.results;
+    if (a.key === 'andres') {
+      return `
+        <div class="agent-usage-row">
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.total)}</span><span class="l">Leads por WhatsApp</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.enConversacion)}</span><span class="l">En conversación</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.concretados)}</span><span class="l">Concretados</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.escalados)}</span><span class="l">Escalados</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.sinInteres)}</span><span class="l">Sin interés</span></div>
+          <div class="agent-usage-stat"><span class="n">${r.total ? Math.round((r.concretados / r.total) * 100) : 0}%</span><span class="l">% concretado</span></div>
+        </div>
+      `;
+    }
+    return `
+      <div class="agent-usage-row">
+        <div class="agent-usage-stat"><span class="n">${fmtTokens(r.total)}</span><span class="l">Cobros</span></div>
+        <div class="agent-usage-stat"><span class="n">${fmtTokens(r.enConversacion)}</span><span class="l">En conversación</span></div>
+        <div class="agent-usage-stat"><span class="n">${fmtTokens(r.acuerdo)}</span><span class="l">Acuerdos de pago</span></div>
+        <div class="agent-usage-stat"><span class="n">${fmtTokens(r.escalado)}</span><span class="l">Escalados</span></div>
+        <div class="agent-usage-stat"><span class="n">${fmtCop(r.deudaEnAcuerdo)}</span><span class="l">Deuda en acuerdo</span></div>
+        <div class="agent-usage-stat"><span class="n">${r.total ? Math.round((r.acuerdo / r.total) * 100) : 0}%</span><span class="l">% con acuerdo</span></div>
+      </div>
+    `;
+  }
+
   function renderAgents() {
     agentsList.innerHTML = agents.map((a) => `
       <div class="panel-card agent-card" data-key="${a.key}">
         <h2>${escapeHtml(a.label)}</h2>
+        <h3 class="agent-section-label">Resultados</h3>
+        ${renderResults(a)}
+        <h3 class="agent-section-label">Costo</h3>
         <div class="agent-usage-row">
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.inputTokens)}</span><span class="l">Tokens de entrada</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.outputTokens)}</span><span class="l">Tokens de salida</span></div>

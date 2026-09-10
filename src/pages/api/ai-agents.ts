@@ -11,6 +11,8 @@ import {
   setCostConfig,
   computeCost,
 } from '../../lib/agent-usage';
+import { readLeads, computeSalesAgentStats } from './leads';
+import { readCobros, computeAgentStats as computeCollectionsAgentStats } from './cobros';
 
 export const prerender = false;
 
@@ -31,13 +33,19 @@ export const GET: APIRoute = async ({ cookies }) => {
   }
 
   const costConfig = await getCostConfig(redis);
+  const [allLeads, allCobros] = await Promise.all([readLeads(redis), readCobros(redis)]);
+  const resultsByAgent: Record<string, unknown> = {
+    andres: computeSalesAgentStats(allLeads),
+    valentina: computeCollectionsAgentStats(allCobros),
+  };
+
   const agents = await Promise.all(
     AGENTS.map(async (a) => {
       const [extraInstructions, usage] = await Promise.all([
         getExtraInstructions(redis, a.key),
         getAgentUsage(redis, a.key),
       ]);
-      return { ...a, extraInstructions, usage, cost: computeCost(usage, costConfig) };
+      return { ...a, extraInstructions, usage, cost: computeCost(usage, costConfig), results: resultsByAgent[a.key] || null };
     })
   );
 
