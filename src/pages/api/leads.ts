@@ -160,6 +160,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const initialNote = String((body as any).initialNote || '').trim();
   const creator = await findUserById(redis, session.userId);
 
+  // Si ya trae una nota desde la creación, no tiene sentido que quede en "Nuevo" — es el
+  // mismo criterio que ya se usa al agregar una nota a un lead existente.
+  let initialStatus = STATUSES.includes(String(body.status)) ? String(body.status) : 'Nuevo';
+  if (initialStatus === 'Nuevo' && initialNote) initialStatus = 'Contactado';
+
   const lead: Lead = {
     id: randomUUID(),
     name: name || phone,
@@ -167,7 +172,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     city: String(body.city || '').trim(),
     campaign: String(body.campaign || '').trim(),
     secretary: String(body.secretary || '').trim() || creator?.name || session.username,
-    status: STATUSES.includes(String(body.status)) ? String(body.status) : 'Nuevo',
+    status: initialStatus,
     nextFollowUp: body.nextFollowUp ? String(body.nextFollowUp) : null,
     convertedBranch: null,
     vehicleType: VEHICLE_TYPES.includes(String((body as any).vehicleType || '')) ? String((body as any).vehicleType || '') : '',
