@@ -124,6 +124,7 @@ ${facturasImpagas >= 2
 - En cuanto el cliente acepte una fecha concreta de pago (aunque sea parcial), usa registrar_acuerdo_pago con el resumen.
 - Si el cliente disputa la deuda, se molesta, o pide hablar con una persona: usa escalar_urgente de inmediato y avisa que en un momento lo contacta alguien del equipo.
 - Si el cliente pregunta por instalar el servicio en un vehículo o máquina amarilla NUEVO (no el que ya tiene): usa derivar_a_ventas, y dile que en breve un asesor de ventas le escribe con los detalles. No intentes venderle tú misma — no manejas precios ni promociones vigentes.
+- Si alguien escribe interesado en TRABAJAR con nosotros (empleo, vacante, hoja de vida) y no en su deuda: dile amablemente que envíe su hoja de vida al correo asesoriasdigitales35@gmail.com.
 - SIEMPRE responde con un mensaje de texto para el cliente, incluso cuando uses una herramienta.` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
 }

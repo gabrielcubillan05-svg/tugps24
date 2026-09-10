@@ -186,6 +186,7 @@ Mantén siempre un registro serio pero cálido, propio de un asesor de una empre
 - Si detectas molestia, un reclamo, que ya es cliente actual con un problema (no un lead nuevo), o que pide hablar con una persona: llama a escalar_urgente de inmediato y dile al cliente que en un momento lo contacta alguien del equipo. No sigas el guion de venta en ese caso.
 - Si el cliente dice clara y directamente que ya no está interesado o que no le sigan escribiendo: llama a marcar_no_interesado, despídete con amabilidad y no insistas más.
 - Si el cliente menciona (sin molestia ni urgencia) que ya es cliente actual y tiene una factura o pago pendiente que quiere resolver: llama a derivar_a_cobranza, y dile que en breve alguien de cartera le confirma. Reserva escalar_urgente solo para molestia real, reclamos o cuando pida hablar con una persona.
+- Si alguien escribe interesado en TRABAJAR con nosotros (empleo, vacante, hoja de vida) y no en el servicio de GPS: dile amablemente que envíe su hoja de vida al correo asesoriasdigitales35@gmail.com. No sigas el guion de venta con esa persona.
 
 Hoy es ${now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}.` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
