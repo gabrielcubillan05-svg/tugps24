@@ -378,23 +378,31 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     }
   }
 
+  // Solo se muestra la insignia más relevante (no todas apiladas), para que la tarjeta
+  // quepa en menos espacio y entren más leads en pantalla a la vez.
+  function primaryBadge(l) {
+    if (l.overdue) return '<span class="badge overdue-badge">Atrasado</span>';
+    const ai = aiStageBadge(l);
+    if (ai) return ai;
+    if (l.installed && l.verifiedInstalled) return '<span class="badge badge-verified">✓ Verificado</span>';
+    if (l.installed && !l.verifiedInstalled) return '<span class="badge badge-unverified">⚠ Sin verificar</span>';
+    if (isCold(l)) return '<span class="badge badge-cold">Sin contactar</span>';
+    if (l.source === 'meta-leadgen') return '<span class="badge badge-meta">Meta</span>';
+    return '';
+  }
+
   function renderBoardCard(l) {
+    const metaParts = [l.city, l.secretary].filter(Boolean);
     return `
       <div class="board-card ${l.overdue ? 'overdue' : ''}" draggable="${canSetStatus}" data-id="${l.id}">
-        <div class="board-card-name">${escapeHtml(l.name)}</div>
-        <div class="board-card-meta">${escapeHtml(l.phone)}${l.city ? ' · ' + escapeHtml(l.city) : ''}</div>
-        ${l.secretary ? `<div class="board-card-secretary">👤 ${escapeHtml(l.secretary)}</div>` : ''}
-        <div class="board-card-badges">
-          ${aiStageBadge(l)}
-          ${l.overdue ? '<span class="badge overdue-badge">Atrasado</span>' : ''}
-          ${l.installed && l.verifiedInstalled ? '<span class="badge badge-verified">✓ Verificado</span>' : ''}
-          ${l.installed && !l.verifiedInstalled ? '<span class="badge badge-unverified">⚠ Sin verificar</span>' : ''}
-          ${isCold(l) ? '<span class="badge badge-cold">Sin contactar</span>' : ''}
-          ${l.source === 'meta-leadgen' ? '<span class="badge badge-meta">Meta</span>' : ''}
+        <div class="board-card-top">
+          <span class="board-card-name">${escapeHtml(l.name)}</span>
+          ${isPhoneLike(l.phone)
+            ? `<a class="board-card-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener" title="WhatsApp">💬</a>`
+            : ''}
         </div>
-        ${isPhoneLike(l.phone)
-          ? `<a class="btn-tiny btn-wa" href="${waLink(l.phone)}" target="_blank" rel="noopener">WhatsApp</a>`
-          : `<span class="btn-tiny" title="Usuario de WhatsApp, no teléfono">Usuario WA</span>`}
+        ${metaParts.length ? `<div class="board-card-meta">${escapeHtml(metaParts.join(' · '))}</div>` : ''}
+        ${primaryBadge(l)}
       </div>
     `;
   }

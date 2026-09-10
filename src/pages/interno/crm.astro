@@ -209,36 +209,37 @@ const CAMPAIGNS = ['Facebook', 'Recomendado de cliente', 'Interesado en oficina'
   .view-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
   .view-toggle .view-btn.active { background: var(--amber); color: #1a0f00; }
 
-  .leads-board { overflow-x: auto; padding-bottom: 8px; }
-  .board-columns { display: flex; gap: 12px; min-width: min-content; }
+  .leads-board { overflow-x: auto; padding-bottom: 8px; max-height: 78vh; }
+  .board-columns { display: flex; gap: 8px; min-width: min-content; align-items: flex-start; }
   .board-col {
-    flex: 0 0 250px;
+    flex: 0 0 190px;
     background: var(--ink-800);
     border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 10px;
+    border-radius: 8px;
+    padding: 7px;
     display: flex;
     flex-direction: column;
+    max-height: 78vh;
   }
-  .board-col-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13px; margin-bottom: 10px; }
-  .board-col-head .board-count { color: var(--slate); font-weight: 500; font-size: 11.5px; }
-  .board-col-body { display: flex; flex-direction: column; gap: 8px; min-height: 60px; border-radius: 8px; transition: background 0.15s; }
+  .board-col-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 11.5px; margin-bottom: 6px; flex: 0 0 auto; }
+  .board-col-head .board-count { color: var(--slate); font-weight: 500; font-size: 10.5px; }
+  .board-col-body { display: flex; flex-direction: column; gap: 4px; min-height: 40px; border-radius: 6px; transition: background 0.15s; overflow-y: auto; }
   .board-col-body.drag-over { background: #ff7a1a1f; }
-  .board-empty { color: var(--slate); font-size: 12px; text-align: center; padding: 14px 0; }
+  .board-empty { color: var(--slate); font-size: 11px; text-align: center; padding: 10px 0; }
   .board-card {
     background: var(--ink-700);
     border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 9px 10px;
+    border-radius: 6px;
+    padding: 5px 7px;
     cursor: grab;
   }
   .board-card.dragging { opacity: 0.45; }
   .board-card.overdue { border-color: var(--danger); }
-  .board-card-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
-  .board-card-meta { color: var(--slate); font-size: 11.5px; margin-bottom: 2px; }
-  .board-card-secretary { color: var(--slate); font-size: 11.5px; margin-bottom: 6px; }
-  .board-card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
-  .board-card-badges .badge { font-size: 10px; padding: 1px 7px; }
+  .board-card-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+  .board-card-name { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board-card-wa { flex: 0 0 auto; font-size: 12px; text-decoration: none; line-height: 1; }
+  .board-card-meta { color: var(--slate); font-size: 10.5px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board-card .badge { font-size: 9.5px; padding: 1px 6px; margin-top: 3px; display: inline-block; }
   .btn-tiny { display: inline-block; font-size: 11px; padding: 4px 9px; border-radius: 999px; }
 
   .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
