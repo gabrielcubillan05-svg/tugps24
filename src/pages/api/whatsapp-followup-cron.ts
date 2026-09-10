@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { sendWhatsappText } from '../../lib/whatsapp';
 import { readLeads, REDIS_KEY as LEADS_KEY } from './leads';
-import { appendHistory } from './whatsapp-webhook';
+import { appendHistory, sendReinforcementMedia } from './whatsapp-webhook';
 
 export const prerender = false;
 
@@ -62,6 +62,15 @@ export const GET: APIRoute = async ({ request }) => {
     lead.lastFollowUpAt = nowIso;
     lead.lastOutboundAt = nowIso;
     lead.updatedAt = nowIso;
+
+    // En el segundo intento (una hora después del primero, ~4h de silencio en total) se
+    // refuerza con el video de la central y una recuperación real — sin ser invasivos, solo
+    // si no se le ha mandado antes por ningún otro medio.
+    if (followUpCount === 1 && !lead.mediaSentAt) {
+      await sendReinforcementMedia(redis, lead, lead.phone);
+      lead.mediaSentAt = nowIso;
+    }
+
     await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
     await appendHistory(redis, lead.id, [{ role: 'assistant', content: message }]);
     sent++;

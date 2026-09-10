@@ -59,6 +59,10 @@ export interface Cobro {
   templateSentAt?: string | null;
   lastInboundAt?: string | null;
   lastOutboundAt?: string | null;
+  paymentImageSentAt?: string | null;
+  // Cuando el cliente pide instalar un vehículo nuevo, Valentina lo deriva a ventas y
+  // Andrés toma la conversación de ahí en adelante (no vuelve a Valentina automáticamente).
+  derivedToSales?: boolean;
 }
 
 interface AgentStats {
@@ -162,7 +166,7 @@ export async function readCobros(redis: any): Promise<Cobro[]> {
       }
     })
     .filter((c): c is Cobro => c !== null)
-    .map((c) => ({ aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, ...c }))
+    .map((c) => ({ aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, paymentImageSentAt: null, derivedToSales: false, ...c }))
     .sort((a, b) => b.deuda - a.deuda);
 }
 
@@ -472,7 +476,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const cobro: Cobro = { aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const cobro: Cobro = { aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, paymentImageSentAt: null, derivedToSales: false, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
 
   const user = await findUserById(redis, session.userId);
   const userName = USERNAME_ASSIGNEE_OVERRIDE[session.username] || user?.name || session.username;

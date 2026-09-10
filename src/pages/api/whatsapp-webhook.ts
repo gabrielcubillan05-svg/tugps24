@@ -370,6 +370,7 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
   }
 
   let sendPaymentImage = false;
+  let justDerivedToSales = false;
 
   for (const call of agentResult.toolCalls) {
     if (call.name === 'registrar_acuerdo_pago') {
@@ -396,9 +397,13 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
       }
       leadMatch.notes = [{ text: `[Valentina, cobranza] Cliente actual pide instalación nueva: ${resumen}`, date: leadNow }, ...leadMatch.notes];
       await redis.hset(LEADS_KEY, { [leadMatch.id]: JSON.stringify(leadMatch) });
-      await notifyJosue(redis, `${cobro.nombre} (cliente de cobranza) quiere instalar un vehículo nuevo: ${resumen}`);
-    } else if (call.name === 'enviar_medios_pago') {
+      // De aquí en adelante este número lo atiende Andrés (ventas), no Valentina — y Andrés
+      // responde ya mismo en este mismo mensaje, en vez de esperar a que alguien vea una notificación.
+      cobro.derivedToSales = true;
+      justDerivedToSales = true;
+    } else if (call.name === 'enviar_medios_pago' && !cobro.paymentImageSentAt) {
       sendPaymentImage = true;
+      cobro.paymentImageSentAt = new Date().toISOString();
     }
   }
 
@@ -424,9 +429,15 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
       // no debe tumbar el flujo si falla el envío de la imagen
     }
   }
+
+  // Andrés toma la conversación de inmediato en este mismo mensaje, en vez de dejar que el
+  // cliente espere a que alguien vea la notificación de derivación.
+  if (justDerivedToSales) {
+    await handleInboundMessage(redis, fromPhone, text, cobro.nombre);
+  }
 }
 
-async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: string): Promise<void> {
+export async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: string): Promise<void> {
   try {
     const media = await readAgentMedia(redis);
 
@@ -490,9 +501,11 @@ export const POST: APIRoute = async ({ request }) => {
           const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
 
           // Si el número corresponde a un cobro cargado en Cobranza Masiva, lo maneja la
-          // agente de cobranza (Valentina) — nunca cae en el flujo de ventas (Andrés).
+          // agente de cobranza (Valentina) — salvo que ya se haya derivado a ventas (el
+          // cliente pidió instalar un vehículo nuevo), en cuyo caso sigue con Andrés.
           const allCobros = await readCobros(redis);
           const cobro = allCobros.find((c) => normalizePhone(c.telefono) === fromPhone);
+          const routeToCollections = !!cobro && !cobro.derivedToSales;
 
           let text = '';
           if (msg.type === 'text') {
@@ -505,7 +518,7 @@ export const POST: APIRoute = async ({ request }) => {
             // No se pudo transcribir el audio, o es un tipo que no leemos (foto, video,
             // documento, sticker, ubicación) — avisamos al cliente en vez de dejarlo en
             // silencio, salvo que el caso ya lo tenga un humano.
-            if (cobro) {
+            if (routeToCollections && cobro) {
               await handleUnsupportedCobroMessage(redis, cobro, msg.type);
             } else {
               await handleUnsupportedMessage(redis, fromPhone, msg.type);
@@ -513,7 +526,7 @@ export const POST: APIRoute = async ({ request }) => {
             continue;
           }
 
-          if (cobro) {
+          if (routeToCollections && cobro) {
             await handleCollectionsMessage(redis, cobro, text);
           } else {
             await handleInboundMessage(redis, fromPhone, text, contactName);
