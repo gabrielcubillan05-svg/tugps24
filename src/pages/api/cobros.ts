@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessCobros, canUploadCobros, findUserById, verifySameOrigin } from '../../lib/auth';
-import { sendWhatsappTemplate } from '../../lib/whatsapp';
+import { sendWhatsappTemplate, isQuietHoursColombia } from '../../lib/whatsapp';
 import { normalizePhone } from './leads';
 
 export const prerender = false;
@@ -439,6 +439,12 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!canUploadCobros(session)) {
       return new Response(JSON.stringify({ error: 'no autorizado' }), { status: 403 });
     }
+    if (isQuietHoursColombia()) {
+      return new Response(
+        JSON.stringify({ error: 'No se pueden enviar recordatorios entre 11pm y 6am (hora Colombia). Intenta de nuevo después de las 6am.' }),
+        { status: 400 }
+      );
+    }
     const BATCH_SIZE = 40;
     const allCobros = await readCobros(redis);
     const pending = allCobros.filter((c) => !c.templateSentAt && normalizePhone(c.telefono).length >= 10);
@@ -490,6 +496,12 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (body.action === 'sendWhatsappReminder') {
     if (!canUploadCobros(session)) {
       return new Response(JSON.stringify({ error: 'no autorizado' }), { status: 403 });
+    }
+    if (isQuietHoursColombia()) {
+      return new Response(
+        JSON.stringify({ error: 'No se pueden enviar recordatorios entre 11pm y 6am (hora Colombia). Intenta de nuevo después de las 6am.' }),
+        { status: 400 }
+      );
     }
     const phone = normalizePhone(cobro.telefono);
     if (!phone) {

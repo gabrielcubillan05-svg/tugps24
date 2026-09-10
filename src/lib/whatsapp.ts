@@ -2,6 +2,15 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const GRAPH_VERSION = 'v21.0';
 
+// Horario de silencio para mensajes que INICIAMOS nosotros (recordatorios, plantillas de
+// seguimiento) — nunca de 11pm a 6am hora Colombia, para no molestar a quien esté dormido.
+// No aplica a respuestas a un mensaje que el cliente ya escribió — esas siempre se contestan.
+// Colombia no tiene horario de verano, siempre es UTC-5.
+export function isQuietHoursColombia(date: Date = new Date()): boolean {
+  const colombiaHour = (date.getUTCHours() - 5 + 24) % 24;
+  return colombiaHour >= 23 || colombiaHour < 6;
+}
+
 export function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
   const appSecret = import.meta.env.META_APP_SECRET;
   if (!appSecret || !signatureHeader || !signatureHeader.startsWith('sha256=')) return false;

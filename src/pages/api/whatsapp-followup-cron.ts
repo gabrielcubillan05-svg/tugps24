@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
-import { sendWhatsappText } from '../../lib/whatsapp';
+import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, REDIS_KEY as LEADS_KEY } from './leads';
 import { appendHistory, sendReinforcementMedia } from './whatsapp-webhook';
 
@@ -28,6 +28,13 @@ export const GET: APIRoute = async ({ request }) => {
   const redis = getRedis();
   if (!redis) {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  // No insistimos entre 11pm y 6am hora Colombia — que se quede callado hasta que amanezca.
+  if (isQuietHoursColombia()) {
+    return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'quiet hours' }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const now = Date.now();
