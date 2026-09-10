@@ -954,5 +954,25 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     });
   }
 
+  const backfillContactedBtn = document.getElementById('backfillContactedBtn');
+  if (backfillContactedBtn) {
+    const backfillContactedResult = document.getElementById('backfillContactedResult');
+    backfillContactedBtn.addEventListener('click', function () {
+      backfillContactedBtn.disabled = true;
+      backfillContactedResult.textContent = 'Moviendo...';
+      fetch('/api/leads-backfill-contacted', { method: 'POST' })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo mover.');
+          backfillContactedResult.textContent = `${data.updated} lead(s) movidos a Contactado.`;
+          loadLeads();
+        })
+        .catch((err) => {
+          backfillContactedResult.textContent = err.message || 'No se pudo mover.';
+        })
+        .finally(() => { backfillContactedBtn.disabled = false; });
+    });
+  }
+
   loadSecretaries().then(loadLeads);
 });
