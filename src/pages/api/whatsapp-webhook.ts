@@ -266,6 +266,19 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
       const motivo = String(call.input?.motivo || 'Sin motivo especificado');
       if (!lead.installed) lead.status = 'Perdido';
       lead.notes = [{ text: `[Agente IA] Marcado sin interés: ${motivo}`, date: now }, ...lead.notes];
+    } else if (call.name === 'derivar_a_cobranza') {
+      const resumen = String(call.input?.resumen || 'Cliente actual con posible pago pendiente');
+      lead.notes = [{ text: `[Agente IA] Derivado a cobranza: ${resumen}`, date: now }, ...lead.notes];
+      const allCobros = await readCobros(redis);
+      const cobroMatch = allCobros.find((c) => normalizePhone(c.telefono) === fromPhone);
+      if (cobroMatch) {
+        await notifyCobroAssigneeOrJosue(redis, cobroMatch, `${lead.name} (vía Andrés, ventas) dice tener un pago pendiente: ${resumen}`);
+      } else {
+        await notifyJosue(redis, `${lead.name} (${lead.phone}) dice ser cliente actual con un pago pendiente, pero no está en Cobranza especial: ${resumen}`);
+      }
+    } else if (call.name === 'reforzar_con_material' && !lead.mediaSentAt) {
+      await sendReinforcementMedia(redis, lead, fromPhone);
+      lead.mediaSentAt = new Date().toISOString();
     }
   }
 
@@ -356,6 +369,8 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
     replyText = (firstTool && fallbackByTool[firstTool]) || 'Gracias por tu mensaje, dame un momento.';
   }
 
+  let sendPaymentImage = false;
+
   for (const call of agentResult.toolCalls) {
     if (call.name === 'registrar_acuerdo_pago') {
       cobro.aiStage = 'acuerdo';
@@ -371,6 +386,19 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
       const motivo = String(call.input?.motivo || 'Sin motivo especificado');
       await logAudit(redis, COLLECTIONS_ACTOR, 'cobro_escalado', cobro.nombre, motivo);
       await notifyJosue(redis, `Urgente — cobranza de WhatsApp escalada: ${cobro.nombre} (${cobro.telefono}) — ${motivo}`);
+    } else if (call.name === 'derivar_a_ventas') {
+      const resumen = String(call.input?.resumen || 'Cliente de cobranza pide instalación de un vehículo nuevo');
+      const leadNow = new Date().toISOString();
+      const allLeads = await readLeads(redis);
+      let leadMatch = allLeads.find((l) => normalizePhone(l.phone) === fromPhone);
+      if (!leadMatch) {
+        leadMatch = newLeadFromWhatsapp(fromPhone, cobro.nombre, leadNow);
+      }
+      leadMatch.notes = [{ text: `[Valentina, cobranza] Cliente actual pide instalación nueva: ${resumen}`, date: leadNow }, ...leadMatch.notes];
+      await redis.hset(LEADS_KEY, { [leadMatch.id]: JSON.stringify(leadMatch) });
+      await notifyJosue(redis, `${cobro.nombre} (cliente de cobranza) quiere instalar un vehículo nuevo: ${resumen}`);
+    } else if (call.name === 'enviar_medios_pago') {
+      sendPaymentImage = true;
     }
   }
 
@@ -385,6 +413,17 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
   await logAudit(redis, COLLECTIONS_ACTOR, 'cobro_whatsapp_message', cobro.nombre, cobro.telefono);
 
   await sendWhatsappText(fromPhone, replyText);
+
+  if (sendPaymentImage) {
+    try {
+      const media = await readAgentMedia(redis);
+      if (media.medios_pago) {
+        await sendWhatsappMedia(fromPhone, 'image', media.medios_pago, 'Medios de pago disponibles.');
+      }
+    } catch {
+      // no debe tumbar el flujo si falla el envío de la imagen
+    }
+  }
 }
 
 async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: string): Promise<void> {

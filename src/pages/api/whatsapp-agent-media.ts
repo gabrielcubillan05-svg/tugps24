@@ -27,6 +27,7 @@ export const MEDIA_ITEMS: MediaItemDef[] = [
   { key: 'sucursal_bucaramanga', label: 'Foto sucursal Bucaramanga', type: 'image' },
   { key: 'sucursal_medellin', label: 'Foto sucursal Medellín', type: 'image' },
   { key: 'sucursal_monteria', label: 'Foto sucursal Montería', type: 'image' },
+  { key: 'medios_pago', label: 'Foto de medios de pago (Valentina, cobranza)', type: 'image' },
 ];
 
 interface StoredMediaItem {

@@ -51,6 +51,21 @@ const TOOLS = [
       required: ['motivo'],
     },
   },
+  {
+    name: 'derivar_a_ventas',
+    description:
+      'Llamar cuando el cliente pregunte por instalar el servicio en un vehículo NUEVO (no el que ya tiene, no relacionado con la deuda actual) — lo deriva al equipo de ventas.',
+    input_schema: {
+      type: 'object',
+      properties: { resumen: { type: 'string', description: 'Qué pidió el cliente sobre el vehículo nuevo' } },
+      required: ['resumen'],
+    },
+  },
+  {
+    name: 'enviar_medios_pago',
+    description: 'Llamar cada vez que le des al cliente los datos de la cuenta bancaria para pagar — envía además una foto con los medios de pago.',
+    input_schema: { type: 'object', properties: {} },
+  },
 ];
 
 function buildSystemPrompt(nombre: string, deuda: number, facturasImpagas: number, extraInstructions?: string): string {
@@ -66,7 +81,7 @@ Eres orientada al logro: tu meta real es que el cliente se ponga al día, no sol
 - NUNCA compartas información privada o interna de la empresa, ni datos personales de los dueños o de otros trabajadores.
 
 ## Formato
-Texto plano, sin asteriscos ni markdown. Mensajes cortos, como WhatsApp real.
+Texto plano, sin asteriscos ni markdown. Mensajes cortos, como WhatsApp real. Usa emojis con más frecuencia de la que crees necesaria — hacen el mensaje más amigable (😊💳📅✅🚗, etc.) — pero sin exagerar.
 
 ## Qué SÍ puedes hacer
 - Proponer que pague en 2 o 3 cuotas si el cliente dice que no puede pagar todo de una vez, y pedirle fechas concretas para cada cuota.
@@ -76,7 +91,7 @@ Texto plano, sin asteriscos ni markdown. Mensajes cortos, como WhatsApp real.
 - Si el cliente quiere pagar meses adelantados, decirle que sí puede y que el excedente le queda como saldo a favor.
 
 ## Medios de pago
-- Transferencia a Bancolombia, cuenta de ahorros No. 52664552906, a nombre de Digital Global S.A.S., NIT 900.996.607-9. Da estos datos completos apenas el cliente pida cómo pagar.
+- Transferencia a Bancolombia, cuenta de ahorros No. 52664552906, a nombre de Digital Global S.A.S., NIT 900.996.607-9. Da estos datos completos apenas el cliente pida cómo pagar, y llama a enviar_medios_pago en ese mismo momento para mandarle también la foto con los medios de pago.
 - Pago en línea desde la app de TuGPS24.
 - Reportar el pago subiendo el pantallazo del comprobante directo en la app (usa registrar_pago_reportado igual, para que tesorería lo verifique).
 - En efectivo, en cualquiera de nuestras oficinas físicas.
@@ -101,6 +116,7 @@ ${facturasImpagas >= 2
 - NUNCA ofrezcas condonar o descontar la deuda por tu cuenta.
 - En cuanto el cliente acepte una fecha concreta de pago (aunque sea parcial), usa registrar_acuerdo_pago con el resumen.
 - Si el cliente disputa la deuda, se molesta, o pide hablar con una persona: usa escalar_urgente de inmediato y avisa que en un momento lo contacta alguien del equipo.
+- Si el cliente pregunta por instalar el servicio en un vehículo NUEVO (no el que ya tiene): usa derivar_a_ventas, y dile que en breve un asesor de ventas le escribe con los detalles. No intentes venderle tú misma — no manejas precios ni promociones vigentes.
 - SIEMPRE responde con un mensaje de texto para el cliente, incluso cuando uses una herramienta.` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
 }
