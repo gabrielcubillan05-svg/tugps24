@@ -193,8 +193,19 @@ document.addEventListener('DOMContentLoaded', function () {
       isRecording = true;
       micBtn.classList.add('recording');
       micBtn.textContent = '⏹️';
-    } catch {
-      alert('No se pudo acceder al micrófono — revisa los permisos del navegador.');
+    } catch (err) {
+      const name = err && err.name;
+      let msg = 'No se pudo acceder al micrófono';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        msg = 'El navegador bloqueó el micrófono. Revisa: 1) que le hayas dado permiso al sitio (icono de candado en la barra de direcciones), y 2) en Android, que la app Chrome tenga permiso de Micrófono en Ajustes del teléfono > Apps > Chrome > Permisos.';
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        msg = 'No se encontró ningún micrófono en este dispositivo.';
+      } else if (name === 'NotReadableError') {
+        msg = 'El micrófono está siendo usado por otra app — ciérrala e intenta de nuevo.';
+      } else if (name) {
+        msg = `No se pudo acceder al micrófono (${name}).`;
+      }
+      alert(msg);
     }
   }
 
