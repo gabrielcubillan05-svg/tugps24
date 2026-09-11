@@ -12,6 +12,7 @@ import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './
 import { readCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { readAgentMedia } from './whatsapp-agent-media';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
+import { sendGabotMessage } from '../../lib/gabot';
 
 export const prerender = false;
 
@@ -249,6 +250,26 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
               message: `🚨 Lead concretado por el agente IA: ${lead.name} (${lead.city}) — ${summary}`,
               link: '/interno/crm',
             });
+          } catch {
+            // no debe tumbar el procesamiento del mensaje
+          }
+
+          // Aviso inmediato por el chat de GPSITO — a la secretaria Y al gerente de esa
+          // sucursal (no solo a quien haya quedado como responsable del lead), para que se
+          // enteren al instante de que Andrés concretó la venta.
+          try {
+            const branchStaff = (await getUsers(redis)).filter((u) => u.active && u.branch === lead.city);
+            const secretaria = branchStaff.find((u) => u.role === 'secretaria');
+            const gerente = branchStaff.find((u) => u.role === 'gerente');
+            const fechaPreferida = call.input?.fecha_preferida ? String(call.input.fecha_preferida) : '';
+            const gpsitoMessage = `🚨 Andrés concretó una venta: ${lead.name} (${lead.city})${fechaPreferida ? ` — fecha preferida: ${fechaPreferida}` : ''}\n${summary}`;
+            const notified = new Set<string>();
+            for (const person of [secretaria, gerente]) {
+              if (person && !notified.has(person.id)) {
+                notified.add(person.id);
+                await sendGabotMessage(redis, person.id, gpsitoMessage);
+              }
+            }
           } catch {
             // no debe tumbar el procesamiento del mensaje
           }
