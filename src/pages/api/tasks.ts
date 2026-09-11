@@ -140,16 +140,13 @@ export async function createTask(
 }
 
 // Usadas por la herramienta de GPSITO (messages.ts) para que un trabajador pueda marcar SU
-// PROPIA tarea como completada o agregarle una nota, sin pasar por el panel — misma regla de
-// evidencia que ya exige el PATCH de abajo: no se puede completar sin foto.
+// PROPIA tarea como completada o agregarle una nota, sin pasar por el panel. La foto de
+// evidencia es opcional (se puede adjuntar en cualquier momento), no obligatoria para completar.
 export async function markTaskStatus(redis: any, taskId: string, status: string): Promise<{ task: Task } | { error: string }> {
   const raw = await redis.hget<string>(REDIS_KEY, taskId);
   if (!raw) return { error: 'tarea no encontrada' };
   const task: Task = { notes: [], proof: null, completedAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
   if (!STATUSES.includes(status)) return { error: 'estado inválido' };
-  if (status === 'Completada' && !task.proof) {
-    return { error: 'le falta la foto de evidencia — hay que subirla primero desde el panel de Tareas' };
-  }
   if (status === 'Completada') task.completedAt = new Date().toISOString();
   else if (task.status === 'Completada') task.completedAt = null;
   task.status = status;
@@ -244,12 +241,6 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) {
       return new Response(JSON.stringify({ error: 'estado inválido' }), { status: 400 });
-    }
-    if (body.status === 'Completada' && !task.proof) {
-      return new Response(
-        JSON.stringify({ error: 'adjunta la foto de evidencia antes de marcar la tarea como completada' }),
-        { status: 400 }
-      );
     }
     if (body.status === 'Completada') {
       task.completedAt = new Date().toISOString();

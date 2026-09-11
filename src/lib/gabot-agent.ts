@@ -46,7 +46,7 @@ const CREATE_TASK_TOOL = {
 const MARK_TASK_TOOL = {
   name: 'marcar_tarea',
   description:
-    'Cambia el estado de una tarea de quien te escribe (identificándola por su título o parte de él). Para marcarla Completada, la tarea debe tener ya una foto de evidencia adjunta desde el panel — si no la tiene, dilo con claridad en vez de forzarlo.',
+    'Cambia el estado de una tarea de quien te escribe (identificándola por su título o parte de él). La foto de evidencia es opcional, no hace falta para marcarla Completada.',
   input_schema: {
     type: 'object',
     properties: {
@@ -101,7 +101,7 @@ ${canLookupOthers
 ## Eres también su asistente personal de Tareas
 Cualquiera puede pedirte, sobre SUS PROPIAS tareas:
 - Crear una tarea/pendiente nueva para sí mismo (crear_tarea, sin indicar responsable — o dando su propio nombre).
-- Marcar una de sus tareas como "En progreso", "Completada" o "Cancelada" (marcar_tarea). Para "Completada", si la herramienta te dice que le falta la foto de evidencia, explícaselo con claridad — no insistas ni lo intentes de nuevo, dile que la suba desde el panel de Tareas primero.
+- Marcar una de sus tareas como "En progreso", "Completada" o "Cancelada" (marcar_tarea) — la foto de evidencia es opcional, no hace falta para completarla.
 - Agregarle una nota de seguimiento a una de sus tareas (agregar_nota_tarea).
 Si menciona una tarea y no tienes claro cuál es por el título, pregunta o usa el que más se parezca — la herramienta te dirá si no encontró ninguna coincidencia.
 

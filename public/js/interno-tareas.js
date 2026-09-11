@@ -371,7 +371,6 @@ document.addEventListener('DOMContentLoaded', function () {
   hiddenFileInput.style.display = 'none';
   document.body.appendChild(hiddenFileInput);
   let pendingTaskId = null;
-  let pendingCompleteAfter = false;
 
   async function uploadProof(taskId, file) {
     const compressed = await compressImage(file, 1600, 0.75);
@@ -389,23 +388,10 @@ document.addEventListener('DOMContentLoaded', function () {
   async function handlePendingFile(file) {
     if (!file || !pendingTaskId) return;
     const taskId = pendingTaskId;
-    const completeAfter = pendingCompleteAfter;
     pendingTaskId = null;
-    pendingCompleteAfter = false;
 
     try {
       await uploadProof(taskId, file);
-      if (completeAfter) {
-        const res = await fetch('/api/tasks', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: taskId, status: 'Completada' }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'No se pudo marcar como completada.');
-        }
-      }
       loadTasks();
     } catch (err) {
       alert(err.message || 'Ocurrió un error.');
@@ -422,7 +408,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const noteInput = e.target.closest && e.target.closest('[data-note-input]');
     if (noteInput) {
       pendingTaskId = noteInput.getAttribute('data-id');
-      pendingCompleteAfter = false;
     }
     if (!pendingTaskId) return;
     const items = Array.from(e.clipboardData?.items || []);
@@ -459,30 +444,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (action === 'attach') {
       pendingTaskId = id;
-      pendingCompleteAfter = false;
       hiddenFileInput.click();
     } else if (action === 'complete') {
-      const task = allTasks.find((t) => t.id === id);
-      if (task && task.proof) {
-        fetch('/api/tasks', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, status: 'Completada' }),
+      fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'Completada' }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'No se pudo completar.');
+          }
+          loadTasks();
         })
-          .then(async (res) => {
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              throw new Error(data.error || 'No se pudo completar.');
-            }
-            loadTasks();
-          })
-          .catch((err) => alert(err.message || 'No se pudo completar.'));
-      } else {
-        alert('Primero adjunta la foto de evidencia.');
-        pendingTaskId = id;
-        pendingCompleteAfter = true;
-        hiddenFileInput.click();
-      }
+        .catch((err) => alert(err.message || 'No se pudo completar.'));
     } else if (action === 'delete') {
       if (!confirm('¿Eliminar esta tarea de forma permanente?')) return;
       fetch('/api/tasks', {
