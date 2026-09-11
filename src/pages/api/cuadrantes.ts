@@ -9,7 +9,7 @@ export const prerender = false;
 const REDIS_KEY = 'internal:cuadrantes';
 export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 
-interface Cuadrante {
+export interface Cuadrante {
   id: string;
   ciudad: string;
   numero: string;
@@ -25,7 +25,7 @@ async function requireCuadrantes(cookies: any) {
   return session;
 }
 
-async function readCuadrantes(redis: any): Promise<Cuadrante[]> {
+export async function readCuadrantes(redis: any): Promise<Cuadrante[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {

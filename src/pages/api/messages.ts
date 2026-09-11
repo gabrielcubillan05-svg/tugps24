@@ -1,12 +1,12 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, canAccessSection, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
-import { logAudit } from '../../lib/audit';
+import { logAudit, readAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
 import { GABOT_ID, GABOT_NAME } from '../../lib/gabot-constants';
-import { runGabotAgent, type AgentMessage, type CreateTaskInput } from '../../lib/gabot-agent';
+import { runGabotAgent, type AgentMessage, type CreateTaskInput, type GabotPermissions, type GabotActions } from '../../lib/gabot-agent';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { readSuspensiones } from './suspensiones';
@@ -17,6 +17,9 @@ import { readLeads } from './leads';
 import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
 import { readScheduledReports } from './scheduled-reports';
+import { readSchedule } from './schedule';
+import { readCuadrantes } from './cuadrantes';
+import { readRecentReports } from './reports';
 
 export const prerender = false;
 
@@ -188,6 +191,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       // trabajador — a cualquier otro rol solo se le ofrece información sobre sí mismo (ni
       // siquiera se le manda la herramienta, así que no hay forma de que el modelo la use).
       const canLookupOthers = session.role === 'admin' || [JOSUE_USERNAME, WILMAR_USERNAME].includes(session.username.toLowerCase());
+      const permissions: GabotPermissions = {
+        canLookupOthers,
+        canAssignToOthers: canAssignTasks(session.role),
+        canHorario: canAccessSection(session.role, 'horario'),
+        canNovedades: canAccessSection(session.role, 'novedades'),
+        canAuditoria: canAccessSection(session.role, 'auditoria'),
+      };
 
       async function lookupOtherWorker(nombre: string): Promise<string> {
         const target = normalizeNameForMatch(nombre);
@@ -199,11 +209,6 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           : `${match.name} (${ROLE_LABELS[match.role]}) no tiene nada pendiente en ningún módulo — está al día.`;
       }
 
-      // Crear tareas para OTROS solo lo puede hacer quien ya lo puede hacer en el panel
-      // (supervisor/gerente/admin) — no depende de que el modelo "se porte bien": el
-      // resolver es quien lo exige, sin importar lo que el modelo intente pedir.
-      const canAssignToOthers = canAssignTasks(session.role);
-
       async function createTaskForWorker(input: CreateTaskInput): Promise<string> {
         if (!input.titulo.trim()) return 'Falta el título de la tarea.';
 
@@ -212,7 +217,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           const normalized = normalizeNameForMatch(input.responsable);
           const isSelf = normalizeNameForMatch(sender.name).includes(normalized) || normalized.length === 0;
           if (!isSelf) {
-            if (!canAssignToOthers) {
+            if (!permissions.canAssignToOthers) {
               return `${sender.name} no tiene permiso para crear tareas a nombre de otros — solo puede crear tareas para sí mismo.`;
             }
             const match = allUsers.find((u) => u.active && normalizeNameForMatch(u.name).includes(normalized));
@@ -263,6 +268,61 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         return `Nota agregada a "${updated.task.title}".`;
       }
 
+      async function listSinHorario(): Promise<string> {
+        const schedule = await readSchedule(redis);
+        const configured = new Set(schedule.map((e) => normalizeNameForMatch(e.operator)));
+        const faltantes = allUsers.filter((u) => u.active && !configured.has(normalizeNameForMatch(u.name)));
+        if (!faltantes.length) return 'Todos los empleados activos ya tienen al menos una franja de horario configurada.';
+        return `Empleados activos SIN horario configurado (${faltantes.length}):\n${faltantes.map((u) => `  · ${u.name} (${ROLE_LABELS[u.role]})`).join('\n')}`;
+      }
+
+      async function consultarNovedades(busqueda: string): Promise<string> {
+        const reports = await readRecentReports(redis, 30);
+        const q = normalizeNameForMatch(busqueda);
+        const filtered = q
+          ? reports.filter((r) => [r.plate, r.branch, r.category, r.note].some((f) => normalizeNameForMatch(f).includes(q)))
+          : reports;
+        const top = filtered.slice(0, 8);
+        if (!top.length) return `No encontré novedades recientes${busqueda ? ` que coincidan con "${busqueda}"` : ''}.`;
+        return `Novedades recientes${busqueda ? ` (filtro: "${busqueda}")` : ''}:\n${top
+          .map((r) => `  · ${r.plate} (${r.branch}) — ${r.category}: ${r.note.slice(0, 100)}`)
+          .join('\n')}`;
+      }
+
+      async function consultarCuadrantes(ciudad: string): Promise<string> {
+        const cuadrantes = await readCuadrantes(redis);
+        const q = normalizeNameForMatch(ciudad);
+        const filtered = q ? cuadrantes.filter((c) => normalizeNameForMatch(c.ciudad).includes(q)) : cuadrantes;
+        if (!filtered.length) return `No encontré cuadrantes${ciudad ? ` para "${ciudad}"` : ' registrados'}.`;
+        return `Cuadrantes${ciudad ? ` de ${ciudad}` : ''}:\n${filtered
+          .map((c) => `  · ${c.ciudad} — Cuadrante ${c.numero}: ${c.telefono}${c.nota ? ` (${c.nota})` : ''}`)
+          .join('\n')}`;
+      }
+
+      async function consultarAuditoria(busqueda: string): Promise<string> {
+        const entries = await readAudit(redis, 200);
+        const q = normalizeNameForMatch(busqueda);
+        const filtered = q
+          ? entries.filter((e) => [e.username, e.action, e.target].some((f) => normalizeNameForMatch(f).includes(q)))
+          : entries;
+        const top = filtered.slice(0, 10);
+        if (!top.length) return `No encontré acciones de auditoría${busqueda ? ` que coincidan con "${busqueda}"` : ''}.`;
+        return `Auditoría reciente${busqueda ? ` (filtro: "${busqueda}")` : ''}:\n${top
+          .map((e) => `  · ${e.username} — ${e.action}: ${e.target}`)
+          .join('\n')}`;
+      }
+
+      const actions: GabotActions = {
+        lookupOtherWorker,
+        createTaskForWorker,
+        markTaskForWorker,
+        addNoteToTaskForWorker,
+        listSinHorario,
+        consultarNovedades,
+        consultarCuadrantes,
+        consultarAuditoria,
+      };
+
       const result = await runGabotAgent(
         history,
         text,
@@ -270,10 +330,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         ROLE_LABELS[sender.role],
         pendingLines,
         extraInstructions,
-        canLookupOthers,
-        lookupOtherWorker,
-        canAssignToOthers,
-        { createTaskForWorker, markTaskForWorker, addNoteToTaskForWorker }
+        permissions,
+        actions
       );
       await recordAgentUsage(redis, 'gabot', result.usage);
 

@@ -20,7 +20,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB por foto
 
-interface Report {
+export interface Report {
   id: string;
   plate: string;
   branch: string;
@@ -30,6 +30,22 @@ interface Report {
   createdAt: string;
   createdByName: string;
   createdById: string;
+}
+
+// Versión liviana para GPSITO — solo trae las más recientes (la lista completa tiene
+// decenas de miles de registros, no se debe cargar entera para una consulta de chat).
+export async function readRecentReports(redis: any, limit: number = 30): Promise<Report[]> {
+  const raw = (await redis.lrange<string>(REDIS_KEY, 0, limit - 1)) || [];
+  return raw
+    .map((r) => {
+      try {
+        return typeof r === 'string' ? JSON.parse(r) : r;
+      } catch {
+        return null;
+      }
+    })
+    .filter((r): r is Report => r !== null)
+    .map((r) => ({ images: [], createdByName: '', createdById: '', ...r }));
 }
 
 const DEFAULT_LIMIT = 200;
