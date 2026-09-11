@@ -7,6 +7,10 @@
     {
       "path": "/api/whatsapp-cold-followup-cron",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/whatsapp-cobros-bulk-cron",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

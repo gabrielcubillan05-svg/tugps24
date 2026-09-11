@@ -292,39 +292,31 @@ document.addEventListener('DOMContentLoaded', function () {
         sendAllReminderResult.textContent = 'No hay cobros pendientes de recordatorio.';
         return;
       }
-      if (!confirm(`¿Enviar el recordatorio de pago por WhatsApp a los ${pendientes} cobros pendientes? A partir de ahí, la agente IA de cobranza sigue cada conversación.`)) return;
+      if (!confirm(`Se enviará ahora una primera tanda de hasta 100 recordatorios (de los ${pendientes} pendientes). El resto sale solo, en tandas de 100 cada media hora entre 8am y 6pm, para que no se vea como spam. ¿Continuar?`)) return;
       sendAllReminderBtn.disabled = true;
+      sendAllReminderResult.textContent = 'Enviando la primera tanda...';
 
-      let totalSent = 0;
-      let totalFailed = 0;
-
-      function nextBatch() {
-        sendAllReminderResult.textContent = `Enviando... ${totalSent} enviados hasta ahora.`;
-        fetch('/api/cobros', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'sendWhatsappReminderAll' }),
+      fetch('/api/cobros', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sendWhatsappReminderAll' }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo enviar el recordatorio.');
+          const sent = data.sent || 0;
+          const failed = data.failed || 0;
+          sendAllReminderResult.textContent = data.remaining > 0
+            ? `Tanda enviada: ${sent} recordatorio(s)${failed ? `, ${failed} fallido(s)` : ''}. Quedan ${data.remaining} pendientes — salen automáticamente en tandas de 100 cada media hora (8am-6pm).`
+            : `Listo: ${sent} recordatorio(s) enviado(s)${failed ? `, ${failed} fallido(s)` : ''}.`;
+          sendAllReminderBtn.disabled = false;
+          loadCobros();
         })
-          .then(async (res) => {
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'No se pudo enviar el recordatorio.');
-            totalSent += data.sent || 0;
-            totalFailed += data.failed || 0;
-            if (data.remaining > 0) {
-              nextBatch();
-            } else {
-              sendAllReminderResult.textContent = `Listo: ${totalSent} recordatorio(s) enviado(s)${totalFailed ? `, ${totalFailed} fallido(s)` : ''}.`;
-              sendAllReminderBtn.disabled = false;
-              loadCobros();
-            }
-          })
-          .catch((err) => {
-            sendAllReminderResult.textContent = err.message || 'No se pudo enviar el recordatorio.';
-            sendAllReminderBtn.disabled = false;
-            loadCobros();
-          });
-      }
-      nextBatch();
+        .catch((err) => {
+          sendAllReminderResult.textContent = err.message || 'No se pudo enviar el recordatorio.';
+          sendAllReminderBtn.disabled = false;
+          loadCobros();
+        });
     });
   }
 

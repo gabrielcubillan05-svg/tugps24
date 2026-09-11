@@ -11,6 +11,13 @@ export function isQuietHoursColombia(date: Date = new Date()): boolean {
   return colombiaHour >= 23 || colombiaHour < 6;
 }
 
+// Ventana para el envío masivo de recordatorios de cobranza (tandas automáticas) — para que
+// no se vea como spam, solo se reparten entre 8am y 6pm hora Colombia, nunca de noche.
+export function isBulkSendWindowColombia(date: Date = new Date()): boolean {
+  const colombiaHour = (date.getUTCHours() - 5 + 24) % 24;
+  return colombiaHour >= 8 && colombiaHour < 18;
+}
+
 export function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
   const appSecret = import.meta.env.META_APP_SECRET;
   if (!appSecret || !signatureHeader || !signatureHeader.startsWith('sha256=')) return false;
