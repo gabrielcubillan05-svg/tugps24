@@ -2,7 +2,8 @@ import { randomUUID, randomBytes, scryptSync, timingSafeEqual, createHmac } from
 import { getRedis } from './redis';
 
 export const SESSION_COOKIE = 'interno_session';
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
+export const SESSION_MAX_AGE = 60 * 60 * 24; // 24 horas — cierre forzado diario, sin importar la actividad
+const INACTIVITY_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 horas sin usar el panel cierra la sesión antes
 export const LOGIN_PATH = '/interno/login';
 export const CHANGE_PASSWORD_PATH = '/interno/cambiar-clave';
 
@@ -210,6 +211,7 @@ export interface Session {
   role: Role;
   createdAt: string;
   expiresAt: string;
+  lastActivityAt: string;
   mustChangePassword?: boolean;
 }
 
@@ -275,6 +277,7 @@ export async function createSession(user: User): Promise<string | null> {
     role: user.role,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
+    lastActivityAt: now.toISOString(),
     mustChangePassword: user.mustChangePassword ?? false,
   };
   await redis.hset(SESSIONS_KEY, { [sessionId]: JSON.stringify(session) });
@@ -295,10 +298,19 @@ export async function getSession(cookieValue: string | undefined): Promise<Sessi
   } catch {
     return null;
   }
-  if (new Date(session.expiresAt).getTime() < Date.now()) {
+  const now = Date.now();
+  if (new Date(session.expiresAt).getTime() < now) {
     await redis.hdel(SESSIONS_KEY, sessionId);
     return null;
   }
+  if (session.lastActivityAt && now - new Date(session.lastActivityAt).getTime() > INACTIVITY_TIMEOUT_MS) {
+    await redis.hdel(SESSIONS_KEY, sessionId);
+    return null;
+  }
+  // Cada request válido marca actividad, para que las 4 horas de inactividad se cuenten
+  // desde el último uso real, no desde el login.
+  session.lastActivityAt = new Date(now).toISOString();
+  await redis.hset(SESSIONS_KEY, { [sessionId]: JSON.stringify(session) });
   return session;
 }
 
