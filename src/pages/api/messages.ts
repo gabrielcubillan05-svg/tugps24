@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, canManageUsers, verifySameOrigin, ROLE_LABELS } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { logAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
@@ -32,6 +32,14 @@ export interface Message {
 
 export function messagesKey(conversationId: string): string {
   return `internal:messages:${conversationId}`;
+}
+
+function normalizeNameForMatch(raw: string): string {
+  return String(raw ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 export const GET: APIRoute = async ({ url, cookies }) => {
@@ -142,7 +150,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
   }
 
-  // Si le está escribiendo a GaBot (por el widget flotante o desde Chat), le contestamos en la
+  // Si le está escribiendo a GPSITO (por el widget flotante o desde Chat), le contestamos en la
   // misma conversación con el modelo de IA — con los pendientes reales de esta persona como
   // contexto, para que pueda preguntarle por su propio trabajo en el sistema.
   if (conversation.type === 'dm' && conversation.memberIds.includes(GABOT_ID) && sender) {
@@ -161,7 +169,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         .slice(0, -1)
         .map((m) => ({ role: m.senderId === GABOT_ID ? 'assistant' : 'user', content: m.text }));
 
-      const [suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, extraInstructions] = await Promise.all([
+      const [suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, extraInstructions, allUsers] = await Promise.all([
         readSuspensiones(redis),
         readSolicitudes(redis),
         readPagos(redis),
@@ -171,11 +179,27 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         readCasos(redis),
         readScheduledReports(redis),
         getExtraInstructions(redis, 'gabot'),
+        getUsers(redis),
       ]);
       const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports };
       const pendingLines = collectPendingLines(sender, data);
 
-      const result = await runGabotAgent(history, text, sender.name, ROLE_LABELS[sender.role], pendingLines, extraInstructions);
+      // Solo admin, Josué y Wilmar pueden preguntarle a GPSITO por los pendientes de OTRO
+      // trabajador — a cualquier otro rol solo se le ofrece información sobre sí mismo (ni
+      // siquiera se le manda la herramienta, así que no hay forma de que el modelo la use).
+      const canLookupOthers = session.role === 'admin' || [JOSUE_USERNAME, WILMAR_USERNAME].includes(session.username.toLowerCase());
+
+      async function lookupOtherWorker(nombre: string): Promise<string> {
+        const target = normalizeNameForMatch(nombre);
+        const match = allUsers.find((u) => u.active && normalizeNameForMatch(u.name).includes(target) && target.length > 0);
+        if (!match) return `No se encontró ningún trabajador activo que coincida con "${nombre}".`;
+        const lines = collectPendingLines(match, data);
+        return lines.length
+          ? `Pendientes de ${match.name} (${ROLE_LABELS[match.role]}):\n${lines.join('\n')}`
+          : `${match.name} (${ROLE_LABELS[match.role]}) no tiene nada pendiente en ningún módulo — está al día.`;
+      }
+
+      const result = await runGabotAgent(history, text, sender.name, ROLE_LABELS[sender.role], pendingLines, extraInstructions, canLookupOthers, lookupOtherWorker);
       await recordAgentUsage(redis, 'gabot', result.usage);
 
       if (result.reply) {

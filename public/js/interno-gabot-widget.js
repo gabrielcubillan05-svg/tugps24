@@ -10,9 +10,27 @@ document.addEventListener('DOMContentLoaded', function () {
   if (!widget || !bubble) return;
 
   const myUserId = document.body.dataset.userId;
+  const OPEN_PREF_KEY = 'gpsitoPanelOpen';
   let conversationId = null;
   let panelOpen = false;
   let lastMessageCount = 0;
+
+  function getOpenPreference() {
+    try {
+      const stored = localStorage.getItem(OPEN_PREF_KEY);
+      return stored === null ? true : stored === '1'; // por defecto abierto para todos
+    } catch {
+      return true;
+    }
+  }
+
+  function setOpenPreference(open) {
+    try {
+      localStorage.setItem(OPEN_PREF_KEY, open ? '1' : '0');
+    } catch {
+      // localStorage no disponible (modo privado, etc.) — no rompe nada, solo no se recuerda
+    }
+  }
 
   function escapeHtml(str) {
     return String(str || '')
@@ -106,23 +124,30 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {});
   }
 
-  bubble.addEventListener('click', async function () {
-    panelOpen = !panelOpen;
-    panel.style.display = panelOpen ? 'flex' : 'none';
-    if (panelOpen) {
-      bubble.classList.remove('pulse');
-      if (!conversationId) conversationId = await ensureGabotConversation();
-      loadMessages();
-      markRead();
-      setTimeout(() => input.focus(), 50);
-    }
+  async function openPanel() {
+    panelOpen = true;
+    panel.style.display = 'flex';
+    setOpenPreference(true);
+    bubble.classList.remove('pulse');
+    if (!conversationId) conversationId = await ensureGabotConversation();
+    loadMessages();
+    markRead();
+    setTimeout(() => input.focus(), 50);
+  }
+
+  function closePanel() {
+    panelOpen = false;
+    panel.style.display = 'none';
+    setOpenPreference(false);
+  }
+
+  bubble.addEventListener('click', function () {
+    if (panelOpen) closePanel();
+    else openPanel();
   });
 
   if (closeBtn) {
-    closeBtn.addEventListener('click', function () {
-      panelOpen = false;
-      panel.style.display = 'none';
-    });
+    closeBtn.addEventListener('click', closePanel);
   }
 
   if (form) {
@@ -143,4 +168,5 @@ document.addEventListener('DOMContentLoaded', function () {
 
   checkGabotConversation();
   setInterval(checkGabotConversation, 45000);
+  if (getOpenPreference()) openPanel();
 });
