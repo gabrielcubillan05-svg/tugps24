@@ -11,6 +11,7 @@ const TEMPLATE_LANGUAGE = 'es_CO'; // crear la plantilla como "Español (COL)" e
 const COLD_INTERVAL_DAYS = 7; // cada cuánto se reintenta un lead frío
 const MAX_COLD_FOLLOW_UPS = 8; // ~2 meses de intentos semanales, luego se deja en paz
 const MIN_INACTIVE_DAYS = 7; // no tocar a alguien que sigue escribiendo activamente
+const BATCH_SIZE = 300; // mismo tope que la cobranza masiva, por si un día caen muchos leads fríos a la vez
 
 // Vercel llama esto una vez al día (ver vercel.json). Reengancha, con la plantilla ya
 // aprobada por Meta, a los leads que llevan días sin escribir — a diferencia de
@@ -41,6 +42,7 @@ export const GET: APIRoute = async ({ request }) => {
   let sent = 0;
 
   for (const lead of leads) {
+    if (sent >= BATCH_SIZE) break; // no mandar de golpe si un día caen muchos leads fríos a la vez
     if (lead.installed || lead.status === 'Perdido') continue;
     const phone = normalizePhone(lead.phone);
     if (phone.length < 10) continue;
