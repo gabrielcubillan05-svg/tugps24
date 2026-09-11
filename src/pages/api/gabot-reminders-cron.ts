@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { isQuietHoursColombia } from '../../lib/whatsapp';
-import { getUsers } from '../../lib/auth';
+import { getUsers, JOSUE_USERNAME, WILMAR_USERNAME, ROLE_LABELS } from '../../lib/auth';
 import { sendGabotMessage } from '../../lib/gabot';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
+import { computePerformanceFlags, type PerformanceFlag } from '../../lib/gabot-performance';
 import { isOnShiftNow } from '../../lib/shift';
 import { readSuspensiones } from './suspensiones';
 import { readSolicitudes } from './solicitudes-administrativas';
@@ -22,7 +23,10 @@ export const prerender = false;
 // revisa los pendientes de cada trabajador en TODOS los módulos (Suspensiones, Solicitudes
 // administrativas, Pagos programados, Tareas, CRM, Seguimiento a clientes masivos, Casos
 // importantes y Reportes programados) y le manda UN solo mensaje consolidado por el chat
-// interno — solo si le queda algo pendiente. La corrida de las 7:50am es la "minuta del día".
+// interno — solo si le queda algo pendiente. La corrida de las 7:50am es la "minuta del día",
+// y además revisa rendimiento (volumen acumulado y velocidad de resolución vs. umbrales por
+// módulo, ver lib/gabot-performance.ts): si alguien los dispara, le manda una alerta aparte a
+// esa persona y un resumen consolidado a admin, Josué y Wilmar.
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
@@ -61,6 +65,10 @@ export const GET: APIRoute = async ({ request }) => {
 
   const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports };
 
+  // Solo se revisa rendimiento una vez al día, junto con la minuta — para no repetir la
+  // misma alerta cuatro veces en el mismo día.
+  const flaggedWorkers: Array<{ user: typeof users[number]; flags: PerformanceFlag[] }> = [];
+
   let sent = 0;
   for (const user of users) {
     if (!user.active) continue;
@@ -69,17 +77,49 @@ export const GET: APIRoute = async ({ request }) => {
     if (user.role === 'operador' && !isOnShiftNow(schedule, user.name)) continue;
 
     const lines = collectPendingLines(user, data);
-    if (!lines.length) continue;
+    if (lines.length) {
+      const firstName = user.name.trim().split(/\s+/)[0] || user.name;
+      const text = isMorningBriefing
+        ? `Buenos días ${firstName} ☀️ Esta es tu minuta de pendientes para hoy:\n\n${lines.join('\n')}`
+        : `Hola ${firstName}, este es tu recordatorio de pendientes:\n\n${lines.join('\n')}`;
+      await sendGabotMessage(redis, user.id, text);
+      sent++;
+    }
 
-    const firstName = user.name.trim().split(/\s+/)[0] || user.name;
-    const text = isMorningBriefing
-      ? `Buenos días ${firstName} ☀️ Esta es tu minuta de pendientes para hoy:\n\n${lines.join('\n')}`
-      : `Hola ${firstName}, este es tu recordatorio de pendientes:\n\n${lines.join('\n')}`;
-    await sendGabotMessage(redis, user.id, text);
-    sent++;
+    if (isMorningBriefing) {
+      const flags = computePerformanceFlags(user, data);
+      if (flags.length) {
+        flaggedWorkers.push({ user, flags });
+        const firstName = user.name.trim().split(/\s+/)[0] || user.name;
+        const flagLines = flags.map((f) => `  · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
+        await sendGabotMessage(
+          redis,
+          user.id,
+          `⚠️ ${firstName}, noté que llevas unos días con demoras en algunos módulos — ¿necesitas ayuda con algo?\n\n${flagLines}`
+        );
+      }
+    }
   }
 
-  return new Response(JSON.stringify({ ok: true, sent, totalUsers: users.length, isMorningBriefing }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  // Resumen para admin, Josué y Wilmar — quienes ya ven todo, sin importar su rol del día a día.
+  if (isMorningBriefing && flaggedWorkers.length) {
+    const overseers = users.filter(
+      (u) => u.active && (u.role === 'admin' || [JOSUE_USERNAME, WILMAR_USERNAME].includes(u.username.toLowerCase()))
+    );
+    const summaryLines = flaggedWorkers
+      .map(({ user, flags }) => {
+        const flagLines = flags.map((f) => `    · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
+        return `  ${user.name} (${ROLE_LABELS[user.role]}):\n${flagLines}`;
+      })
+      .join('\n');
+    const summaryText = `📊 Resumen de rendimiento de hoy — ${flaggedWorkers.length} trabajador(es) con demoras:\n\n${summaryLines}`;
+    for (const overseer of overseers) {
+      await sendGabotMessage(redis, overseer.id, summaryText);
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ ok: true, sent, totalUsers: users.length, isMorningBriefing, flaggedWorkers: flaggedWorkers.length }),
+    { headers: { 'Content-Type': 'application/json' } }
+  );
 };

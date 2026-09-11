@@ -74,6 +74,9 @@ export interface Suspension {
   finalized: boolean;
   finalizedAt: string | null;
   finalizedByName: string;
+  // Momento exacto en que pasó a Resuelto/Suspendido — separado de finalizedAt, que es un
+  // paso posterior de tesorería, y de updatedAt, que cambia con cualquier edición futura.
+  resolvedAt: string | null;
   timeline: TimelineEvent[];
   createdAt: string;
   updatedAt: string;
@@ -106,6 +109,7 @@ export async function readSuspensiones(redis: any): Promise<Suspension[]> {
       finalized: false,
       finalizedAt: null,
       finalizedByName: '',
+      resolvedAt: null,
       ...s,
     }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -302,6 +306,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     finalized: false,
     finalizedAt: null,
     finalizedByName: '',
+    resolvedAt: null,
     timeline: [],
     createdAt: now,
     updatedAt: now,
@@ -378,6 +383,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     finalized: false,
     finalizedAt: null,
     finalizedByName: '',
+    resolvedAt: null,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
@@ -471,6 +477,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado puede cerrarlo' }), { status: 403 });
     }
     caso.status = action === 'resolve' ? 'Resuelto' : 'Suspendido';
+    caso.resolvedAt = now;
     const label = action === 'resolve' ? 'Resuelto — el cliente se queda' : 'Suspendido — no se encontró solución';
     addEvent(caso, action, `${actorName} marcó el caso: ${label}${note ? '. ' + note : ''}`, actorName, now);
     if (caso.createdById !== session.userId) {
