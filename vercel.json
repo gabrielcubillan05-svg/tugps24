@@ -1,4 +1,12 @@
 {
+  "headers": [
+    {
+      "source": "/js/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
+  ],
   "crons": [
     {
       "path": "/api/whatsapp-followup-cron",
