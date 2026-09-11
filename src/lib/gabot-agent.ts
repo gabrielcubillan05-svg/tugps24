@@ -24,12 +24,30 @@ const LOOKUP_TOOL = {
   },
 };
 
+// Solo se ofrece cuando quien escribe puede asignar tareas (supervisor, gerente o admin) —
+// mismo permiso que ya exige el panel de Tareas para crear una nueva.
+const CREATE_TASK_TOOL = {
+  name: 'crear_tarea',
+  description: 'Crea una tarea nueva en el módulo de Tareas y se la asigna a un trabajador por su nombre.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      responsable: { type: 'string', description: 'Nombre (o parte del nombre) del trabajador al que se le asigna la tarea' },
+      titulo: { type: 'string', description: 'Título corto de la tarea' },
+      descripcion: { type: 'string', description: 'Detalles de la tarea (opcional)' },
+      fecha_vencimiento: { type: 'string', description: 'Fecha de vencimiento en formato YYYY-MM-DD (opcional)' },
+    },
+    required: ['responsable', 'titulo'],
+  },
+};
+
 function buildSystemPrompt(
   userName: string,
   roleLabel: string,
   pendingLines: string[],
   extraInstructions: string | undefined,
-  canLookupOthers: boolean
+  canLookupOthers: boolean,
+  canCreateTasks: boolean
 ): string {
   const pendingBlock = pendingLines.length
     ? pendingLines.join('\n')
@@ -51,9 +69,14 @@ ${canLookupOthers
     ? `${userName} SÍ tiene permiso de administrador/supervisión general, así que puedes usar la herramienta consultar_pendientes_de cuando te pregunte por los pendientes de otro trabajador por nombre.`
     : `${userName} NO tiene permiso para ver pendientes de otros trabajadores — solo puedes hablarle de LOS SUYOS (la lista de arriba). Si te pregunta por los pendientes de otra persona, dile con amabilidad que solo puedes ayudarle con sus propios pendientes.`}
 
+## Crear tareas
+${canCreateTasks
+    ? `${userName} SÍ puede asignar tareas, así que puedes usar la herramienta crear_tarea cuando te pida crearle una tarea a alguien (a sí mismo o a otro trabajador, dando su nombre). Pide el título si no te lo da; la descripción y la fecha de vencimiento son opcionales. Confirma con un mensaje claro una vez creada (o el error, si no se pudo).`
+    : `${userName} NO puede asignar tareas — si te pide crear o asignar una tarea, dile con amabilidad que solo un supervisor, gerente o administrador puede hacerlo desde el panel de Tareas.`}
+
 ## Límites estrictos
 - Nunca inventes datos que no estén en la información que tienes — ni de esta persona ni de otras.
-- Todavía no puedes ejecutar acciones (marcar algo como hecho, crear un registro, reasignar un caso, etc.) — solo puedes informar y orientar. Si te piden hacer un cambio, diles con amabilidad que lo hagan desde la sección correspondiente del panel.
+- Aparte de crear tareas (si tienes permiso, ver arriba), todavía no puedes ejecutar otras acciones (marcar algo como hecho, crear un registro en otro módulo, reasignar un caso, etc.) — solo puedes informar y orientar sobre esas. Si te piden ese tipo de cambio, diles con amabilidad que lo hagan desde la sección correspondiente del panel.
 - Nunca compartas información privada de la empresa, de sus dueños, ni datos personales de otros trabajadores que no tengan que ver con sus pendientes en el sistema.
 - Si preguntan algo fuera de estos módulos (dudas generales de trabajo, por ejemplo), ayuda con sentido común pero deja claro que tu fuerte es lo relacionado a pendientes en el sistema.
 
@@ -124,6 +147,13 @@ function extractReplyAndTools(data: any): { reply: string; toolCalls: ToolCall[]
   return { reply: reply.trim(), toolCalls };
 }
 
+export interface CreateTaskInput {
+  responsable: string;
+  titulo: string;
+  descripcion?: string;
+  fechaVencimiento?: string;
+}
+
 export async function runGabotAgent(
   history: AgentMessage[],
   newMessage: string,
@@ -135,7 +165,11 @@ export async function runGabotAgent(
   // Resuelve el nombre de OTRO trabajador a un texto con sus pendientes (o un mensaje de
   // "no encontrado") — lo provee messages.ts, que es quien ya tiene la lista de usuarios y
   // los datos de cada módulo cargados.
-  lookupOtherWorker: (nombre: string) => Promise<string>
+  lookupOtherWorker: (nombre: string) => Promise<string>,
+  canCreateTasks: boolean,
+  // Crea la tarea de verdad (contra tasks.ts) y devuelve un texto de confirmación o de error
+  // para que el modelo se lo transmita a quien escribió.
+  createTaskForWorker: (input: CreateTaskInput) => Promise<string>
 ): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
   const noUsage = { inputTokens: 0, outputTokens: 0 };
@@ -143,8 +177,8 @@ export async function runGabotAgent(
     return { reply: null, usage: noUsage };
   }
 
-  const systemPrompt = buildSystemPrompt(userName, roleLabel, pendingLines, extraInstructions, canLookupOthers);
-  const tools = canLookupOthers ? [LOOKUP_TOOL] : [];
+  const systemPrompt = buildSystemPrompt(userName, roleLabel, pendingLines, extraInstructions, canLookupOthers, canCreateTasks);
+  const tools = [...(canLookupOthers ? [LOOKUP_TOOL] : []), ...(canCreateTasks ? [CREATE_TASK_TOOL] : [])];
   const messages: any[] = [...history, { role: 'user', content: newMessage }];
 
   const data = await callAnthropic(apiKey, messages, systemPrompt, tools);
@@ -154,14 +188,24 @@ export async function runGabotAgent(
   const usage = usageOf(data);
   const first = extractReplyAndTools(data);
 
-  const lookupCalls = first.toolCalls.filter((tc) => tc.name === 'consultar_pendientes_de');
-  if (lookupCalls.length) {
+  if (first.toolCalls.length) {
     const toolResults = await Promise.all(
-      lookupCalls.map(async (tc) => ({
-        type: 'tool_result',
-        tool_use_id: tc.id,
-        content: await lookupOtherWorker(String(tc.input.nombre || '')),
-      }))
+      first.toolCalls.map(async (tc) => {
+        let content: string;
+        if (tc.name === 'consultar_pendientes_de') {
+          content = await lookupOtherWorker(String(tc.input.nombre || ''));
+        } else if (tc.name === 'crear_tarea') {
+          content = await createTaskForWorker({
+            responsable: String(tc.input.responsable || ''),
+            titulo: String(tc.input.titulo || ''),
+            descripcion: tc.input.descripcion ? String(tc.input.descripcion) : undefined,
+            fechaVencimiento: tc.input.fecha_vencimiento ? String(tc.input.fecha_vencimiento) : undefined,
+          });
+        } else {
+          content = 'Esa herramienta no está disponible.';
+        }
+        return { type: 'tool_result', tool_use_id: tc.id, content };
+      })
     );
 
     const followUpMessages = [...messages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResults }];

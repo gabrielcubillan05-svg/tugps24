@@ -1,18 +1,18 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { logAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
 import { GABOT_ID, GABOT_NAME } from '../../lib/gabot-constants';
-import { runGabotAgent, type AgentMessage } from '../../lib/gabot-agent';
+import { runGabotAgent, type AgentMessage, type CreateTaskInput } from '../../lib/gabot-agent';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { readSuspensiones } from './suspensiones';
 import { readSolicitudes } from './solicitudes-administrativas';
 import { readPagos } from './pagos-internos';
-import { readTasks } from './tasks';
+import { readTasks, createTask } from './tasks';
 import { readLeads } from './leads';
 import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
@@ -199,7 +199,43 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           : `${match.name} (${ROLE_LABELS[match.role]}) no tiene nada pendiente en ningún módulo — está al día.`;
       }
 
-      const result = await runGabotAgent(history, text, sender.name, ROLE_LABELS[sender.role], pendingLines, extraInstructions, canLookupOthers, lookupOtherWorker);
+      // Mismo permiso que ya exige el panel de Tareas para crear una nueva — no depende de
+      // que el modelo "se porte bien": a quien no puede asignar tareas ni se le ofrece la
+      // herramienta.
+      const canCreateTasks = canAssignTasks(session.role);
+
+      async function createTaskForWorker(input: CreateTaskInput): Promise<string> {
+        const target = normalizeNameForMatch(input.responsable);
+        const match = allUsers.find((u) => u.active && normalizeNameForMatch(u.name).includes(target) && target.length > 0);
+        if (!match) return `No se encontró ningún trabajador activo que coincida con "${input.responsable}".`;
+        if (!input.titulo.trim()) return 'Falta el título de la tarea.';
+        const dueDate = input.fechaVencimiento && /^\d{4}-\d{2}-\d{2}$/.test(input.fechaVencimiento) ? input.fechaVencimiento : null;
+
+        const created = await createTask(redis, {
+          title: input.titulo,
+          description: input.descripcion || '',
+          assigneeId: match.id,
+          dueDate,
+          assignedById: session.userId,
+          assignedByName: sender.name,
+        });
+        if ('error' in created) return `No se pudo crear la tarea: ${created.error}`;
+        await logAudit(redis, session, 'task_create', created.task.title, `asignada a ${created.task.assigneeName} (vía GPSITO)`);
+        return `Tarea creada: "${created.task.title}" asignada a ${match.name}${dueDate ? `, vence ${dueDate}` : ''}.`;
+      }
+
+      const result = await runGabotAgent(
+        history,
+        text,
+        sender.name,
+        ROLE_LABELS[sender.role],
+        pendingLines,
+        extraInstructions,
+        canLookupOthers,
+        lookupOtherWorker,
+        canCreateTasks,
+        createTaskForWorker
+      );
       await recordAgentUsage(redis, 'gabot', result.usage);
 
       if (result.reply) {

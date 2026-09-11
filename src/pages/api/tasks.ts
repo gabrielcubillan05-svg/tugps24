@@ -96,6 +96,49 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   );
 };
 
+// Compartido entre el POST de abajo (desde el panel) y la herramienta crear_tarea de GPSITO
+// (messages.ts) — mismo efecto en ambos casos: crea la tarea y notifica al asignado.
+export async function createTask(
+  redis: any,
+  params: { title: string; description: string; assigneeId: string; dueDate: string | null; assignedById: string; assignedByName: string }
+): Promise<{ task: Task } | { error: string }> {
+  const title = params.title.trim();
+  if (!title || !params.assigneeId) {
+    return { error: 'título y empleado asignado son obligatorios' };
+  }
+  const assignee = await findUserById(redis, params.assigneeId);
+  if (!assignee || !assignee.active) {
+    return { error: 'empleado no encontrado o inactivo' };
+  }
+
+  const now = new Date().toISOString();
+  const task: Task = {
+    id: randomUUID(),
+    title,
+    description: params.description.trim(),
+    assigneeId: assignee.id,
+    assigneeName: assignee.name,
+    assignedById: params.assignedById,
+    assignedByName: params.assignedByName,
+    dueDate: params.dueDate,
+    status: 'Pendiente',
+    proof: null,
+    notes: [],
+    createdAt: now,
+    updatedAt: now,
+    completedAt: null,
+  };
+
+  await redis.hset(REDIS_KEY, { [task.id]: JSON.stringify(task) });
+  await pushNotification(redis, assignee.id, {
+    type: 'task_assigned',
+    message: `Se te asignó la tarea: ${task.title}`,
+    link: '/interno/tareas',
+  });
+
+  return { task };
+}
+
 export const POST: APIRoute = async ({ request, cookies }) => {
   if (!verifySameOrigin(request)) {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
@@ -116,43 +159,20 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
 
-  const title = String(body.title || '').trim();
-  const description = String(body.description || '').trim();
-  const assigneeId = String(body.assigneeId || '').trim();
-  if (!title || !assigneeId) {
-    return new Response(JSON.stringify({ error: 'título y empleado asignado son obligatorios' }), { status: 400 });
-  }
-
-  const assignee = await findUserById(redis, assigneeId);
-  if (!assignee || !assignee.active) {
-    return new Response(JSON.stringify({ error: 'empleado no encontrado o inactivo' }), { status: 400 });
-  }
-
-  const now = new Date().toISOString();
-  const task: Task = {
-    id: randomUUID(),
-    title,
-    description,
-    assigneeId: assignee.id,
-    assigneeName: assignee.name,
+  const result = await createTask(redis, {
+    title: String(body.title || ''),
+    description: String(body.description || ''),
+    assigneeId: String(body.assigneeId || '').trim(),
+    dueDate: body.dueDate ? String(body.dueDate) : null,
     assignedById: session.userId,
     assignedByName: session.username,
-    dueDate: body.dueDate ? String(body.dueDate) : null,
-    status: 'Pendiente',
-    proof: null,
-    notes: [],
-    createdAt: now,
-    updatedAt: now,
-    completedAt: null,
-  };
-
-  await redis.hset(REDIS_KEY, { [task.id]: JSON.stringify(task) });
-  await logAudit(redis, session, 'task_create', task.title, `asignada a ${assignee.username}`);
-  await pushNotification(redis, assignee.id, {
-    type: 'task_assigned',
-    message: `Se te asignó la tarea: ${task.title}`,
-    link: '/interno/tareas',
   });
+  if ('error' in result) {
+    return new Response(JSON.stringify({ error: result.error }), { status: 400 });
+  }
+  const { task } = result;
+
+  await logAudit(redis, session, 'task_create', task.title, `asignada a ${task.assigneeName}`);
 
   return new Response(JSON.stringify({ task: { ...task, overdue: computeOverdue(task) } }), {
     headers: { 'Content-Type': 'application/json' },
