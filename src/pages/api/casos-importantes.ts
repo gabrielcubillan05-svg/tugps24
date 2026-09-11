@@ -21,7 +21,7 @@ interface Note {
   authorName: string;
 }
 
-interface Caso {
+export interface Caso {
   id: string;
   plate: string;
   branch: string;
@@ -44,7 +44,7 @@ async function requireCasos(cookies: any) {
   return session;
 }
 
-async function readCasos(redis: any): Promise<Caso[]> {
+export async function readCasos(redis: any): Promise<Caso[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {

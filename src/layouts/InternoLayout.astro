@@ -321,6 +321,43 @@ const sections = sectionsFor(session);
         .stats-row { grid-template-columns: repeat(2, 1fr); }
         header.panel-head { flex-direction: column; align-items: stretch; }
       }
+
+      .gabot-widget { position: fixed; right: 22px; bottom: 22px; z-index: 500; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+      .gabot-bubble {
+        width: 54px; height: 54px; border-radius: 50%;
+        background: var(--teal-bright); color: #06231f;
+        border: none; font-size: 24px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+        position: relative;
+      }
+      .gabot-bubble.pulse { animation: gabot-pulse 1.4s ease-in-out infinite; }
+      @keyframes gabot-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+      .gabot-badge {
+        position: absolute; top: -4px; right: -4px;
+        background: var(--danger); color: #fff; font-size: 11px; font-weight: 700;
+        min-width: 20px; height: 20px; border-radius: 10px; padding: 0 5px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .gabot-panel {
+        width: min(340px, calc(100vw - 44px)); height: min(440px, calc(100vh - 140px));
+        background: var(--ink-800); border: 1px solid var(--line); border-radius: 12px;
+        display: flex; flex-direction: column; overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      }
+      .gabot-panel-header {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 12px; font-weight: 700; font-size: 13.5px;
+        background: var(--ink-900); border-bottom: 1px solid var(--line);
+      }
+      .gabot-panel-header button { background: none; border: none; color: var(--paper); font-size: 18px; cursor: pointer; line-height: 1; }
+      .gabot-messages { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+      .gabot-msg { max-width: 88%; padding: 7px 10px; border-radius: 10px; font-size: 12.5px; white-space: pre-wrap; }
+      .gabot-msg.bot { align-self: flex-start; background: var(--ink-700); }
+      .gabot-msg.mine { align-self: flex-end; background: var(--teal-bright); color: #06231f; }
+      .gabot-msg .gabot-msg-time { display: block; font-size: 10px; opacity: 0.65; margin-top: 3px; }
+      .gabot-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+      .gabot-form input { flex: 1; font-size: 12.5px; padding: 7px 9px; }
     </style>
   </head>
   <body data-user-id={session.userId}>
@@ -389,7 +426,26 @@ const sections = sectionsFor(session);
       </div>
     </div>
 
+    <div class="gabot-widget" id="gabotWidget" style="display:none;">
+      <div class="gabot-panel" id="gabotPanel" style="display:none;">
+        <div class="gabot-panel-header">
+          <span>GaBot 🤖 (asistente)</span>
+          <button type="button" id="gabotClose" aria-label="Cerrar">×</button>
+        </div>
+        <div class="gabot-messages" id="gabotMessages"><div class="empty">Cargando...</div></div>
+        <form class="gabot-form" id="gabotForm">
+          <input id="gabotInput" type="text" placeholder="Responder a GaBot..." autocomplete="off" />
+          <button class="btn-small" type="submit">Enviar</button>
+        </form>
+      </div>
+      <button type="button" class="gabot-bubble" id="gabotBubble" title="GaBot, tu asistente de pendientes">
+        🤖
+        <span class="gabot-badge" id="gabotBadge" style="display:none;"></span>
+      </button>
+    </div>
+
     <script src="/js/interno-shell.js" defer></script>
     <script src="/js/interno-notifications.js" defer></script>
+    <script src="/js/interno-gabot-widget.js" defer></script>
   </body>
 </html>

@@ -17,7 +17,7 @@ interface TimelineEvent {
   date: string;
 }
 
-interface ClienteMasivo {
+export interface ClienteMasivo {
   id: string;
   clientName: string;
   phone: string;
@@ -37,7 +37,7 @@ async function requireAccess(cookies: any) {
   return session;
 }
 
-async function readClientes(redis: any): Promise<ClienteMasivo[]> {
+export async function readClientes(redis: any): Promise<ClienteMasivo[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {

@@ -101,6 +101,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         ...c,
         displayName,
         unreadCount: c.unread[session.userId] || 0,
+        isGabot: c.type === 'dm' && c.memberIds.includes(GABOT_ID),
       };
     })
     .sort((a, b) => (b.lastMessageAt || b.createdAt).localeCompare(a.lastMessageAt || a.createdAt));
