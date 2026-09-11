@@ -43,7 +43,7 @@ interface TimelineEvent {
   date: string;
 }
 
-interface Solicitud {
+export interface Solicitud {
   id: string;
   clientName: string;
   requestType: string;
@@ -69,7 +69,7 @@ async function requireSolicitudes(cookies: any) {
   return session;
 }
 
-async function readSolicitudes(redis: any): Promise<Solicitud[]> {
+export async function readSolicitudes(redis: any): Promise<Solicitud[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {

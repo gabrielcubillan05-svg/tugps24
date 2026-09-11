@@ -42,7 +42,8 @@ export type Section =
   | 'solicitudes-administrativas'
   | 'seguimiento-masivos'
   | 'conversaciones-whatsapp'
-  | 'agentes-ia';
+  | 'agentes-ia'
+  | 'pagos-internos';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -63,6 +64,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'seguimiento-masivos': 'Seguimiento a clientes masivos',
   'conversaciones-whatsapp': 'Conversaciones WhatsApp',
   'agentes-ia': 'Agentes IA',
+  'pagos-internos': 'Pagos internos',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -84,6 +86,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   'seguimiento-masivos': '/interno/seguimiento-masivos',
   'conversaciones-whatsapp': '/interno/conversaciones-whatsapp',
   'agentes-ia': '/interno/agentes-ia',
+  'pagos-internos': '/interno/pagos-internos',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -91,8 +94,8 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
   supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -150,12 +153,26 @@ export function canSetUserBranches(session: Pick<Session, 'username'>): boolean 
   return BRANCH_MANAGER_USERNAMES.includes(session.username.toLowerCase());
 }
 
+// Josué y Wilmar también necesitan ver Pagos internos (de todas las sucursales), igual que
+// Suspensiones — el resto de gerentes solo ven los de la suya propia (filtrado en la API).
+const PAGOS_INTERNOS_EXTRA_USERNAMES = [JOSUE_USERNAME, WILMAR_USERNAME];
+
+export function canAccessPagosInternos(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'pagos-internos') || PAGOS_INTERNOS_EXTRA_USERNAMES.includes(session.username);
+}
+
+// Ven los pagos internos de TODAS las sucursales (no solo la propia): admin, Josué y Wilmar.
+export function canSeeAllPagosInternos(session: Pick<Session, 'role' | 'username'>): boolean {
+  return session.role === 'admin' || PAGOS_INTERNOS_EXTRA_USERNAMES.includes(session.username);
+}
+
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
   if (!base.includes('cobros') && canAccessCobros(session)) extra.push('cobros');
   if (!base.includes('suspensiones') && canAccessSuspensiones(session)) extra.push('suspensiones');
   if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
+  if (!base.includes('pagos-internos') && canAccessPagosInternos(session)) extra.push('pagos-internos');
   if (!base.includes('usuarios') && canSetUserBranches(session)) extra.push('usuarios');
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
   if (canManageAiAgents(session)) extra.push('agentes-ia');

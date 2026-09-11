@@ -4,6 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { removeNotification } from '../../lib/notifications';
 import { SESSION_COOKIE, getSession, getUsers, findUserById, canManageUsers, verifySameOrigin } from '../../lib/auth';
+import { GABOT_ID, GABOT_NAME } from '../../lib/gabot-constants';
 
 export const prerender = false;
 
@@ -70,7 +71,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     }
     const everything = all
       .map((c) => {
-        const names = c.memberIds.map((id) => users.find((u) => u.id === id)?.name || 'Usuario');
+        const names = c.memberIds.map((id) => (id === GABOT_ID ? GABOT_NAME : users.find((u) => u.id === id)?.name || 'Usuario'));
         return {
           ...c,
           displayName: c.type === 'group' ? c.name : names.join(' · '),
@@ -94,7 +95,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       if (c.type === 'dm') {
         const otherId = c.memberIds.find((id) => id !== session.userId);
         const other = users.find((u) => u.id === otherId);
-        displayName = other?.name || 'Usuario';
+        displayName = otherId === GABOT_ID ? GABOT_NAME : other?.name || 'Usuario';
       }
       return {
         ...c,

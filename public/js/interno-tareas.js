@@ -13,10 +13,16 @@ document.addEventListener('DOMContentLoaded', function () {
   const statusFilter = document.getElementById('statusFilter');
   const overdueFilter = document.getElementById('overdueFilter');
   const tasksBoard = document.getElementById('tasksBoard');
+  const tasksCalendar = document.getElementById('tasksCalendar');
   const BOARD_STATUSES = ['Pendiente', 'En progreso', 'Completada', 'Cancelada'];
+  const viewTabs = document.querySelectorAll('.tasks-view-tabs .tab-btn[data-view]');
 
   let allTasks = [];
   let users = [];
+  let currentView = 'board';
+  const today = new Date();
+  let calendarYear = today.getFullYear();
+  let calendarMonth = today.getMonth();
 
   function escapeHtml(str) {
     return String(str || '')
@@ -176,9 +182,92 @@ document.addEventListener('DOMContentLoaded', function () {
     }).join('')}</div>`;
   }
 
+  const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const DOW_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+  function ymd(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function renderCalendar() {
+    if (!tasksCalendar) return;
+    const tasks = getFilteredTasks();
+    const byDay = {};
+    tasks.forEach((t) => {
+      if (!t.dueDate) return;
+      const key = t.dueDate.slice(0, 10);
+      (byDay[key] = byDay[key] || []).push(t);
+    });
+
+    const firstOfMonth = new Date(calendarYear, calendarMonth, 1);
+    const startWeekday = firstOfMonth.getDay();
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < startWeekday; i++) {
+      const d = new Date(calendarYear, calendarMonth, i - startWeekday + 1);
+      cells.push({ date: d, outside: true });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      cells.push({ date: new Date(calendarYear, calendarMonth, day), outside: false });
+    }
+    while (cells.length % 7 !== 0) {
+      const last = cells[cells.length - 1].date;
+      const d = new Date(last);
+      d.setDate(d.getDate() + 1);
+      cells.push({ date: d, outside: true });
+    }
+
+    const todayKey = ymd(today);
+    const grid = cells.map((c) => {
+      const key = ymd(c.date);
+      const items = byDay[key] || [];
+      return `
+        <div class="calendar-day ${c.outside ? 'outside' : ''} ${key === todayKey ? 'today' : ''}">
+          <div class="calendar-day-num">${c.date.getDate()}</div>
+          ${items.map((t) => `<div class="calendar-chip ${t.overdue ? 'overdue' : ''} ${statusClass(t.status)}" title="${escapeHtml(t.title)} · ${escapeHtml(t.assigneeName)}">${escapeHtml(t.title)}</div>`).join('')}
+        </div>
+      `;
+    }).join('');
+
+    tasksCalendar.innerHTML = `
+      <div class="calendar-nav">
+        <button class="btn-small" type="button" data-cal-nav="-1">←</button>
+        <span class="month-label">${MONTH_NAMES[calendarMonth].charAt(0).toUpperCase() + MONTH_NAMES[calendarMonth].slice(1)} ${calendarYear}</span>
+        <button class="btn-small" type="button" data-cal-nav="1">→</button>
+      </div>
+      <div class="calendar-grid">
+        ${DOW_NAMES.map((d) => `<div class="calendar-dow">${d}</div>`).join('')}
+        ${grid}
+      </div>
+    `;
+  }
+
+  if (tasksCalendar) {
+    tasksCalendar.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-cal-nav]');
+      if (!btn) return;
+      calendarMonth += parseInt(btn.getAttribute('data-cal-nav'), 10);
+      if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+      if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+      renderCalendar();
+    });
+  }
+
+  viewTabs.forEach((btn) => {
+    btn.addEventListener('click', function () {
+      viewTabs.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentView = btn.getAttribute('data-view');
+      tasksBoard.style.display = currentView === 'board' ? '' : 'none';
+      tasksCalendar.style.display = currentView === 'calendar' ? '' : 'none';
+      renderCurrentView();
+    });
+  });
+
   function renderCurrentView() {
     renderTasks();
-    renderBoard();
+    if (currentView === 'board') renderBoard();
+    else renderCalendar();
   }
 
   if (tasksBoard) {

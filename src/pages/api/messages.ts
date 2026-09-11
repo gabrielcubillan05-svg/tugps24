@@ -8,9 +8,9 @@ import { getConversation, saveConversation } from './conversations';
 
 export const prerender = false;
 
-const MAX_MESSAGES = 500;
+export const MAX_MESSAGES = 500;
 
-interface Message {
+export interface Message {
   id: string;
   senderId: string;
   senderName: string;
@@ -18,7 +18,7 @@ interface Message {
   createdAt: string;
 }
 
-function messagesKey(conversationId: string): string {
+export function messagesKey(conversationId: string): string {
   return `internal:messages:${conversationId}`;
 }
 

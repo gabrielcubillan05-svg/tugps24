@@ -1,0 +1,113 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessPagosInternos, canSeeAllPagosInternos, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { BRANCHES } from '../api/pagos-internos';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessPagosInternos(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const seesAll = canSeeAllPagosInternos(session);
+---
+
+<InternoLayout title="Pagos internos" active="pagos-internos" session={session}>
+  <div id="pagosData" data-sees-all={String(seesAll)} style="display:none;"></div>
+
+  <div class="panel-card">
+    <h2>Nuevo pago</h2>
+    <p class="hint">{seesAll ? 'Puedes registrar un pago para cualquier sucursal.' : 'El pago queda registrado para tu propia sucursal.'} El responsable recibe recordatorios hasta que alguien lo marque como pagado.</p>
+    <form id="pagoForm" class="form-grid">
+      <div class="field">
+        <label for="concepto">Concepto</label>
+        <input id="concepto" type="text" placeholder="Ej: Arriendo oficina, internet, nómina..." required />
+      </div>
+      <div class="field">
+        <label for="proveedor">Proveedor / beneficiario</label>
+        <input id="proveedor" type="text" placeholder="A quién se le paga" required />
+      </div>
+      <div class="field">
+        <label for="monto">Monto (COP)</label>
+        <input id="monto" type="number" min="1" step="1" placeholder="Ej: 350000" required />
+      </div>
+      <div class="field">
+        <label for="dueDate">Fecha de vencimiento</label>
+        <input id="dueDate" type="date" required />
+      </div>
+      {seesAll && (
+        <div class="field">
+          <label for="branch">Sucursal</label>
+          <select id="branch" required>
+            <option value="">Selecciona una sucursal</option>
+            {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+          </select>
+        </div>
+      )}
+      <div class="field">
+        <label for="assignedTo">Responsable</label>
+        <select id="assignedTo" required>
+          <option value="">Cargando empleados...</option>
+        </select>
+      </div>
+      <button class="btn field-full" type="submit">Registrar pago</button>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h2>Estadísticas</h2>
+    <div class="stats-row" id="statsRow"></div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Pagos</h2>
+    <div class="tabs">
+      <button class="tab-btn active" data-status="" type="button">Todos</button>
+      <button class="tab-btn" data-status="Pendiente" type="button">Pendientes</button>
+      <button class="tab-btn" data-status="Pagado" type="button">Pagados</button>
+    </div>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por concepto o proveedor..." />
+      {seesAll && (
+        <select id="branchFilter">
+          <option value="">Todas las sucursales</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+      )}
+    </div>
+    <div class="pagos-list" id="pagosList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .pagos-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .pago-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .pago-item.closed { opacity: 0.7; }
+  .pago-item.overdue { border-color: var(--danger); }
+  .pago-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .pago-concepto { font-weight: 700; font-size: 15px; }
+  .pago-monto { font-size: 14px; color: var(--teal-bright); font-weight: 600; margin-bottom: 6px; }
+  .pago-meta { color: var(--slate); font-size: 12px; margin-bottom: 10px; }
+  .pago-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .pago-timeline { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .timeline-item { font-size: 12.5px; background: var(--ink-900, #0e0d0b); border-radius: 6px; padding: 6px 10px; }
+  .timeline-date { color: var(--slate); font-size: 11px; margin-right: 8px; }
+  .pago-add-note-row { display: flex; gap: 8px; }
+  .pago-add-note-row input { flex: 1; }
+  .badge.status-Pendiente { background: #ff7a1a29; color: var(--amber); }
+  .badge.status-Pagado { background: #2f8a4f33; color: var(--ok); }
+  .badge.overdue-badge { background: var(--danger); color: #fff; }
+</style>
+
+<script src="/js/interno-pagos-internos.js" defer></script>

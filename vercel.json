@@ -11,6 +11,10 @@
     {
       "path": "/api/whatsapp-cobros-bulk-cron",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/gabot-reminders-cron",
+      "schedule": "0 */4 * * *"
     }
   ]
 }

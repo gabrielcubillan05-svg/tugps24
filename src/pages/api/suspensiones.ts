@@ -21,7 +21,7 @@ export const prerender = false;
 const REDIS_KEY = 'internal:suspensiones';
 export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 export const STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'Resuelto', 'Suspendido'];
-const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
+export const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
 const CLOSED_STATUSES = ['Resuelto', 'Suspendido'];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -60,7 +60,7 @@ interface TimelineEvent {
   date: string;
 }
 
-interface Suspension {
+export interface Suspension {
   id: string;
   clientName: string;
   clientPhone: string;
@@ -87,7 +87,7 @@ async function requireSuspensiones(cookies: any) {
   return session;
 }
 
-async function readSuspensiones(redis: any): Promise<Suspension[]> {
+export async function readSuspensiones(redis: any): Promise<Suspension[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {
