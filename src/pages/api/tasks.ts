@@ -139,6 +139,35 @@ export async function createTask(
   return { task };
 }
 
+// Usadas por la herramienta de GPSITO (messages.ts) para que un trabajador pueda marcar SU
+// PROPIA tarea como completada o agregarle una nota, sin pasar por el panel — misma regla de
+// evidencia que ya exige el PATCH de abajo: no se puede completar sin foto.
+export async function markTaskStatus(redis: any, taskId: string, status: string): Promise<{ task: Task } | { error: string }> {
+  const raw = await redis.hget<string>(REDIS_KEY, taskId);
+  if (!raw) return { error: 'tarea no encontrada' };
+  const task: Task = { notes: [], proof: null, completedAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  if (!STATUSES.includes(status)) return { error: 'estado inválido' };
+  if (status === 'Completada' && !task.proof) {
+    return { error: 'le falta la foto de evidencia — hay que subirla primero desde el panel de Tareas' };
+  }
+  if (status === 'Completada') task.completedAt = new Date().toISOString();
+  else if (task.status === 'Completada') task.completedAt = null;
+  task.status = status;
+  task.updatedAt = new Date().toISOString();
+  await redis.hset(REDIS_KEY, { [taskId]: JSON.stringify(task) });
+  return { task };
+}
+
+export async function addTaskNote(redis: any, taskId: string, noteText: string, byName: string): Promise<{ task: Task } | { error: string }> {
+  const raw = await redis.hget<string>(REDIS_KEY, taskId);
+  if (!raw) return { error: 'tarea no encontrada' };
+  const task: Task = { notes: [], proof: null, completedAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  task.notes = [{ text: noteText, date: new Date().toISOString(), by: byName }, ...task.notes];
+  task.updatedAt = new Date().toISOString();
+  await redis.hset(REDIS_KEY, { [taskId]: JSON.stringify(task) });
+  return { task };
+}
+
 export const POST: APIRoute = async ({ request, cookies }) => {
   if (!verifySameOrigin(request)) {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });

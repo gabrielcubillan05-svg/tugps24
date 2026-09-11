@@ -24,20 +24,49 @@ const LOOKUP_TOOL = {
   },
 };
 
-// Solo se ofrece cuando quien escribe puede asignar tareas (supervisor, gerente o admin) —
-// mismo permiso que ya exige el panel de Tareas para crear una nueva.
+// Se ofrece a TODOS — cualquiera puede crearse una tarea/pendiente a sí mismo. Solo quien
+// puede asignar tareas en el panel (supervisor/gerente/admin) puede además dársela a alguien
+// más; el resolver en messages.ts es quien hace cumplir esa distinción, no el modelo.
 const CREATE_TASK_TOOL = {
   name: 'crear_tarea',
-  description: 'Crea una tarea nueva en el módulo de Tareas y se la asigna a un trabajador por su nombre.',
+  description: 'Crea una tarea/pendiente nueva en el módulo de Tareas y la asigna a un trabajador por su nombre (o a quien te escribe, si no te dan un nombre distinto).',
   input_schema: {
     type: 'object',
     properties: {
-      responsable: { type: 'string', description: 'Nombre (o parte del nombre) del trabajador al que se le asigna la tarea' },
+      responsable: { type: 'string', description: 'Nombre (o parte del nombre) del trabajador al que se le asigna la tarea. Si no se especifica, se asume que es para quien te escribe.' },
       titulo: { type: 'string', description: 'Título corto de la tarea' },
       descripcion: { type: 'string', description: 'Detalles de la tarea (opcional)' },
       fecha_vencimiento: { type: 'string', description: 'Fecha de vencimiento en formato YYYY-MM-DD (opcional)' },
     },
-    required: ['responsable', 'titulo'],
+    required: ['titulo'],
+  },
+};
+
+// Se ofrece a TODOS — solo actúa sobre las tareas de quien te escribe (nunca las de otros).
+const MARK_TASK_TOOL = {
+  name: 'marcar_tarea',
+  description:
+    'Cambia el estado de una tarea de quien te escribe (identificándola por su título o parte de él). Para marcarla Completada, la tarea debe tener ya una foto de evidencia adjunta desde el panel — si no la tiene, dilo con claridad en vez de forzarlo.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      tarea: { type: 'string', description: 'Título o parte del título de la tarea a identificar' },
+      estado: { type: 'string', enum: ['En progreso', 'Completada', 'Cancelada'], description: 'Nuevo estado de la tarea' },
+    },
+    required: ['tarea', 'estado'],
+  },
+};
+
+const ADD_TASK_NOTE_TOOL = {
+  name: 'agregar_nota_tarea',
+  description: 'Agrega una nota de seguimiento a una tarea de quien te escribe (identificándola por su título o parte de él).',
+  input_schema: {
+    type: 'object',
+    properties: {
+      tarea: { type: 'string', description: 'Título o parte del título de la tarea a identificar' },
+      nota: { type: 'string', description: 'Texto de la nota' },
+    },
+    required: ['tarea', 'nota'],
   },
 };
 
@@ -47,7 +76,7 @@ function buildSystemPrompt(
   pendingLines: string[],
   extraInstructions: string | undefined,
   canLookupOthers: boolean,
-  canCreateTasks: boolean
+  canAssignToOthers: boolean
 ): string {
   const pendingBlock = pendingLines.length
     ? pendingLines.join('\n')
@@ -69,14 +98,21 @@ ${canLookupOthers
     ? `${userName} SÍ tiene permiso de administrador/supervisión general, así que puedes usar la herramienta consultar_pendientes_de cuando te pregunte por los pendientes de otro trabajador por nombre.`
     : `${userName} NO tiene permiso para ver pendientes de otros trabajadores — solo puedes hablarle de LOS SUYOS (la lista de arriba). Si te pregunta por los pendientes de otra persona, dile con amabilidad que solo puedes ayudarle con sus propios pendientes.`}
 
-## Crear tareas
-${canCreateTasks
-    ? `${userName} SÍ puede asignar tareas, así que puedes usar la herramienta crear_tarea cuando te pida crearle una tarea a alguien (a sí mismo o a otro trabajador, dando su nombre). Pide el título si no te lo da; la descripción y la fecha de vencimiento son opcionales. Confirma con un mensaje claro una vez creada (o el error, si no se pudo).`
-    : `${userName} NO puede asignar tareas — si te pide crear o asignar una tarea, dile con amabilidad que solo un supervisor, gerente o administrador puede hacerlo desde el panel de Tareas.`}
+## Eres también su asistente personal de Tareas
+Cualquiera puede pedirte, sobre SUS PROPIAS tareas:
+- Crear una tarea/pendiente nueva para sí mismo (crear_tarea, sin indicar responsable — o dando su propio nombre).
+- Marcar una de sus tareas como "En progreso", "Completada" o "Cancelada" (marcar_tarea). Para "Completada", si la herramienta te dice que le falta la foto de evidencia, explícaselo con claridad — no insistas ni lo intentes de nuevo, dile que la suba desde el panel de Tareas primero.
+- Agregarle una nota de seguimiento a una de sus tareas (agregar_nota_tarea).
+Si menciona una tarea y no tienes claro cuál es por el título, pregunta o usa el que más se parezca — la herramienta te dirá si no encontró ninguna coincidencia.
+
+## Crear tareas para OTROS trabajadores
+${canAssignToOthers
+    ? `${userName} SÍ puede asignar tareas a otros (supervisor/gerente/admin), así que si te da el nombre de otro trabajador en crear_tarea, créasela a esa persona con gusto.`
+    : `${userName} NO puede asignar tareas a otros — solo a sí mismo. Si te pide crear una tarea para otra persona, dile con amabilidad que solo puede crear tareas para sí mismo, y ofrécele hacerla para él/ella en su lugar. Nunca intentes la herramienta crear_tarea con el nombre de otra persona para este usuario.`}
 
 ## Límites estrictos
 - Nunca inventes datos que no estén en la información que tienes — ni de esta persona ni de otras.
-- Aparte de crear tareas (si tienes permiso, ver arriba), todavía no puedes ejecutar otras acciones (marcar algo como hecho, crear un registro en otro módulo, reasignar un caso, etc.) — solo puedes informar y orientar sobre esas. Si te piden ese tipo de cambio, diles con amabilidad que lo hagan desde la sección correspondiente del panel.
+- Aparte de crear/actualizar tareas (ver arriba), todavía no puedes ejecutar otras acciones (marcar algo como hecho en otro módulo, crear un registro, reasignar un caso, etc.) — solo puedes informar y orientar sobre esas. Si te piden ese tipo de cambio, diles con amabilidad que lo hagan desde la sección correspondiente del panel.
 - Nunca compartas información privada de la empresa, de sus dueños, ni datos personales de otros trabajadores que no tengan que ver con sus pendientes en el sistema.
 - Si preguntan algo fuera de estos módulos (dudas generales de trabajo, por ejemplo), ayuda con sentido común pero deja claro que tu fuerte es lo relacionado a pendientes en el sistema.
 
@@ -148,10 +184,16 @@ function extractReplyAndTools(data: any): { reply: string; toolCalls: ToolCall[]
 }
 
 export interface CreateTaskInput {
-  responsable: string;
+  responsable?: string;
   titulo: string;
   descripcion?: string;
   fechaVencimiento?: string;
+}
+
+export interface GabotTaskActions {
+  createTaskForWorker: (input: CreateTaskInput) => Promise<string>;
+  markTaskForWorker: (input: { tarea: string; estado: string }) => Promise<string>;
+  addNoteToTaskForWorker: (input: { tarea: string; nota: string }) => Promise<string>;
 }
 
 export async function runGabotAgent(
@@ -166,10 +208,8 @@ export async function runGabotAgent(
   // "no encontrado") — lo provee messages.ts, que es quien ya tiene la lista de usuarios y
   // los datos de cada módulo cargados.
   lookupOtherWorker: (nombre: string) => Promise<string>,
-  canCreateTasks: boolean,
-  // Crea la tarea de verdad (contra tasks.ts) y devuelve un texto de confirmación o de error
-  // para que el modelo se lo transmita a quien escribió.
-  createTaskForWorker: (input: CreateTaskInput) => Promise<string>
+  canAssignToOthers: boolean,
+  taskActions: GabotTaskActions
 ): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
   const noUsage = { inputTokens: 0, outputTokens: 0 };
@@ -177,8 +217,8 @@ export async function runGabotAgent(
     return { reply: null, usage: noUsage };
   }
 
-  const systemPrompt = buildSystemPrompt(userName, roleLabel, pendingLines, extraInstructions, canLookupOthers, canCreateTasks);
-  const tools = [...(canLookupOthers ? [LOOKUP_TOOL] : []), ...(canCreateTasks ? [CREATE_TASK_TOOL] : [])];
+  const systemPrompt = buildSystemPrompt(userName, roleLabel, pendingLines, extraInstructions, canLookupOthers, canAssignToOthers);
+  const tools = [...(canLookupOthers ? [LOOKUP_TOOL] : []), CREATE_TASK_TOOL, MARK_TASK_TOOL, ADD_TASK_NOTE_TOOL];
   const messages: any[] = [...history, { role: 'user', content: newMessage }];
 
   const data = await callAnthropic(apiKey, messages, systemPrompt, tools);
@@ -195,11 +235,21 @@ export async function runGabotAgent(
         if (tc.name === 'consultar_pendientes_de') {
           content = await lookupOtherWorker(String(tc.input.nombre || ''));
         } else if (tc.name === 'crear_tarea') {
-          content = await createTaskForWorker({
-            responsable: String(tc.input.responsable || ''),
+          content = await taskActions.createTaskForWorker({
+            responsable: tc.input.responsable ? String(tc.input.responsable) : undefined,
             titulo: String(tc.input.titulo || ''),
             descripcion: tc.input.descripcion ? String(tc.input.descripcion) : undefined,
             fechaVencimiento: tc.input.fecha_vencimiento ? String(tc.input.fecha_vencimiento) : undefined,
+          });
+        } else if (tc.name === 'marcar_tarea') {
+          content = await taskActions.markTaskForWorker({
+            tarea: String(tc.input.tarea || ''),
+            estado: String(tc.input.estado || ''),
+          });
+        } else if (tc.name === 'agregar_nota_tarea') {
+          content = await taskActions.addNoteToTaskForWorker({
+            tarea: String(tc.input.tarea || ''),
+            nota: String(tc.input.nota || ''),
           });
         } else {
           content = 'Esa herramienta no está disponible.';

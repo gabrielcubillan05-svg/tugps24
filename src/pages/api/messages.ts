@@ -12,7 +12,7 @@ import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { readSuspensiones } from './suspensiones';
 import { readSolicitudes } from './solicitudes-administrativas';
 import { readPagos } from './pagos-internos';
-import { readTasks, createTask } from './tasks';
+import { readTasks, createTask, markTaskStatus, addTaskNote } from './tasks';
 import { readLeads } from './leads';
 import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
@@ -199,29 +199,68 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           : `${match.name} (${ROLE_LABELS[match.role]}) no tiene nada pendiente en ningún módulo — está al día.`;
       }
 
-      // Mismo permiso que ya exige el panel de Tareas para crear una nueva — no depende de
-      // que el modelo "se porte bien": a quien no puede asignar tareas ni se le ofrece la
-      // herramienta.
-      const canCreateTasks = canAssignTasks(session.role);
+      // Crear tareas para OTROS solo lo puede hacer quien ya lo puede hacer en el panel
+      // (supervisor/gerente/admin) — no depende de que el modelo "se porte bien": el
+      // resolver es quien lo exige, sin importar lo que el modelo intente pedir.
+      const canAssignToOthers = canAssignTasks(session.role);
 
       async function createTaskForWorker(input: CreateTaskInput): Promise<string> {
-        const target = normalizeNameForMatch(input.responsable);
-        const match = allUsers.find((u) => u.active && normalizeNameForMatch(u.name).includes(target) && target.length > 0);
-        if (!match) return `No se encontró ningún trabajador activo que coincida con "${input.responsable}".`;
         if (!input.titulo.trim()) return 'Falta el título de la tarea.';
-        const dueDate = input.fechaVencimiento && /^\d{4}-\d{2}-\d{2}$/.test(input.fechaVencimiento) ? input.fechaVencimiento : null;
 
+        let target = sender;
+        if (input.responsable) {
+          const normalized = normalizeNameForMatch(input.responsable);
+          const isSelf = normalizeNameForMatch(sender.name).includes(normalized) || normalized.length === 0;
+          if (!isSelf) {
+            if (!canAssignToOthers) {
+              return `${sender.name} no tiene permiso para crear tareas a nombre de otros — solo puede crear tareas para sí mismo.`;
+            }
+            const match = allUsers.find((u) => u.active && normalizeNameForMatch(u.name).includes(normalized));
+            if (!match) return `No se encontró ningún trabajador activo que coincida con "${input.responsable}".`;
+            target = match;
+          }
+        }
+
+        const dueDate = input.fechaVencimiento && /^\d{4}-\d{2}-\d{2}$/.test(input.fechaVencimiento) ? input.fechaVencimiento : null;
         const created = await createTask(redis, {
           title: input.titulo,
           description: input.descripcion || '',
-          assigneeId: match.id,
+          assigneeId: target.id,
           dueDate,
           assignedById: session.userId,
           assignedByName: sender.name,
         });
         if ('error' in created) return `No se pudo crear la tarea: ${created.error}`;
         await logAudit(redis, session, 'task_create', created.task.title, `asignada a ${created.task.assigneeName} (vía GPSITO)`);
-        return `Tarea creada: "${created.task.title}" asignada a ${match.name}${dueDate ? `, vence ${dueDate}` : ''}.`;
+        return `Tarea creada: "${created.task.title}" asignada a ${target.name}${dueDate ? `, vence ${dueDate}` : ''}.`;
+      }
+
+      function findOwnTask(tareaQuery: string) {
+        const q = normalizeNameForMatch(tareaQuery);
+        if (!q) return null;
+        return (
+          data.tasks.find((t) => t.assigneeId === sender.id && normalizeNameForMatch(t.title).includes(q)) ||
+          data.tasks.find((t) => t.assigneeId === sender.id && normalizeNameForMatch(t.description).includes(q)) ||
+          null
+        );
+      }
+
+      async function markTaskForWorker(input: { tarea: string; estado: string }): Promise<string> {
+        const task = findOwnTask(input.tarea);
+        if (!task) return `No encontré ninguna tarea tuya que coincida con "${input.tarea}".`;
+        const updated = await markTaskStatus(redis, task.id, input.estado);
+        if ('error' in updated) return `No se pudo actualizar "${task.title}": ${updated.error}.`;
+        await logAudit(redis, session, 'task_update', updated.task.title, `estado: ${input.estado} (vía GPSITO)`);
+        return `Listo — "${updated.task.title}" quedó en estado "${input.estado}".`;
+      }
+
+      async function addNoteToTaskForWorker(input: { tarea: string; nota: string }): Promise<string> {
+        const task = findOwnTask(input.tarea);
+        if (!task) return `No encontré ninguna tarea tuya que coincida con "${input.tarea}".`;
+        if (!input.nota.trim()) return 'Falta el texto de la nota.';
+        const updated = await addTaskNote(redis, task.id, input.nota.trim(), sender.name);
+        if ('error' in updated) return `No se pudo agregar la nota a "${task.title}": ${updated.error}.`;
+        return `Nota agregada a "${updated.task.title}".`;
       }
 
       const result = await runGabotAgent(
@@ -233,8 +272,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         extraInstructions,
         canLookupOthers,
         lookupOtherWorker,
-        canCreateTasks,
-        createTaskForWorker
+        canAssignToOthers,
+        { createTaskForWorker, markTaskForWorker, addNoteToTaskForWorker }
       );
       await recordAgentUsage(redis, 'gabot', result.usage);
 
