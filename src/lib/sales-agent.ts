@@ -34,11 +34,19 @@ export interface AgentResult {
 const TOOLS = [
   {
     name: 'set_ciudad',
-    description: 'Registra la ciudad del cliente apenas la mencione, para poder asignarlo a la sucursal correcta.',
+    description:
+      'Registra la ciudad del cliente apenas la mencione, Y cuál de las sucursales de la lista lo va a atender (la más cercana — aunque su ciudad no sea exactamente una de la lista, ej. alguien de Cúcuta lo atiende Bucaramanga). Esto es lo que se usa para notificar a la secretaria/gerente correctos, así que sucursal SIEMPRE debe ser una de las 8 de la lista, nunca la ciudad literal del cliente si esta no coincide.',
     input_schema: {
       type: 'object',
-      properties: { ciudad: { type: 'string', description: 'Ciudad del cliente' } },
-      required: ['ciudad'],
+      properties: {
+        ciudad: { type: 'string', description: 'Ciudad real del cliente, tal como la dijo' },
+        sucursal: {
+          type: 'string',
+          enum: Object.keys(BRANCH_ADDRESSES),
+          description: 'Cuál de las 8 sucursales de la lista lo atiende (la más cercana a su ciudad)',
+        },
+      },
+      required: ['ciudad', 'sucursal'],
     },
   },
   {

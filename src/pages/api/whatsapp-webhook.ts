@@ -223,6 +223,11 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   for (const call of agentResult.toolCalls) {
     if (call.name === 'set_ciudad' && call.input?.ciudad) {
       lead.city = String(call.input.ciudad).trim();
+      // La sucursal que realmente lo atiende puede no ser su ciudad literal (ej. Cúcuta lo
+      // atiende Bucaramanga) — se guarda aparte para que la asignación a secretaria/gerente
+      // y el envío de fotos de sucursal usen la sucursal real, no un texto que no coincide
+      // con ninguna de las 8 sucursales.
+      if (call.input?.sucursal) lead.convertedBranch = String(call.input.sucursal).trim();
     } else if (call.name === 'set_tipo_vehiculo' && call.input?.tipo) {
       lead.vehicleType = String(call.input.tipo);
       const cantidad = Number(call.input.cantidad);
@@ -240,8 +245,13 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
       const summary = String(call.input?.resumen || 'Lead calificado por el agente IA.');
       lead.notes = [{ text: `[Agente IA] ${summary}`, date: now }, ...lead.notes];
 
-      if (lead.city) {
-        const assignee = await findBranchAssignee(redis, lead.city);
+      // La sucursal que realmente atiende al cliente (puede diferir de su ciudad literal,
+      // ej. Cúcuta lo atiende Bucaramanga) — cae de vuelta a lead.city solo por compatibilidad
+      // con leads viejos de antes de que existiera convertedBranch.
+      const servicingBranch = lead.convertedBranch || lead.city;
+
+      if (servicingBranch) {
+        const assignee = await findBranchAssignee(redis, servicingBranch);
         if (assignee) {
           lead.secretary = assignee.name;
           try {
@@ -258,7 +268,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
           // sucursal (no solo a quien haya quedado como responsable del lead), para que se
           // enteren al instante de que Andrés concretó la venta.
           try {
-            const branchStaff = (await getUsers(redis)).filter((u) => u.active && u.branch === lead.city);
+            const branchStaff = (await getUsers(redis)).filter((u) => u.active && u.branch === servicingBranch);
             const secretaria = branchStaff.find((u) => u.role === 'secretaria');
             const gerente = branchStaff.find((u) => u.role === 'gerente');
             const fechaPreferida = call.input?.fecha_preferida ? String(call.input.fecha_preferida) : '';
@@ -274,7 +284,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
             // no debe tumbar el procesamiento del mensaje
           }
         } else {
-          await notifyJosue(redis, `Lead concretado sin secretaria/gerente configurado para "${lead.city}": ${lead.name} (${lead.phone})`, 'crm-urgent');
+          await notifyJosue(redis, `Lead concretado sin secretaria/gerente configurado para "${servicingBranch}": ${lead.name} (${lead.phone})`, 'crm-urgent');
         }
       } else {
         await notifyJosue(redis, `Lead concretado sin ciudad definida: ${lead.name} (${lead.phone}) — ${summary}`, 'crm-urgent');
@@ -473,9 +483,10 @@ export async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: st
     if (media.recuperacion_foto_1) {
       await sendWhatsappMedia(toPhone, 'image', media.recuperacion_foto_1, 'Uno de los vehículos que hemos recuperado.');
     }
-    const branchKey = BRANCH_MEDIA_KEY[lead.city];
+    const mediaBranch = lead.convertedBranch || lead.city;
+    const branchKey = BRANCH_MEDIA_KEY[mediaBranch];
     if (branchKey && media[branchKey]) {
-      await sendWhatsappMedia(toPhone, 'image', media[branchKey], `Nuestra sucursal en ${lead.city}.`);
+      await sendWhatsappMedia(toPhone, 'image', media[branchKey], `Nuestra sucursal en ${mediaBranch}.`);
     }
   } catch {
     // no debe tumbar el flujo si falla el envío de material adicional
