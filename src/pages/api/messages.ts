@@ -1,10 +1,22 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, canManageUsers, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, canManageUsers, verifySameOrigin, ROLE_LABELS } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { logAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
+import { GABOT_ID, GABOT_NAME } from '../../lib/gabot-constants';
+import { runGabotAgent, type AgentMessage } from '../../lib/gabot-agent';
+import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
+import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
+import { readSuspensiones } from './suspensiones';
+import { readSolicitudes } from './solicitudes-administrativas';
+import { readPagos } from './pagos-internos';
+import { readTasks } from './tasks';
+import { readLeads } from './leads';
+import { readClientes } from './seguimiento-masivos';
+import { readCasos } from './casos-importantes';
+import { readScheduledReports } from './scheduled-reports';
 
 export const prerender = false;
 
@@ -128,6 +140,62 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       link: '/interno/chat',
       key: `chat:${conversationId}`,
     });
+  }
+
+  // Si le está escribiendo a GaBot (por el widget flotante o desde Chat), le contestamos en la
+  // misma conversación con el modelo de IA — con los pendientes reales de esta persona como
+  // contexto, para que pueda preguntarle por su propio trabajo en el sistema.
+  if (conversation.type === 'dm' && conversation.memberIds.includes(GABOT_ID) && sender) {
+    try {
+      const rawHistory = (await redis.lrange<string>(key, 0, -1)) || [];
+      const allMessages: Message[] = rawHistory
+        .map((m) => {
+          try {
+            return typeof m === 'string' ? JSON.parse(m) : m;
+          } catch {
+            return null;
+          }
+        })
+        .filter((m): m is Message => m !== null);
+      const history: AgentMessage[] = allMessages
+        .slice(0, -1)
+        .map((m) => ({ role: m.senderId === GABOT_ID ? 'assistant' : 'user', content: m.text }));
+
+      const [suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, extraInstructions] = await Promise.all([
+        readSuspensiones(redis),
+        readSolicitudes(redis),
+        readPagos(redis),
+        readTasks(redis),
+        readLeads(redis),
+        readClientes(redis),
+        readCasos(redis),
+        readScheduledReports(redis),
+        getExtraInstructions(redis, 'gabot'),
+      ]);
+      const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports };
+      const pendingLines = collectPendingLines(sender, data);
+
+      const result = await runGabotAgent(history, text, sender.name, ROLE_LABELS[sender.role], pendingLines, extraInstructions);
+      await recordAgentUsage(redis, 'gabot', result.usage);
+
+      if (result.reply) {
+        const botMessage: Message = {
+          id: randomUUID(),
+          senderId: GABOT_ID,
+          senderName: GABOT_NAME,
+          text: result.reply,
+          createdAt: new Date().toISOString(),
+        };
+        await redis.rpush(key, JSON.stringify(botMessage));
+        await redis.ltrim(key, -MAX_MESSAGES, -1);
+        conversation.lastMessageAt = botMessage.createdAt;
+        conversation.lastMessagePreview = result.reply.slice(0, 120);
+        conversation.unread[session.userId] = (conversation.unread[session.userId] || 0) + 1;
+        await saveConversation(redis, conversation);
+      }
+    } catch (err) {
+      console.error('gabot chat reply failed', err instanceof Error ? err.message : String(err));
+    }
   }
 
   return new Response(JSON.stringify({ message }), {

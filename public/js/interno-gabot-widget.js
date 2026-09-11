@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderMessages(messages) {
     if (!messages.length) {
-      messagesEl.innerHTML = '<div class="empty">GaBot todavía no te ha escrito.</div>';
+      messagesEl.innerHTML = '<div class="empty">GPSITO todavía no te ha escrito.</div>';
       return;
     }
     const wasAtBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 40;
@@ -71,17 +71,24 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {});
   }
 
+  function ensureGabotConversation() {
+    return fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'gabot' }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => (data && data.conversation ? data.conversation.id : null))
+      .catch(() => null);
+  }
+
   function checkGabotConversation() {
     fetch('/api/conversations')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!data || !Array.isArray(data.conversations)) return;
-        const gabotConv = data.conversations.find((c) => c.isGabot);
-        if (!gabotConv) {
-          widget.style.display = 'none';
-          return;
-        }
         widget.style.display = 'flex';
+        const gabotConv = data && Array.isArray(data.conversations) ? data.conversations.find((c) => c.isGabot) : null;
+        if (!gabotConv) return; // todavía no existe — se crea cuando el usuario abra el panel o le escriba
         const isNewConversation = conversationId !== gabotConv.id;
         conversationId = gabotConv.id;
         if (gabotConv.unreadCount > 0) {
@@ -99,11 +106,12 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {});
   }
 
-  bubble.addEventListener('click', function () {
+  bubble.addEventListener('click', async function () {
     panelOpen = !panelOpen;
     panel.style.display = panelOpen ? 'flex' : 'none';
     if (panelOpen) {
       bubble.classList.remove('pulse');
+      if (!conversationId) conversationId = await ensureGabotConversation();
       loadMessages();
       markRead();
       setTimeout(() => input.focus(), 50);

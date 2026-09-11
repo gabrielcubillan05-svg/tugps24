@@ -131,8 +131,38 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
 
-  const type = body.type === 'group' ? 'group' : 'dm';
+  const type = body.type === 'group' ? 'group' : body.type === 'gabot' ? 'gabot' : 'dm';
   const now = new Date().toISOString();
+
+  // Cualquiera puede iniciarle chat a GPSITO proactivamente (no solo responder a un
+  // recordatorio) — se crea la conversación bajo demanda la primera vez que la pide.
+  if (type === 'gabot') {
+    const all = await readConversations(redis);
+    const existing = all.find(
+      (c) => c.type === 'dm' && c.memberIds.length === 2 && c.memberIds.includes(GABOT_ID) && c.memberIds.includes(session.userId)
+    );
+    if (existing) {
+      return new Response(JSON.stringify({ conversation: existing }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const conversation: Conversation = {
+      id: randomUUID(),
+      type: 'dm',
+      name: null,
+      memberIds: [GABOT_ID, session.userId],
+      createdBy: GABOT_ID,
+      createdAt: now,
+      lastMessageAt: null,
+      lastMessagePreview: '',
+      unread: {},
+      lastRead: {},
+    };
+    await saveConversation(redis, conversation);
+    return new Response(JSON.stringify({ conversation }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   if (type === 'dm') {
     const otherUserId = String(body.otherUserId || '');

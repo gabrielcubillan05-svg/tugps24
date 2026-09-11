@@ -10,6 +10,7 @@ export interface AgentDefinition {
 export const AGENTS: AgentDefinition[] = [
   { key: 'andres', label: 'Andrés (ventas)' },
   { key: 'valentina', label: 'Valentina (cobranza)' },
+  { key: 'gabot', label: 'GPSITO (asistente interno)' },
 ];
 
 const EXTRA_INSTRUCTIONS_KEY = 'internal:agent-extra-instructions';

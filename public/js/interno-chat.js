@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     conversationList.innerHTML = conversations.map((c) => `
       <div class="conv-item ${c.id === activeConversationId ? 'active' : ''}" data-id="${c.id}">
-        <span class="avatar ${c.type === 'group' ? 'avatar-group' : ''}">${escapeHtml(initials(c.displayName))}</span>
+        <span class="avatar ${c.type === 'group' ? 'avatar-group' : ''}">${c.isGabot ? '<img src="/img/gpsito.png" alt="" />' : escapeHtml(initials(c.displayName))}</span>
         <div class="conv-info">
           <div class="conv-name">${escapeHtml(c.displayName || 'Sin nombre')}</div>
           <div class="conv-preview">${escapeHtml(c.lastMessagePreview || 'Sin mensajes')}</div>
