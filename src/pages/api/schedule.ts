@@ -8,10 +8,15 @@ export const prerender = false;
 
 const REDIS_KEY = 'internal:schedule';
 
-interface ScheduleEntry {
+export interface ScheduleEntry {
   id: string;
   operator: string;
   horario: string;
+  // Días/horas estructuradas para que GaBot pueda saber si un operador está de turno ahora
+  // mismo — vacíos en franjas viejas creadas antes de este campo (formato solo texto libre).
+  days: string[];
+  start: string;
+  end: string;
   createdAt: string;
 }
 
@@ -19,6 +24,35 @@ async function requireHorario(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canAccessSection(session.role, 'horario')) return null;
   return session;
+}
+
+export async function readSchedule(redis: any): Promise<ScheduleEntry[]> {
+  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
+  return Object.entries(raw)
+    .map(([key, v]) => {
+      try {
+        const parsed = typeof v === 'string' ? JSON.parse(v) : v;
+        if (parsed && typeof parsed === 'object' && parsed.operator && parsed.horario) {
+          return {
+            id: parsed.id || key,
+            operator: parsed.operator,
+            horario: parsed.horario,
+            days: Array.isArray(parsed.days) ? parsed.days : [],
+            start: parsed.start || '',
+            end: parsed.end || '',
+            createdAt: parsed.createdAt || '',
+          };
+        }
+      } catch {
+        // no era JSON: formato antiguo (clave = operador, valor = horario en texto plano)
+      }
+      if (typeof v === 'string' && v.trim()) {
+        return { id: key, operator: key, horario: v, days: [], start: '', end: '', createdAt: '' };
+      }
+      return null;
+    })
+    .filter((e): e is ScheduleEntry => e !== null)
+    .sort((a, b) => a.operator.localeCompare(b.operator) || a.createdAt.localeCompare(b.createdAt));
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
@@ -30,24 +64,7 @@ export const GET: APIRoute = async ({ cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  const schedule = Object.entries(raw)
-    .map(([key, v]) => {
-      try {
-        const parsed = typeof v === 'string' ? JSON.parse(v) : v;
-        if (parsed && typeof parsed === 'object' && parsed.operator && parsed.horario) {
-          return { id: parsed.id || key, operator: parsed.operator, horario: parsed.horario, createdAt: parsed.createdAt || '' };
-        }
-      } catch {
-        // no era JSON: formato antiguo (clave = operador, valor = horario en texto plano)
-      }
-      if (typeof v === 'string' && v.trim()) {
-        return { id: key, operator: key, horario: v, createdAt: '' };
-      }
-      return null;
-    })
-    .filter((e): e is ScheduleEntry => e !== null)
-    .sort((a, b) => a.operator.localeCompare(b.operator) || a.createdAt.localeCompare(b.createdAt));
+  const schedule = await readSchedule(redis);
 
   return new Response(JSON.stringify({ schedule }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
@@ -67,7 +84,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { operator?: string; horario?: string };
+  let body: { operator?: string; horario?: string; days?: string[]; start?: string; end?: string };
   try {
     body = await request.json();
   } catch {
@@ -79,11 +96,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!operator || !horario) {
     return new Response(JSON.stringify({ error: 'missing fields' }), { status: 400 });
   }
+  const days = Array.isArray(body.days) ? body.days.filter((d) => typeof d === 'string') : [];
+  const start = /^\d{2}:\d{2}$/.test(String(body.start || '')) ? String(body.start) : '';
+  const end = /^\d{2}:\d{2}$/.test(String(body.end || '')) ? String(body.end) : '';
 
   const entry: ScheduleEntry = {
     id: randomUUID(),
     operator,
     horario,
+    days,
+    start,
+    end,
     createdAt: new Date().toISOString(),
   };
   await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });

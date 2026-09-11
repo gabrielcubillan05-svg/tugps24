@@ -4,6 +4,7 @@ import { isQuietHoursColombia } from '../../lib/whatsapp';
 import { getUsers } from '../../lib/auth';
 import { sendGabotMessage } from '../../lib/gabot';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
+import { isOnShiftNow } from '../../lib/shift';
 import { readSuspensiones } from './suspensiones';
 import { readSolicitudes } from './solicitudes-administrativas';
 import { readPagos } from './pagos-internos';
@@ -12,6 +13,7 @@ import { readLeads } from './leads';
 import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
 import { readScheduledReports } from './scheduled-reports';
+import { readSchedule } from './schedule';
 
 export const prerender = false;
 
@@ -44,7 +46,7 @@ export const GET: APIRoute = async ({ request }) => {
   const colombiaHour = (new Date().getUTCHours() - 5 + 24) % 24;
   const isMorningBriefing = colombiaHour === 7;
 
-  const [users, suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports] = await Promise.all([
+  const [users, suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, schedule] = await Promise.all([
     getUsers(redis),
     readSuspensiones(redis),
     readSolicitudes(redis),
@@ -54,6 +56,7 @@ export const GET: APIRoute = async ({ request }) => {
     readClientes(redis),
     readCasos(redis),
     readScheduledReports(redis),
+    readSchedule(redis),
   ]);
 
   const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports };
@@ -61,6 +64,9 @@ export const GET: APIRoute = async ({ request }) => {
   let sent = 0;
   for (const user of users) {
     if (!user.active) continue;
+    // A los operadores solo se les molesta si su horario configurado dice que están de
+    // turno ahora mismo (si no tienen horario cargado, se les recuerda igual que a los demás).
+    if (user.role === 'operador' && !isOnShiftNow(schedule, user.name)) continue;
 
     const lines = collectPendingLines(user, data);
     if (!lines.length) continue;

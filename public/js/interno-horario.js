@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function () {
       fetch('/api/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator, horario }),
+        body: JSON.stringify({ operator, horario, days: selectedDays, start, end }),
       })
         .then((res) => res.json())
         .then(() => {
