@@ -1,4 +1,27 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // El navegador estaba rellenando buscadores/filtros con el usuario guardado del login,
+  // porque los detecta como si fueran parte de un formulario de acceso — aquí se les apaga
+  // el autocompletado explícitamente a todo lo que NO sea el formulario de cambiar clave.
+  // Como muchas listas (tareas, suspensiones, etc.) inyectan sus propios campos después de
+  // cargar los datos, se usa un observer en vez de una sola pasada al cargar la página.
+  function disableAutofillOn(root) {
+    (root.matches && root.matches('input, select, textarea') ? [root] : root.querySelectorAll('input, select, textarea')).forEach(
+      function (el) {
+        if (el.closest('#pwForm')) return;
+        if (el.type === 'password') return;
+        el.setAttribute('autocomplete', 'off');
+      }
+    );
+  }
+  disableAutofillOn(document.body);
+  new MutationObserver(function (mutations) {
+    mutations.forEach(function (m) {
+      m.addedNodes.forEach(function (node) {
+        if (node.nodeType === 1) disableAutofillOn(node);
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+
   const userId = document.body.dataset.userId;
   const openBtn = document.getElementById('changePasswordBtn');
   const overlay = document.getElementById('pwModalOverlay');

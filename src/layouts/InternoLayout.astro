@@ -418,20 +418,22 @@ const sections = sectionsFor(session);
     <div class="modal-overlay" id="pwModalOverlay" style="display:none;">
       <div class="modal-box">
         <h2>Cambiar contraseña</h2>
-        <div class="field">
-          <label for="pwCurrent">Contraseña actual</label>
-          <input id="pwCurrent" type="password" autocomplete="current-password" />
-        </div>
-        <div class="field">
-          <label for="pwNew">Nueva contraseña (mín. 8 caracteres)</label>
-          <input id="pwNew" type="password" autocomplete="new-password" />
-        </div>
-        <p id="pwError" class="error-msg" style="display:none;"></p>
-        <p id="pwSuccess" class="success-msg" style="display:none;">Contraseña actualizada.</p>
-        <div style="display:flex; gap:10px; margin-top:6px;">
-          <button class="btn" id="pwSubmit" type="button">Guardar</button>
-          <button class="btn-ghost" id="pwCancel" type="button">Cancelar</button>
-        </div>
+        <form id="pwForm" autocomplete="on">
+          <div class="field">
+            <label for="pwCurrent">Contraseña actual</label>
+            <input id="pwCurrent" name="current-password" type="password" autocomplete="current-password" />
+          </div>
+          <div class="field">
+            <label for="pwNew">Nueva contraseña (mín. 8 caracteres)</label>
+            <input id="pwNew" name="new-password" type="password" autocomplete="new-password" />
+          </div>
+          <p id="pwError" class="error-msg" style="display:none;"></p>
+          <p id="pwSuccess" class="success-msg" style="display:none;">Contraseña actualizada.</p>
+          <div style="display:flex; gap:10px; margin-top:6px;">
+            <button class="btn" id="pwSubmit" type="button">Guardar</button>
+            <button class="btn-ghost" id="pwCancel" type="button">Cancelar</button>
+          </div>
+        </form>
       </div>
     </div>
 
