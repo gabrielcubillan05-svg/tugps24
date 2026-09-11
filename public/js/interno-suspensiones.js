@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function statusClass(status) {
-    return 'status-' + String(status || '').replace(/\s+/g, '-');
+    return 'status-' + String(status || '').replace(/[()]/g, '').trim().replace(/\s+/g, '-');
   }
 
   function compressImage(file, maxDim, quality) {
@@ -100,9 +100,11 @@ document.addEventListener('DOMContentLoaded', function () {
       parts.push(`<button class="btn-small" data-action="escalate" data-id="${c.id}" type="button">Escalar a Josué</button>`);
     }
 
-    if ((isAssignee || isOverrideRole) && OPEN_STATUSES.includes(c.status)) {
+    if (isJosue && c.status === 'Escalado a Josué') {
       parts.push(`<button class="btn-small btn-done" data-action="resolve" data-id="${c.id}" type="button">Resolver (cliente se queda)</button>`);
       parts.push(`<button class="btn-small btn-delete" data-action="suspend" data-id="${c.id}" type="button">Suspender (sin solución)</button>`);
+      parts.push(`<button class="btn-small" data-action="uninstall" data-id="${c.id}" type="button">Desinstalación (se reinstalará)</button>`);
+      parts.push(`<button class="btn-small" data-action="repurchase" data-id="${c.id}" type="button">Recompra</button>`);
     }
 
     if (canJosueReassign) {
@@ -340,9 +342,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (action === 'suspend' && !confirm('¿Confirmas que no se encontró solución y el cliente se suspende?')) return;
+    if (action === 'uninstall' && !confirm('¿Confirmas la desinstalación (se reinstalará)?')) return;
+    if (action === 'repurchase' && !confirm('¿Confirmas que este caso se cierra como recompra?')) return;
     if (action === 'finalize' && !confirm('¿Confirmas que este caso queda finalizado por tesorería?')) return;
 
-    if (action === 'escalate' || action === 'reassign' || action === 'resolve' || action === 'suspend' || action === 'finalize') {
+    if (['escalate', 'reassign', 'resolve', 'suspend', 'uninstall', 'repurchase', 'finalize'].includes(action)) {
       body.note = prompt('Nota (opcional) sobre esta acción:') || '';
     }
 

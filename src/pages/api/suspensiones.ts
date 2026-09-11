@@ -20,9 +20,9 @@ export const prerender = false;
 
 const REDIS_KEY = 'internal:suspensiones';
 export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
-export const STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'Resuelto', 'Suspendido'];
+export const STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué', 'Resuelto', 'Suspendido', 'Desinstalación (se reinstalará)', 'Recompra'];
 export const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
-const CLOSED_STATUSES = ['Resuelto', 'Suspendido'];
+const CLOSED_STATUSES = ['Resuelto', 'Suspendido', 'Desinstalación (se reinstalará)', 'Recompra'];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 function isJosueSession(session: { username: string }): boolean {
@@ -469,19 +469,34 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (caso.status === 'Escalado a Josué') caso.status = 'En revisión';
     addEvent(caso, 'reassigned', `${actorName} asignó el caso a ${target.name}${note ? ': ' + note : ''}`, actorName, now);
     await notify(target.id, `Caso de suspensión asignado: ${caso.clientName} (${caso.branch})`);
-  } else if (action === 'resolve' || action === 'suspend') {
-    if (!OPEN_STATUSES.includes(caso.status)) {
-      return new Response(JSON.stringify({ error: 'este caso ya está cerrado' }), { status: 400 });
+  } else if (action === 'resolve' || action === 'suspend' || action === 'uninstall' || action === 'repurchase') {
+    // Solo Josué puede cerrar un caso — nadie más, ni siquiera quien lo tiene asignado o
+    // admin/supervisor. Primero tiene que pasar por "Escalar a Josué"; de ahí en adelante es
+    // él quien decide el cierre.
+    if (caso.status !== 'Escalado a Josué') {
+      return new Response(JSON.stringify({ error: 'este caso debe estar escalado a Josué antes de poder cerrarse' }), { status: 400 });
     }
-    if (!isCurrentAssignee && !isOverride) {
-      return new Response(JSON.stringify({ error: 'solo quien tiene el caso asignado puede cerrarlo' }), { status: 403 });
+    if (!isJosue) {
+      return new Response(JSON.stringify({ error: 'solo Josué puede cerrar este caso' }), { status: 403 });
     }
-    caso.status = action === 'resolve' ? 'Resuelto' : 'Suspendido';
+    const statusByAction: Record<string, string> = {
+      resolve: 'Resuelto',
+      suspend: 'Suspendido',
+      uninstall: 'Desinstalación (se reinstalará)',
+      repurchase: 'Recompra',
+    };
+    const labelByAction: Record<string, string> = {
+      resolve: 'Resuelto — el cliente se queda',
+      suspend: 'Suspendido — no se encontró solución',
+      uninstall: 'Desinstalación (se reinstalará)',
+      repurchase: 'Recompra',
+    };
+    caso.status = statusByAction[action];
     caso.resolvedAt = now;
-    const label = action === 'resolve' ? 'Resuelto — el cliente se queda' : 'Suspendido — no se encontró solución';
+    const label = labelByAction[action];
     addEvent(caso, action, `${actorName} marcó el caso: ${label}${note ? '. ' + note : ''}`, actorName, now);
     if (caso.createdById !== session.userId) {
-      await notify(caso.createdById, `Caso de suspensión ${action === 'resolve' ? 'resuelto' : 'cerrado sin solución'}: ${caso.clientName}`);
+      await notify(caso.createdById, `Caso de suspensión cerrado (${label}): ${caso.clientName}`);
     }
     try {
       const wilmar = await findUserByUsername(redis, WILMAR_USERNAME);
