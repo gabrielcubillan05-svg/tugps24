@@ -64,7 +64,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'seguimiento-masivos': 'Seguimiento a clientes masivos',
   'conversaciones-whatsapp': 'Conversaciones WhatsApp',
   'agentes-ia': 'Agentes IA',
-  'pagos-internos': 'Pagos internos',
+  'pagos-internos': 'Pagos programados',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {

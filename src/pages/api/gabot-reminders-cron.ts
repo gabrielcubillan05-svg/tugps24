@@ -72,7 +72,7 @@ export const GET: APIRoute = async ({ request }) => {
 
     const misPagos = pagos.filter((p) => p.assignedToId === user.id && p.status === 'Pendiente');
     if (misPagos.length) {
-      lines.push(`💰 Pagos internos pendientes (${misPagos.length}):`);
+      lines.push(`💰 Pagos programados pendientes (${misPagos.length}):`);
       for (const p of misPagos) lines.push(`  · ${p.concepto} (${p.proveedor}) — ${fmtMoney(p.monto)} — vence ${fmtDateOnly(p.dueDate)}`);
     }
 

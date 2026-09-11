@@ -194,7 +194,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     await pushNotification(redis, assignee.id, {
       type: 'pago-interno',
-      message: `Nuevo pago interno pendiente: ${pago.concepto} (${pago.branch})`,
+      message: `Nuevo pago programado pendiente: ${pago.concepto} (${pago.branch})`,
       link: '/interno/pagos-internos',
     });
   } catch {

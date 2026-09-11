@@ -16,7 +16,7 @@ if (!canAccessPagosInternos(session)) {
 const seesAll = canSeeAllPagosInternos(session);
 ---
 
-<InternoLayout title="Pagos internos" active="pagos-internos" session={session}>
+<InternoLayout title="Pagos programados" active="pagos-internos" session={session}>
   <div id="pagosData" data-sees-all={String(seesAll)} style="display:none;"></div>
 
   <div class="panel-card">
