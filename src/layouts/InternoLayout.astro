@@ -362,6 +362,11 @@ const sections = sectionsFor(session);
       .gabot-msg .gabot-msg-time { display: block; font-size: 10px; opacity: 0.65; margin-top: 3px; }
       .gabot-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
       .gabot-form input { flex: 1; font-size: 12.5px; padding: 7px 9px; }
+      .gabot-mic {
+        border: 1px solid var(--line); background: var(--ink-700); border-radius: 8px;
+        width: 32px; flex-shrink: 0; cursor: pointer; font-size: 14px; line-height: 1;
+      }
+      .gabot-mic.recording { background: var(--danger); color: #fff; animation: gabot-pulse 1s ease-in-out infinite; }
     </style>
   </head>
   <body data-user-id={session.userId}>
@@ -439,6 +444,7 @@ const sections = sectionsFor(session);
         </div>
         <div class="gabot-messages" id="gabotMessages"><div class="empty">Cargando...</div></div>
         <form class="gabot-form" id="gabotForm">
+          <button class="gabot-mic" type="button" id="gabotMic" title="Grabar un audio" aria-label="Grabar un audio">🎤</button>
           <input id="gabotInput" type="text" placeholder="Escríbele a GPSITO..." autocomplete="off" />
           <button class="btn-small" type="submit">Enviar</button>
         </form>

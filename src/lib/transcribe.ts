@@ -1,5 +1,5 @@
 const GRAPH_VERSION = 'v21.0';
-const MAX_AUDIO_BYTES = 16 * 1024 * 1024; // límite generoso, las notas de voz de WhatsApp son livianas
+export const MAX_AUDIO_BYTES = 16 * 1024 * 1024; // límite generoso, las notas de voz de WhatsApp son livianas
 
 interface DownloadedMedia {
   buffer: ArrayBuffer;
@@ -52,7 +52,7 @@ function extensionFor(mimeType: string): string {
   return 'ogg';
 }
 
-async function transcribeAudioBuffer(buffer: ArrayBuffer, mimeType: string): Promise<string | null> {
+export async function transcribeAudioBuffer(buffer: ArrayBuffer, mimeType: string): Promise<string | null> {
   const apiKey = import.meta.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.error('transcribe: falta OPENAI_API_KEY');

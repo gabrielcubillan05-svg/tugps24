@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const messagesEl = document.getElementById('gabotMessages');
   const form = document.getElementById('gabotForm');
   const input = document.getElementById('gabotInput');
+  const micBtn = document.getElementById('gabotMic');
   if (!widget || !bubble) return;
 
   const myUserId = document.body.dataset.userId;
@@ -163,6 +164,71 @@ document.addEventListener('DOMContentLoaded', function () {
       })
         .then(() => loadMessages())
         .catch(() => {});
+    });
+  }
+
+  // ---------- Micrófono: graba, transcribe y deja el texto listo para revisar/enviar ----------
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let isRecording = false;
+
+  async function startRecording() {
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      alert('Este navegador no soporta grabar audio.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        transcribeAndFill(blob);
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      micBtn.classList.add('recording');
+      micBtn.textContent = '⏹️';
+    } catch {
+      alert('No se pudo acceder al micrófono — revisa los permisos del navegador.');
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorder && isRecording) mediaRecorder.stop();
+    isRecording = false;
+    micBtn.classList.remove('recording');
+    micBtn.textContent = '🎤';
+  }
+
+  async function transcribeAndFill(blob) {
+    micBtn.disabled = true;
+    const originalPlaceholder = input.placeholder;
+    input.placeholder = 'Transcribiendo audio...';
+    try {
+      const formData = new FormData();
+      formData.append('audio', blob, 'audio.webm');
+      const res = await fetch('/api/gabot-transcribe', { method: 'POST', body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo transcribir el audio.');
+      input.value = data.text || '';
+      input.focus();
+    } catch (err) {
+      alert(err.message || 'No se pudo transcribir el audio.');
+    } finally {
+      input.placeholder = originalPlaceholder;
+      micBtn.disabled = false;
+    }
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener('click', function () {
+      if (isRecording) stopRecording();
+      else startRecording();
     });
   }
 
