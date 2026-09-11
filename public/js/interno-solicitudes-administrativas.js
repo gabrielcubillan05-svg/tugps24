@@ -102,9 +102,9 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <p class="solicitud-type">${escapeHtml(s.requestType)}</p>
         ${s.description ? `<p class="solicitud-description">${escapeHtml(s.description)}</p>` : ''}
-        ${s.imageUrl ? `
+        ${s.photoUrls && s.photoUrls.length ? `
           <div class="solicitud-photo">
-            <a href="${s.imageUrl}" target="_blank" rel="noopener"><img src="${s.imageUrl}" alt="Foto de la solicitud" loading="lazy" /></a>
+            ${s.photoUrls.map((url) => `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="Foto de la solicitud" loading="lazy" /></a>`).join('')}
           </div>
         ` : ''}
         <div class="solicitud-meta">
@@ -120,6 +120,9 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="solicitud-actions">${actionsFor(s)}</div>
         <div class="solicitud-add-note-row">
           <input type="text" placeholder="Agregar nota de seguimiento..." data-note-input data-id="${s.id}" />
+          <label class="btn-small btn-attach-photo" data-attach-label data-id="${s.id}" title="Adjuntar foto">
+            📎<input type="file" accept="image/*" data-note-photo data-id="${s.id}" style="display:none" />
+          </label>
           <button class="btn-small" data-action="addNote" data-id="${s.id}" type="button">Agregar</button>
         </div>
       </div>
@@ -181,6 +184,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  const pendingNotePhotos = {};
+
+  solicitudesList.addEventListener('change', function (e) {
+    const input = e.target.closest('input[data-note-photo]');
+    if (!input) return;
+    const id = input.getAttribute('data-id');
+    const file = input.files && input.files[0];
+    if (file) {
+      pendingNotePhotos[id] = file;
+      const label = solicitudesList.querySelector(`[data-attach-label][data-id="${id}"]`);
+      if (label) label.classList.add('has-photo');
+    }
+    input.value = '';
+  });
+
   solicitudesList.addEventListener('click', function (e) {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
@@ -190,18 +208,28 @@ document.addEventListener('DOMContentLoaded', function () {
     if (action === 'addNote') {
       const input = solicitudesList.querySelector(`input[data-note-input][data-id="${id}"]`);
       const note = input ? input.value.trim() : '';
-      if (!note) return;
-      fetch('/api/solicitudes-administrativas', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action, note }),
-      })
-        .then(async (res) => {
+      const photo = pendingNotePhotos[id];
+      if (!note && !photo) return;
+
+      (async () => {
+        try {
+          const formData = new FormData();
+          formData.set('id', id);
+          formData.set('action', action);
+          formData.set('note', note);
+          if (photo) {
+            const compressed = await compressImage(photo, 1600, 0.75);
+            formData.append('photo', compressed, 'foto.jpg');
+          }
+          const res = await fetch('/api/solicitudes-administrativas', { method: 'PATCH', body: formData });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'No se pudo agregar la nota.');
+          delete pendingNotePhotos[id];
           loadSolicitudes();
-        })
-        .catch((err) => alert(err.message || 'No se pudo agregar la nota.'));
+        } catch (err) {
+          alert(err.message || 'No se pudo agregar la nota.');
+        }
+      })();
       return;
     }
 

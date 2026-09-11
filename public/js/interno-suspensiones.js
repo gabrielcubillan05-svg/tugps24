@@ -364,11 +364,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   suspensionForm.addEventListener('submit', async function (e) {
     e.preventDefault();
+    const clientName = document.getElementById('clientName').value.trim();
     const clientPhone = document.getElementById('clientPhone').value.trim();
     const plate = document.getElementById('plate').value.trim();
     const branch = document.getElementById('branch').value;
     const reason = document.getElementById('reason').value.trim();
-    if (!plate || !branch || !reason) return;
+    if (!clientName || !clientPhone || !plate || !branch || !reason) return;
 
     const submitBtn = suspensionForm.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
@@ -376,6 +377,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     try {
       const formData = new FormData();
+      formData.set('clientName', clientName);
       formData.set('clientPhone', clientPhone);
       formData.set('plate', plate);
       formData.set('branch', branch);

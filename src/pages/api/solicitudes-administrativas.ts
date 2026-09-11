@@ -50,6 +50,9 @@ interface Solicitud {
   description: string;
   dueDate: string | null;
   imagePath: string | null;
+  // Fotos adjuntas en cualquier momento del proceso (creación o notas de seguimiento
+  // posteriores) — imagePath se conserva solo por compatibilidad con registros viejos.
+  photoPaths: string[];
   status: string;
   timeline: TimelineEvent[];
   createdAt: string;
@@ -77,8 +80,29 @@ async function readSolicitudes(redis: any): Promise<Solicitud[]> {
       }
     })
     .filter((s): s is Solicitud => s !== null)
-    .map((s) => ({ timeline: [], dueDate: null, imagePath: null, resolvedAt: null, resolvedByName: '', ...s }))
+    .map((s) => ({ timeline: [], dueDate: null, imagePath: null, photoPaths: [], resolvedAt: null, resolvedByName: '', ...s }))
+    .map((s) => ({ ...s, photoPaths: s.photoPaths.length ? s.photoPaths : s.imagePath ? [s.imagePath] : [] }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function uploadSolicitudPhoto(photoFile: File): Promise<{ path?: string; error?: string; status?: number }> {
+  if (!photoFile.type.startsWith('image/')) {
+    return { error: 'la foto debe ser una imagen', status: 400 };
+  }
+  if (photoFile.size > MAX_IMAGE_BYTES) {
+    return { error: 'la foto debe pesar menos de 8MB', status: 400 };
+  }
+  const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    return { error: 'almacenamiento de imágenes no configurado', status: 503 };
+  }
+  try {
+    const blobId = randomUUID();
+    const blob = await put(`solicitudes-admin/${blobId}`, photoFile, { access: 'private', token, addRandomSuffix: false });
+    return { path: blob.pathname };
+  } catch (err) {
+    return { error: 'fallo al subir la foto', status: 500 };
+  }
 }
 
 function addEvent(sol: Solicitud, type: string, message: string, authorName: string, now: string) {
@@ -146,7 +170,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const itemsWithUrl = items.map((s) => ({
     ...s,
-    imageUrl: s.imagePath ? '/api/blob-file?path=' + encodeURIComponent(s.imagePath) : null,
+    photoUrls: s.photoPaths.map((p) => '/api/blob-file?path=' + encodeURIComponent(p)),
   }));
 
   return new Response(
@@ -191,26 +215,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   let imagePath: string | null = null;
   if (photoFile instanceof File && photoFile.size > 0) {
-    if (!photoFile.type.startsWith('image/')) {
-      return new Response(JSON.stringify({ error: 'la foto debe ser una imagen' }), { status: 400 });
+    const uploaded = await uploadSolicitudPhoto(photoFile);
+    if (uploaded.error) {
+      return new Response(JSON.stringify({ error: uploaded.error }), { status: uploaded.status || 500 });
     }
-    if (photoFile.size > MAX_IMAGE_BYTES) {
-      return new Response(JSON.stringify({ error: 'la foto debe pesar menos de 8MB' }), { status: 400 });
-    }
-    const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'almacenamiento de imágenes no configurado' }), { status: 503 });
-    }
-    try {
-      const blobId = randomUUID();
-      const blob = await put(`solicitudes-admin/${blobId}`, photoFile, { access: 'private', token, addRandomSuffix: false });
-      imagePath = blob.pathname;
-    } catch (err) {
-      return new Response(
-        JSON.stringify({ error: 'fallo al subir la foto', detail: err instanceof Error ? err.message : String(err) }),
-        { status: 500 }
-      );
-    }
+    imagePath = uploaded.path || null;
   }
 
   const creator = await findUserById(redis, session.userId);
@@ -223,6 +232,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     description,
     dueDate,
     imagePath,
+    photoPaths: imagePath ? [imagePath] : [],
     status: 'Pendiente',
     timeline: [],
     createdAt: now,
@@ -258,10 +268,23 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
 
   let body: { id?: string; action?: string; note?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  let photoFile: File | null = null;
+  const contentType = request.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData();
+    body = {
+      id: String(form.get('id') || ''),
+      action: String(form.get('action') || ''),
+      note: String(form.get('note') || ''),
+    };
+    const maybePhoto = form.get('photo');
+    if (maybePhoto instanceof File && maybePhoto.size > 0) photoFile = maybePhoto;
+  } else {
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+    }
   }
 
   const id = String(body.id || '');
@@ -271,7 +294,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const sol: Solicitud = { timeline: [], dueDate: null, imagePath: null, resolvedAt: null, resolvedByName: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const sol: Solicitud = { timeline: [], dueDate: null, imagePath: null, photoPaths: [], resolvedAt: null, resolvedByName: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  if (!sol.photoPaths.length && sol.imagePath) sol.photoPaths = [sol.imagePath];
 
   const actor = await findUserById(redis, session.userId);
   const actorName = actor?.name || session.username;
@@ -293,10 +317,17 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!isCreator && !isKellyOrWilmar && !isOverride) {
       return new Response(JSON.stringify({ error: 'no tienes permiso sobre esta solicitud' }), { status: 403 });
     }
-    if (!note) {
+    if (!note && !photoFile) {
       return new Response(JSON.stringify({ error: 'la nota no puede estar vacía' }), { status: 400 });
     }
-    addEvent(sol, 'note', note, actorName, now);
+    if (photoFile) {
+      const uploaded = await uploadSolicitudPhoto(photoFile);
+      if (uploaded.error) {
+        return new Response(JSON.stringify({ error: uploaded.error }), { status: uploaded.status || 500 });
+      }
+      if (uploaded.path) sol.photoPaths.push(uploaded.path);
+    }
+    addEvent(sol, 'note', note ? (photoFile ? `${note} (foto adjunta)` : note) : 'Adjuntó una foto', actorName, now);
   } else if (action === 'complete' || action === 'notCompleted') {
     if (!isKellyOrWilmar && !isOverride) {
       return new Response(JSON.stringify({ error: 'solo Kelly o Wilmar pueden cerrar esta solicitud' }), { status: 403 });

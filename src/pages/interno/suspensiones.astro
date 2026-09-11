@@ -19,11 +19,15 @@ if (!canAccessSuspensiones(session)) {
 
   <div class="panel-card">
     <h2>Nuevo caso de suspensión</h2>
-    <p class="hint">El operador registra la sucursal, la placa, el motivo y el teléfono. El caso se asigna automáticamente a la secretaria de esa sucursal (o al gerente si no hay secretaria configurada). Ella completa después el nombre del cliente y la foto de la solicitud.</p>
+    <p class="hint">El operador registra el nombre del cliente, el teléfono, la placa, la sucursal y el motivo. El caso se asigna automáticamente a la secretaria de esa sucursal (o al gerente si no hay secretaria configurada). Ella completa después la foto de la solicitud.</p>
     <form id="suspensionForm" class="form-grid">
       <div class="field">
+        <label for="clientName">Nombre del cliente</label>
+        <input id="clientName" type="text" placeholder="Nombre completo" required />
+      </div>
+      <div class="field">
         <label for="clientPhone">Teléfono del cliente</label>
-        <input id="clientPhone" type="text" placeholder="300 000 0000" />
+        <input id="clientPhone" type="text" placeholder="300 000 0000" required />
       </div>
       <div class="field">
         <label for="plate">Placa o placas</label>

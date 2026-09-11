@@ -254,7 +254,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const reason = String(form.get('reason') || '').trim();
   const photoFile = form.get('photo');
 
-  if (!plate || !branch || !reason) {
+  if (!clientName || !clientPhone || !plate || !branch || !reason) {
     return new Response(JSON.stringify({ error: 'faltan campos obligatorios' }), { status: 400 });
   }
   if (!BRANCHES.includes(branch)) {

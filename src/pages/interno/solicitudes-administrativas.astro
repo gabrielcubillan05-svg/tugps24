@@ -91,15 +91,17 @@ if (!canAccessSolicitudesAdministrativas(session)) {
   .solicitud-client { font-weight: 700; font-size: 15px; }
   .solicitud-type { font-size: 13px; color: var(--slate); margin-bottom: 6px; }
   .solicitud-description { font-size: 13px; margin-bottom: 8px; white-space: pre-wrap; }
-  .solicitud-photo { margin-bottom: 10px; }
+  .solicitud-photo { margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
   .solicitud-photo img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; }
   .solicitud-meta { color: var(--slate); font-size: 12px; margin-bottom: 10px; }
   .solicitud-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
   .solicitud-timeline { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .timeline-item { font-size: 12.5px; background: var(--ink-900, #0e0d0b); border-radius: 6px; padding: 6px 10px; }
   .timeline-date { color: var(--slate); font-size: 11px; margin-right: 8px; }
-  .solicitud-add-note-row { display: flex; gap: 8px; }
-  .solicitud-add-note-row input { flex: 1; }
+  .solicitud-add-note-row { display: flex; gap: 8px; align-items: center; }
+  .solicitud-add-note-row input[type="text"] { flex: 1; }
+  .btn-attach-photo { cursor: pointer; display: inline-flex; align-items: center; }
+  .btn-attach-photo.has-photo { background: #2f8a4f33; color: var(--ok); }
   .badge.status-Pendiente { background: #ff7a1a29; color: var(--amber); }
   .badge.status-Completada { background: #2f8a4f33; color: var(--ok); }
   .badge.status-No-completada { background: #e0563f22; color: var(--danger); }
