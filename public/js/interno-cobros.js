@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function () {
         sendAllReminderResult.textContent = 'No hay cobros pendientes de recordatorio.';
         return;
       }
-      if (!confirm(`Se enviará ahora una primera tanda de hasta 100 recordatorios (de los ${pendientes} pendientes). El resto sale solo, en tandas de 100 cada media hora entre 8am y 6pm, para que no se vea como spam. ¿Continuar?`)) return;
+      if (!confirm(`Se enviará ahora una primera tanda de hasta 300 recordatorios (de los ${pendientes} pendientes). El resto sale solo, en tandas de 300 cada hora entre 8am y 6pm, para que no se vea como spam. ¿Continuar?`)) return;
       sendAllReminderBtn.disabled = true;
       sendAllReminderResult.textContent = 'Enviando la primera tanda...';
 
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function () {
           const sent = data.sent || 0;
           const failed = data.failed || 0;
           sendAllReminderResult.textContent = data.remaining > 0
-            ? `Tanda enviada: ${sent} recordatorio(s)${failed ? `, ${failed} fallido(s)` : ''}. Quedan ${data.remaining} pendientes — salen automáticamente en tandas de 100 cada media hora (8am-6pm).`
+            ? `Tanda enviada: ${sent} recordatorio(s)${failed ? `, ${failed} fallido(s)` : ''}. Quedan ${data.remaining} pendientes — salen automáticamente en tandas de 300 cada hora (8am-6pm).`
             : `Listo: ${sent} recordatorio(s) enviado(s)${failed ? `, ${failed} fallido(s)` : ''}.`;
           sendAllReminderBtn.disabled = false;
           loadCobros();

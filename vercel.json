@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/whatsapp-cobros-bulk-cron",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }

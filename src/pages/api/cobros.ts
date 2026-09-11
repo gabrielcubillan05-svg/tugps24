@@ -41,7 +41,7 @@ async function logCobroReminderSent(redis: any, cobroId: string, nombre: string,
 
 // Tamaño de cada tanda de recordatorios masivos — tanto el botón manual como el cron
 // whatsapp-cobros-bulk-cron.ts usan este mismo tope, para que nunca salga un lote más grande.
-export const BULK_REMINDER_BATCH_SIZE = 100;
+export const BULK_REMINDER_BATCH_SIZE = 300;
 
 export interface BulkReminderResult {
   sent: number;
@@ -52,7 +52,7 @@ export interface BulkReminderResult {
 
 // Envía UNA tanda de la plantilla de recordatorio a los cobros pendientes (sin plantilla enviada
 // aún). La reparte en tandas quien la llama: el botón manual (una tanda por click) y el cron
-// automático (una tanda cada media hora, solo entre 8am y 6pm).
+// automático (una tanda cada hora, solo entre 8am y 6pm).
 export async function sendReminderBatch(redis: any, batchSize: number): Promise<BulkReminderResult> {
   const allCobros = await readCobros(redis);
   const pending = allCobros.filter((c) => !c.templateSentAt && normalizePhone(c.telefono).length >= 10);
@@ -477,7 +477,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   // Envía UNA tanda (100) de la plantilla a los cobros pendientes — ya no hace todo de una vez:
   // el resto de las tandas las sigue mandando solo whatsapp-cobros-bulk-cron.ts, repartidas
-  // cada media hora entre 8am y 6pm, para que un archivo grande (miles de registros) no se
+  // cada hora entre 8am y 6pm, para que un archivo grande (miles de registros) no se
   // vea como spam al salir todo de golpe.
   if (body.action === 'sendWhatsappReminderAll') {
     if (!canUploadCobros(session)) {

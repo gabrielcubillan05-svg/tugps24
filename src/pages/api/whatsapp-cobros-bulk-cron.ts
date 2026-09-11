@@ -6,8 +6,8 @@ import { logAudit } from '../../lib/audit';
 
 export const prerender = false;
 
-// Vercel llama esto cada media hora (ver vercel.json). Reparte el envío del recordatorio de
-// cobranza en tandas de BULK_REMINDER_BATCH_SIZE (100) SOLO entre 8am y 6pm hora Colombia, para
+// Vercel llama esto cada hora (ver vercel.json). Reparte el envío del recordatorio de
+// cobranza en tandas de BULK_REMINDER_BATCH_SIZE (300) SOLO entre 8am y 6pm hora Colombia, para
 // que un archivo grande recién subido (miles de registros) no le salga de golpe a todo el mundo
 // y se vea como spam ante Meta. Si ya no queda nadie pendiente, simplemente no envía nada.
 export const GET: APIRoute = async ({ request }) => {
