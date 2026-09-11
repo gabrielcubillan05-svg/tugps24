@@ -42,6 +42,9 @@ export interface Task {
   notes: Note[];
   createdAt: string;
   updatedAt: string;
+  // Fecha exacta en que se marcó como Completada — separada de updatedAt porque esta última
+  // cambia con cualquier edición posterior (una nota agregada después, por ejemplo).
+  completedAt: string | null;
 }
 
 export function computeOverdue(task: Task): boolean {
@@ -61,7 +64,7 @@ export async function readTasks(redis: any): Promise<Task[]> {
       }
     })
     .filter((t): t is Task => t !== null)
-    .map((t) => ({ notes: [], proof: null, ...t }))
+    .map((t) => ({ notes: [], proof: null, completedAt: null, ...t }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -140,6 +143,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     notes: [],
     createdAt: now,
     updatedAt: now,
+    completedAt: null,
   };
 
   await redis.hset(REDIS_KEY, { [task.id]: JSON.stringify(task) });
@@ -180,7 +184,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const task: Task = { notes: [], proof: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const task: Task = { notes: [], proof: null, completedAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
 
   const isManager = canAssignTasks(session.role);
   const isOwner = task.assigneeId === session.userId;
@@ -197,6 +201,13 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
         JSON.stringify({ error: 'adjunta la foto de evidencia antes de marcar la tarea como completada' }),
         { status: 400 }
       );
+    }
+    if (body.status === 'Completada') {
+      task.completedAt = new Date().toISOString();
+    } else if (task.status === 'Completada') {
+      // Se está sacando de Completada (reabierta) — limpia la fecha para que no quede una
+      // marca de "completada" vieja en una tarea que ya no lo está.
+      task.completedAt = null;
     }
     task.status = body.status;
   }
