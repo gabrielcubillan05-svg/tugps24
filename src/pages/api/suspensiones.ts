@@ -177,9 +177,14 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   let viewerBranch: string | null = null;
   let casos = all;
-  if (session.role === 'operador') {
+  // Josué y Wilmar ven TODOS los casos sin importar su rol (igual que ya se respeta en las
+  // acciones de escalar/finalizar más abajo) — antes este filtro solo miraba el rol, así que
+  // si cualquiera de los dos tuviera rol "operador" o "secretaria" le llegaría una lista
+  // incompleta pese a tener permiso total sobre los casos.
+  const seesAllOverride = isJosueSession(session) || isTesoreriaSession(session);
+  if (!seesAllOverride && session.role === 'operador') {
     casos = casos.filter((c) => c.createdById === session.userId);
-  } else if (session.role === 'secretaria') {
+  } else if (!seesAllOverride && session.role === 'secretaria') {
     const viewer = await findUserById(redis, session.userId);
     viewerBranch = viewer?.branch || null;
     casos = viewerBranch ? casos.filter((c) => c.branch === viewerBranch) : [];
