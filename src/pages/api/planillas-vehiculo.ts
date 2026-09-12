@@ -52,8 +52,15 @@ export interface PlanillaVehiculo {
   tecnicoFirma: string | null;
   clienteNombre: string;
   clienteCedula: string;
+  clienteTelefono: string;
   clienteFirma: string | null;
   observacionGarantia: string;
+  // Firma de conforme cuando el cliente recoge el vehículo ya atendido — se agrega después,
+  // no en la creación de la planilla (el ingreso y la salida no pasan al mismo tiempo).
+  salidaFirma: string | null;
+  salidaConforme: boolean | null;
+  salidaObservacion: string;
+  salidaAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +82,7 @@ export async function readPlanillas(redis: any): Promise<PlanillaVehiculo[]> {
       }
     })
     .filter((p): p is PlanillaVehiculo => p !== null)
+    .map((p) => ({ clienteTelefono: '', salidaFirma: null, salidaConforme: null, salidaObservacion: '', salidaAt: null, ...p }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -138,6 +146,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const observacionGarantia = String(form.get('observacionGarantia') || '').trim();
   const clienteNombre = String(form.get('clienteNombre') || '').trim();
   const clienteCedula = String(form.get('clienteCedula') || '').trim();
+  const clienteTelefono = String(form.get('clienteTelefono') || '').trim();
   const clienteFirmaFile = form.get('clienteFirma');
   const tecnicoFirmaFile = form.get('tecnicoFirma');
   let items: ChecklistItem[] = [];
@@ -147,7 +156,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'checklist inválido' }), { status: 400 });
   }
 
-  if (!placa || !fecha || !hora || !clienteNombre || !clienteCedula) {
+  if (!placa || !fecha || !hora || !clienteNombre || !clienteCedula || !clienteTelefono) {
     return new Response(JSON.stringify({ error: 'faltan campos obligatorios (placa, fecha, hora, cliente)' }), { status: 400 });
   }
   if (!(clienteFirmaFile instanceof File) || clienteFirmaFile.size === 0) {
@@ -225,14 +234,107 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     tecnicoFirma,
     clienteNombre,
     clienteCedula,
+    clienteTelefono,
     clienteFirma,
     observacionGarantia,
+    salidaFirma: null,
+    salidaConforme: null,
+    salidaObservacion: '',
+    salidaAt: null,
     createdAt: now,
     updatedAt: now,
   };
 
   await redis.hset(REDIS_KEY, { [planilla.id]: JSON.stringify(planilla) });
   await logAudit(redis, session, 'planilla_vehiculo_create', planilla.placa, planilla.tecnicoNombre);
+
+  return new Response(JSON.stringify({ planilla }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+// Agrega la firma de conforme cuando el cliente recoge el vehículo — se hace en un segundo
+// momento sobre una planilla ya creada, así que va aparte del POST inicial.
+export const PATCH: APIRoute = async ({ request, cookies }) => {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requirePlanillas(cookies);
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  const contentType = request.headers.get('content-type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return new Response(JSON.stringify({ error: 'invalid content-type' }), { status: 400 });
+  }
+
+  const form = await request.formData();
+  const id = String(form.get('id') || '');
+  const salidaFirmaFile = form.get('salidaFirma');
+  // Por defecto se asume conforme (así el técnico no tiene que marcar nada en el caso normal);
+  // solo se registra explícitamente "no conforme" si el front-end lo manda así.
+  const salidaConforme = String(form.get('salidaConforme') || 'true') !== 'false';
+  const salidaObservacion = String(form.get('salidaObservacion') || '').trim();
+
+  const raw = await redis.hget<string>(REDIS_KEY, id);
+  if (!raw) {
+    return new Response(JSON.stringify({ error: 'planilla no encontrada' }), { status: 404 });
+  }
+  const planilla: PlanillaVehiculo = {
+    clienteTelefono: '', salidaFirma: null, salidaConforme: null, salidaObservacion: '', salidaAt: null,
+    ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
+  };
+
+  const isManager = session.role === 'gerente' || session.role === 'admin';
+  if (!isManager && planilla.tecnicoId !== session.userId) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+
+  if (!salidaConforme && !salidaObservacion) {
+    return new Response(JSON.stringify({ error: 'si el vehículo no queda conforme, describe la observación' }), { status: 400 });
+  }
+
+  if (!(salidaFirmaFile instanceof File) || salidaFirmaFile.size === 0) {
+    return new Response(JSON.stringify({ error: 'falta la firma de conforme de salida' }), { status: 400 });
+  }
+  if (!salidaFirmaFile.type.startsWith('image/')) {
+    return new Response(JSON.stringify({ error: 'la firma debe ser una imagen' }), { status: 400 });
+  }
+  if (salidaFirmaFile.size > MAX_IMAGE_BYTES) {
+    return new Response(JSON.stringify({ error: 'la firma pesa demasiado' }), { status: 400 });
+  }
+
+  const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'almacenamiento no configurado' }), { status: 503 });
+  }
+
+  try {
+    const blob = await put(`planillas/${id}-salida-${randomUUID()}`, salidaFirmaFile, {
+      access: 'private',
+      token,
+      addRandomSuffix: false,
+    });
+    planilla.salidaFirma = blob.pathname;
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: 'fallo al subir la firma', detail: err instanceof Error ? err.message : String(err) }),
+      { status: 500 }
+    );
+  }
+
+  const now = new Date().toISOString();
+  planilla.salidaConforme = salidaConforme;
+  planilla.salidaObservacion = salidaObservacion;
+  planilla.salidaAt = now;
+  planilla.updatedAt = now;
+  await redis.hset(REDIS_KEY, { [id]: JSON.stringify(planilla) });
+  await logAudit(redis, session, 'planilla_vehiculo_salida', planilla.placa, salidaConforme ? 'conforme' : `no conforme: ${salidaObservacion}`);
 
   return new Response(JSON.stringify({ planilla }), {
     headers: { 'Content-Type': 'application/json' },

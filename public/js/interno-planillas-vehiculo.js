@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="badge">${escapeHtml(p.fecha)} ${escapeHtml(p.hora)}</span>
         </div>
         <div class="planilla-meta">
-          Técnico: ${escapeHtml(p.tecnicoNombre)}${p.branch ? ' · ' + escapeHtml(p.branch) : ''} · Cliente: ${escapeHtml(p.clienteNombre)} (CC ${escapeHtml(p.clienteCedula)})
+          Técnico: ${escapeHtml(p.tecnicoNombre)}${p.branch ? ' · ' + escapeHtml(p.branch) : ''} · Cliente: ${escapeHtml(p.clienteNombre)} (CC ${escapeHtml(p.clienteCedula)}${p.clienteTelefono ? ' · Tel: ' + escapeHtml(p.clienteTelefono) : ''})
           · Combustible: ${escapeHtml(p.nivelCombustible || '—')} · Registrada ${fmtDate(p.createdAt)}
         </div>
         ${problemItems.length ? `
@@ -49,6 +49,18 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="planilla-firmas">
           ${p.clienteFirma ? `<img src="/api/blob-file?path=${encodeURIComponent(p.clienteFirma)}" alt="Firma del cliente" loading="lazy" />` : ''}
           ${p.tecnicoFirma ? `<img src="/api/blob-file?path=${encodeURIComponent(p.tecnicoFirma)}" alt="Firma del técnico" loading="lazy" />` : ''}
+        </div>
+        <div class="planilla-salida" data-salida-for="${p.id}">
+          ${p.salidaFirma ? `
+            <div class="planilla-salida-done">
+              <span class="${p.salidaConforme === false ? 'malo' : ''}">
+                ${p.salidaConforme === false ? 'Salida NO conforme' : 'Salida conforme'} (${fmtDate(p.salidaAt)})${p.salidaObservacion ? ': ' + escapeHtml(p.salidaObservacion) : ''}
+              </span>
+              <img src="/api/blob-file?path=${encodeURIComponent(p.salidaFirma)}" alt="Firma de conforme de salida" loading="lazy" />
+            </div>
+          ` : `
+            <button class="btn-small" data-action="start-salida" data-id="${p.id}" type="button">Registrar conforme de salida</button>
+          `}
         </div>
       </div>
     `;
@@ -135,6 +147,95 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
 
+  // --- Conforme de salida (se agrega después, sobre una planilla ya creada — aplica tanto
+  // para el técnico como para gerente/admin, así que va antes del "solo lectura" de abajo) ---
+  const salidaPads = {};
+
+  function startSalida(id, container) {
+    container.innerHTML = `
+      <p class="planilla-salida-note">Al firmar, el cliente confirma que el vehículo queda conforme (en orden) al momento de la entrega.</p>
+      <label class="checkbox planilla-salida-noconforme">
+        <input type="checkbox" data-role="no-conforme" data-id="${id}" />
+        El vehículo NO queda conforme
+      </label>
+      <textarea data-role="salida-observacion" data-id="${id}" placeholder="Describe la observación (obligatorio si no queda conforme)" style="display:none;"></textarea>
+      <canvas class="firma-canvas" id="salidaCanvas-${id}" width="500" height="180"></canvas>
+      <div class="planilla-salida-actions">
+        <button class="btn-small" data-action="save-salida" data-id="${id}" type="button">Guardar firma de salida</button>
+        <button class="btn-ghost" data-action="clear-salida" data-id="${id}" type="button">Borrar</button>
+        <button class="btn-ghost" data-action="cancel-salida" data-id="${id}" type="button">Cancelar</button>
+      </div>
+    `;
+    salidaPads[id] = setupSignaturePad(document.getElementById(`salidaCanvas-${id}`));
+  }
+
+  planillasList.addEventListener('change', function (e) {
+    const checkbox = e.target.closest('input[data-role="no-conforme"]');
+    if (!checkbox) return;
+    const id = checkbox.getAttribute('data-id');
+    const textarea = planillasList.querySelector(`textarea[data-role="salida-observacion"][data-id="${id}"]`);
+    if (textarea) textarea.style.display = checkbox.checked ? 'block' : 'none';
+  });
+
+  planillasList.addEventListener('click', async function (e) {
+    const startBtn = e.target.closest('button[data-action="start-salida"]');
+    if (startBtn) {
+      const id = startBtn.getAttribute('data-id');
+      startSalida(id, planillasList.querySelector(`[data-salida-for="${id}"]`));
+      return;
+    }
+
+    const clearBtn = e.target.closest('button[data-action="clear-salida"]');
+    if (clearBtn) {
+      const id = clearBtn.getAttribute('data-id');
+      if (salidaPads[id]) salidaPads[id].clear();
+      return;
+    }
+
+    const cancelBtn = e.target.closest('button[data-action="cancel-salida"]');
+    if (cancelBtn) {
+      delete salidaPads[cancelBtn.getAttribute('data-id')];
+      loadPlanillas();
+      return;
+    }
+
+    const saveBtn = e.target.closest('button[data-action="save-salida"]');
+    if (saveBtn) {
+      const id = saveBtn.getAttribute('data-id');
+      const pad = salidaPads[id];
+      if (!pad || pad.isEmpty()) {
+        alert('Falta la firma del cliente para el conforme de salida.');
+        return;
+      }
+      const container = planillasList.querySelector(`[data-salida-for="${id}"]`);
+      const noConforme = container.querySelector('input[data-role="no-conforme"]').checked;
+      const observacion = container.querySelector('textarea[data-role="salida-observacion"]').value.trim();
+      if (noConforme && !observacion) {
+        alert('Describe la observación de por qué el vehículo no queda conforme.');
+        return;
+      }
+      saveBtn.disabled = true;
+      try {
+        const blob = await pad.toBlob();
+        const formData = new FormData();
+        formData.set('id', id);
+        formData.set('salidaFirma', blob, 'firma-salida.png');
+        formData.set('salidaConforme', noConforme ? 'false' : 'true');
+        formData.set('salidaObservacion', observacion);
+        const res = await fetch('/api/planillas-vehiculo', { method: 'PATCH', body: formData });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `error ${res.status}`);
+        }
+        delete salidaPads[id];
+        loadPlanillas();
+      } catch (err) {
+        alert('No se pudo guardar la firma de salida: ' + (err.message || 'intenta de nuevo.'));
+        saveBtn.disabled = false;
+      }
+    }
+  });
+
   const planillaForm = document.getElementById('planillaForm');
   if (!planillaForm) {
     loadPlanillas();
@@ -172,8 +273,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const observacionGarantia = document.getElementById('observacionGarantia').value.trim();
     const clienteNombre = document.getElementById('clienteNombre').value.trim();
     const clienteCedula = document.getElementById('clienteCedula').value.trim();
+    const clienteTelefono = document.getElementById('clienteTelefono').value.trim();
 
-    if (!placa || !fecha || !hora || !clienteNombre || !clienteCedula) {
+    if (!placa || !fecha || !hora || !clienteNombre || !clienteCedula || !clienteTelefono) {
       formError.textContent = 'Completa los campos obligatorios.';
       formError.style.display = 'block';
       return;
@@ -209,6 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
       formData.set('observacionGarantia', observacionGarantia);
       formData.set('clienteNombre', clienteNombre);
       formData.set('clienteCedula', clienteCedula);
+      formData.set('clienteTelefono', clienteTelefono);
       formData.set('items', JSON.stringify(items));
 
       const clienteBlob = await firmaCliente.toBlob();

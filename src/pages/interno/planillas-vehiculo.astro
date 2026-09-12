@@ -95,6 +95,10 @@ const defaultHora = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota
             <label for="clienteCedula">Cédula del cliente</label>
             <input id="clienteCedula" type="text" required />
           </div>
+          <div class="field">
+            <label for="clienteTelefono">Teléfono del cliente</label>
+            <input id="clienteTelefono" type="tel" placeholder="300 000 0000" required />
+          </div>
         </div>
 
         <div class="firma-grid">
@@ -181,6 +185,16 @@ const defaultHora = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota
   .planilla-firmas { display: flex; gap: 10px; flex-wrap: wrap; }
   .planilla-firmas img { width: 140px; height: 60px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
   .planilla-detail-toggle { margin-top: 8px; }
+  .planilla-salida { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .planilla-salida-done { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--paper-dim); }
+  .planilla-salida-done img { width: 140px; height: 60px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
+  .planilla-salida-done .malo { color: var(--danger); font-weight: 600; }
+  .planilla-salida-note { font-size: 12.5px; color: var(--paper-dim); margin-bottom: 8px; }
+  .planilla-salida-noconforme { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--paper-dim); margin-bottom: 8px; }
+  .planilla-salida-noconforme input { width: auto; }
+  .planilla-salida textarea { width: 100%; margin-bottom: 10px; min-height: 60px; }
+  .planilla-salida .firma-canvas { max-width: 500px; }
+  .planilla-salida-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 </style>
 
 <script src="/js/interno-planillas-vehiculo.js" defer></script>
