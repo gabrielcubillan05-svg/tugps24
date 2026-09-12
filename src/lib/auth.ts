@@ -43,7 +43,8 @@ export type Section =
   | 'seguimiento-masivos'
   | 'conversaciones-whatsapp'
   | 'agentes-ia'
-  | 'pagos-internos';
+  | 'pagos-internos'
+  | 'planillas-vehiculo';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',

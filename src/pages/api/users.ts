@@ -197,13 +197,21 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
 
   if (isBranchManager) {
-    // Josué y Wilmar solo pueden editarle a otros usuarios la sucursal y/o la contraseña —
-    // nada de nombre, rol ni activar/desactivar (eso sigue siendo exclusivo de admin).
-    if (body.name !== undefined || body.role !== undefined || body.active !== undefined || body.currentPassword !== undefined) {
-      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal o la contraseña de este usuario' }), { status: 403 });
+    // Josué y Wilmar pueden editarle a otros usuarios la sucursal, el rol y/o la contraseña —
+    // nada de nombre ni activar/desactivar (eso sigue siendo exclusivo de admin).
+    if (body.name !== undefined || body.active !== undefined || body.currentPassword !== undefined) {
+      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal, el rol o la contraseña de este usuario' }), { status: 403 });
     }
-    if (body.branch === undefined && body.password === undefined) {
-      return new Response(JSON.stringify({ error: 'falta la sucursal o la nueva contraseña' }), { status: 400 });
+    if (body.branch === undefined && body.password === undefined && body.role === undefined) {
+      return new Response(JSON.stringify({ error: 'falta la sucursal, el rol o la nueva contraseña' }), { status: 400 });
+    }
+
+    if (body.role !== undefined) {
+      if (!ROLES.includes(body.role as Role)) {
+        return new Response(JSON.stringify({ error: 'rol inválido' }), { status: 400 });
+      }
+      user.role = body.role as Role;
+      await logAudit(redis, session, 'user_role_update', user.username, body.role);
     }
 
     if (body.branch !== undefined) {

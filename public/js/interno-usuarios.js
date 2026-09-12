@@ -46,10 +46,9 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="user-meta">Usuario: ${escapeHtml(u.username)}${u.branch ? ` · Sucursal: ${escapeHtml(u.branch)}` : ''}</div>
         <div class="user-controls">
-          ${isLimited ? '' : `
           <select data-action="role" data-id="${u.id}">
             ${roles.map((r) => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
-          </select>`}
+          </select>
           <select data-action="branch" data-id="${u.id}">
             <option value="" ${!u.branch ? 'selected' : ''}>Sin sucursal asignada</option>
             ${BRANCHES.map((b) => `<option value="${b}" ${b === u.branch ? 'selected' : ''}>${b}</option>`).join('')}
