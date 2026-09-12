@@ -18,6 +18,10 @@ export const prerender = false;
 
 export const CONVERSATIONS_KEY = 'internal:lead-whatsapp-conversations';
 const COBRO_CONVERSATIONS_KEY = 'internal:cobro-whatsapp-conversations';
+// Texto de respaldo cuando el agente no generó una respuesta real (ej. falló la llamada a
+// Anthropic) — se exporta para que whatsapp-retry-today.ts pueda detectar a quién de verdad
+// nunca le llegó una respuesta sustancial, y no solo mirar quién tiene un mensaje más reciente.
+export const GENERIC_FALLBACK_TEXT = 'Gracias por tu mensaje, dame un momento.';
 const MAX_HISTORY = 60;
 const WHATSAPP_ACTOR = { userId: 'whatsapp-agent', username: 'Agente IA (Andrés)' };
 const COLLECTIONS_ACTOR = { userId: 'whatsapp-collections-agent', username: 'Agente IA (Valentina)' };
@@ -217,7 +221,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   let replyText = agentResult.reply;
   if (!replyText) {
     const firstTool = agentResult.toolCalls[0]?.name;
-    replyText = (firstTool && fallbackByTool[firstTool]) || 'Gracias por tu mensaje, dame un momento.';
+    replyText = (firstTool && fallbackByTool[firstTool]) || GENERIC_FALLBACK_TEXT;
   }
 
   for (const call of agentResult.toolCalls) {
@@ -399,7 +403,7 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
   let replyText = agentResult.reply;
   if (!replyText) {
     const firstTool = agentResult.toolCalls[0]?.name;
-    replyText = (firstTool && fallbackByTool[firstTool]) || 'Gracias por tu mensaje, dame un momento.';
+    replyText = (firstTool && fallbackByTool[firstTool]) || GENERIC_FALLBACK_TEXT;
   }
 
   let sendPaymentImage = false;

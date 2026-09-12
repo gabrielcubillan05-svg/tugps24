@@ -3,7 +3,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, REDIS_KEY as LEADS_KEY } from './leads';
-import { appendHistory } from './whatsapp-webhook';
+import { readHistory, appendHistory, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
 import { SESSION_COOKIE, getSession, canManageAiAgents, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
@@ -19,9 +19,10 @@ function dateInColombia(iso: string): string {
 }
 
 // Acción manual de admin: cuando el agente de ventas (Andrés) se quedó sin poder responder de
-// verdad a leads de hoy (ej. créditos de Anthropic agotados) y solo les llegó el mensaje
-// genérico de respaldo, esto les manda un mensaje real para retomar la conversación. Solo a
-// los que de verdad están esperando respuesta (su último mensaje fue de ellos, no nuestro).
+// verdad a leads de hoy (ej. créditos de Anthropic agotados), igual les llegó un mensaje —
+// pero fue el genérico de respaldo ("Gracias por tu mensaje, dame un momento."), no una
+// respuesta real. Por eso NO alcanza con mirar quién tiene el mensaje más reciente: hay que
+// revisar el CONTENIDO del último mensaje nuestro y detectar si fue ese relleno.
 export const POST: APIRoute = async ({ request, cookies }) => {
   if (!verifySameOrigin(request)) {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
@@ -51,11 +52,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (lead.source !== 'whatsapp-ads') continue;
     if (lead.aiStage !== 'en_conversacion') continue;
     if (dateInColombia(lead.createdAt) !== today) continue;
-    if (!lead.lastInboundAt) { skipped++; continue; }
 
-    const lastInbound = new Date(lead.lastInboundAt).getTime();
-    const lastOutbound = lead.lastOutboundAt ? new Date(lead.lastOutboundAt).getTime() : 0;
-    if (lastOutbound > lastInbound) { skipped++; continue; } // ya le llegó una respuesta después de su último mensaje
+    const history = await readHistory(redis, lead.id);
+    const lastMessage = history[history.length - 1];
+    // Necesita reintento si nunca le contestamos (última fue del cliente) o si lo último
+    // nuestro fue el relleno genérico — cualquier otra respuesta real, por corta que sea, se
+    // deja tranquila para no interrumpir una conversación que sí avanzó.
+    const needsRetry = !lastMessage || lastMessage.role === 'user' || (lastMessage.role === 'assistant' && lastMessage.content === GENERIC_FALLBACK_TEXT);
+    if (!needsRetry) { skipped++; continue; }
 
     const result = await sendWhatsappText(lead.phone, RETRY_MESSAGE);
     if (!result.ok) { failed++; continue; }
