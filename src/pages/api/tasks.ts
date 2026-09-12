@@ -45,6 +45,21 @@ export interface Task {
   // Fecha exacta en que se marcó como Completada — separada de updatedAt porque esta última
   // cambia con cualquier edición posterior (una nota agregada después, por ejemplo).
   completedAt: string | null;
+  // Si tiene recurrencia, al marcarla Completada se crea automáticamente la siguiente
+  // ocurrencia (misma serie, vía recurrenceSeriesId) con la próxima fecha de vencimiento —
+  // cada ocurrencia queda como su propia tarea, con su propia evidencia/notas.
+  recurrence: 'diaria' | 'semanal' | 'mensual' | null;
+  recurrenceSeriesId: string | null;
+}
+
+const RECURRENCES = ['diaria', 'semanal', 'mensual'];
+
+function nextDueDateFor(dueDate: string | null, recurrence: string): string | null {
+  const base = dueDate ? new Date(dueDate + 'T00:00:00') : new Date();
+  if (recurrence === 'diaria') base.setDate(base.getDate() + 1);
+  else if (recurrence === 'semanal') base.setDate(base.getDate() + 7);
+  else if (recurrence === 'mensual') base.setMonth(base.getMonth() + 1);
+  return base.toISOString().slice(0, 10);
 }
 
 export function computeOverdue(task: Task): boolean {
@@ -64,8 +79,41 @@ export async function readTasks(redis: any): Promise<Task[]> {
       }
     })
     .filter((t): t is Task => t !== null)
-    .map((t) => ({ notes: [], proof: null, completedAt: null, ...t }))
+    .map((t) => ({ notes: [], proof: null, completedAt: null, recurrence: null, recurrenceSeriesId: null, ...t }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+async function spawnNextRecurrence(redis: any, completed: Task): Promise<void> {
+  if (!completed.recurrence) return;
+  const now = new Date().toISOString();
+  const next: Task = {
+    id: randomUUID(),
+    title: completed.title,
+    description: completed.description,
+    assigneeId: completed.assigneeId,
+    assigneeName: completed.assigneeName,
+    assignedById: completed.assignedById,
+    assignedByName: completed.assignedByName,
+    dueDate: nextDueDateFor(completed.dueDate, completed.recurrence),
+    status: 'Pendiente',
+    proof: null,
+    notes: [],
+    createdAt: now,
+    updatedAt: now,
+    completedAt: null,
+    recurrence: completed.recurrence,
+    recurrenceSeriesId: completed.recurrenceSeriesId,
+  };
+  await redis.hset(REDIS_KEY, { [next.id]: JSON.stringify(next) });
+  try {
+    await pushNotification(redis, next.assigneeId, {
+      type: 'task_assigned',
+      message: `Nueva tarea recurrente: ${next.title}${next.dueDate ? ` (vence ${next.dueDate})` : ''}`,
+      link: '/interno/tareas',
+    });
+  } catch {
+    // no debe tumbar el flujo si falla la notificación
+  }
 }
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -100,7 +148,15 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 // (messages.ts) — mismo efecto en ambos casos: crea la tarea y notifica al asignado.
 export async function createTask(
   redis: any,
-  params: { title: string; description: string; assigneeId: string; dueDate: string | null; assignedById: string; assignedByName: string }
+  params: {
+    title: string;
+    description: string;
+    assigneeId: string;
+    dueDate: string | null;
+    assignedById: string;
+    assignedByName: string;
+    recurrence?: string | null;
+  }
 ): Promise<{ task: Task } | { error: string }> {
   const title = params.title.trim();
   if (!title || !params.assigneeId) {
@@ -110,6 +166,7 @@ export async function createTask(
   if (!assignee || !assignee.active) {
     return { error: 'empleado no encontrado o inactivo' };
   }
+  const recurrence = params.recurrence && RECURRENCES.includes(params.recurrence) ? (params.recurrence as Task['recurrence']) : null;
 
   const now = new Date().toISOString();
   const task: Task = {
@@ -127,6 +184,8 @@ export async function createTask(
     createdAt: now,
     updatedAt: now,
     completedAt: null,
+    recurrence,
+    recurrenceSeriesId: recurrence ? randomUUID() : null,
   };
 
   await redis.hset(REDIS_KEY, { [task.id]: JSON.stringify(task) });
@@ -145,20 +204,21 @@ export async function createTask(
 export async function markTaskStatus(redis: any, taskId: string, status: string): Promise<{ task: Task } | { error: string }> {
   const raw = await redis.hget<string>(REDIS_KEY, taskId);
   if (!raw) return { error: 'tarea no encontrada' };
-  const task: Task = { notes: [], proof: null, completedAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const task: Task = { notes: [], proof: null, completedAt: null, recurrence: null, recurrenceSeriesId: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
   if (!STATUSES.includes(status)) return { error: 'estado inválido' };
   if (status === 'Completada') task.completedAt = new Date().toISOString();
   else if (task.status === 'Completada') task.completedAt = null;
   task.status = status;
   task.updatedAt = new Date().toISOString();
   await redis.hset(REDIS_KEY, { [taskId]: JSON.stringify(task) });
+  if (status === 'Completada') await spawnNextRecurrence(redis, task);
   return { task };
 }
 
 export async function addTaskNote(redis: any, taskId: string, noteText: string, byName: string): Promise<{ task: Task } | { error: string }> {
   const raw = await redis.hget<string>(REDIS_KEY, taskId);
   if (!raw) return { error: 'tarea no encontrada' };
-  const task: Task = { notes: [], proof: null, completedAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const task: Task = { notes: [], proof: null, completedAt: null, recurrence: null, recurrenceSeriesId: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
   task.notes = [{ text: noteText, date: new Date().toISOString(), by: byName }, ...task.notes];
   task.updatedAt = new Date().toISOString();
   await redis.hset(REDIS_KEY, { [taskId]: JSON.stringify(task) });
@@ -178,7 +238,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { title?: string; description?: string; assigneeId?: string; dueDate?: string | null };
+  let body: { title?: string; description?: string; assigneeId?: string; dueDate?: string | null; recurrence?: string | null };
   try {
     body = await request.json();
   } catch {
@@ -192,6 +252,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     dueDate: body.dueDate ? String(body.dueDate) : null,
     assignedById: session.userId,
     assignedByName: session.username,
+    recurrence: body.recurrence || null,
   });
   if ('error' in result) {
     return new Response(JSON.stringify({ error: result.error }), { status: 400 });
@@ -230,7 +291,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const task: Task = { notes: [], proof: null, completedAt: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const task: Task = { notes: [], proof: null, completedAt: null, recurrence: null, recurrenceSeriesId: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
 
   const isManager = canAssignTasks(session.role);
   const isOwner = task.assigneeId === session.userId;
@@ -238,12 +299,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
+  let justCompleted = false;
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) {
       return new Response(JSON.stringify({ error: 'estado inválido' }), { status: 400 });
     }
     if (body.status === 'Completada') {
       task.completedAt = new Date().toISOString();
+      justCompleted = true;
     } else if (task.status === 'Completada') {
       // Se está sacando de Completada (reabierta) — limpia la fecha para que no quede una
       // marca de "completada" vieja en una tarea que ya no lo está.
@@ -258,6 +321,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   await redis.hset(REDIS_KEY, { [id]: JSON.stringify(task) });
   await logAudit(redis, session, 'task_update', task.title, JSON.stringify(body));
+  if (justCompleted) await spawnNextRecurrence(redis, task);
 
   return new Response(JSON.stringify({ task: { ...task, overdue: computeOverdue(task) } }), {
     headers: { 'Content-Type': 'application/json' },

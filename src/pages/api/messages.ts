@@ -234,10 +234,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           dueDate,
           assignedById: session.userId,
           assignedByName: sender.name,
+          recurrence: input.recurrencia || null,
         });
         if ('error' in created) return `No se pudo crear la tarea: ${created.error}`;
         await logAudit(redis, session, 'task_create', created.task.title, `asignada a ${created.task.assigneeName} (vía GPSITO)`);
-        return `Tarea creada: "${created.task.title}" asignada a ${target.name}${dueDate ? `, vence ${dueDate}` : ''}.`;
+        return `Tarea creada: "${created.task.title}" asignada a ${target.name}${dueDate ? `, vence ${dueDate}` : ''}${created.task.recurrence ? ` (se repite ${created.task.recurrence})` : ''}.`;
       }
 
       function findOwnTask(tareaQuery: string) {

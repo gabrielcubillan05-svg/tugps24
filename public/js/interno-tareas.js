@@ -45,6 +45,13 @@ document.addEventListener('DOMContentLoaded', function () {
     return String(status).replace(/\s+/g, '-');
   }
 
+  const RECURRENCE_LABELS = { diaria: '🔁 Diaria', semanal: '🔁 Semanal', mensual: '🔁 Mensual' };
+  function recurrenceBadge(t) {
+    return t.recurrence && RECURRENCE_LABELS[t.recurrence]
+      ? `<span class="badge recurrence-badge">${RECURRENCE_LABELS[t.recurrence]}</span>`
+      : '';
+  }
+
   function compressImage(file, maxDim, quality) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -114,6 +121,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="task-title">${escapeHtml(t.title)}</span>
           <span class="badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span>
           ${t.overdue ? '<span class="badge overdue-badge">Atrasada</span>' : ''}
+          ${recurrenceBadge(t)}
         </div>
         <div class="task-meta">
           Asignada a: ${escapeHtml(t.assigneeName)} · Por: ${escapeHtml(t.assignedByName)} · Vence: ${fmtDateOnly(t.dueDate)}
@@ -157,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="board-card-meta">${escapeHtml(t.assigneeName)} · Vence: ${fmtDateOnly(t.dueDate)}</div>
         <div class="board-card-badges">
           ${t.overdue ? '<span class="badge overdue-badge">Atrasada</span>' : ''}
+          ${recurrenceBadge(t)}
         </div>
       </div>
     `;
@@ -342,6 +351,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const description = document.getElementById('t-description').value.trim();
       const assigneeId = assigneeSelect.value;
       const dueDate = document.getElementById('t-duedate').value || null;
+      const recurrenceSelect = document.getElementById('t-recurrence');
+      const recurrence = recurrenceSelect ? recurrenceSelect.value || null : null;
       if (!title || !assigneeId) return;
 
       const submitBtn = taskForm.querySelector('button[type="submit"]');
@@ -349,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function () {
       fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, assigneeId, dueDate }),
+        body: JSON.stringify({ title, description, assigneeId, dueDate, recurrence }),
       })
         .then(async (res) => {
           if (!res.ok) {

@@ -15,6 +15,7 @@ export interface CreateTaskInput {
   titulo: string;
   descripcion?: string;
   fechaVencimiento?: string;
+  recurrencia?: string;
 }
 
 // Qué puede hacer/ver la persona que le escribe — cada permiso viene de messages.ts, que ya
@@ -66,6 +67,7 @@ const CREATE_TASK_TOOL = {
       titulo: { type: 'string', description: 'Título corto de la tarea' },
       descripcion: { type: 'string', description: 'Detalles de la tarea (opcional)' },
       fecha_vencimiento: { type: 'string', description: 'Fecha de vencimiento en formato YYYY-MM-DD (opcional)' },
+      recurrencia: { type: 'string', enum: ['diaria', 'semanal', 'mensual'], description: 'Si la tarea se repite (opcional) — al completarla se crea automáticamente la siguiente' },
     },
     required: ['titulo'],
   },
@@ -165,7 +167,7 @@ ${permissions.canLookupOthers
 
 ## Eres también su asistente personal de Tareas
 Cualquiera puede pedirte, sobre SUS PROPIAS tareas:
-- Crear una tarea/pendiente nueva para sí mismo (crear_tarea, sin indicar responsable — o dando su propio nombre).
+- Crear una tarea/pendiente nueva para sí mismo (crear_tarea, sin indicar responsable — o dando su propio nombre). Puede pedirte que se repita diaria, semanal o mensualmente (recurrencia) — al completarla se crea sola la siguiente ocurrencia.
 - Marcar una de sus tareas como "En progreso", "Completada" o "Cancelada" (marcar_tarea) — la foto de evidencia es opcional, no hace falta para completarla.
 - Agregarle una nota de seguimiento a una de sus tareas (agregar_nota_tarea).
 Si menciona una tarea y no tienes claro cuál es por el título, pregunta o usa el que más se parezca — la herramienta te dirá si no encontró ninguna coincidencia.
@@ -302,6 +304,7 @@ export async function runGabotAgent(
             titulo: String(tc.input.titulo || ''),
             descripcion: tc.input.descripcion ? String(tc.input.descripcion) : undefined,
             fechaVencimiento: tc.input.fecha_vencimiento ? String(tc.input.fecha_vencimiento) : undefined,
+            recurrencia: tc.input.recurrencia ? String(tc.input.recurrencia) : undefined,
           });
         } else if (tc.name === 'marcar_tarea') {
           content = await actions.markTaskForWorker({
