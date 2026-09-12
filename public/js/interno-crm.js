@@ -202,10 +202,10 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
 
     return allLeads.filter((l) => {
       if (q) {
-        const notesText = (l.notes || []).map((n) => n.text).join(' ').toLowerCase();
-        const matches = l.name.toLowerCase().includes(q) || l.phone.toLowerCase().includes(q)
-          || (l.campaign || '').toLowerCase().includes(q) || notesText.includes(q);
-        if (!matches) return false;
+        // _searchText se precalcula una sola vez por lead al cargar (ver loadLeads) — antes
+        // se reconstruía uniendo todas las notas en texto plano en CADA tecla, para CADA
+        // lead, lo cual pesa cuando hay muchas notas acumuladas.
+        if (!l._searchText.includes(q)) return false;
       }
       if (city && l.city !== city) return false;
       if (secretary && l.secretary !== secretary) return false;
@@ -538,6 +538,10 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           return;
         }
         allLeads = data.leads;
+        allLeads.forEach((l) => {
+          const notesText = (l.notes || []).map((n) => n.text).join(' ');
+          l._searchText = [l.name, l.phone, l.campaign || '', notesText].join(' ').toLowerCase();
+        });
         populateDynamicFilters(allLeads);
         renderCurrentView();
       })
