@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getRedis } from './redis';
 import { getUsers, type Session } from './auth';
+import { sendPushToUser } from './push';
 
 const NOTIF_KEY_PREFIX = 'internal:notifications:';
 const MAX_NOTIFICATIONS = 200;
@@ -35,6 +36,14 @@ export async function pushNotification(
     createdAt: new Date().toISOString(),
   };
   await redis.hset(keyFor(userId), { [id]: JSON.stringify(entry) });
+
+  // Además del aviso dentro de la campanita, manda push real (llega aunque tenga la app
+  // cerrada) — no bloquea ni rompe nada si el usuario no se ha suscrito todavía.
+  try {
+    await sendPushToUser(redis, userId, { title: 'TuGPS24 Interno', body: data.message, link: data.link });
+  } catch {
+    // nunca debe tumbar la notificación normal
+  }
 }
 
 async function readRawNotifications(redis: Redis, userId: string): Promise<NotificationEntry[]> {
