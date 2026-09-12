@@ -336,21 +336,22 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       );
       await recordAgentUsage(redis, 'gabot', result.usage);
 
-      if (result.reply) {
-        const botMessage: Message = {
-          id: randomUUID(),
-          senderId: GABOT_ID,
-          senderName: GABOT_NAME,
-          text: result.reply,
-          createdAt: new Date().toISOString(),
-        };
-        await redis.rpush(key, JSON.stringify(botMessage));
-        await redis.ltrim(key, -MAX_MESSAGES, -1);
-        conversation.lastMessageAt = botMessage.createdAt;
-        conversation.lastMessagePreview = result.reply.slice(0, 120);
-        conversation.unread[session.userId] = (conversation.unread[session.userId] || 0) + 1;
-        await saveConversation(redis, conversation);
-      }
+      // Si falla la llamada a Anthropic (créditos agotados, rate limit, etc.) igual se le
+      // avisa al usuario en vez de dejarlo esperando una respuesta que nunca llega.
+      const replyText = result.reply || 'Tuve un problema técnico y no pude responder. Intenta de nuevo en un momento; si sigue fallando, avísale al administrador.';
+      const botMessage: Message = {
+        id: randomUUID(),
+        senderId: GABOT_ID,
+        senderName: GABOT_NAME,
+        text: replyText,
+        createdAt: new Date().toISOString(),
+      };
+      await redis.rpush(key, JSON.stringify(botMessage));
+      await redis.ltrim(key, -MAX_MESSAGES, -1);
+      conversation.lastMessageAt = botMessage.createdAt;
+      conversation.lastMessagePreview = replyText.slice(0, 120);
+      conversation.unread[session.userId] = (conversation.unread[session.userId] || 0) + 1;
+      await saveConversation(redis, conversation);
     } catch (err) {
       console.error('gabot chat reply failed', err instanceof Error ? err.message : String(err));
     }
