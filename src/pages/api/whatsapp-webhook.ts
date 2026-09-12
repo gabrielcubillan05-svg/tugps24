@@ -521,6 +521,33 @@ export const POST: APIRoute = async ({ request }) => {
         const value = change.value || {};
         const messages = Array.isArray(value.messages) ? value.messages : [];
         const contacts = Array.isArray(value.contacts) ? value.contacts : [];
+
+        // Meta también manda por acá el estado real de entrega de cada mensaje que
+        // enviamos (enviado/entregado/leído/fallido) — se registra en el historial del
+        // cliente para poder diagnosticar de verdad si algo se está demorando o fallando
+        // en vez de adivinar. "sent" no se registra: ya sabíamos que se mandó.
+        const statuses = Array.isArray(value.statuses) ? value.statuses : [];
+        if (statuses.length) {
+          const [cobrosForStatus, leadsForStatus] = await Promise.all([readCobros(redis), readLeads(redis)]);
+          for (const st of statuses) {
+            const statusLabel = String(st?.status || '');
+            if (!statusLabel || statusLabel === 'sent') continue;
+            const phone = normalizePhone(String(st?.recipient_id || ''));
+            if (!phone) continue;
+            const errorInfo = Array.isArray(st.errors) && st.errors[0] ? ` — ${st.errors[0].title || st.errors[0].code || ''}` : '';
+            const note = `[Estado WhatsApp] ${statusLabel}${errorInfo}`;
+            const cobroMatch = cobrosForStatus.find((c) => normalizePhone(c.telefono) === phone);
+            if (cobroMatch) {
+              await appendCobroHistory(redis, cobroMatch.id, [{ role: 'assistant', content: note }]);
+              continue;
+            }
+            const leadMatch = leadsForStatus.find((l) => normalizePhone(l.phone) === phone);
+            if (leadMatch) {
+              await appendHistory(redis, leadMatch.id, [{ role: 'assistant', content: note }]);
+            }
+          }
+        }
+
         for (const msg of messages) {
           const fromPhone = normalizePhone(String(msg.from || ''));
           if (!fromPhone) continue;
