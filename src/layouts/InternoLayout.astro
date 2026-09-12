@@ -20,7 +20,15 @@ const sections = sectionsFor(session);
     <meta name="robots" content="noindex, nofollow" />
     <title>{title} — TuGPS24</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/interno-manifest.webmanifest" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TuGPS24" />
+    <link rel="apple-touch-icon" href="/img/icon-192.png" />
     <script src="/js/theme-toggle.js" is:inline></script>
+    <script src="/js/interno-sw-register.js" defer></script>
     <style is:global>
       :root {
         --ink-900: #0a0a0a;
