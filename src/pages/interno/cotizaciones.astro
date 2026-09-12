@@ -26,7 +26,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
         <label for="client">Nombre del cliente (opcional)</label>
         <input id="client" type="text" placeholder="Ej: Juan Pérez" />
       </div>
-      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="form-grid cols-2">
         <div class="field">
           <label for="document">Documento (opcional)</label>
           <input id="document" type="text" placeholder="Ej: 1097123456" />
@@ -42,7 +42,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
           {BRANCHES.map((b) => <option value={b}>{b}</option>)}
         </select>
       </div>
-      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="form-grid cols-2">
         <div class="field">
           <label for="motos">Cantidad de motos</label>
           <input id="motos" type="number" min="0" value="0" required />

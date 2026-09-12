@@ -472,10 +472,12 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       <div class="results-grid">
         <div>
           <h3>Por secretaria — ranking de conversión</h3>
-          <table class="results-table">
-            <thead><tr><th>Secretaria</th><th>Leads</th><th>Instalados</th><th>% conversión</th></tr></thead>
-            <tbody>${secretaryRows || '<tr><td colspan="4">Sin datos</td></tr>'}</tbody>
-          </table>
+          <div class="table-scroll">
+            <table class="results-table">
+              <thead><tr><th>Secretaria</th><th>Leads</th><th>Instalados</th><th>% conversión</th></tr></thead>
+              <tbody>${secretaryRows || '<tr><td colspan="4">Sin datos</td></tr>'}</tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;

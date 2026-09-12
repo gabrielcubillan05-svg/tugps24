@@ -24,19 +24,19 @@ if (!canAccessSection(session.role, 'estadisticas')) {
     <div class="stats-tables">
       <div>
         <h3>Por ciudad</h3>
-        <table class="stats-table" id="crmByCityTable"></table>
+        <div class="table-scroll"><table class="stats-table" id="crmByCityTable"></table></div>
       </div>
       <div>
         <h3>Por secretaria</h3>
-        <table class="stats-table" id="crmBySecretaryTable"></table>
+        <div class="table-scroll"><table class="stats-table" id="crmBySecretaryTable"></table></div>
       </div>
       <div>
         <h3>Ranking de conversión por ciudad</h3>
-        <table class="stats-table ranking-table" id="crmCityRankingTable"></table>
+        <div class="table-scroll"><table class="stats-table ranking-table" id="crmCityRankingTable"></table></div>
       </div>
       <div>
         <h3>Ranking de conversión por secretaria</h3>
-        <table class="stats-table ranking-table" id="crmSecretaryRankingTable"></table>
+        <div class="table-scroll"><table class="stats-table ranking-table" id="crmSecretaryRankingTable"></table></div>
       </div>
     </div>
   </div>
@@ -45,7 +45,7 @@ if (!canAccessSection(session.role, 'estadisticas')) {
     <h2>Conversión acumulada por edad del lead</h2>
     <p class="hint">De los leads que ya cumplieron cada edad, qué porcentaje ya estaba instalado a esa altura. Respeta los filtros de ciudad/secretaria de arriba.</p>
     <p id="ageCurveApproxNote" class="hint" style="margin-top:-8px;"></p>
-    <table class="stats-table age-curve-table" id="ageCurveTable"></table>
+    <div class="table-scroll"><table class="stats-table age-curve-table" id="ageCurveTable"></table></div>
     <div class="stats-row" id="projectionStatsRow" style="margin-top:16px;"></div>
   </div>
 
@@ -56,15 +56,15 @@ if (!canAccessSection(session.role, 'estadisticas')) {
     <div class="stats-tables">
       <div>
         <h3>Por tipo</h3>
-        <table class="stats-table" id="novedadesByCategoryTable"></table>
+        <div class="table-scroll"><table class="stats-table" id="novedadesByCategoryTable"></table></div>
       </div>
       <div>
         <h3>Por sucursal</h3>
-        <table class="stats-table" id="novedadesByBranchTable"></table>
+        <div class="table-scroll"><table class="stats-table" id="novedadesByBranchTable"></table></div>
       </div>
       <div>
         <h3>Por operador</h3>
-        <table class="stats-table" id="novedadesByOperatorTable"></table>
+        <div class="table-scroll"><table class="stats-table" id="novedadesByOperatorTable"></table></div>
       </div>
     </div>
   </div>
