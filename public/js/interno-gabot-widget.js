@@ -66,8 +66,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function loadMessages() {
-    if (!conversationId) return;
-    fetch('/api/messages?conversationId=' + encodeURIComponent(conversationId))
+    if (!conversationId) return Promise.resolve();
+    return fetch('/api/messages?conversationId=' + encodeURIComponent(conversationId))
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data || !Array.isArray(data.messages)) return;
@@ -151,19 +151,52 @@ document.addEventListener('DOMContentLoaded', function () {
     closeBtn.addEventListener('click', closePanel);
   }
 
+  function showTyping() {
+    const wasAtBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 40;
+    const el = document.createElement('div');
+    el.className = 'gabot-msg bot gabot-typing';
+    el.id = 'gabotTypingIndicator';
+    el.textContent = 'GPSITO está escribiendo…';
+    messagesEl.appendChild(el);
+    if (wasAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function hideTyping() {
+    const el = document.getElementById('gabotTypingIndicator');
+    if (el) el.remove();
+  }
+
   if (form) {
+    const submitBtn = form.querySelector('button[type="submit"]');
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       const text = input.value.trim();
       if (!text || !conversationId) return;
       input.value = '';
+
+      // Respuesta optimista: se muestra el mensaje propio de una vez y un indicador de
+      // "escribiendo" mientras GPSITO responde, en vez de dejar el chat quieto varios
+      // segundos (la llamada a Anthropic + herramientas puede tardar un rato).
+      const wasAtBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 40;
+      const mine = document.createElement('div');
+      mine.className = 'gabot-msg mine';
+      mine.textContent = text;
+      messagesEl.appendChild(mine);
+      if (wasAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+      showTyping();
+      if (submitBtn) submitBtn.disabled = true;
+
       fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId, text }),
       })
         .then(() => loadMessages())
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          hideTyping();
+          if (submitBtn) submitBtn.disabled = false;
+        });
     });
   }
 

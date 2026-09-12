@@ -47,12 +47,12 @@ const branchOptions = seesAll ? BRANCHES : myBranches;
         <label for="dueDate">Fecha de vencimiento</label>
         <input id="dueDate" type="date" required />
       </div>
-      {seesAll && (
+      {showBranchPicker && (
         <div class="field">
           <label for="branch">Sucursal</label>
           <select id="branch" required>
             <option value="">Selecciona una sucursal</option>
-            {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+            {branchOptions.map((b) => <option value={b}>{b}</option>)}
           </select>
         </div>
       )}
@@ -80,10 +80,10 @@ const branchOptions = seesAll ? BRANCHES : myBranches;
     </div>
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por concepto o proveedor..." />
-      {seesAll && (
+      {showBranchPicker && (
         <select id="branchFilter">
           <option value="">Todas las sucursales</option>
-          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+          {branchOptions.map((b) => <option value={b}>{b}</option>)}
         </select>
       )}
     </div>

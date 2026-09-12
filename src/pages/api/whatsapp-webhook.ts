@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
-import { getUsers, findUserByUsername, JOSUE_USERNAME } from '../../lib/auth';
+import { getUsers, findUserByUsername, JOSUE_USERNAME, branchesOf } from '../../lib/auth';
 import { sendWhatsappText, sendWhatsappMedia, verifyMetaSignature } from '../../lib/whatsapp';
 import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
@@ -86,7 +86,7 @@ async function appendCobroHistory(redis: any, cobroId: string, entries: AgentMes
 }
 
 async function findBranchAssignee(redis: any, branch: string) {
-  const users = (await getUsers(redis)).filter((u) => u.active && u.branch === branch);
+  const users = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(branch));
   return users.find((u) => u.role === 'secretaria') || users.find((u) => u.role === 'gerente') || null;
 }
 
@@ -268,7 +268,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
           // sucursal (no solo a quien haya quedado como responsable del lead), para que se
           // enteren al instante de que Andrés concretó la venta.
           try {
-            const branchStaff = (await getUsers(redis)).filter((u) => u.active && u.branch === servicingBranch);
+            const branchStaff = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(servicingBranch));
             const secretaria = branchStaff.find((u) => u.role === 'secretaria');
             const gerente = branchStaff.find((u) => u.role === 'gerente');
             const fechaPreferida = call.input?.fecha_preferida ? String(call.input.fecha_preferida) : '';

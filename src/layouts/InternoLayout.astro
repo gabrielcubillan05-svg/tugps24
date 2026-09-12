@@ -368,6 +368,8 @@ const sections = sectionsFor(session);
       .gabot-msg.bot { align-self: flex-start; background: var(--ink-700); }
       .gabot-msg.mine { align-self: flex-end; background: var(--teal-bright); color: #06231f; }
       .gabot-msg .gabot-msg-time { display: block; font-size: 10px; opacity: 0.65; margin-top: 3px; }
+      .gabot-msg.gabot-typing { font-style: italic; opacity: 0.7; animation: gabot-typing-pulse 1.4s ease-in-out infinite; }
+      @keyframes gabot-typing-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
       .gabot-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
       .gabot-form input { flex: 1; font-size: 12.5px; padding: 7px 9px; }
       .gabot-mic {

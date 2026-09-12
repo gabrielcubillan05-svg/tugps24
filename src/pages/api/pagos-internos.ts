@@ -94,9 +94,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const seesAll = canSeeAllPagosInternos(session);
   let items = await readPagos(redis);
 
+  let myBranches: string[] = [];
   if (!seesAll) {
     const me = await findUserById(redis, session.userId);
-    items = items.filter((p) => p.branch === (me?.branch || ''));
+    myBranches = branchesOf(me);
+    items = items.filter((p) => myBranches.includes(p.branch));
   }
 
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
@@ -104,13 +106,14 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const branch = url.searchParams.get('branch') || '';
   if (q) items = items.filter((p) => p.concepto.toLowerCase().includes(q) || p.proveedor.toLowerCase().includes(q));
   if (status) items = items.filter((p) => p.status === status);
-  if (seesAll && branch) items = items.filter((p) => p.branch === branch);
+  if (branch && (seesAll || myBranches.includes(branch))) items = items.filter((p) => p.branch === branch);
 
   return new Response(
     JSON.stringify({
       pagos: items,
       stats: computeStats(items),
       branches: BRANCHES,
+      myBranches,
       seesAll,
       currentUserId: session.userId,
     }),
@@ -150,14 +153,21 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const seesAll = canSeeAllPagosInternos(session);
   const creator = await findUserById(redis, session.userId);
+  const creatorBranches = branchesOf(creator);
   let branch = '';
   if (seesAll) {
     branch = String(body.branch || '').trim();
     if (!branch || !BRANCHES.includes(branch)) {
       return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
     }
+  } else if (creatorBranches.length > 1) {
+    // Varias sucursales asignadas: tiene que elegir explícitamente a cuál corresponde este pago.
+    branch = String(body.branch || '').trim();
+    if (!branch || !creatorBranches.includes(branch)) {
+      return new Response(JSON.stringify({ error: 'elige una de tus sucursales asignadas' }), { status: 400 });
+    }
   } else {
-    branch = creator?.branch || '';
+    branch = creatorBranches[0] || '';
     if (!branch) {
       return new Response(JSON.stringify({ error: 'tu usuario no tiene una sucursal asignada — pide al administrador que te la configure' }), { status: 400 });
     }

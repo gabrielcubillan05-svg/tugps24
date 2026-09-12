@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin, branchesOf } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -96,7 +96,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     planillas = planillas.filter((p) => p.tecnicoId === session.userId);
   } else if (session.role === 'gerente') {
     const me = await findUserById(redis, session.userId);
-    planillas = planillas.filter((p) => p.branch === (me?.branch || ''));
+    const myBranches = branchesOf(me);
+    planillas = planillas.filter((p) => myBranches.includes(p.branch));
   }
 
   if (q) {
@@ -211,7 +212,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     modelo,
     fecha,
     hora,
-    branch: tecnico?.branch || '',
+    branch: branchesOf(tecnico)[0] || '',
     items: items.map((it) => ({
       label: String(it.label || ''),
       estado: String(it.estado || ''),
