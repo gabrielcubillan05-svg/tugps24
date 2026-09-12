@@ -219,10 +219,20 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   mustChangePassword?: boolean;
+  /** @deprecated usar `branches` — se conserva solo por compatibilidad con datos viejos */
   branch?: string | null;
+  branches?: string[];
 }
 
 export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
+
+// Un usuario puede tener varias sucursales asignadas (branches). Esta función normaliza los
+// datos viejos que todavía solo tengan el campo singular `branch`, para no requerir migración.
+export function branchesOf(user: Pick<User, 'branch' | 'branches'> | null | undefined): string[] {
+  if (!user) return [];
+  if (user.branches && user.branches.length) return user.branches;
+  return user.branch ? [user.branch] : [];
+}
 
 export interface Session {
   userId: string;

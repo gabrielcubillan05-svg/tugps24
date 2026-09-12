@@ -234,12 +234,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
           const notice = document.getElementById('viewerBranchNotice');
           if (notice) {
-            if (data.viewerRole === 'secretaria' && !data.viewerBranch) {
+            if (data.viewerRole === 'secretaria' && !(data.viewerBranches && data.viewerBranches.length)) {
               notice.style.display = '';
               notice.textContent = 'Tu usuario no tiene una sucursal asignada, así que no puedes ver casos. Pide al administrador que te asigne una sucursal en Usuarios.';
             } else if (data.viewerRole === 'secretaria') {
               notice.style.display = '';
-              notice.textContent = `Mostrando solo los casos de tu sucursal: ${data.viewerBranch}.`;
+              notice.textContent = `Mostrando solo los casos de tu(s) sucursal(es): ${data.viewerBranches.join(', ')}.`;
             } else if (data.viewerRole === 'operador') {
               notice.style.display = '';
               notice.textContent = 'Mostrando solo los casos que tú creaste.';

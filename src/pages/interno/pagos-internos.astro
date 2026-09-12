@@ -2,7 +2,8 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessPagosInternos, canSeeAllPagosInternos, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessPagosInternos, canSeeAllPagosInternos, firstSectionFor, SECTION_PATHS, findUserById, branchesOf } from '../../lib/auth';
+import { getRedis } from '../../lib/redis';
 import { BRANCHES } from '../api/pagos-internos';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
@@ -14,6 +15,13 @@ if (!canAccessPagosInternos(session)) {
 }
 
 const seesAll = canSeeAllPagosInternos(session);
+const redis = getRedis();
+const me = redis ? await findUserById(redis, session.userId) : null;
+const myBranches = branchesOf(me);
+// Si tiene una sola sucursal se sigue auto-asignando sin preguntar (como antes); con varias,
+// tiene que elegir a cuál corresponde el pago.
+const showBranchPicker = seesAll || myBranches.length > 1;
+const branchOptions = seesAll ? BRANCHES : myBranches;
 ---
 
 <InternoLayout title="Pagos programados" active="pagos-internos" session={session}>

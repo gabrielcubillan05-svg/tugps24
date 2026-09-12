@@ -41,9 +41,8 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
           <input id="u-password" type="text" placeholder="Ej: TuGps2026" required />
         </div>
         <div class="field">
-          <label for="u-branch">Sucursal (para secretaria/gerente)</label>
-          <select id="u-branch">
-            <option value="">Sin sucursal asignada</option>
+          <label for="u-branch">Sucursales (para secretaria/gerente — puedes elegir varias con Ctrl/Cmd)</label>
+          <select id="u-branch" multiple size="4">
             {BRANCHES.map((b) => <option value={b}>{b}</option>)}
           </select>
         </div>

@@ -14,6 +14,7 @@ import {
   JOSUE_USERNAME,
   WILMAR_USERNAME,
   verifySameOrigin,
+  branchesOf,
 } from '../../lib/auth';
 
 export const prerender = false;
@@ -179,7 +180,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const all = await readSuspensiones(redis);
 
-  let viewerBranch: string | null = null;
+  let viewerBranches: string[] = [];
   let casos = all;
   // Josué y Wilmar ven TODOS los casos sin importar su rol (igual que ya se respeta en las
   // acciones de escalar/finalizar más abajo) — antes este filtro solo miraba el rol, así que
@@ -190,8 +191,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     casos = casos.filter((c) => c.createdById === session.userId);
   } else if (!seesAllOverride && session.role === 'secretaria') {
     const viewer = await findUserById(redis, session.userId);
-    viewerBranch = viewer?.branch || null;
-    casos = viewerBranch ? casos.filter((c) => c.branch === viewerBranch) : [];
+    viewerBranches = branchesOf(viewer);
+    casos = viewerBranches.length ? casos.filter((c) => viewerBranches.includes(c.branch)) : [];
   }
 
   if (q) {
@@ -236,7 +237,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       isTesoreria: isTesoreriaSession(session),
       isJosue: isJosueSession(session),
       viewerRole: session.role,
-      viewerBranch,
+      viewerBranches,
     }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
@@ -270,7 +271,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
   }
 
-  const usersInBranch = (await getUsers(redis)).filter((u) => u.active && u.branch === branch);
+  const usersInBranch = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(branch));
   const assignee =
     usersInBranch.find((u) => u.role === 'secretaria') || usersInBranch.find((u) => u.role === 'gerente');
   if (!assignee) {

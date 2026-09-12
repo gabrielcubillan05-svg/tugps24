@@ -44,14 +44,13 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="user-name">${escapeHtml(u.name)}</span>
           <span class="badge">${u.active ? 'Activo' : 'Inactivo'}</span>
         </div>
-        <div class="user-meta">Usuario: ${escapeHtml(u.username)}${u.branch ? ` · Sucursal: ${escapeHtml(u.branch)}` : ''}</div>
+        <div class="user-meta">Usuario: ${escapeHtml(u.username)}${(u.branches || []).length ? ` · Sucursales: ${escapeHtml(u.branches.join(', '))}` : ''}</div>
         <div class="user-controls">
           <select data-action="role" data-id="${u.id}">
             ${roles.map((r) => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
           </select>
-          <select data-action="branch" data-id="${u.id}">
-            <option value="" ${!u.branch ? 'selected' : ''}>Sin sucursal asignada</option>
-            ${BRANCHES.map((b) => `<option value="${b}" ${b === u.branch ? 'selected' : ''}>${b}</option>`).join('')}
+          <select data-action="branch" data-id="${u.id}" multiple size="4" title="Ctrl/Cmd + clic para elegir varias">
+            ${BRANCHES.map((b) => `<option value="${b}" ${(u.branches || []).includes(b) ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
           <button class="btn-small" data-action="reset-password" data-id="${u.id}" type="button">Restablecer clave</button>
           ${isLimited ? '' : `
@@ -90,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const name = document.getElementById('u-name').value.trim();
     const role = document.getElementById('u-role').value;
     const password = document.getElementById('u-password').value;
-    const branch = document.getElementById('u-branch').value;
+    const branches = Array.from(document.getElementById('u-branch').selectedOptions).map((o) => o.value);
     if (!username || !name || !role || !password) return;
 
     const submitBtn = userForm.querySelector('button[type="submit"]');
@@ -98,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, name, role, password, branch }),
+      body: JSON.stringify({ username, name, role, password, branches }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
@@ -136,7 +135,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const fieldAction = el.getAttribute('data-action');
     if (fieldAction !== 'role' && fieldAction !== 'branch') return;
     const id = el.getAttribute('data-id');
-    const patch = fieldAction === 'role' ? { id, role: el.value } : { id, branch: el.value };
+    const patch = fieldAction === 'role'
+      ? { id, role: el.value }
+      : { id, branches: Array.from(el.selectedOptions).map((o) => o.value) };
     fetch('/api/users', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

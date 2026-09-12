@@ -20,15 +20,23 @@ import {
   destroyAllSessionsForUser,
   verifySameOrigin,
   BRANCHES,
+  branchesOf,
   type Role,
   type User,
 } from '../../lib/auth';
+
+function parseBranches(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const branches = value.map((b) => String(b || '').trim()).filter(Boolean);
+  if (branches.some((b) => !BRANCHES.includes(b))) return null;
+  return branches;
+}
 
 export const prerender = false;
 
 function publicUser(u: User) {
   const { passwordHash, ...rest } = u;
-  return rest;
+  return { ...rest, branches: branchesOf(u) };
 }
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -107,7 +115,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { username?: string; name?: string; password?: string; role?: string; branch?: string };
+  let body: { username?: string; name?: string; password?: string; role?: string; branch?: string; branches?: string[] };
   try {
     body = await request.json();
   } catch {
@@ -118,7 +126,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const name = String(body.name || '').trim();
   const password = String(body.password || '');
   const role = String(body.role || '') as Role;
-  const branch = String(body.branch || '').trim();
+  // Compatibilidad: acepta tanto `branches` (varias sucursales) como el antiguo `branch` (una sola).
+  const branches = body.branches !== undefined ? parseBranches(body.branches) : (String(body.branch || '').trim() ? [String(body.branch).trim()] : []);
 
   if (!username || !name || !password || !ROLES.includes(role)) {
     return new Response(JSON.stringify({ error: 'campos incompletos o rol inválido' }), { status: 400 });
@@ -126,7 +135,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (password.length < 8) {
     return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
   }
-  if (branch && !BRANCHES.includes(branch)) {
+  if (branches === null) {
     return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
   }
   if (await findUserByUsername(redis, username)) {
@@ -140,7 +149,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     name,
     passwordHash: hashPassword(password),
     role,
-    branch: branch || null,
+    branches,
     active: true,
     createdAt: now,
     updatedAt: now,
@@ -171,6 +180,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     password?: string;
     currentPassword?: string;
     branch?: string;
+    branches?: string[];
   };
   try {
     body = await request.json();
@@ -202,7 +212,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (body.name !== undefined || body.active !== undefined || body.currentPassword !== undefined) {
       return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal, el rol o la contraseña de este usuario' }), { status: 403 });
     }
-    if (body.branch === undefined && body.password === undefined && body.role === undefined) {
+    if (body.branch === undefined && body.branches === undefined && body.password === undefined && body.role === undefined) {
       return new Response(JSON.stringify({ error: 'falta la sucursal, el rol o la nueva contraseña' }), { status: 400 });
     }
 
@@ -214,11 +224,20 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       await logAudit(redis, session, 'user_role_update', user.username, body.role);
     }
 
-    if (body.branch !== undefined) {
+    if (body.branches !== undefined) {
+      const branches = parseBranches(body.branches);
+      if (branches === null) {
+        return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
+      }
+      user.branches = branches;
+      user.branch = branches[0] || null;
+      await logAudit(redis, session, 'user_branch_update', user.username, branches.join(', ') || '(sin sucursal)');
+    } else if (body.branch !== undefined) {
       const branch = String(body.branch || '').trim();
       if (branch && !BRANCHES.includes(branch)) {
         return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
       }
+      user.branches = branch ? [branch] : [];
       user.branch = branch || null;
       await logAudit(redis, session, 'user_branch_update', user.username, branch || '(sin sucursal)');
     }
@@ -238,11 +257,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ user: publicUser(user) }), { headers: { 'Content-Type': 'application/json' } });
   }
 
-  if (!isAdmin) {
-    // Autoservicio: un usuario solo puede cambiar su propia contraseña, nada más.
-    if (body.name !== undefined || body.role !== undefined || body.active !== undefined || body.branch !== undefined) {
-      return new Response(JSON.stringify({ error: 'no autorizado para editar esos campos' }), { status: 403 });
-    }
+  const onlyTouchesPasswordFields =
+    body.name === undefined && body.role === undefined && body.active === undefined && body.branch === undefined && body.branches === undefined;
+
+  // Autoservicio de contraseña: isSelf sin campos de admin de por medio pasa por aquí — igual
+  // para un admin cambiando SU PROPIA clave (si no, un admin cae en el bloque de abajo, que
+  // nunca limpia mustChangePassword para isSelf y lo deja en un loop de "debes cambiar tu
+  // contraseña" infinito).
+  if (isSelf && onlyTouchesPasswordFields && (!isAdmin || body.password !== undefined)) {
     if (!body.password) {
       return new Response(JSON.stringify({ error: 'falta la nueva contraseña' }), { status: 400 });
     }
@@ -260,6 +282,11 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
   }
 
+  if (!isAdmin) {
+    // Autoservicio: un usuario solo puede cambiar su propia contraseña, nada más.
+    return new Response(JSON.stringify({ error: 'no autorizado para editar esos campos' }), { status: 403 });
+  }
+
   if (body.name !== undefined) {
     user.name = String(body.name).trim();
   }
@@ -272,11 +299,19 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     user.role = body.role as Role;
   }
-  if (body.branch !== undefined) {
+  if (body.branches !== undefined) {
+    const branches = parseBranches(body.branches);
+    if (branches === null) {
+      return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
+    }
+    user.branches = branches;
+    user.branch = branches[0] || null;
+  } else if (body.branch !== undefined) {
     const branch = String(body.branch || '').trim();
     if (branch && !BRANCHES.includes(branch)) {
       return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
     }
+    user.branches = branch ? [branch] : [];
     user.branch = branch || null;
   }
   if (body.password !== undefined && body.password !== '') {
