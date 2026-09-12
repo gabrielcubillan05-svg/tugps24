@@ -31,43 +31,43 @@ const isAdmin = session.role === 'admin';
     <div class="tasks-calendar" id="tasksCalendar" style="display:none;"></div>
   </div>
 
-  {canAssign && (
-    <div class="panel-card">
-      <h2>Nueva tarea</h2>
-      <form id="taskForm">
-        <div class="form-grid">
-          <div class="field field-full">
-            <label for="t-title">Título</label>
-            <input id="t-title" type="text" placeholder="Ej: Revisar instalación GPS moto ABC123" required />
-          </div>
-          <div class="field field-note">
-            <label for="t-description">Descripción (opcional)</label>
-            <textarea id="t-description" placeholder="Detalles de la tarea"></textarea>
-          </div>
+  <div class="panel-card">
+    <h2>Nueva tarea</h2>
+    <form id="taskForm">
+      <div class="form-grid">
+        <div class="field field-full">
+          <label for="t-title">Título</label>
+          <input id="t-title" type="text" placeholder="Ej: Revisar instalación GPS moto ABC123" required />
+        </div>
+        <div class="field field-note">
+          <label for="t-description">Descripción (opcional)</label>
+          <textarea id="t-description" placeholder="Detalles de la tarea"></textarea>
+        </div>
+        {canAssign && (
           <div class="field">
             <label for="t-assignee">Asignar a</label>
             <select id="t-assignee" required>
               <option value="">Cargando empleados...</option>
             </select>
           </div>
-          <div class="field">
-            <label for="t-duedate">Fecha de vencimiento</label>
-            <input id="t-duedate" type="date" />
-          </div>
-          <div class="field">
-            <label for="t-recurrence">Repetir</label>
-            <select id="t-recurrence">
-              <option value="">No se repite</option>
-              <option value="diaria">Diaria</option>
-              <option value="semanal">Semanal</option>
-              <option value="mensual">Mensual</option>
-            </select>
-          </div>
+        )}
+        <div class="field">
+          <label for="t-duedate">Fecha de vencimiento</label>
+          <input id="t-duedate" type="date" />
         </div>
-        <button class="btn" type="submit">Asignar tarea</button>
-      </form>
-    </div>
-  )}
+        <div class="field">
+          <label for="t-recurrence">Repetir</label>
+          <select id="t-recurrence">
+            <option value="">No se repite</option>
+            <option value="diaria">Diaria</option>
+            <option value="semanal">Semanal</option>
+            <option value="mensual">Mensual</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" type="submit">{canAssign ? 'Asignar tarea' : 'Crear tarea'}</button>
+    </form>
+  </div>
 
   <div class="panel-card">
     <h2>{canAssign ? 'Todas las tareas' : 'Mis tareas'}</h2>

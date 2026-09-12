@@ -349,11 +349,13 @@ document.addEventListener('DOMContentLoaded', function () {
       e.preventDefault();
       const title = document.getElementById('t-title').value.trim();
       const description = document.getElementById('t-description').value.trim();
-      const assigneeId = assigneeSelect.value;
+      // Sin selector de responsable (no puede asignar a otros) la tarea queda para uno mismo —
+      // el backend ya asume eso cuando no se manda assigneeId.
+      const assigneeId = assigneeSelect ? assigneeSelect.value : '';
       const dueDate = document.getElementById('t-duedate').value || null;
       const recurrenceSelect = document.getElementById('t-recurrence');
       const recurrence = recurrenceSelect ? recurrenceSelect.value || null : null;
-      if (!title || !assigneeId) return;
+      if (!title || (assigneeSelect && !assigneeId)) return;
 
       const submitBtn = taskForm.querySelector('button[type="submit"]');
       submitBtn.disabled = true;

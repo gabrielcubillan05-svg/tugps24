@@ -230,7 +230,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   }
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAssignTasks(session.role)) {
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -245,10 +245,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
 
+  // Cualquiera puede crearse una tarea a sí mismo; solo quien puede asignar tareas
+  // (supervisor/gerente/admin) puede dársela a alguien más.
+  const assigneeId = String(body.assigneeId || '').trim() || session.userId;
+  if (assigneeId !== session.userId && !canAssignTasks(session.role)) {
+    return new Response(JSON.stringify({ error: 'solo puedes crear tareas para ti mismo' }), { status: 401 });
+  }
+
   const result = await createTask(redis, {
     title: String(body.title || ''),
     description: String(body.description || ''),
-    assigneeId: String(body.assigneeId || '').trim(),
+    assigneeId,
     dueDate: body.dueDate ? String(body.dueDate) : null,
     assignedById: session.userId,
     assignedByName: session.username,
