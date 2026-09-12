@@ -1,0 +1,184 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { CHECKLIST_ITEMS, ESTADOS } from '../api/planillas-vehiculo';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'planillas-vehiculo')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const isManager = session.role === 'gerente' || session.role === 'admin';
+const today = new Date();
+const defaultFecha = today.toISOString().slice(0, 10);
+const defaultHora = today.toTimeString().slice(0, 5);
+---
+
+<InternoLayout title="Planilla de vehículo" active="planillas-vehiculo" session={session}>
+  {!isManager && (
+    <div class="panel-card">
+      <h2>Nueva planilla de ingreso de vehículo</h2>
+      <form id="planillaForm">
+        <div class="form-grid cols-4">
+          <div class="field">
+            <label for="placa">Placa</label>
+            <input id="placa" type="text" placeholder="GKX740" required />
+          </div>
+          <div class="field">
+            <label for="modelo">Modelo</label>
+            <input id="modelo" type="text" placeholder="Modelo del vehículo" />
+          </div>
+          <div class="field">
+            <label for="fecha">Fecha</label>
+            <input id="fecha" type="date" value={defaultFecha} required />
+          </div>
+          <div class="field">
+            <label for="hora">Hora</label>
+            <input id="hora" type="time" value={defaultHora} required />
+          </div>
+        </div>
+
+        <h3 class="planilla-subtitle">Revisión del vehículo</h3>
+        <div class="checklist" id="checklist">
+          {CHECKLIST_ITEMS.map((item, i) => (
+            <div class="checklist-row" data-item-index={i}>
+              <span class="checklist-label">{item}</span>
+              <div class="checklist-estados">
+                {ESTADOS.map((estado) => (
+                  <label class="checklist-radio">
+                    <input type="radio" name={`estado-${i}`} value={estado} />
+                    {estado}
+                  </label>
+                ))}
+              </div>
+              <input type="text" class="checklist-detalle" placeholder="Detalle (opcional)" />
+            </div>
+          ))}
+        </div>
+
+        <div class="form-grid cols-4">
+          <div class="field">
+            <label for="nivelCombustible">Nivel de combustible</label>
+            <select id="nivelCombustible">
+              <option value="">Selecciona</option>
+              <option value="Reserva">Reserva</option>
+              <option value="1/4">1/4</option>
+              <option value="1/2">1/2</option>
+              <option value="3/4">3/4</option>
+              <option value="Lleno">Lleno</option>
+            </select>
+          </div>
+          <div class="field field-note">
+            <label for="observaciones">Observaciones (exterior e interior)</label>
+            <textarea id="observaciones" placeholder="Detalles de rayones, golpes, estado general..."></textarea>
+          </div>
+          <div class="field field-note">
+            <label for="observacionGarantia">Observación de garantía</label>
+            <textarea id="observacionGarantia" placeholder="Opcional"></textarea>
+          </div>
+        </div>
+
+        <h3 class="planilla-subtitle">Entrega y recibo</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="clienteNombre">Nombre del cliente (entrega el vehículo)</label>
+            <input id="clienteNombre" type="text" required />
+          </div>
+          <div class="field">
+            <label for="clienteCedula">Cédula del cliente</label>
+            <input id="clienteCedula" type="text" required />
+          </div>
+        </div>
+
+        <div class="firma-grid">
+          <div class="firma-box">
+            <label>Firma del cliente</label>
+            <canvas class="firma-canvas" id="firmaCliente" width="500" height="180"></canvas>
+            <button type="button" class="btn-ghost" data-clear-firma="firmaCliente">Borrar firma</button>
+          </div>
+          <div class="firma-box">
+            <label>Firma del técnico que recibe (opcional)</label>
+            <canvas class="firma-canvas" id="firmaTecnico" width="500" height="180"></canvas>
+            <button type="button" class="btn-ghost" data-clear-firma="firmaTecnico">Borrar firma</button>
+          </div>
+        </div>
+
+        <p id="planillaFormError" class="error-msg" style="display:none;"></p>
+        <button class="btn" type="submit">Guardar planilla</button>
+      </form>
+    </div>
+  )}
+
+  <div class="panel-card">
+    <h2>Planillas registradas</h2>
+    <div class="filters">
+      <input id="searchInput" type="text" placeholder="Buscar por placa..." />
+    </div>
+    <div class="list-col" id="planillasList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .planilla-subtitle { font-size: 14px; margin: 18px 0 10px; color: var(--paper-dim); }
+  .checklist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .checklist-row {
+    display: grid;
+    grid-template-columns: 1.4fr 2fr 1.6fr;
+    gap: 10px;
+    align-items: center;
+    background: var(--ink-900);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .checklist-label { font-size: 13px; }
+  .checklist-estados { display: flex; gap: 12px; flex-wrap: wrap; }
+  .checklist-radio { display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--paper-dim); }
+  .checklist-radio input { width: auto; }
+  .checklist-detalle { font-size: 12.5px; padding: 6px 8px; }
+  @media (max-width: 700px) {
+    .checklist-row { grid-template-columns: 1fr; }
+  }
+
+  .firma-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 10px 0 18px; }
+  .firma-box label { display: block; color: var(--slate); font-size: 12.5px; margin-bottom: 6px; }
+  .firma-canvas {
+    width: 100%;
+    height: 180px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    touch-action: none;
+    display: block;
+    margin-bottom: 8px;
+  }
+  @media (max-width: 700px) {
+    .firma-grid { grid-template-columns: 1fr; }
+  }
+
+  .planilla-item {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .planilla-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .planilla-plate { font-weight: 700; font-size: 15px; }
+  .planilla-meta { color: var(--slate); font-size: 12px; margin-bottom: 10px; }
+  .planilla-checklist-summary { font-size: 12.5px; color: var(--paper-dim); margin-bottom: 10px; }
+  .planilla-checklist-summary .malo { color: var(--danger); font-weight: 600; }
+  .planilla-checklist-summary .regular { color: var(--amber); }
+  .planilla-firmas { display: flex; gap: 10px; flex-wrap: wrap; }
+  .planilla-firmas img { width: 140px; height: 60px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
+  .planilla-detail-toggle { margin-top: 8px; }
+</style>
+
+<script src="/js/interno-planillas-vehiculo.js" defer></script>

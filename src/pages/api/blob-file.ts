@@ -6,6 +6,7 @@ import { SESSION_COOKIE, getSession, canAccessSection, canAccessSuspensiones, ca
 export const prerender = false;
 
 const TASK_PATH_RE = /^tasks\/([0-9a-f-]{36})-/i;
+const PLANILLA_PATH_RE = /^planillas\/([0-9a-f-]{36})-/i;
 
 export const GET: APIRoute = async ({ url, cookies }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
@@ -55,6 +56,29 @@ export const GET: APIRoute = async ({ url, cookies }) => {
       }
       const task = typeof taskRaw === 'string' ? JSON.parse(taskRaw) : (taskRaw as any);
       if (task.assigneeId !== session.userId) {
+        return new Response('forbidden', { status: 403 });
+      }
+    }
+  } else if (path.startsWith('planillas/')) {
+    if (!canAccessSection(session.role, 'planillas-vehiculo')) {
+      return new Response('forbidden', { status: 403 });
+    }
+    const isManager = session.role === 'gerente' || session.role === 'admin';
+    if (!isManager) {
+      const match = path.match(PLANILLA_PATH_RE);
+      if (!match) {
+        return new Response('forbidden', { status: 403 });
+      }
+      const redis = getRedis();
+      if (!redis) {
+        return new Response('not configured', { status: 503 });
+      }
+      const planillaRaw = await redis.hget<string>('internal:planillas-vehiculo', match[1]);
+      if (!planillaRaw) {
+        return new Response('forbidden', { status: 403 });
+      }
+      const planilla = typeof planillaRaw === 'string' ? JSON.parse(planillaRaw) : (planillaRaw as any);
+      if (planilla.tecnicoId !== session.userId) {
         return new Response('forbidden', { status: 403 });
       }
     }
