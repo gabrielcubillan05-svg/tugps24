@@ -90,10 +90,10 @@ export const SECTION_PATHS: Record<Section, string> = {
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
-  tecnico: ['tareas', 'chat', 'cuadrantes'],
+  tecnico: ['tareas', 'chat'],
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
-  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
+  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
+  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
   gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos'],
   admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos'],
 };
@@ -106,11 +106,10 @@ export function firstSectionFor(role: Role): Section | null {
   return ROLE_SECTIONS[role]?.[0] ?? null;
 }
 
-// Usuarios puntuales con acceso a Cobranza especial WP aunque su rol no lo incluya.
-const COBROS_EXTRA_USERNAMES = ['alonsopadilla', 'chrisinstalador'];
-
+// Cobranza especial WP quedó restringida a gerente/admin por rol — quien pueda subir listas
+// (canUploadCobros, ver más abajo) también puede entrar, aunque su rol no lo incluya.
 export function canAccessCobros(session: Pick<Session, 'role' | 'username'>): boolean {
-  return canAccessSection(session.role, 'cobros') || COBROS_EXTRA_USERNAMES.includes(session.username);
+  return canAccessSection(session.role, 'cobros') || canUploadCobros(session);
 }
 
 // Josué (da la solución) y Wilmar (tesorería) siempre necesitan ver Suspensiones,

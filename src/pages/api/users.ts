@@ -197,21 +197,36 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
 
   if (isBranchManager) {
-    // Josué y Wilmar solo pueden configurarle la sucursal a otros usuarios, nada más.
-    if (body.name !== undefined || body.role !== undefined || body.active !== undefined || body.password !== undefined || body.currentPassword !== undefined) {
-      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal de este usuario' }), { status: 403 });
+    // Josué y Wilmar solo pueden editarle a otros usuarios la sucursal y/o la contraseña —
+    // nada de nombre, rol ni activar/desactivar (eso sigue siendo exclusivo de admin).
+    if (body.name !== undefined || body.role !== undefined || body.active !== undefined || body.currentPassword !== undefined) {
+      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal o la contraseña de este usuario' }), { status: 403 });
     }
-    if (body.branch === undefined) {
-      return new Response(JSON.stringify({ error: 'falta la sucursal' }), { status: 400 });
+    if (body.branch === undefined && body.password === undefined) {
+      return new Response(JSON.stringify({ error: 'falta la sucursal o la nueva contraseña' }), { status: 400 });
     }
-    const branch = String(body.branch || '').trim();
-    if (branch && !BRANCHES.includes(branch)) {
-      return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
+
+    if (body.branch !== undefined) {
+      const branch = String(body.branch || '').trim();
+      if (branch && !BRANCHES.includes(branch)) {
+        return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
+      }
+      user.branch = branch || null;
+      await logAudit(redis, session, 'user_branch_update', user.username, branch || '(sin sucursal)');
     }
-    user.branch = branch || null;
+
+    if (body.password !== undefined && body.password !== '') {
+      if (String(body.password).length < 8) {
+        return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
+      }
+      user.passwordHash = hashPassword(String(body.password));
+      user.mustChangePassword = true;
+      await destroyAllSessionsForUser(redis, user.id);
+      await logAudit(redis, session, 'user_password_reset', user.username, `(reiniciada por ${session.username})`);
+    }
+
     user.updatedAt = new Date().toISOString();
     await saveUser(redis, user);
-    await logAudit(redis, session, 'user_branch_update', user.username, branch || '(sin sucursal)');
     return new Response(JSON.stringify({ user: publicUser(user) }), { headers: { 'Content-Type': 'application/json' } });
   }
 

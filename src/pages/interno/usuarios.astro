@@ -65,7 +65,7 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
 
   <div class="panel-card">
     <h2>Usuarios</h2>
-    {!isFullAdmin && <p class="hint">Solo puedes asignarle la sucursal a cada usuario.</p>}
+    {!isFullAdmin && <p class="hint">Solo puedes asignarle la sucursal o restablecer la contraseña de cada usuario.</p>}
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por nombre o usuario..." />
       <select id="roleFilter">

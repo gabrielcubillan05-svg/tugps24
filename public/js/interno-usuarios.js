@@ -54,8 +54,8 @@ document.addEventListener('DOMContentLoaded', function () {
             <option value="" ${!u.branch ? 'selected' : ''}>Sin sucursal asignada</option>
             ${BRANCHES.map((b) => `<option value="${b}" ${b === u.branch ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
-          ${isLimited ? '' : `
           <button class="btn-small" data-action="reset-password" data-id="${u.id}" type="button">Restablecer clave</button>
+          ${isLimited ? '' : `
           <button class="btn-small ${u.active ? 'btn-delete' : 'btn-done'}" data-action="toggle-active" data-id="${u.id}" type="button">
             ${u.active ? 'Desactivar' : 'Activar'}
           </button>`}
