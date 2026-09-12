@@ -185,8 +185,12 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     monthFilter.value = currentMonth;
   }
 
-  function getFilteredLeads() {
-    const q = searchInput.value.trim().toLowerCase();
+  // includeQuery=false se usa para el tablero, que a propósito NO reacciona al texto de
+  // búsqueda (solo a los filtros de selección) — así escribir en el buscador no obliga a
+  // reconstruir las tarjetas de todas las columnas en cada tecla.
+  function getFilteredLeads(includeQuery) {
+    if (includeQuery === undefined) includeQuery = true;
+    const q = includeQuery ? searchInput.value.trim().toLowerCase() : '';
     const city = cityFilter.value;
     const secretary = secretaryFilter.value;
     const status = statusFilter.value;
@@ -274,14 +278,25 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     `;
   }
 
-  function renderLeads() {
-    const leads = getFilteredLeads();
+  // Buscar por números (ej. "300") coincide con el teléfono de muchísimos leads a la vez —
+  // sin este tope, terminaría construyendo miles de tarjetas de golpe en cada tecla. Se
+  // avisa cuando se recorta, para que la persona afine la búsqueda si de verdad necesita ver
+  // más de estos.
+  const MAX_RENDERED_LEADS = 150;
+
+  function renderLeads(leads) {
     if (!leads.length) {
       leadsList.innerHTML = '<div class="empty">No hay leads con esos filtros.</div>';
       return;
     }
 
-    leadsList.innerHTML = leads.map((l) => {
+    const truncated = leads.length > MAX_RENDERED_LEADS;
+    const toRender = truncated ? leads.slice(0, MAX_RENDERED_LEADS) : leads;
+    const notice = truncated
+      ? `<div class="empty">Mostrando los primeros ${MAX_RENDERED_LEADS} de ${leads.length} resultados — escribe más para afinar la búsqueda.</div>`
+      : '';
+
+    leadsList.innerHTML = notice + toRender.map((l) => {
       if (l.id === editingId) return renderEditForm(l);
       return `
       <div class="lead-item ${l.overdue ? 'overdue' : ''}" data-id="${l.id}">
@@ -407,9 +422,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     `;
   }
 
-  function renderBoard() {
+  function renderBoard(leads) {
     if (!leadsBoard) return;
-    const leads = getFilteredLeads();
     leadsBoard.innerHTML = `<div class="board-columns">${STATUSES.map((s) => {
       const items = leads.filter((l) => l.status === s);
       return `
@@ -458,8 +472,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     `;
   }
 
-  function renderFilteredCount() {
-    const count = getFilteredLeads().length;
+  function renderFilteredCount(count) {
     const hasDateRange = dateFromFilter.value || dateToFilter.value;
     filteredCount.textContent = hasDateRange
       ? `${count} lead(s) en el rango de fechas seleccionado.`
@@ -480,24 +493,40 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     );
   }
 
-  function renderCurrentView() {
-    const filtered = getFilteredLeads();
-    renderStats(computeStats(filtered));
-    renderResults(filtered);
-
-    // El tablero siempre se ve completo (agrupado por etapa, se navega solo) — es la vista
-    // principal para el seguimiento del día a día. La lista detallada sigue pidiendo un
-    // filtro para no cargar de más.
-    renderBoard();
-
+  function renderListAndCount(filtered) {
     if (!hasActiveQuery()) {
       leadsList.innerHTML = `<div class="empty">Hay ${allLeads.length} lead(s) en total. Busca por nombre/teléfono o usa un filtro (ciudad, estado, mes, etc.) para verlos en la lista.</div>`;
       filteredCount.textContent = '';
       return;
     }
+    renderLeads(filtered);
+    renderFilteredCount(filtered.length);
+  }
 
-    renderLeads();
-    renderFilteredCount();
+  function renderCurrentView() {
+    const filtered = getFilteredLeads();
+    renderStats(computeStats(filtered));
+    renderResults(filtered);
+
+    // El tablero se ve agrupado por etapa (se navega solo) y a propósito NO reacciona al
+    // texto de búsqueda (getBoardLeads ignora el buscador) — solo a los demás filtros, que
+    // cambian con mucha menos frecuencia que cada tecla escrita.
+    renderBoard(getBoardLeads());
+    renderListAndCount(filtered);
+  }
+
+  // Se usa mientras se escribe en el buscador: NO toca el tablero (ver arriba), que es la
+  // reconstrucción más pesada — así cada tecla solo recalcula lo que de verdad depende del
+  // texto buscado.
+  function renderSearchOnly() {
+    const filtered = getFilteredLeads();
+    renderStats(computeStats(filtered));
+    renderResults(filtered);
+    renderListAndCount(filtered);
+  }
+
+  function getBoardLeads() {
+    return getFilteredLeads(false);
   }
 
   function loadLeads() {
@@ -520,7 +549,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   let debounceTimer;
   function debouncedRender() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(renderCurrentView, 200);
+    debounceTimer = setTimeout(renderSearchOnly, 200);
   }
 
   searchInput.addEventListener('input', debouncedRender);
@@ -723,11 +752,11 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     } else if (action === 'edit') {
       editingId = id;
       editError = '';
-      renderLeads();
+      renderLeads(getFilteredLeads());
     } else if (action === 'cancel-edit') {
       editingId = null;
       editError = '';
-      renderLeads();
+      renderLeads(getFilteredLeads());
     } else if (action === 'save-edit') {
       const card = leadsList.querySelector(`.lead-item[data-id="${id}"]`);
       const name = card.querySelector('[data-edit="name"]').value.trim();
@@ -739,7 +768,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       const secretary = card.querySelector('[data-edit="secretary"]').value;
       if (!name || !phone) {
         editError = 'Nombre y teléfono son obligatorios.';
-        renderLeads();
+        renderLeads(getFilteredLeads());
         return;
       }
       btn.disabled = true;
@@ -757,7 +786,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         })
         .catch((err) => {
           editError = err.message || 'No se pudo guardar.';
-          renderLeads();
+          renderLeads(getFilteredLeads());
         });
     }
   });
