@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const outputPriceInput = document.getElementById('outputPrice');
   const saveCostConfigBtn = document.getElementById('saveCostConfigBtn');
   const costConfigResult = document.getElementById('costConfigResult');
+  const retryTodayBtn = document.getElementById('retryTodayBtn');
+  const retryTodayResult = document.getElementById('retryTodayResult');
 
   let agents = [];
 
@@ -125,6 +127,27 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch((err) => {
         costConfigResult.textContent = err.message || 'No se pudo guardar.';
       });
+  });
+
+  if (retryTodayBtn) retryTodayBtn.addEventListener('click', function () {
+    if (!confirm('¿Enviar un mensaje real de Andrés a todos los leads de hoy que siguen esperando respuesta? Esto envía WhatsApp de verdad.')) return;
+    retryTodayBtn.disabled = true;
+    retryTodayResult.style.display = 'block';
+    retryTodayResult.textContent = 'Enviando...';
+    fetch('/api/whatsapp-retry-today', { method: 'POST' })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo reintentar.');
+        if (data.reason === 'quiet-hours') {
+          retryTodayResult.textContent = 'No se envió nada: son horas de silencio (11pm–6am Colombia). Intenta de nuevo en el día.';
+        } else {
+          retryTodayResult.textContent = `${data.sent} mensaje(s) enviados, ${data.skipped} omitidos (ya tenían respuesta), ${data.failed} fallidos.`;
+        }
+      })
+      .catch((err) => {
+        retryTodayResult.textContent = err.message || 'No se pudo reintentar.';
+      })
+      .finally(() => { retryTodayBtn.disabled = false; });
   });
 
   agentsList.addEventListener('click', function (e) {

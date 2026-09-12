@@ -26,6 +26,13 @@ if (!canManageAiAgents(session)) {
     </div>
   </div>
 
+  <div class="panel-card">
+    <h2>Reintentar leads de hoy sin respuesta</h2>
+    <p class="hint">Si Andrés se quedó sin poder responder de verdad (por ejemplo, se agotaron los créditos de Anthropic) y algún lead de hoy solo recibió el mensaje genérico de respaldo, esto le manda un mensaje real para retomar la conversación — solo a los que de verdad siguen esperando respuesta.</p>
+    <button class="btn-ghost" id="retryTodayBtn" type="button">Reintentar leads de hoy</button>
+    <p id="retryTodayResult" style="display:none; margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></p>
+  </div>
+
   <div id="agentsList"></div>
 </InternoLayout>
 
