@@ -14,9 +14,11 @@ if (!canAccessSection(session.role, 'planillas-vehiculo')) {
 }
 
 const isManager = session.role === 'gerente' || session.role === 'admin';
-const today = new Date();
-const defaultFecha = today.toISOString().slice(0, 10);
-const defaultHora = today.toTimeString().slice(0, 5);
+const now = new Date();
+// Vercel corre las funciones en UTC — hay que fijar la zona horaria de Colombia a mano,
+// tanto para la fecha (puede ser un día distinto al de UTC) como para la hora.
+const defaultFecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(now);
+const defaultHora = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
 ---
 
 <InternoLayout title="Planilla de vehículo" active="planillas-vehiculo" session={session}>
@@ -38,8 +40,8 @@ const defaultHora = today.toTimeString().slice(0, 5);
             <input id="fecha" type="date" value={defaultFecha} required />
           </div>
           <div class="field">
-            <label for="hora">Hora</label>
-            <input id="hora" type="time" value={defaultHora} required />
+            <label for="hora">Hora (automática, hora Colombia)</label>
+            <input id="hora" type="time" value={defaultHora} readonly disabled />
           </div>
         </div>
 

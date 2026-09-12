@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const secretaryFilter = document.getElementById('secretaryFilter');
   const statusFilter = document.getElementById('statusFilter');
   const vehicleTypeFilter = document.getElementById('vehicleTypeFilter');
+  const campaignFilter = document.getElementById('campaignFilter');
   const monthFilter = document.getElementById('monthFilter');
   const overdueFilter = document.getElementById('overdueFilter');
   const dateFromFilter = document.getElementById('dateFromFilter');
@@ -183,6 +184,12 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     monthFilter.innerHTML = '<option value="">Todos los meses</option>' +
       months.map((m) => `<option value="${m}">${escapeHtml(monthLabel(m))}</option>`).join('');
     monthFilter.value = currentMonth;
+
+    const campaigns = [...new Set(leads.map((l) => l.campaign).filter(Boolean))].sort();
+    const currentCampaign = campaignFilter.value;
+    campaignFilter.innerHTML = '<option value="">¿De dónde viene? (todos)</option>' +
+      campaigns.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    campaignFilter.value = currentCampaign;
   }
 
   // includeQuery=false se usa para el tablero, que a propósito NO reacciona al texto de
@@ -195,6 +202,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     const secretary = secretaryFilter.value;
     const status = statusFilter.value;
     const vehicleType = vehicleTypeFilter.value;
+    const campaign = campaignFilter.value;
     const month = monthFilter.value;
     const onlyOverdue = overdueFilter.checked;
     const dateFrom = dateFromFilter.value;
@@ -211,6 +219,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       if (secretary && l.secretary !== secretary) return false;
       if (status && l.status !== status) return false;
       if (vehicleType && l.vehicleType !== vehicleType) return false;
+      if (campaign && l.campaign !== campaign) return false;
       if (month && (l.createdAt || '').slice(0, 7) !== month) return false;
       if (onlyOverdue && !l.overdue) return false;
       if (dateFrom || dateTo) {
@@ -486,6 +495,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       secretaryFilter.value ||
       statusFilter.value ||
       vehicleTypeFilter.value ||
+      campaignFilter.value ||
       monthFilter.value ||
       overdueFilter.checked ||
       dateFromFilter.value ||
@@ -561,6 +571,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   secretaryFilter.addEventListener('change', renderCurrentView);
   statusFilter.addEventListener('change', renderCurrentView);
   vehicleTypeFilter.addEventListener('change', renderCurrentView);
+  campaignFilter.addEventListener('change', renderCurrentView);
   monthFilter.addEventListener('change', renderCurrentView);
   overdueFilter.addEventListener('change', renderCurrentView);
   dateFromFilter.addEventListener('change', renderCurrentView);

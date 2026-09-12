@@ -163,7 +163,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const placa = document.getElementById('placa').value.trim();
     const modelo = document.getElementById('modelo').value.trim();
     const fecha = document.getElementById('fecha').value;
-    const hora = document.getElementById('hora').value;
+    // La hora no la elige el técnico — se toma la hora actual de Colombia justo al enviar,
+    // no la que se veía al cargar la página (pudo haberse demorado llenando el formulario).
+    const hora = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+    document.getElementById('hora').value = hora;
     const nivelCombustible = document.getElementById('nivelCombustible').value;
     const observaciones = document.getElementById('observaciones').value.trim();
     const observacionGarantia = document.getElementById('observacionGarantia').value.trim();
