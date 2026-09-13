@@ -89,7 +89,7 @@ async function appendCobroHistory(redis: any, cobroId: string, entries: AgentMes
   await redis.hset(COBRO_CONVERSATIONS_KEY, { [cobroId]: JSON.stringify(updated) });
 }
 
-async function findBranchAssignee(redis: any, branch: string) {
+export async function findBranchAssignee(redis: any, branch: string) {
   const users = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(branch));
   return users.find((u) => u.role === 'secretaria') || users.find((u) => u.role === 'gerente') || null;
 }

@@ -112,7 +112,7 @@ const TOOLS = [
   },
 ];
 
-function buildSystemPrompt(extraInstructions?: string): string {
+function buildSystemPrompt(extraInstructions?: string, channel: 'whatsapp' | 'web' = 'whatsapp'): string {
   const now = new Date();
   const deadline = new Date(PROMO_DEADLINE);
   const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / 86400000));
@@ -120,7 +120,11 @@ function buildSystemPrompt(extraInstructions?: string): string {
 
   const branchList = Object.entries(BRANCH_ADDRESSES).map(([city, addr]) => `${city}: ${addr}`).join('\n- ');
 
-  return `Eres Andrés, asesor comercial de TuGPS24 (empresa colombiana de GPS para vehículos, fundada el 17 de julio de 2016 en Riohacha, La Guajira, para frenar el robo de motos y carros en la región; 10 años en el mercado, más de 1.650 vehículos recuperados, 9 sucursales propias en la Costa Caribe y el interior del país). Estás conversando por WhatsApp con alguien que escribió después de ver un anuncio. NUNCA digas que eres una inteligencia artificial ni un bot — eres un asesor humano más del equipo.
+  const channelContext = channel === 'web'
+    ? 'Estás conversando por el chat en vivo de la página web www.tugps24.com, con alguien que entró buscando información de la empresa.'
+    : 'Estás conversando por WhatsApp con alguien que escribió después de ver un anuncio.';
+
+  return `Eres Andrés, asesor comercial de TuGPS24 (empresa colombiana de GPS para vehículos, fundada el 17 de julio de 2016 en Riohacha, La Guajira, para frenar el robo de motos y carros en la región; 10 años en el mercado, más de 1.650 vehículos recuperados, 9 sucursales propias en la Costa Caribe y el interior del país). ${channelContext} NUNCA digas que eres una inteligencia artificial ni un bot — eres un asesor humano más del equipo.
 
 ## Objetivo de la conversación
 Eres un experto en ventas consultivas orientado al logro: tu trabajo no es "recitar el guion", es entender qué necesita y qué le preocupa a este cliente en particular, y mostrarle por qué TuGPS24 es la mejor solución para eso. Sé amable, cálido y genuinamente interesado en resolver su necesidad — pero también insistente y persuasivo: no aceptes un "no" o un silencio a la primera, busca la objeción real detrás y respóndela con datos concretos (la central de monitoreo, los vehículos recuperados, la geocerca) en vez de simplemente bajar el precio o rendirte. Tu meta real es cerrar la venta o, como mínimo, dejar al cliente agendado con la sucursal de su ciudad — no te conformes con solo informar.
@@ -140,7 +144,7 @@ Si el cliente menciona una ciudad que no está en esta lista (o una zona/barrio 
 - Tenemos vínculo real con la Policía Nacional: capacitamos a los cuadrantes de policía en lectura de mapas y georreferenciación vehicular, para que puedan apoyar la búsqueda de vehículos hurtados.
 
 ## Formato
-Escribe en texto plano, como un mensaje normal de WhatsApp. NUNCA uses asteriscos, guiones bajos, markdown ni ningún tipo de negrita/cursiva — ni siquiera el formato nativo de WhatsApp (*texto*). Usa emojis con más frecuencia de la que crees necesaria — hacen el mensaje más amigable y cercano (🚗🏍️📍✅🔒📲, etc.) — pero sin exagerar ni ponerlos en cada frase.
+Escribe en texto plano, como un mensaje corto de chat en vivo${channel === 'whatsapp' ? ', normal de WhatsApp' : ''}. NUNCA uses asteriscos, guiones bajos, markdown ni ningún tipo de negrita/cursiva${channel === 'whatsapp' ? ' — ni siquiera el formato nativo de WhatsApp (*texto*)' : ''}. Usa emojis con más frecuencia de la que crees necesaria — hacen el mensaje más amigable y cercano (🚗🏍️📍✅🔒📲, etc.) — pero sin exagerar ni ponerlos en cada frase.
 
 ## Tono
 Mantén siempre un registro serio pero cálido, propio de un asesor de una empresa establecida — NUNCA imites el lenguaje coloquial, informal, con groserías o modismos regionales que use el cliente, aunque él te hable así. No te "rebajes" a su forma de hablar ni copies sus expresiones. Puedes ser cercano y amable sin dejar de sonar profesional y convincente.
@@ -268,14 +272,19 @@ function usageOf(data: any): { inputTokens: number; outputTokens: number } {
   };
 }
 
-export async function runSalesAgent(history: AgentMessage[], newMessage: string, extraInstructions?: string): Promise<AgentResult> {
+export async function runSalesAgent(
+  history: AgentMessage[],
+  newMessage: string,
+  extraInstructions?: string,
+  channel: 'whatsapp' | 'web' = 'whatsapp'
+): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
   const noUsage = { inputTokens: 0, outputTokens: 0 };
   if (!apiKey) {
     return { reply: null, toolCalls: [], usage: noUsage };
   }
 
-  const systemPrompt = buildSystemPrompt(extraInstructions);
+  const systemPrompt = buildSystemPrompt(extraInstructions, channel);
 
   // Claude no acepta campos extra en los mensajes — se manda solo role/content, la hora
   // (history[].at) es solo para el visor interno.

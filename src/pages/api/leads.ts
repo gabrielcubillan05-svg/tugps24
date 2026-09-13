@@ -38,7 +38,7 @@ export interface Lead {
   verifiedInstalled: boolean;
   verifiedInstalledAt: string | null;
   scheduledInstallDate: string | null;
-  source: 'manual' | 'meta-leadgen' | 'whatsapp-ads';
+  source: 'manual' | 'meta-leadgen' | 'whatsapp-ads' | 'web-chat';
   metaLeadId: string | null;
   createdByName: string;
   notes: Note[];
@@ -106,10 +106,10 @@ export interface SalesAgentStats {
   sinInteres: number;
 }
 
-// Resultados del agente IA (Andrés) — solo cuenta leads que llegaron por WhatsApp Ads,
-// que es el único canal donde él conversa de verdad con el cliente.
+// Resultados del agente IA (Andrés) — cuenta los leads de los canales donde él conversa de
+// verdad con el cliente: WhatsApp Ads y el chat en vivo de la página web.
 export function computeSalesAgentStats(leads: Lead[]): SalesAgentStats {
-  const touched = leads.filter((l) => l.source === 'whatsapp-ads');
+  const touched = leads.filter((l) => l.source === 'whatsapp-ads' || l.source === 'web-chat');
   const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0 };
   for (const l of touched) {
     switch (l.aiStage) {
