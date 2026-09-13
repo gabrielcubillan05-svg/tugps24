@@ -18,19 +18,13 @@ import { readSchedule } from './schedule';
 
 export const prerender = false;
 
-function normalizeNameForMatch(raw: string): string {
-  return String(raw ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
 // Supervisores de turno de los operadores — cada uno ve el rendimiento de los operadores de
 // su franja, sin importar su rol formal en el sistema (no depende de sucursal, como gerente).
-const SHIFT_SUPERVISORS: Array<{ name: string; buckets: ShiftBucket[] }> = [
-  { name: 'jose reales', buckets: ['temprano'] },
-  { name: 'junior cardenas', buckets: ['tarde', 'noche'] },
+// Por username, no por nombre (más estable — el nombre completo registrado no siempre coincide
+// con el nombre corto por el que se les conoce).
+const SHIFT_SUPERVISORS: Array<{ username: string; buckets: ShiftBucket[] }> = [
+  { username: 'josemiguel', buckets: ['temprano'] }, // Jose Miguel Reales Durango
+  { username: 'juniorcardenas', buckets: ['tarde', 'noche'] }, // Hisnaldis Junior Cardenas Almanza
 ];
 
 // Vercel llama esto a las 7:50, 10:50, 13:50 y 16:50 hora Colombia (ver vercel.json) — desde
@@ -154,7 +148,7 @@ export const GET: APIRoute = async ({ request }) => {
 
     // Cada supervisor de turno recibe el resumen de los operadores de su franja horaria.
     for (const supervisor of SHIFT_SUPERVISORS) {
-      const supervisorUser = users.find((u) => u.active && normalizeNameForMatch(u.name) === supervisor.name);
+      const supervisorUser = users.find((u) => u.active && u.username.toLowerCase() === supervisor.username);
       if (!supervisorUser) continue;
       const misOperadores = flaggedWorkers.filter(({ user }) => {
         if (user.role !== 'operador') return false;
