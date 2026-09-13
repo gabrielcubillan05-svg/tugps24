@@ -16,6 +16,30 @@ function timeToMinutes(hhmm: string): number {
   return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
+export type ShiftBucket = 'temprano' | 'tarde' | 'noche';
+
+// Clasifica el turno de un operador por su hora de inicio, con margen de tolerancia (±90 min)
+// para no depender de que el horario esté cargado con el minuto exacto — temprano ≈ 6am-2pm,
+// tarde ≈ 2pm-10pm, noche ≈ 10pm-6am.
+export function shiftBucketFor(schedule: ScheduleEntry[], userName: string): ShiftBucket | null {
+  const targetName = normalizeNameForMatch(userName);
+  const relevant = schedule.filter(
+    (e) => normalizeNameForMatch(e.operator) === targetName && e.days.length > 0 && e.start && e.end
+  );
+  if (!relevant.length) return null;
+
+  const TOLERANCE = 90;
+  const closeTo = (a: number, b: number) => Math.abs(a - b) <= TOLERANCE;
+
+  for (const e of relevant) {
+    const startMin = timeToMinutes(e.start);
+    if (closeTo(startMin, 6 * 60)) return 'temprano';
+    if (closeTo(startMin, 14 * 60)) return 'tarde';
+    if (closeTo(startMin, 22 * 60) || closeTo(startMin, 0)) return 'noche';
+  }
+  return null;
+}
+
 // Colombia es UTC-5 fijo (sin horario de verano) — igual que isQuietHoursColombia en whatsapp.ts.
 function colombiaDayAndMinutes(date: Date): { day: string; minutes: number } {
   const shifted = new Date(date.getTime() - 5 * 60 * 60 * 1000);

@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { isQuietHoursColombia } from '../../lib/whatsapp';
-import { getUsers, JOSUE_USERNAME, WILMAR_USERNAME, ROLE_LABELS } from '../../lib/auth';
+import { getUsers, JOSUE_USERNAME, WILMAR_USERNAME, ROLE_LABELS, branchesOf } from '../../lib/auth';
 import { sendGabotMessage } from '../../lib/gabot';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
 import { computePerformanceFlags, type PerformanceFlag } from '../../lib/gabot-performance';
-import { isOnShiftNow } from '../../lib/shift';
+import { isOnShiftNow, shiftBucketFor, type ShiftBucket } from '../../lib/shift';
 import { readSuspensiones } from './suspensiones';
 import { readSolicitudes } from './solicitudes-administrativas';
 import { readPagos } from './pagos-internos';
@@ -17,6 +17,21 @@ import { readScheduledReports } from './scheduled-reports';
 import { readSchedule } from './schedule';
 
 export const prerender = false;
+
+function normalizeNameForMatch(raw: string): string {
+  return String(raw ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+// Supervisores de turno de los operadores — cada uno ve el rendimiento de los operadores de
+// su franja, sin importar su rol formal en el sistema (no depende de sucursal, como gerente).
+const SHIFT_SUPERVISORS: Array<{ name: string; buckets: ShiftBucket[] }> = [
+  { name: 'jose reales', buckets: ['temprano'] },
+  { name: 'junior cardenas', buckets: ['tarde', 'noche'] },
+];
 
 // Vercel llama esto a las 7:50, 10:50, 13:50 y 16:50 hora Colombia (ver vercel.json) — desde
 // la apertura hasta el cierre de oficinas (6pm), cada 3 horas. GaBot, el asistente interno,
@@ -115,6 +130,46 @@ export const GET: APIRoute = async ({ request }) => {
     const summaryText = `📊 Resumen de rendimiento de hoy — ${flaggedWorkers.length} trabajador(es) con demoras:\n\n${summaryLines}`;
     for (const overseer of overseers) {
       await sendGabotMessage(redis, overseer.id, summaryText);
+    }
+
+    // A cada gerente le llega también el resumen, pero solo de su(s) propia(s) sucursal(es) —
+    // no el de toda la empresa como a admin/Josué/Wilmar.
+    const gerentes = users.filter((u) => u.active && u.role === 'gerente');
+    for (const gerente of gerentes) {
+      const misSucursales = branchesOf(gerente);
+      if (!misSucursales.length) continue;
+      const misFlagged = flaggedWorkers.filter(
+        (fw) => fw.user.id !== gerente.id && branchesOf(fw.user).some((b) => misSucursales.includes(b))
+      );
+      if (!misFlagged.length) continue;
+      const misSummaryLines = misFlagged
+        .map(({ user, flags }) => {
+          const flagLines = flags.map((f) => `    · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
+          return `  ${user.name} (${ROLE_LABELS[user.role]}):\n${flagLines}`;
+        })
+        .join('\n');
+      const misSummaryText = `📊 Resumen de rendimiento de hoy en tu sucursal — ${misFlagged.length} trabajador(es) con demoras:\n\n${misSummaryLines}`;
+      await sendGabotMessage(redis, gerente.id, misSummaryText);
+    }
+
+    // Cada supervisor de turno recibe el resumen de los operadores de su franja horaria.
+    for (const supervisor of SHIFT_SUPERVISORS) {
+      const supervisorUser = users.find((u) => u.active && normalizeNameForMatch(u.name) === supervisor.name);
+      if (!supervisorUser) continue;
+      const misOperadores = flaggedWorkers.filter(({ user }) => {
+        if (user.role !== 'operador') return false;
+        const bucket = shiftBucketFor(schedule, user.name);
+        return bucket !== null && supervisor.buckets.includes(bucket);
+      });
+      if (!misOperadores.length) continue;
+      const opSummaryLines = misOperadores
+        .map(({ user, flags }) => {
+          const flagLines = flags.map((f) => `    · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
+          return `  ${user.name}:\n${flagLines}`;
+        })
+        .join('\n');
+      const opSummaryText = `📊 Resumen de rendimiento de hoy de tus operadores — ${misOperadores.length} con demoras:\n\n${opSummaryLines}`;
+      await sendGabotMessage(redis, supervisorUser.id, opSummaryText);
     }
   }
 
