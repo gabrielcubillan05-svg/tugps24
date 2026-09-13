@@ -13,7 +13,9 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
-  if (secret && authHeader !== `Bearer ${secret}`) {
+  // Falla cerrado: si CRON_SECRET no está configurado, el endpoint se bloquea en vez de
+  // quedar abierto — esto dispara envíos masivos de WhatsApp reales, no es solo lectura.
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return new Response('unauthorized', { status: 401 });
   }
 

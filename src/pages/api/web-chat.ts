@@ -9,6 +9,7 @@ import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
 import { readHistory, appendHistory, findBranchAssignee, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
+import { getClientIp, checkAndIncrementRateLimit } from '../../lib/rate-limit';
 
 export const prerender = false;
 
@@ -16,21 +17,13 @@ const WEB_ACTOR = { userId: 'web-chat-agent', username: 'Agente IA (Andrés, web
 
 // Protección contra abuso/costo: este endpoint es público (cualquiera en internet puede
 // llamarlo, no requiere sesión) — sin esto, alguien podría hacer explotar el gasto de
-// Anthropic con requests automatizados.
+// Anthropic con requests automatizados. Tres capas: por sesión (fácil de esquivar generando
+// otro sessionId), por IP (más difícil de esquivar), y un tope GLOBAL de todo el endpoint
+// como último respaldo contra un ataque distribuido desde muchas IPs distintas a la vez.
 const MAX_MESSAGES_PER_SESSION_PER_DAY = 40;
 const MAX_MESSAGES_PER_IP_PER_DAY = 150;
+const MAX_MESSAGES_GLOBAL_PER_DAY = 2000;
 const SECONDS_IN_DAY = 24 * 60 * 60;
-
-function getClientIp(request: Request): string {
-  const fwd = request.headers.get('x-forwarded-for');
-  return (fwd ? fwd.split(',')[0].trim() : '') || 'unknown';
-}
-
-async function checkAndIncrementRateLimit(redis: any, key: string, max: number): Promise<boolean> {
-  const count = await redis.incr(key);
-  if (count === 1) await redis.expire(key, SECONDS_IN_DAY);
-  return count <= max;
-}
 
 function newLeadFromWeb(phone: string, name: string, now: string): Lead {
   return {
@@ -87,9 +80,10 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const ip = getClientIp(request);
-  const okSession = await checkAndIncrementRateLimit(redis, `internal:web-chat-rate:session:${sessionId}`, MAX_MESSAGES_PER_SESSION_PER_DAY);
-  const okIp = await checkAndIncrementRateLimit(redis, `internal:web-chat-rate:ip:${ip}`, MAX_MESSAGES_PER_IP_PER_DAY);
-  if (!okSession || !okIp) {
+  const okGlobal = await checkAndIncrementRateLimit(redis, 'internal:web-chat-rate:global', MAX_MESSAGES_GLOBAL_PER_DAY, SECONDS_IN_DAY);
+  const okSession = await checkAndIncrementRateLimit(redis, `internal:web-chat-rate:session:${sessionId}`, MAX_MESSAGES_PER_SESSION_PER_DAY, SECONDS_IN_DAY);
+  const okIp = await checkAndIncrementRateLimit(redis, `internal:web-chat-rate:ip:${ip}`, MAX_MESSAGES_PER_IP_PER_DAY, SECONDS_IN_DAY);
+  if (!okGlobal || !okSession || !okIp) {
     return new Response(
       JSON.stringify({ error: 'Alcanzaste el límite de mensajes por hoy. Escríbenos por WhatsApp o vuelve mañana.' }),
       { status: 429 }

@@ -65,10 +65,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
     task.proof = { pathname: blob.pathname, contentType: photo.type };
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: 'fallo al subir la foto', detail: err instanceof Error ? err.message : String(err) }),
-      { status: 500 }
-    );
+    console.error('task-proof: fallo al subir la foto', err instanceof Error ? err.message : String(err));
+    return new Response(JSON.stringify({ error: 'fallo al subir la foto' }), { status: 500 });
   }
 
   task.updatedAt = new Date().toISOString();

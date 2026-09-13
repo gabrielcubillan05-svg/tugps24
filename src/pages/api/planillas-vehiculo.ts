@@ -206,10 +206,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       tecnicoFirma = tecnicoBlob.pathname;
     }
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: 'fallo al subir la firma', detail: err instanceof Error ? err.message : String(err) }),
-      { status: 500 }
-    );
+    console.error('planillas-vehiculo: fallo al subir la firma', err instanceof Error ? err.message : String(err));
+    return new Response(JSON.stringify({ error: 'fallo al subir la firma' }), { status: 500 });
   }
 
   const tecnico = await findUserById(redis, session.userId);
@@ -322,10 +320,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     });
     planilla.salidaFirma = blob.pathname;
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: 'fallo al subir la firma', detail: err instanceof Error ? err.message : String(err) }),
-      { status: 500 }
-    );
+    console.error('planillas-vehiculo: fallo al subir la firma de salida', err instanceof Error ? err.message : String(err));
+    return new Response(JSON.stringify({ error: 'fallo al subir la firma' }), { status: 500 });
   }
 
   const now = new Date().toISOString();

@@ -21,7 +21,9 @@ const BATCH_SIZE = 300; // mismo tope que la cobranza masiva, por si un día cae
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
-  if (secret && authHeader !== `Bearer ${secret}`) {
+  // Falla cerrado: si CRON_SECRET no está configurado, el endpoint se bloquea en vez de
+  // quedar abierto a cualquiera en internet.
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return new Response('unauthorized', { status: 401 });
   }
 

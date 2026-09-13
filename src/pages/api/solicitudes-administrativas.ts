@@ -101,6 +101,7 @@ async function uploadSolicitudPhoto(photoFile: File): Promise<{ path?: string; e
     const blob = await put(`solicitudes-admin/${blobId}`, photoFile, { access: 'private', token, addRandomSuffix: false });
     return { path: blob.pathname };
   } catch (err) {
+    console.error('solicitudes-administrativas: fallo al subir la foto', err instanceof Error ? err.message : String(err));
     return { error: 'fallo al subir la foto', status: 500 };
   }
 }

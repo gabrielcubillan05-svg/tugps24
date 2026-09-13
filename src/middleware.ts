@@ -19,6 +19,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Fuerza HTTPS en el navegador para toda visita futura (2 años, incluidos subdominios) —
+  // Vercel ya sirve todo por TLS, pero sin este header un enlace http:// viejo o mal copiado
+  // dejaría una ventana de downgrade antes de la redirección.
+  response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   // El sitio público no necesita micrófono/cámara/ubicación — se bloquean ahí. El panel
   // interno sí lo necesita (micrófono de GPSITO), así que se permite solo para ese mismo
   // origen, solo en /interno.

@@ -114,10 +114,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         createdBy: session.username,
       };
     } catch (err) {
-      return new Response(
-        JSON.stringify({ error: 'fallo al subir la imagen', detail: err instanceof Error ? err.message : String(err) }),
-        { status: 500 }
-      );
+      console.error('media-assets: fallo al subir la imagen', err instanceof Error ? err.message : String(err));
+      return new Response(JSON.stringify({ error: 'fallo al subir la imagen' }), { status: 500 });
     }
   } else {
     let body: { label?: string; url?: string };

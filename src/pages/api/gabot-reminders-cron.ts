@@ -39,7 +39,9 @@ const SHIFT_SUPERVISORS: Array<{ username: string; buckets: ShiftBucket[] }> = [
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
-  if (secret && authHeader !== `Bearer ${secret}`) {
+  // Antes, si CRON_SECRET no estaba configurado, la condición se saltaba entera y el endpoint
+  // quedaba abierto a cualquiera en internet — "falla abierto" en vez de "falla cerrado".
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return new Response('unauthorized', { status: 401 });
   }
 

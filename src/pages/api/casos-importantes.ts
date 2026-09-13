@@ -167,10 +167,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         images.push(blob.pathname);
       }
     } catch (err) {
-      return new Response(
-        JSON.stringify({ error: 'fallo al subir imagen', detail: err instanceof Error ? err.message : String(err) }),
-        { status: 500 }
-      );
+      console.error('casos-importantes: fallo al subir imagen', err instanceof Error ? err.message : String(err));
+      return new Response(JSON.stringify({ error: 'fallo al subir imagen' }), { status: 500 });
     }
   }
 

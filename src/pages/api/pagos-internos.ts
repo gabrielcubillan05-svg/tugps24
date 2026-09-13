@@ -250,7 +250,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   // sobre cualquier pago de SU sucursal (no solo el que él mismo creó o el que le asignaron).
   const seesAll = canSeeAllPagosInternos(session);
   const actor = await findUserById(redis, session.userId);
-  if (!seesAll && pago.branch !== (actor?.branch || '')) {
+  if (!seesAll && !branchesOf(actor).includes(pago.branch)) {
     return new Response(JSON.stringify({ error: 'no tienes acceso a este pago' }), { status: 403 });
   }
 
