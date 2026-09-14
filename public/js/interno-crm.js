@@ -339,11 +339,11 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           </select>
           <label class="date-field" title="Próxima llamada de seguimiento">
             <span>Próxima llamada</span>
-            <input type="date" data-action="followup" data-id="${l.id}" value="${l.nextFollowUp ? l.nextFollowUp.slice(0, 10) : ''}" />
+            <input type="date" data-field="followup" data-id="${l.id}" value="${l.nextFollowUp ? l.nextFollowUp.slice(0, 10) : ''}" />
           </label>
           <label class="date-field" title="Fecha de instalación agendada">
             <span>Instalación agendada</span>
-            <input type="date" data-action="scheduledInstall" data-id="${l.id}" value="${l.scheduledInstallDate ? l.scheduledInstallDate.slice(0, 10) : ''}" />
+            <input type="date" data-field="scheduledInstall" data-id="${l.id}" value="${l.scheduledInstallDate ? l.scheduledInstallDate.slice(0, 10) : ''}" />
           </label>
           <select data-action="vehicleType" data-id="${l.id}" title="Tipo de cliente">
             <option value="" ${!l.vehicleType ? 'selected' : ''}>Sin definir</option>
@@ -366,8 +366,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
         </div>
         <div class="add-note-row">
-          <input type="text" placeholder="Agregar nota de seguimiento..." data-note-input data-id="${l.id}" />
-          <button class="btn-small" data-action="addnote" data-id="${l.id}" type="button">Agregar</button>
+          <input type="text" placeholder="Nota de seguimiento (opcional si solo cambias una fecha)..." data-note-input data-id="${l.id}" />
+          <button class="btn-small" data-action="addnote" data-id="${l.id}" type="button">Guardar seguimiento</button>
         </div>
         ${l.notes && l.notes.length ? `
           <div class="notes-list">
@@ -691,10 +691,11 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       return;
     }
 
+    // "followup" y "scheduledInstall" ya NO se guardan solos al cambiar — se guardan junto con
+    // la nota al hacer clic en "Guardar seguimiento" (ver más abajo), para que las tres cosas
+    // queden en un solo PATCH y no se pisen entre sí si se editan casi al mismo tiempo.
     const body = { id };
     if (action === 'status') body.status = el.value;
-    else if (action === 'followup') body.nextFollowUp = el.value || null;
-    else if (action === 'scheduledInstall') body.scheduledInstallDate = el.value || null;
     else if (action === 'vehicleType') body.vehicleType = el.value || '';
     else return;
 
@@ -719,13 +720,28 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         body: JSON.stringify({ id }),
       }).then(loadLeads);
     } else if (action === 'addnote') {
-      const input = leadsList.querySelector(`input[data-note-input][data-id="${id}"]`);
-      const text = input ? input.value.trim() : '';
-      if (!text) return;
+      // Junta nota + próxima llamada + instalación agendada en un solo PATCH, para que
+      // "Guardar seguimiento" quede como una sola acción con todos los cambios juntos.
+      const noteInput = leadsList.querySelector(`input[data-note-input][data-id="${id}"]`);
+      const followupInput = leadsList.querySelector(`input[data-field="followup"][data-id="${id}"]`);
+      const scheduledInput = leadsList.querySelector(`input[data-field="scheduledInstall"][data-id="${id}"]`);
+      const text = noteInput ? noteInput.value.trim() : '';
+      const lead = allLeads.find((l) => l.id === id);
+      const followupValue = followupInput ? followupInput.value : '';
+      const scheduledValue = scheduledInput ? scheduledInput.value : '';
+      const followupChanged = followupValue !== (lead && lead.nextFollowUp ? lead.nextFollowUp.slice(0, 10) : '');
+      const scheduledChanged = scheduledValue !== (lead && lead.scheduledInstallDate ? lead.scheduledInstallDate.slice(0, 10) : '');
+      if (!text && !followupChanged && !scheduledChanged) return;
+
+      const body = { id };
+      if (text) body.addNote = text;
+      if (followupChanged) body.nextFollowUp = followupValue || null;
+      if (scheduledChanged) body.scheduledInstallDate = scheduledValue || null;
+
       fetch('/api/leads', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, addNote: text }),
+        body: JSON.stringify(body),
       }).then(loadLeads);
     } else if (action === 'quote') {
       generateQuoteForLead(id, btn);
