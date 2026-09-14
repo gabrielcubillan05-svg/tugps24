@@ -29,6 +29,8 @@ export interface GabotPermissions {
   canNovedades: boolean;
   canAuditoria: boolean;
   canCrm: boolean;
+  canSuspensiones: boolean;
+  canReportes: boolean;
 }
 
 // Resuelve cada herramienta contra los datos reales — provisto por messages.ts.
@@ -42,6 +44,8 @@ export interface GabotActions {
   consultarCuadrantes: (ciudad: string) => Promise<string>;
   consultarAuditoria: (busqueda: string) => Promise<string>;
   consultarCrm: (busqueda: string) => Promise<string>;
+  consultarSuspensiones: (busqueda: string) => Promise<string>;
+  consultarReportesProgramados: (busqueda: string) => Promise<string>;
 }
 
 // Solo se ofrece esta herramienta cuando quien escribe puede ver pendientes de otros
@@ -155,6 +159,27 @@ const CRM_TOOL = {
   },
 };
 
+// Solo se ofrece a quien tiene acceso a Suspensiones (secretaria/supervisor/gerente/admin, o
+// Josué/Wilmar aunque su rol no lo incluya).
+const SUSPENSIONES_TOOL = {
+  name: 'consultar_suspensiones',
+  description: 'Busca casos de suspensión por cliente, placa o sucursal, y muestra su estado y a quién está asignado. Solo consulta.',
+  input_schema: {
+    type: 'object',
+    properties: { busqueda: { type: 'string', description: 'Cliente, placa o sucursal para buscar (opcional, deja vacío para ver los más recientes)' } },
+  },
+};
+
+// Solo se ofrece a quien tiene acceso a Reportes programados (operador/supervisor/gerente/admin).
+const REPORTES_PROGRAMADOS_TOOL = {
+  name: 'consultar_reportes_programados',
+  description: 'Busca reportes programados por cliente, tipo de reporte u operador asignado, y muestra si están al día, por realizar o vencidos. Solo consulta.',
+  input_schema: {
+    type: 'object',
+    properties: { busqueda: { type: 'string', description: 'Cliente, tipo de reporte u operador para buscar (opcional, deja vacío para ver los más urgentes)' } },
+  },
+};
+
 function buildSystemPrompt(
   userName: string,
   roleLabel: string,
@@ -202,6 +227,8 @@ ${permissions.canAssignToOthers
 - Cuadrantes de policía: todos tienen acceso — usa consultar_cuadrantes cuando pregunte por números de contacto de cuadrantes.
 - Auditoría: ${permissions.canAuditoria ? 'SÍ tiene acceso — usa consultar_auditoria para ver acciones recientes del sistema.' : 'NO tiene acceso a este módulo.'}
 - CRM: ${permissions.canCrm ? 'SÍ tiene acceso — usa consultar_crm para buscar un lead por nombre, teléfono o ciudad y confirmarle su estado, secretaria/sucursal asignada, próximo seguimiento o la nota más reciente. Es solo de consulta: si te piden cambiar algo del lead (estado, nota, fecha), dile con amabilidad que lo haga desde el panel de CRM.' : 'NO tiene acceso a este módulo.'}
+- Suspensiones: ${permissions.canSuspensiones ? 'SÍ tiene acceso — usa consultar_suspensiones para buscar un caso por cliente, placa o sucursal y confirmarle su estado y a quién está asignado.' : 'NO tiene acceso a este módulo.'}
+- Reportes programados: ${permissions.canReportes ? 'SÍ tiene acceso — usa consultar_reportes_programados para buscar por cliente, tipo de reporte u operador y confirmar si está al día, por realizar o vencido.' : 'NO tiene acceso a este módulo.'}
 
 ## Límites estrictos
 - Nunca inventes datos que no estén en la información que tienes — ni de esta persona ni de otras.
@@ -280,6 +307,8 @@ export async function runGabotAgent(
     CUADRANTES_TOOL,
     ...(permissions.canAuditoria ? [AUDITORIA_TOOL] : []),
     ...(permissions.canCrm ? [CRM_TOOL] : []),
+    ...(permissions.canSuspensiones ? [SUSPENSIONES_TOOL] : []),
+    ...(permissions.canReportes ? [REPORTES_PROGRAMADOS_TOOL] : []),
   ];
   const messages: any[] = [...history, { role: 'user', content: newMessage }];
 
@@ -324,6 +353,10 @@ export async function runGabotAgent(
           content = await actions.consultarAuditoria(String(tc.input.busqueda || ''));
         } else if (tc.name === 'consultar_crm') {
           content = await actions.consultarCrm(String(tc.input.busqueda || ''));
+        } else if (tc.name === 'consultar_suspensiones') {
+          content = await actions.consultarSuspensiones(String(tc.input.busqueda || ''));
+        } else if (tc.name === 'consultar_reportes_programados') {
+          content = await actions.consultarReportesProgramados(String(tc.input.busqueda || ''));
         } else {
           content = 'Esa herramienta no está disponible.';
         }

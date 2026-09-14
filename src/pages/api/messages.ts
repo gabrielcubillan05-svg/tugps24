@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, canAccessSection, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, canAccessSection, canAccessSuspensiones, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { logAudit, readAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
@@ -16,7 +16,7 @@ import { readTasks, createTask, markTaskStatus, addTaskNote } from './tasks';
 import { readLeads } from './leads';
 import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
-import { readScheduledReports } from './scheduled-reports';
+import { readScheduledReports, withStatus } from './scheduled-reports';
 import { readSchedule } from './schedule';
 import { readCuadrantes } from './cuadrantes';
 import { readRecentReports } from './reports';
@@ -198,6 +198,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         canNovedades: canAccessSection(session.role, 'novedades'),
         canAuditoria: canAccessSection(session.role, 'auditoria'),
         canCrm: canAccessSection(session.role, 'crm'),
+        canSuspensiones: canAccessSuspensiones(session),
+        canReportes: canAccessSection(session.role, 'reportes'),
       };
 
       async function lookupOtherWorker(nombre: string): Promise<string> {
@@ -333,6 +335,32 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           .join('\n')}`;
       }
 
+      async function consultarSuspensiones(busqueda: string): Promise<string> {
+        const q = normalizeNameForMatch(busqueda);
+        const filtered = q
+          ? suspensiones.filter((s) => [s.clientName, s.plate, s.branch].some((f) => normalizeNameForMatch(f).includes(q)))
+          : suspensiones;
+        const top = filtered.slice(0, 8);
+        if (!top.length) return `No encontré ningún caso de suspensión${busqueda ? ` que coincida con "${busqueda}"` : ''}.`;
+        return `Suspensiones${busqueda ? ` que coinciden con "${busqueda}"` : ' recientes'}:\n${top
+          .map((s) => `  · ${s.clientName} (${s.plate}) — ${s.branch} — estado: ${s.status}${s.assignedToName ? ` — asignado a ${s.assignedToName}` : ''}`)
+          .join('\n')}`;
+      }
+
+      async function consultarReportesProgramados(busqueda: string): Promise<string> {
+        const q = normalizeNameForMatch(busqueda);
+        const withBuckets = scheduledReports.map((r) => withStatus(r));
+        const filtered = q
+          ? withBuckets.filter((r) => [r.client, r.reportType, r.operator].some((f) => normalizeNameForMatch(f).includes(q)))
+          : withBuckets.filter((r) => r.bucket !== 'al-dia');
+        const top = filtered.slice(0, 8);
+        if (!top.length) return `No encontré ningún reporte programado${busqueda ? ` que coincida con "${busqueda}"` : ' pendiente o por realizar — todos están al día'}.`;
+        const bucketLabels: Record<string, string> = { pendiente: 'vencido', 'por-realizar': 'por realizar', 'al-dia': 'al día' };
+        return `Reportes programados${busqueda ? ` que coinciden con "${busqueda}"` : ' pendientes o por realizar'}:\n${top
+          .map((r) => `  · ${r.client} — ${r.reportType} — operador: ${r.operator} — ${bucketLabels[r.bucket]}`)
+          .join('\n')}`;
+      }
+
       const actions: GabotActions = {
         lookupOtherWorker,
         createTaskForWorker,
@@ -343,6 +371,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         consultarCuadrantes,
         consultarAuditoria,
         consultarCrm,
+        consultarSuspensiones,
+        consultarReportesProgramados,
       };
 
       const result = await runGabotAgent(
