@@ -4,6 +4,7 @@ import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin, branchesOf } from '../../lib/auth';
+import { todayInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
 
@@ -110,6 +111,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   if (q) {
     planillas = planillas.filter((p) => p.placa.toLowerCase().includes(q));
+  } else {
+    // Sin búsqueda, solo las de hoy — para no cargar el historial completo en cada visita
+    // (las de otros días siguen disponibles, solo hay que buscar la placa).
+    const today = todayInColombia();
+    planillas = planillas.filter((p) => p.fecha === today);
   }
 
   return new Response(
