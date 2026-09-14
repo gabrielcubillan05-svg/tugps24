@@ -3,6 +3,7 @@ import { KELLY_USERNAME, WILMAR_USERNAME } from './auth';
 import { OPEN_STATUSES } from '../pages/api/suspensiones';
 import { computeOverdue as computeTaskOverdue } from '../pages/api/tasks';
 import { computeOverdue as computeLeadOverdue } from '../pages/api/leads';
+import { isOverdueInColombia } from './colombia-time';
 import type { GabotData } from './gabot-report';
 
 // Umbrales de rendimiento por módulo — ajustables aquí mismo si con el uso real resultan muy
@@ -95,9 +96,8 @@ export function computePerformanceFlags(user: User, data: GabotData): Performanc
   }
 
   // --- Pagos programados ---
-  const today0 = new Date().setHours(0, 0, 0, 0);
   const misPagosVencidos = data.pagos.filter(
-    (p) => p.assignedToId === user.id && p.status === 'Pendiente' && new Date(p.dueDate).getTime() < today0
+    (p) => p.assignedToId === user.id && p.status === 'Pendiente' && isOverdueInColombia(p.dueDate.slice(0, 10))
   );
   if (misPagosVencidos.length >= THRESHOLDS.pagos.count) {
     flags.push({ module: 'Pagos programados', kind: 'volumen', detail: `${misPagosVencidos.length} vencidos sin pagar (umbral: ${THRESHOLDS.pagos.count})` });

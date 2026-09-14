@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from './redis';
 import { getUsers, type Session } from './auth';
 import { sendPushToUser } from './push';
+import { isOverdueInColombia } from './colombia-time';
 
 const NOTIF_KEY_PREFIX = 'internal:notifications:';
 const MAX_NOTIFICATIONS = 200;
@@ -70,13 +71,13 @@ interface MiniScheduledReport { id: string; client: string; reportType: string; 
 function isTaskOverdue(t: MiniTask): boolean {
   if (!t.dueDate) return false;
   if (t.status === 'Completada' || t.status === 'Cancelada') return false;
-  return new Date(t.dueDate).getTime() < new Date().setHours(0, 0, 0, 0);
+  return isOverdueInColombia(t.dueDate.slice(0, 10));
 }
 
 function isLeadOverdue(l: MiniLead): boolean {
   if (!l.nextFollowUp) return false;
   if (l.status === 'Instalado' || l.status === 'Perdido') return false;
-  return new Date(l.nextFollowUp).getTime() < new Date().setHours(0, 0, 0, 0);
+  return isOverdueInColombia(l.nextFollowUp.slice(0, 10));
 }
 
 const REPORT_FREQUENCIES: Record<string, number> = { Diario: 1, Semanal: 7, Quincenal: 15, Mensual: 30 };

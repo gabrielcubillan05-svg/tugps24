@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, findUserById, verifySameOrigin } from '../../lib/auth';
+import { isOverdueInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
 
@@ -79,7 +80,7 @@ function isPhoneLike(value: string): boolean {
 export function computeOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUp) return false;
   if (lead.status === 'Instalado' || lead.status === 'Perdido') return false;
-  return new Date(lead.nextFollowUp).getTime() < new Date().setHours(0, 0, 0, 0);
+  return isOverdueInColombia(lead.nextFollowUp.slice(0, 10));
 }
 
 export async function readLeads(redis: any): Promise<Lead[]> {

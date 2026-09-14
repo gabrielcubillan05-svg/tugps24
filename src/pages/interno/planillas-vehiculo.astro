@@ -4,6 +4,7 @@ export const prerender = false;
 import InternoLayout from '../../layouts/InternoLayout.astro';
 import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
 import { CHECKLIST_ITEMS, ESTADOS } from '../api/planillas-vehiculo';
+import { todayInColombia, timeInColombia } from '../../lib/colombia-time';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -14,11 +15,8 @@ if (!canAccessSection(session.role, 'planillas-vehiculo')) {
 }
 
 const isManager = session.role === 'gerente' || session.role === 'admin';
-const now = new Date();
-// Vercel corre las funciones en UTC — hay que fijar la zona horaria de Colombia a mano,
-// tanto para la fecha (puede ser un día distinto al de UTC) como para la hora.
-const defaultFecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(now);
-const defaultHora = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+const defaultFecha = todayInColombia();
+const defaultHora = timeInColombia();
 ---
 
 <InternoLayout title="Planilla de vehículo" active="planillas-vehiculo" session={session}>

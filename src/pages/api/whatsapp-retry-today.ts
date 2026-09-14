@@ -5,18 +5,11 @@ import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, REDIS_KEY as LEADS_KEY } from './leads';
 import { readHistory, appendHistory, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
 import { SESSION_COOKIE, getSession, canManageAiAgents, verifySameOrigin } from '../../lib/auth';
+import { todayInColombia, dateInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
 
 const RETRY_MESSAGE = 'Hola de nuevo 😊 disculpa la demora en contestarte — tuvimos un inconveniente técnico momentáneo. ¿En qué te puedo ayudar con el GPS?';
-
-function todayInColombia(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
-}
-
-function dateInColombia(iso: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(iso));
-}
 
 // Acción manual de admin: cuando el agente de ventas (Andrés) se quedó sin poder responder de
 // verdad a leads de hoy (ej. créditos de Anthropic agotados), igual les llegó un mensaje —

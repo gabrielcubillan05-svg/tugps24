@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
+import { isOverdueInColombia } from '../../lib/colombia-time';
 import {
   SESSION_COOKIE,
   getSession,
@@ -65,7 +66,7 @@ function nextDueDateFor(dueDate: string | null, recurrence: string): string | nu
 export function computeOverdue(task: Task): boolean {
   if (!task.dueDate) return false;
   if (task.status === 'Completada' || task.status === 'Cancelada') return false;
-  return new Date(task.dueDate).getTime() < new Date().setHours(0, 0, 0, 0);
+  return isOverdueInColombia(task.dueDate.slice(0, 10));
 }
 
 export async function readTasks(redis: any): Promise<Task[]> {
