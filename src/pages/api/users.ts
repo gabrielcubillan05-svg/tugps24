@@ -107,7 +107,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   }
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canManageUsers(session.role)) {
+  if (!session || !(canManageUsers(session.role) || canSetUserBranches(session))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -207,13 +207,13 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
 
   if (isBranchManager) {
-    // Josué y Wilmar pueden editarle a otros usuarios la sucursal, el rol y/o la contraseña —
-    // nada de nombre ni activar/desactivar (eso sigue siendo exclusivo de admin).
-    if (body.name !== undefined || body.active !== undefined || body.currentPassword !== undefined) {
-      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal, el rol o la contraseña de este usuario' }), { status: 403 });
+    // Josué y Wilmar pueden editarle a otros usuarios la sucursal, el rol, la contraseña y
+    // activar/desactivar la cuenta — nada de nombre (eso sigue siendo exclusivo de admin).
+    if (body.name !== undefined || body.currentPassword !== undefined) {
+      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal, el rol, la contraseña o el estado activo de este usuario' }), { status: 403 });
     }
-    if (body.branch === undefined && body.branches === undefined && body.password === undefined && body.role === undefined) {
-      return new Response(JSON.stringify({ error: 'falta la sucursal, el rol o la nueva contraseña' }), { status: 400 });
+    if (body.branch === undefined && body.branches === undefined && body.password === undefined && body.role === undefined && body.active === undefined) {
+      return new Response(JSON.stringify({ error: 'falta la sucursal, el rol, la nueva contraseña o el estado activo' }), { status: 400 });
     }
 
     if (body.role !== undefined) {
@@ -250,6 +250,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       user.mustChangePassword = true;
       await destroyAllSessionsForUser(redis, user.id);
       await logAudit(redis, session, 'user_password_reset', user.username, `(reiniciada por ${session.username})`);
+    }
+
+    if (body.active !== undefined) {
+      user.active = Boolean(body.active);
+      if (!user.active) {
+        await destroyAllSessionsForUser(redis, user.id);
+      }
+      await logAudit(redis, session, 'user_update', user.username, user.active ? 'activado' : 'desactivado');
     }
 
     user.updatedAt = new Date().toISOString();

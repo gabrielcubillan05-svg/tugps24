@@ -2,8 +2,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const usersList = document.getElementById('usersList');
   if (!usersList) return;
 
-  const usuariosData = document.getElementById('usuariosData');
-  const isLimited = !!(usuariosData && usuariosData.dataset.limited);
   const userForm = document.getElementById('userForm');
   const userFormError = document.getElementById('userFormError');
   const seedBtn = document.getElementById('seedBtn');
@@ -53,10 +51,9 @@ document.addEventListener('DOMContentLoaded', function () {
             ${BRANCHES.map((b) => `<option value="${b}" ${(u.branches || []).includes(b) ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
           <button class="btn-small" data-action="reset-password" data-id="${u.id}" type="button">Restablecer clave</button>
-          ${isLimited ? '' : `
           <button class="btn-small ${u.active ? 'btn-delete' : 'btn-done'}" data-action="toggle-active" data-id="${u.id}" type="button">
             ${u.active ? 'Desactivar' : 'Activar'}
-          </button>`}
+          </button>
         </div>
       </div>
     `).join('');

@@ -15,9 +15,7 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
 ---
 
 <InternoLayout title="Usuarios" active="usuarios" session={session}>
-  <div id="usuariosData" data-limited={isFullAdmin ? '' : '1'} style="display:none;"></div>
-
-  {isFullAdmin && (
+  {(isFullAdmin || canSetUserBranches(session)) && (
   <div class="panel-card">
     <h2>Nuevo usuario</h2>
     <form id="userForm">
@@ -51,7 +49,9 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
       <p id="userFormError" class="error-msg" style="display:none; margin-top:12px;"></p>
     </form>
   </div>
+  )}
 
+  {isFullAdmin && (
   <div class="panel-card">
     <h2>Cargar empleados desde archivo</h2>
     <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
@@ -64,7 +64,7 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
 
   <div class="panel-card">
     <h2>Usuarios</h2>
-    {!isFullAdmin && <p class="hint">Puedes asignarle la sucursal, el rol o restablecer la contraseña de cada usuario.</p>}
+    {!isFullAdmin && <p class="hint">Puedes crear usuarios nuevos, asignarles sucursal o rol, restablecer su contraseña, y activar o desactivar su cuenta.</p>}
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por nombre o usuario..." />
       <select id="roleFilter">
