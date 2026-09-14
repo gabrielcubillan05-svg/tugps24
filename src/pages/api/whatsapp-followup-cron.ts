@@ -45,6 +45,10 @@ export const GET: APIRoute = async ({ request }) => {
 
   for (const lead of leads) {
     if (lead.source !== 'whatsapp-ads') continue;
+    // Un lead ya instalado no debe recibir más mensajes de "¿sigues por ahí?" — antes esto
+    // solo se filtraba por aiStage, que no siempre pasa a 'entregado' cuando la instalación
+    // se marca por otra vía (ej. un técnico la marca directo desde el CRM).
+    if (lead.installed || lead.status === 'Instalado') continue;
     if (lead.aiStage !== 'en_conversacion') continue;
     if (!lead.lastInboundAt || !lead.lastOutboundAt) continue;
 
