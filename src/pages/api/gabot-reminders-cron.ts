@@ -112,18 +112,28 @@ export const GET: APIRoute = async ({ request }) => {
     }
   }
 
-  // Resumen para admin, Josué y Wilmar — quienes ya ven todo, sin importar su rol del día a día.
-  if (isMorningBriefing && flaggedWorkers.length) {
+  // Resúmenes de rendimiento del día — cada destinatario recibe SIEMPRE su mensaje en la
+  // corrida de la mañana, incluso cuando no hay nadie con demoras en su alcance (antes todo
+  // este bloque dependía de que hubiera al menos un trabajador marcado en TODA la empresa, así
+  // que si nadie más disparaba una alerta ese día, un supervisor de turno o un gerente sin
+  // demoras en su gente nunca recibía nada — indistinguible de que la función no corriera).
+  function formatFlaggedList(list: typeof flaggedWorkers, withRole: boolean): string {
+    return list
+      .map(({ user, flags }) => {
+        const flagLines = flags.map((f) => `    · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
+        return `  ${user.name}${withRole ? ` (${ROLE_LABELS[user.role]})` : ''}:\n${flagLines}`;
+      })
+      .join('\n');
+  }
+
+  if (isMorningBriefing) {
+    // admin, Josué y Wilmar — ven el de toda la empresa, sin importar su rol del día a día.
     const overseers = users.filter(
       (u) => u.active && (u.role === 'admin' || [JOSUE_USERNAME, WILMAR_USERNAME].includes(u.username.toLowerCase()))
     );
-    const summaryLines = flaggedWorkers
-      .map(({ user, flags }) => {
-        const flagLines = flags.map((f) => `    · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
-        return `  ${user.name} (${ROLE_LABELS[user.role]}):\n${flagLines}`;
-      })
-      .join('\n');
-    const summaryText = `📊 Resumen de rendimiento de hoy — ${flaggedWorkers.length} trabajador(es) con demoras:\n\n${summaryLines}`;
+    const summaryText = flaggedWorkers.length
+      ? `📊 Resumen de rendimiento de hoy — ${flaggedWorkers.length} trabajador(es) con demoras:\n\n${formatFlaggedList(flaggedWorkers, true)}`
+      : '📊 Resumen de rendimiento de hoy — nadie con demoras en ningún módulo. Todo al día.';
     for (const overseer of overseers) {
       await sendGabotMessage(redis, overseer.id, summaryText);
     }
@@ -137,14 +147,9 @@ export const GET: APIRoute = async ({ request }) => {
       const misFlagged = flaggedWorkers.filter(
         (fw) => fw.user.id !== gerente.id && branchesOf(fw.user).some((b) => misSucursales.includes(b))
       );
-      if (!misFlagged.length) continue;
-      const misSummaryLines = misFlagged
-        .map(({ user, flags }) => {
-          const flagLines = flags.map((f) => `    · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
-          return `  ${user.name} (${ROLE_LABELS[user.role]}):\n${flagLines}`;
-        })
-        .join('\n');
-      const misSummaryText = `📊 Resumen de rendimiento de hoy en tu sucursal — ${misFlagged.length} trabajador(es) con demoras:\n\n${misSummaryLines}`;
+      const misSummaryText = misFlagged.length
+        ? `📊 Resumen de rendimiento de hoy en tu sucursal — ${misFlagged.length} trabajador(es) con demoras:\n\n${formatFlaggedList(misFlagged, true)}`
+        : '📊 Resumen de rendimiento de hoy en tu sucursal — nadie con demoras. Todo al día.';
       await sendGabotMessage(redis, gerente.id, misSummaryText);
     }
 
@@ -157,14 +162,9 @@ export const GET: APIRoute = async ({ request }) => {
         const bucket = shiftBucketFor(schedule, user.name);
         return bucket !== null && supervisor.buckets.includes(bucket);
       });
-      if (!misOperadores.length) continue;
-      const opSummaryLines = misOperadores
-        .map(({ user, flags }) => {
-          const flagLines = flags.map((f) => `    · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
-          return `  ${user.name}:\n${flagLines}`;
-        })
-        .join('\n');
-      const opSummaryText = `📊 Resumen de rendimiento de hoy de tus operadores — ${misOperadores.length} con demoras:\n\n${opSummaryLines}`;
+      const opSummaryText = misOperadores.length
+        ? `📊 Resumen de rendimiento de hoy de tus operadores — ${misOperadores.length} con demoras:\n\n${formatFlaggedList(misOperadores, false)}`
+        : '📊 Resumen de rendimiento de hoy de tus operadores — nadie con demoras. Todo al día.';
       await sendGabotMessage(redis, supervisorUser.id, opSummaryText);
     }
   }
