@@ -353,7 +353,29 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       conversation.unread[session.userId] = (conversation.unread[session.userId] || 0) + 1;
       await saveConversation(redis, conversation);
     } catch (err) {
+      // Cualquier excepción inesperada aquí (no solo una respuesta vacía de Anthropic, que ya
+      // se maneja arriba) antes solo se registraba en el log y dejaba a la persona esperando
+      // una respuesta que nunca llegaba — igual que el bug de silencio que ya se había
+      // corregido para el caso de "la IA no contestó", pero este catch de más afuera se
+      // quedaba sin avisar nada cuando el error pasaba antes de llegar a ese punto.
       console.error('gabot chat reply failed', err instanceof Error ? err.message : String(err));
+      try {
+        const fallbackMessage: Message = {
+          id: randomUUID(),
+          senderId: GABOT_ID,
+          senderName: GABOT_NAME,
+          text: 'Tuve un problema técnico y no pude responder. Intenta de nuevo en un momento; si sigue fallando, avísale al administrador.',
+          createdAt: new Date().toISOString(),
+        };
+        await redis.rpush(key, JSON.stringify(fallbackMessage));
+        await redis.ltrim(key, -MAX_MESSAGES, -1);
+        conversation.lastMessageAt = fallbackMessage.createdAt;
+        conversation.lastMessagePreview = fallbackMessage.text.slice(0, 120);
+        conversation.unread[session.userId] = (conversation.unread[session.userId] || 0) + 1;
+        await saveConversation(redis, conversation);
+      } catch (err2) {
+        console.error('gabot chat fallback message also failed', err2 instanceof Error ? err2.message : String(err2));
+      }
     }
   }
 
