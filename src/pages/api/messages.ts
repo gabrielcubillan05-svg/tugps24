@@ -197,6 +197,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         canHorario: canAccessSection(session.role, 'horario'),
         canNovedades: canAccessSection(session.role, 'novedades'),
         canAuditoria: canAccessSection(session.role, 'auditoria'),
+        canCrm: canAccessSection(session.role, 'crm'),
       };
 
       async function lookupOtherWorker(nombre: string): Promise<string> {
@@ -313,6 +314,25 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           .join('\n')}`;
       }
 
+      async function consultarCrm(busqueda: string): Promise<string> {
+        const q = normalizeNameForMatch(busqueda);
+        const qDigits = busqueda.replace(/\D/g, '');
+        const filtered = leads.filter((l) => {
+          if (normalizeNameForMatch(l.name).includes(q)) return true;
+          if (normalizeNameForMatch(l.city).includes(q)) return true;
+          if (qDigits.length >= 6 && l.phone.replace(/\D/g, '').includes(qDigits)) return true;
+          return false;
+        });
+        const top = filtered.slice(0, 8);
+        if (!top.length) return `No encontré ningún lead que coincida con "${busqueda}".`;
+        return `Leads que coinciden con "${busqueda}":\n${top
+          .map((l) => {
+            const lastNote = l.notes[0]?.text;
+            return `  · ${l.name} (${l.phone}) — ${l.city || 'sin ciudad'} — estado: ${l.status}${l.secretary ? ` — asignado a ${l.secretary}` : ''}${l.nextFollowUp ? ` — próximo seguimiento: ${l.nextFollowUp}` : ''}${lastNote ? ` — última nota: ${lastNote}` : ''}`;
+          })
+          .join('\n')}`;
+      }
+
       const actions: GabotActions = {
         lookupOtherWorker,
         createTaskForWorker,
@@ -322,6 +342,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         consultarNovedades,
         consultarCuadrantes,
         consultarAuditoria,
+        consultarCrm,
       };
 
       const result = await runGabotAgent(

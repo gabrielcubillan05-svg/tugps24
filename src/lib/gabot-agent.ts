@@ -28,6 +28,7 @@ export interface GabotPermissions {
   canHorario: boolean;
   canNovedades: boolean;
   canAuditoria: boolean;
+  canCrm: boolean;
 }
 
 // Resuelve cada herramienta contra los datos reales — provisto por messages.ts.
@@ -40,6 +41,7 @@ export interface GabotActions {
   consultarNovedades: (busqueda: string) => Promise<string>;
   consultarCuadrantes: (ciudad: string) => Promise<string>;
   consultarAuditoria: (busqueda: string) => Promise<string>;
+  consultarCrm: (busqueda: string) => Promise<string>;
 }
 
 // Solo se ofrece esta herramienta cuando quien escribe puede ver pendientes de otros
@@ -140,6 +142,19 @@ const AUDITORIA_TOOL = {
   },
 };
 
+// Solo se ofrece a quien tiene acceso al CRM (secretaria/supervisor/gerente/admin). Es de solo
+// consulta — para confirmar el estado de un lead, no para editarlo (eso sigue siendo exclusivo
+// del panel de CRM).
+const CRM_TOOL = {
+  name: 'consultar_crm',
+  description: 'Busca leads del CRM por nombre, teléfono o ciudad, y muestra su estado, sucursal/secretaria asignada, próximo seguimiento y la nota más reciente. Solo consulta — para editar un lead hay que hacerlo desde el panel de CRM.',
+  input_schema: {
+    type: 'object',
+    properties: { busqueda: { type: 'string', description: 'Nombre, teléfono o ciudad para buscar' } },
+    required: ['busqueda'],
+  },
+};
+
 function buildSystemPrompt(
   userName: string,
   roleLabel: string,
@@ -186,6 +201,7 @@ ${permissions.canAssignToOthers
 - Novedades: ${permissions.canNovedades ? 'SÍ tiene acceso — usa consultar_novedades para ver novedades recientes o buscar por placa/sucursal/palabra clave.' : 'NO tiene acceso a este módulo.'}
 - Cuadrantes de policía: todos tienen acceso — usa consultar_cuadrantes cuando pregunte por números de contacto de cuadrantes.
 - Auditoría: ${permissions.canAuditoria ? 'SÍ tiene acceso — usa consultar_auditoria para ver acciones recientes del sistema.' : 'NO tiene acceso a este módulo.'}
+- CRM: ${permissions.canCrm ? 'SÍ tiene acceso — usa consultar_crm para buscar un lead por nombre, teléfono o ciudad y confirmarle su estado, secretaria/sucursal asignada, próximo seguimiento o la nota más reciente. Es solo de consulta: si te piden cambiar algo del lead (estado, nota, fecha), dile con amabilidad que lo haga desde el panel de CRM.' : 'NO tiene acceso a este módulo.'}
 
 ## Límites estrictos
 - Nunca inventes datos que no estén en la información que tienes — ni de esta persona ni de otras.
@@ -263,6 +279,7 @@ export async function runGabotAgent(
     ...(permissions.canNovedades ? [NOVEDADES_TOOL] : []),
     CUADRANTES_TOOL,
     ...(permissions.canAuditoria ? [AUDITORIA_TOOL] : []),
+    ...(permissions.canCrm ? [CRM_TOOL] : []),
   ];
   const messages: any[] = [...history, { role: 'user', content: newMessage }];
 
@@ -305,6 +322,8 @@ export async function runGabotAgent(
           content = await actions.consultarCuadrantes(String(tc.input.ciudad || ''));
         } else if (tc.name === 'consultar_auditoria') {
           content = await actions.consultarAuditoria(String(tc.input.busqueda || ''));
+        } else if (tc.name === 'consultar_crm') {
+          content = await actions.consultarCrm(String(tc.input.busqueda || ''));
         } else {
           content = 'Esa herramienta no está disponible.';
         }
