@@ -1,3 +1,5 @@
+import { callAnthropicMessages } from './anthropic-client';
+
 const MODEL = 'claude-sonnet-5';
 
 export interface AgentMessage {
@@ -130,40 +132,11 @@ ${facturasImpagas >= 2
 }
 
 async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: string): Promise<any | null> {
-  let res: Response;
-  try {
-    res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 2048,
-        system: systemPrompt,
-        messages,
-        tools: TOOLS,
-      }),
-    });
-  } catch (err) {
-    console.error('collections-agent: fetch failed', err instanceof Error ? err.message : String(err));
-    return null;
-  }
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    console.error('collections-agent: Anthropic respondió', res.status, detail.slice(0, 500));
-    return null;
-  }
-
-  try {
-    return await res.json();
-  } catch (err) {
-    console.error('collections-agent: respuesta inválida', err instanceof Error ? err.message : String(err));
-    return null;
-  }
+  return callAnthropicMessages(
+    apiKey,
+    { model: MODEL, max_tokens: 2048, system: systemPrompt, messages, tools: TOOLS },
+    'collections-agent'
+  );
 }
 
 function extractReplyAndTools(data: any): { reply: string; toolCalls: AgentToolCall[] } {

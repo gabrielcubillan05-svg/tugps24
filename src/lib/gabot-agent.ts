@@ -1,3 +1,5 @@
+import { callAnthropicMessages } from './anthropic-client';
+
 const MODEL = 'claude-sonnet-5';
 
 export interface AgentMessage {
@@ -196,40 +198,17 @@ Hoy es ${new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long',
 }
 
 async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: string, tools: unknown[]): Promise<any | null> {
-  let res: Response;
-  try {
-    res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages,
-        ...(tools.length ? { tools } : {}),
-      }),
-    });
-  } catch (err) {
-    console.error('gabot-agent: fetch failed', err instanceof Error ? err.message : String(err));
-    return null;
-  }
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    console.error('gabot-agent: Anthropic respondió', res.status, detail.slice(0, 500));
-    return null;
-  }
-
-  try {
-    return await res.json();
-  } catch (err) {
-    console.error('gabot-agent: respuesta inválida', err instanceof Error ? err.message : String(err));
-    return null;
-  }
+  return callAnthropicMessages(
+    apiKey,
+    {
+      model: MODEL,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+      ...(tools.length ? { tools } : {}),
+    },
+    'gabot-agent'
+  );
 }
 
 function usageOf(data: any): { inputTokens: number; outputTokens: number } {
