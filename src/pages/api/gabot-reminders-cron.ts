@@ -5,7 +5,7 @@ import { getUsers, JOSUE_USERNAME, WILMAR_USERNAME, ROLE_LABELS, branchesOf } fr
 import { sendGabotMessage } from '../../lib/gabot';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
 import { computePerformanceFlags, type PerformanceFlag } from '../../lib/gabot-performance';
-import { isOnShiftNow, shiftBucketFor, type ShiftBucket } from '../../lib/shift';
+import { isOnShiftNow, shiftBucketFor, SHIFT_SUPERVISORS } from '../../lib/shift';
 import { readSuspensiones } from './suspensiones';
 import { readSolicitudes } from './solicitudes-administrativas';
 import { readPagos } from './pagos-internos';
@@ -17,15 +17,6 @@ import { readScheduledReports } from './scheduled-reports';
 import { readSchedule } from './schedule';
 
 export const prerender = false;
-
-// Supervisores de turno de los operadores — cada uno ve el rendimiento de los operadores de
-// su franja, sin importar su rol formal en el sistema (no depende de sucursal, como gerente).
-// Por username, no por nombre (más estable — el nombre completo registrado no siempre coincide
-// con el nombre corto por el que se les conoce).
-const SHIFT_SUPERVISORS: Array<{ username: string; buckets: ShiftBucket[] }> = [
-  { username: 'josemiguel', buckets: ['temprano'] }, // Jose Miguel Reales Durango
-  { username: 'juniorcardenas', buckets: ['tarde', 'noche'] }, // Hisnaldis Junior Cardenas Almanza
-];
 
 // Vercel llama esto a las 7:50, 10:50, 13:50 y 16:50 hora Colombia (ver vercel.json) — desde
 // la apertura hasta el cierre de oficinas (6pm), cada 3 horas. GaBot, el asistente interno,

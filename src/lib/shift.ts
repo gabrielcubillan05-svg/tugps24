@@ -18,6 +18,13 @@ function timeToMinutes(hhmm: string): number {
 
 export type ShiftBucket = 'temprano' | 'tarde' | 'noche';
 
+// Supervisores de turno de los operadores — por username, no por rol formal ni nombre (más
+// estable). Se usa tanto para el resumen de rendimiento diario como para el alcance de Tareas.
+export const SHIFT_SUPERVISORS: Array<{ username: string; buckets: ShiftBucket[] }> = [
+  { username: 'josemiguel', buckets: ['temprano'] }, // Jose Miguel Reales Durango
+  { username: 'juniorcardenas', buckets: ['tarde', 'noche'] }, // Hisnaldis Junior Cardenas Almanza
+];
+
 // Clasifica el turno de un operador por su hora de inicio, con margen de tolerancia (±90 min)
 // para no depender de que el horario esté cargado con el minuto exacto — temprano ≈ 6am-2pm,
 // tarde ≈ 2pm-10pm, noche ≈ 10pm-6am.

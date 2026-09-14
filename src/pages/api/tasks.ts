@@ -4,11 +4,15 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { isOverdueInColombia } from '../../lib/colombia-time';
+import { shiftBucketFor, SHIFT_SUPERVISORS } from '../../lib/shift';
+import { readSchedule } from './schedule';
 import {
   SESSION_COOKIE,
   getSession,
+  getUsers,
   canAssignTasks,
   canManageUsers,
+  branchesOf,
   findUserById,
   verifySameOrigin,
 } from '../../lib/auth';
@@ -129,12 +133,38 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   let tasks = await readTasks(redis);
   const isManager = canAssignTasks(session.role);
+  const shiftSupervisor = SHIFT_SUPERVISORS.find((s) => s.username === session.username.toLowerCase());
 
-  if (!isManager) {
-    tasks = tasks.filter((t) => t.assigneeId === session.userId);
-  } else {
+  if (isManager && session.role !== 'gerente') {
+    // admin y el rol supervisor ven todo, sin restricción por sucursal ni turno.
     const assigneeFilter = url.searchParams.get('assigneeId');
     if (assigneeFilter) tasks = tasks.filter((t) => t.assigneeId === assigneeFilter);
+  } else if (isManager && session.role === 'gerente') {
+    // Un gerente solo ve las tareas de la gente activa en su(s) misma(s) sucursal(es).
+    const [me, allUsers] = await Promise.all([findUserById(redis, session.userId), getUsers(redis)]);
+    const misSucursales = branchesOf(me);
+    const usersById = new Map(allUsers.map((u) => [u.id, u]));
+    tasks = tasks.filter((t) => {
+      if (t.assigneeId === session.userId) return true;
+      const assignee = usersById.get(t.assigneeId);
+      return !!assignee && branchesOf(assignee).some((b) => misSucursales.includes(b));
+    });
+    const assigneeFilter = url.searchParams.get('assigneeId');
+    if (assigneeFilter) tasks = tasks.filter((t) => t.assigneeId === assigneeFilter);
+  } else if (shiftSupervisor) {
+    // José Miguel y Junior Cárdenas ven solo las tareas de los operadores de su franja horaria
+    // (aparte de las suyas propias), aunque su rol formal no los deje asignar tareas a otros.
+    const [allUsers, schedule] = await Promise.all([getUsers(redis), readSchedule(redis)]);
+    const usersById = new Map(allUsers.map((u) => [u.id, u]));
+    tasks = tasks.filter((t) => {
+      if (t.assigneeId === session.userId) return true;
+      const assignee = usersById.get(t.assigneeId);
+      if (!assignee || assignee.role !== 'operador') return false;
+      const bucket = shiftBucketFor(schedule, assignee.name);
+      return bucket !== null && shiftSupervisor.buckets.includes(bucket);
+    });
+  } else {
+    tasks = tasks.filter((t) => t.assigneeId === session.userId);
   }
 
   const withOverdue = tasks.map((t) => ({ ...t, overdue: computeOverdue(t) }));
