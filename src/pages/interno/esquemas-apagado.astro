@@ -1,0 +1,75 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import vehicleCutoffData from '../../lib/vehicle-cutoff-data.json';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'esquemas-apagado')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Esquemas de apagado" active="esquemas-apagado" session={session}>
+  <div id="esquemasData" data-records={JSON.stringify(vehicleCutoffData)} style="display:none;"></div>
+
+  <div class="panel-card esquemas-hero">
+    <h2>Esquemas de apagado por vehículo</h2>
+    <p class="hint">Referencia de cableado para instalar el corte de bomba/ignición del GPS — {vehicleCutoffData.length} vehículos registrados. Busca por marca, modelo, año o color de cable.</p>
+    <div class="filters esquemas-filters">
+      <input id="searchInput" type="text" placeholder="Buscar por marca, modelo, año, color..." autocomplete="off" />
+      <select id="marcaFilter"><option value="">Todas las marcas</option></select>
+      <select id="tipoFilter">
+        <option value="">Bomba o ignición</option>
+        <option value="bomba">Corte de bomba</option>
+        <option value="ignicion">Corte de ignición</option>
+      </select>
+    </div>
+    <div class="esquemas-count" id="esquemasCount"></div>
+  </div>
+
+  <div class="esquemas-grid" id="esquemasGrid"></div>
+</InternoLayout>
+
+<style is:global>
+  .esquemas-hero .hint { margin-bottom: 16px; }
+  .esquemas-filters input { flex: 2; min-width: 220px; }
+  .esquemas-count { color: var(--slate); font-size: 12.5px; margin-top: 4px; }
+
+  .esquemas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .esquema-card {
+    background: var(--ink-800);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .esquema-card:hover { border-color: var(--amber); transform: translateY(-2px); }
+  .esquema-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .esquema-marca { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--teal-bright); font-weight: 700; }
+  .esquema-modelo { font-size: 16px; font-weight: 700; color: var(--paper); margin-top: 2px; }
+  .esquema-anio { flex-shrink: 0; background: var(--ink-900); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--paper-dim); white-space: nowrap; }
+  .esquema-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .esquema-badge { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+  .esquema-badge.bomba { background: #ff7a1a29; color: var(--teal-bright); }
+  .esquema-badge.ignicion { background: #4a90d922; color: #7ab8ec; }
+  .esquema-colores { display: flex; align-items: center; gap: 8px; background: var(--ink-900); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+  .esquema-swatch { display: flex; flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; overflow: hidden; border: 2px solid var(--ink-800); box-shadow: 0 0 0 1px var(--line); }
+  .esquema-swatch span { flex: 1; height: 100%; }
+  .esquema-colores-text { font-size: 13px; color: var(--paper); text-transform: capitalize; }
+  .esquema-ubicacion { font-size: 12.5px; color: var(--paper-dim); line-height: 1.5; }
+  .esquema-ubicacion strong { color: var(--slate); font-weight: 600; }
+</style>
+
+<script src="/js/interno-esquemas-apagado.js" defer></script>

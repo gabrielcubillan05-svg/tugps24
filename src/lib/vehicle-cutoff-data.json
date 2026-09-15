@@ -1,0 +1,3557 @@
+[
+  {
+    "marca": "Audi",
+    "modelo": "Q7",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro/amarillo",
+    "ubicacion": "estribo izquierda"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "A3",
+    "anio": "2016 y 17,19",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/rojo",
+    "ubicacion": "lado derecho y claxón café lado izquierdo uno marca voltaje y el otro no y ese es"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "A4",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro/amarilla",
+    "ubicacion": "lado izquierdo  y claxon rojo/morado lado izquierdo"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "S6",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro/blanco",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "A3",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/rojo",
+    "ubicacion": "lado izquierdo y claxon cafe/rojo en columna"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "A1",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/negra",
+    "ubicacion": "detras de fusiblera y reley 646 en caja de fusibles A6, Q3, Q5 y A3 es el mismo reley"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "Q3",
+    "anio": "2013",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "en llave y claxon artiba de bcm negro/azul lado izquierdo conector"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "Q3",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/verde",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "A5",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro/amarillo",
+    "ubicacion": "modulo de bomba cajuela"
+  },
+  {
+    "marca": "Audi",
+    "modelo": "Q5",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro/blanco",
+    "ubicacion": "conector cafe atras de fusiblera y claxon gris/amarillo + abajo de fusiblera"
+  },
+  {
+    "marca": "Biuik",
+    "modelo": "Envision",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/verde",
+    "ubicacion": "bcm conector central"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "328i",
+    "anio": "2012",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "debajo del asienro trasero lado derecho"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "320",
+    "anio": "2008",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "debajo del asiento lado derecho"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X1",
+    "anio": "2011",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe",
+    "ubicacion": "lado derecho trasero"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X3 201",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "fusiblera"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "Serie 1",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "cajuela"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "120i",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "asiento trasero derecho"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "Serie 1",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/blanco",
+    "ubicacion": "lado derecho o fusiblera en guantera y claxon morado/amarillo en poste b"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "Serie 5",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "aciento trasero lado derecho conector azul"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X5",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "costado derecho de cajuela en modulo"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X3",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X3",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/amarillo",
+    "ubicacion": "fusiblera en cajuela y claxon rojo/negro atras de guantera"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X1",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/blanco",
+    "ubicacion": "lado izquierdo y claxón morado/azul debajo de la guantera 2015"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "330i",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "asiento trasero lado derecho"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X1",
+    "anio": "?",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/blanco",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "X1",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/negro",
+    "ubicacion": "lado derecho y claxón morado/azul atras de guantera"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "330",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/amarillo",
+    "ubicacion": "lado derecho arnes celeste asiento trasero"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "318",
+    "anio": "2009",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/verde",
+    "ubicacion": "debajo del asiento lado derecho"
+  },
+  {
+    "marca": "BMW",
+    "modelo": "GLE",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "compartimiento de fusibles en cajuela lado derecho fusible blanci 25A"
+  },
+  {
+    "marca": "Buick",
+    "modelo": "Encore",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "conector negro"
+  },
+  {
+    "marca": "Buick",
+    "modelo": "Envisión",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Cadilac",
+    "modelo": "Suv",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/verde",
+    "ubicacion": "abajo tablero BCM"
+  },
+  {
+    "marca": "Cadillac",
+    "modelo": "Ranch Robert",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo/naranja",
+    "ubicacion": "pte"
+  },
+  {
+    "marca": "Cadillac",
+    "modelo": "Rang Robert Evoque",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/azul",
+    "ubicacion": "fusiblera motor"
+  },
+  {
+    "marca": "Caja regrigerada",
+    "modelo": "Thermoking",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cable 87",
+    "ubicacion": "molote de cables parte de fusibles"
+  },
+  {
+    "marca": "Case",
+    "modelo": "Escav CX210B",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "selenoide"
+  },
+  {
+    "marca": "Cat",
+    "modelo": "Escav 336D",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "selenoide que va en contracorriente"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "3500",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "3500",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarillo",
+    "ubicacion": "abajo de tablero BCM"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Onix",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Cruze",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "crema",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Chevy",
+    "anio": "2000",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Cheyen",
+    "anio": "2020 y 2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "BCM conector negro"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Camaro",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "violeta/negro",
+    "ubicacion": "modulo CMB"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "silverado",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "modulo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Sonic",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo y claxon verde/blanco"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Trax",
+    "anio": "2014",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "lado izquierdo BCM y claxon verde/ blanco columna"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Captiva",
+    "anio": "2011",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Aveo",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo calibre 16"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Captiva",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "cajuela lado derecho y claxón color cafe en volante -"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Cruze turbo",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/verde",
+    "ubicacion": "BCM lado izquierdo conector negro linea nueva"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Aveo",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/blanco",
+    "ubicacion": "atras de cluster"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Aveo",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/blanco",
+    "ubicacion": "atras de cluster"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Onix",
+    "anio": "2020 y 2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cable gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Cabalier",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Malibu",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morada",
+    "ubicacion": "bcm conector negro atras de fusiblera y claxon conector negro cable verde en volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Challenger",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "lafo izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Silverado",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris",
+    "ubicacion": "llave y claxon morado en volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Cruze",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Suburban",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Trax",
+    "anio": "2019-14",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Silverado",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "abajo de tablero BCM"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Aveo",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/blanca",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Silverado",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "modulo BCM"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Cheyen",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "BCM sin voltaje, conector negro"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Beat",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Beat",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Equinox",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/morado",
+    "ubicacion": "lado izq y parte trasera color gris modulo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Malibu",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Spark",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Chalennger",
+    "anio": "2009",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "arnes fusiblera"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Colorado",
+    "anio": "2010",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/verde",
+    "ubicacion": "en el sw de arranque"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Colorado",
+    "anio": "2012",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo de volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Colorado",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/verde",
+    "ubicacion": "llave o volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Silverado",
+    "anio": "2013",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarillo",
+    "ubicacion": "conector negro de la ECU"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Traverse",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa",
+    "ubicacion": "Bcm conector negro y claxon cafe conector negro volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Beat",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo/azul",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Spark",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/negro",
+    "ubicacion": "llave y claxon crema en volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Spark",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo  y claxon crema en volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Beat",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/negro",
+    "ubicacion": "el llave y claxon negro en volante"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Chellene",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "BCM"
+  },
+  {
+    "marca": "Chryler",
+    "modelo": "Rapind pro master",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/naranja",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Dodge",
+    "modelo": "Attitud",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe/pnegro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Dodge",
+    "modelo": "Attitud",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa/negro",
+    "ubicacion": "lado izquierdo cable con puntos plata"
+  },
+  {
+    "marca": "Dodge",
+    "modelo": "Dart",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Dodge",
+    "modelo": "Ram",
+    "anio": "2000",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe/blanco",
+    "ubicacion": "en fusiblera de motor fusible de 25A"
+  },
+  {
+    "marca": "Donge",
+    "modelo": "Durango",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Donge",
+    "modelo": "Journey",
+    "anio": "2016 y 10",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/rojo",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "FAW",
+    "modelo": "460 HP",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo/verde",
+    "ubicacion": "atras de fusiblera"
+  },
+  {
+    "marca": "Fiat",
+    "modelo": "Ducati",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/morado",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Fiat",
+    "modelo": "uno",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "naranja",
+    "ubicacion": "llave claxon verde/blanco en volante"
+  },
+  {
+    "marca": "Fiat",
+    "modelo": "500",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/naranja",
+    "ubicacion": "lado izquierdo y claxon blanco/ verde en volante"
+  },
+  {
+    "marca": "Fiat",
+    "modelo": "Aventur Palio",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado//amarillo",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Fiat",
+    "modelo": "Mobi",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/naranja",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "super duty",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "crema/naranja",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "sonic",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Fiesta",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Transit",
+    "anio": "2011",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe/amarillo",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Focus",
+    "anio": "2012/16",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo/azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Fucion",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Sprinter",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe/amarillo",
+    "ubicacion": "atras de cluster"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Fucion",
+    "anio": "2007",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": "lado izquierdo e ignicion gris/morado en fusiblera cofre"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Escapé",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/verde",
+    "ubicacion": "fusiblera"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Sprinter",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "llave o azul/rojo abajo del asiento conductor"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Sprinter",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "detras de fusibleta"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Figo",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Escape",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/verde",
+    "ubicacion": "detras de gusiblera"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Lobo",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "salpicadera izquierda del motor cable grueso conector gris y claxon verde/blanco en volante"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "F 150",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "durazno",
+    "ubicacion": "columna y claxón verde + en volante"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Ecosport",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe/amarillo",
+    "ubicacion": "en llave y claxón cafe en volante"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "350 Super Duty",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/naranja",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Mustang",
+    "anio": "2005",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/verde",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Escape",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/verde",
+    "ubicacion": "lado derecho cortar abajo porque se divide en dos arriba"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Mustang",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": "estribo izq."
+  },
+  {
+    "marca": "Ford",
+    "modelo": "F1502",
+    "anio": "2009",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/verde",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Lobo F250",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/naranja",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Escape Titanio",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Transporter",
+    "anio": "2012",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/negro",
+    "ubicacion": "abajo  de llave"
+  },
+  {
+    "marca": "Freigtliner",
+    "modelo": "M2",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa",
+    "ubicacion": "conector azul segundo de abajp para arriba"
+  },
+  {
+    "marca": "Freigtliner",
+    "modelo": "Cascadia",
+    "anio": "2011",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa 1102 52D",
+    "ubicacion": "desde llave a fusiblera"
+  },
+  {
+    "marca": "Freigtliner",
+    "modelo": "Columbia",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "gris 1102 52D",
+    "ubicacion": "debajo de caja de fusibles"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Sonoma",
+    "anio": "1996",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "abajo de chasis en arnes"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Acadia",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/blanca",
+    "ubicacion": "lado derecho cal 20"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Sierra",
+    "anio": "2014",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "abajo tablero BCM"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Denali",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa",
+    "ubicacion": "bcm conector negro"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Suburban",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "bcm  conector negro abajo de tablero"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Suburban High Contry",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/violeta",
+    "ubicacion": "arnes gris por debajo de la fusiblera"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Suburban",
+    "anio": "2015 y 2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/verde",
+    "ubicacion": "BCM conector negro cable de boton"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Sierra",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/violeta",
+    "ubicacion": "BCM conector negro"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Terrain",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarillo",
+    "ubicacion": "lado izquierdo cal 14"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Suburban",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": "lado izquierdo y claxon morado conector blanco volante"
+  },
+  {
+    "marca": "GMC",
+    "modelo": "Terrain",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "BCM conector negro delgado y claxon conector cafe cable cafe bcm"
+  },
+  {
+    "marca": "Hino",
+    "modelo": "414",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarillo",
+    "ubicacion": "atras de fusiblera cable amarillo y esta a un lado de un rojo son los unicos juntos"
+  },
+  {
+    "marca": "Hino",
+    "modelo": "500",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Acord",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "CVR",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo de boton"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "City",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "CX5",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "HRV",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde//plata",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Acura",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "CRV",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Pilot",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo,,,grises",
+    "ubicacion": "lado izquierdo y posapie izquierdo rosa"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Hodyssey",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado",
+    "ubicacion": "lado izquierdo y claxon cafe columna de volante"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Civic",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde...plata",
+    "ubicacion": "llave y claxon gris en volante"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "City",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Civic",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Civic",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Pilot",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Pilot",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo// grises",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Civic",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde,,,grises",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "CVR",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/motas grices",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Hundai",
+    "modelo": "IX35",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo y claxon blanco en volante conector blanco"
+  },
+  {
+    "marca": "Hundai",
+    "modelo": "Starex",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco",
+    "ubicacion": "lado izquierdo calibre 10 aprox"
+  },
+  {
+    "marca": "Hundai",
+    "modelo": "i10 y grani10",
+    "anio": "2020-21",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Hundai",
+    "modelo": "creta",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "Elantra",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "abajo de asiento trasero y claxón verde .. plata en fusiblera motor"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "Tucson",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "lado izquierdo y claxon rojo en volante"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "Santa Fe",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "en cajuela en fusiblera calibre 22"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "Tucson",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "Ioniq",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "Tucson",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "lado izquierdo  calibre grueso"
+  },
+  {
+    "marca": "Infinity",
+    "modelo": "QX60",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "fusiblera conector  blanco grande"
+  },
+  {
+    "marca": "Infinity",
+    "modelo": "QX60",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Infinity",
+    "modelo": "QX60",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "2 //blancos",
+    "ubicacion": "lado izquierdo y claxon verde/morado columna"
+  },
+  {
+    "marca": "Infinity",
+    "modelo": "QX50 y s",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cable negro",
+    "ubicacion": "caja de fusibles de a cajuela calibre 22"
+  },
+  {
+    "marca": "JAC",
+    "modelo": "?",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde",
+    "ubicacion": "llave columna y morado/cafe -"
+  },
+  {
+    "marca": "Jaguar",
+    "modelo": "",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris/morado",
+    "ubicacion": "debajo del asiento tresero y claxón morado/verde -en volante conector verde"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Compass",
+    "anio": "2018 y 19",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "lado izquierdo o fusible de motor y claxón verde/morado en volante"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Gran Cheroquee",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "lado Izquierdo"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Wrangler",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Wrangler",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa/blanco +",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Sahara",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Latitude",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/naranja",
+    "ubicacion": "primero conector de pared de fuego Numero BRN3112-3"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Cherokee",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/ cafe",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Reubicon",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "atras de fusiblera"
+  },
+  {
+    "marca": "jeep",
+    "modelo": "Wangler",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/naranja",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Cherokee",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": "lado izquierdo cal 18"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Jetta A6",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/negro",
+    "ubicacion": "lado izquierdo claxon gris en volante"
+  },
+  {
+    "marca": "Kenworth",
+    "modelo": "t880",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "café",
+    "ubicacion": "lado izquierdo calibre 16 o 18"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Forte",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Sorento",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo y claxon azul en volante"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Sportage",
+    "anio": "2019 y 2022",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "asiento trasero de conductor"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Sedona",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "kia",
+    "modelo": "Soreto",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Sportage",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "llave abajo de volante"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Forte",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "llave abajo de volante"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Rio",
+    "anio": "2017 y 2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe claro",
+    "ubicacion": "abajo de asiento trasero"
+  },
+  {
+    "marca": "Lincoln",
+    "modelo": "MKZ",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Lincoln",
+    "modelo": "MKX",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Lincon",
+    "modelo": "MKC",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "asiento tracero"
+  },
+  {
+    "marca": "Lincon",
+    "modelo": "Navigator",
+    "anio": "2013",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarillo/naranja",
+    "ubicacion": "lado izquierdo y claxon verde y 15 morado columna de volante"
+  },
+  {
+    "marca": "Lincon",
+    "modelo": "Navigator",
+    "anio": "2015 y 16",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/verde",
+    "ubicacion": "estribo izquierdo y claxon azul conector blanco en volante"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX30",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "lado izquierdo y claxon cable azul con plata en volante"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX9 sport",
+    "anio": "2012",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/azul",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX3",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado derecho trasero y claxon azul en volante"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX5",
+    "anio": "2019 y 15",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/.. plata",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "3s",
+    "anio": "2016-14",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/.. plata",
+    "ubicacion": "abajo de llave"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX5",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris/.. plata",
+    "ubicacion": "lado izquierdo y claxón azul en volante conector blanco"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "BT50",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado/verde",
+    "ubicacion": "cajuela"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX9",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX5",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX 9",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado izquierdo trasero claxón en volante bcm azul conector blanco"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX 9",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "3",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "conector blanco corre por tunel central de bomba y claxón blanco/verde en volante"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "Cx3",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "Pickup",
+    "anio": "2000",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/morado",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "6",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "cajuela"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "3 Black s",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "asiento trasero"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "220",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "fusibles copiloto"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "B180",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "Sprinter",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro/morado",
+    "ubicacion": "lado derecho conector azul fusiblera"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "Sprinter 415",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro/amarillo",
+    "ubicacion": "conector rosa  trae dos cables mas"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "C200",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "fusiblera y claxon reley 4231"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "GLA",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "modulo asiento trasero derecho"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "A200",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "abajo de asiento de conductor"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "A200",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "abajo de asiento trasero"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "C200",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo/negra",
+    "ubicacion": "detras de los fusibles en cajuela"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "GLK",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "E200",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/blanco",
+    "ubicacion": "cajuela"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "A-180",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "conector morado cable"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "Sprinter",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo/verde",
+    "ubicacion": "fusiblera 20A  lado derecho"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "CLA",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe/verde",
+    "ubicacion": "lado derecho y claxón morado/amarillo lado derecho"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "400",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado derecho en bcm conector morado/amarillo blanco y claxón"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "Autobus doble piso",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "lado derecho atras de laa caja de fusibles fusible 20a amarillo"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "C400",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "fusiblera lado izquierdo"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "C200",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "ML350,400 y 500",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "fusiblera asiento trasero base amarillo"
+  },
+  {
+    "marca": "Mercedez",
+    "modelo": "V 250",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "lado izq  y 2017 lado derecho"
+  },
+  {
+    "marca": "Mini",
+    "modelo": "Cooper",
+    "anio": "2016 y 19",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/blanco",
+    "ubicacion": "llave cal 16"
+  },
+  {
+    "marca": "Mini",
+    "modelo": "Cooper",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Mini",
+    "modelo": "Copper",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/blanca",
+    "ubicacion": "fusiblera cofre"
+  },
+  {
+    "marca": "Mitsubishi",
+    "modelo": "L200",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris",
+    "ubicacion": "pies de conductor abajo"
+  },
+  {
+    "marca": "Mitsubishi",
+    "modelo": "Montero",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/negro",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Sentra",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "atras de cluster"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "NP300",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo",
+    "ubicacion": "fusibles de motor"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Avanc",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe/plata",
+    "ubicacion": "llave y lado izquierdo en arnes"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "NP300",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/gris",
+    "ubicacion": "atras de cluster y llave"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Xtrail hibrida",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "lado Izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Eurovan",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "lado izquierdo  calibre 20 y claxon verde en volante"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "NP350 Urvan",
+    "anio": "2017,18,19",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Frontier",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/motas grises",
+    "ubicacion": "llave y claxon conector gris cable rosa"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Np300",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo",
+    "ubicacion": "lado izquierdo y claxon color rojo en volante"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Frontier",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris 2085",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Kicks",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Altima",
+    "anio": "2014/16",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "lado Izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Altima",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/... plata",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Tida",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "versa",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe/.. plata",
+    "ubicacion": "fusiblera cofre y amarillo ignición"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Maxima",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/... plata",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "March",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde.. grises",
+    "ubicacion": "detras de clúster"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Pathfinder",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Xtrail",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/rojo",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Frontier",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Versa",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "lado izquierdo y claxon rojo/negro columna de volante"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Xtrail",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/rojo",
+    "ubicacion": "lado izquierdo y claxon rojo/negro columna de volante"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Xtrail",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/rojo",
+    "ubicacion": "lado izquierdo y claxon cable rojo conector amarillo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Frontier",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo",
+    "ubicacion": "lado izquierdo y claxón linea crema conector verde lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "March",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe... gris",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Sentra",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "desde la columna a la ecu"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Altima",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "Lado Izquierdo mazo delgado y  claxon conector gris de la portafusiblera cab naranja positivo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "versa",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde menta",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Versa",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe/.. plata",
+    "ubicacion": "llave y ecu cable rojo conector azul"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Sentra",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "atras de caja de fusibles"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Xtrail",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/roja",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Note",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Sentra",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "debajo de la bateria"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Altima",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Peuegot",
+    "modelo": "Manager",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/negro",
+    "ubicacion": "debajo de tablero"
+  },
+  {
+    "marca": "Peuegot",
+    "modelo": "208",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe",
+    "ubicacion": "abajo tablero"
+  },
+  {
+    "marca": "Peugeot",
+    "modelo": "3008",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "fusiblera en cofre/ cable azul lado izquierdo puerta trasera, es un arnes mediano"
+  },
+  {
+    "marca": "Peugeot",
+    "modelo": "Partner",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco",
+    "ubicacion": "columna de direccion"
+  },
+  {
+    "marca": "Peugeot",
+    "modelo": "Mánager",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe/morado",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Peugeot",
+    "modelo": "208",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Peugeot",
+    "modelo": "Mánager",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado",
+    "ubicacion": "lado izquierdo cal 16"
+  },
+  {
+    "marca": "Porsche",
+    "modelo": "911 carreara 4s",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Porsche",
+    "modelo": "911",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/blanca",
+    "ubicacion": "llave y claxon cable verde"
+  },
+  {
+    "marca": "Porsche",
+    "modelo": "GTX",
+    "anio": "2005",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/blanco",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "1500",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/rosa",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "Promaster",
+    "anio": "2014",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "Blanco/begro",
+    "ubicacion": "detras de clúster"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "700",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "naranja",
+    "ubicacion": "lado izquierdo y claxon  rosa/cafe direcciom a bocina"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/naranja",
+    "ubicacion": "lado derecho 2017 claxon amarillo en volante"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "700 SLT",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde/naranja",
+    "ubicacion": "atras de fusiblera y lado derecho"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "Promaster Rapid",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe/blanco",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "Rebel",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/naranja",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Ram",
+    "modelo": "400",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "naranja",
+    "ubicacion": "llave y claxon cafe en volante +"
+  },
+  {
+    "marca": "Ram",
+    "modelo": "700",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado/amarillo",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Renaul",
+    "modelo": "Koleos",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro/amarillo",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Renaul",
+    "modelo": "Duster  oroch",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarillo/cafe",
+    "ubicacion": "lado derecho y claxon en fusible en motor"
+  },
+  {
+    "marca": "Renaul",
+    "modelo": "Duster",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": ""
+  },
+  {
+    "marca": "Renaul",
+    "modelo": "Koleos",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "Duster",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "cafe/rosa",
+    "ubicacion": "llave y claxon cafe/amarillo volante"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "Megan",
+    "anio": "2004",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "naranja/blanca",
+    "ubicacion": "lado derecho y claxon negro/ amarillo  BCM"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "Kwid",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "lado izquierdo cal 18",
+    "ubicacion": "lado derecho y claxon cafe/amarillo volante"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "Logan",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "Fluence",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "izquierdo aeriba kit panel tarda en apagarce y claxón rosa/rojo arnes gris"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "Kwid",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azulceleste",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Scania",
+    "modelo": "24v",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde C002321",
+    "ubicacion": "debajo de asiento de conductor"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Ibiza",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "arnes central y claxon cable azul atras de fusiblera"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Cupra",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Leon",
+    "anio": "2016 y 17",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Arona",
+    "anio": "2022",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/roja",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Ibiza",
+    "anio": "2012",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro/amarillo",
+    "ubicacion": "lado izquierdo y claxon cable azul en volante"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Ibiza",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "llave y claxon azul en volante"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Ibiza",
+    "anio": "2018 y 16",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Ibiza",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "llave y claxón azul//plata en volante"
+  },
+  {
+    "marca": "Seat",
+    "modelo": "Ibiza",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Smart",
+    "modelo": "",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "estribo izq."
+  },
+  {
+    "marca": "Smart",
+    "modelo": "Fortwo",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/roja",
+    "ubicacion": "llave conector negro y claxon cable verde en volante"
+  },
+  {
+    "marca": "Suzuky",
+    "modelo": "Ciaz",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Suzuky",
+    "modelo": "S-Cross",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Suzuky",
+    "modelo": "Cias",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo cal 18"
+  },
+  {
+    "marca": "Suzuky",
+    "modelo": "Vitara",
+    "anio": "2016 y 18",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "debajo de asiento"
+  },
+  {
+    "marca": "Suzuky",
+    "modelo": "Swift",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Suzuky",
+    "modelo": "Swift",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Suzuky",
+    "modelo": "Vitara",
+    "anio": "2014",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro/amarillo",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Higlander",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "conector blanco modulo  abajo de volante"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Tacoma",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "columna de llave"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Higlander",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Tacoma",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Hiace",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "conectror de artiba del modulo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Rav4",
+    "anio": "2010 16, 19",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo",
+    "ubicacion": "detras de cluster y lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Hilux",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "estribo izquierdo parte trasera"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Tacoma",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Tacoma",
+    "anio": "2010",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Yaris",
+    "anio": "2007",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "detrás de guantera"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Prius",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "estribo izquierda"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Yaris",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Rav4 hibrida",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/negro",
+    "ubicacion": "destras de cluster cal 18"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Sienna",
+    "anio": "2008",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro/rojo",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Prius",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul pin 17",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Hilux",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "llave y claxon conector negro cable negro cal 18"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Tacoma",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Rav 4",
+    "anio": "2013",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "BCM  abajo de volante"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Prius tipo C",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Prius",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "caja de fusibles atras de guantera"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Cambry",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado",
+    "ubicacion": "caja de fusibles atras de guantera"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Cambry",
+    "anio": "2004",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/negro",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Avanza",
+    "anio": "2014",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/azul",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Avanza",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "roja",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Hilux",
+    "anio": "2017",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cris",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Sienna",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "lado derecho tarda 3 minutos en aoagarse"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Hiace",
+    "anio": "2018",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Hilux",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cris",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Yaris",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "morado",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Tacoma",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Volvo",
+    "modelo": "v40",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo/azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Volvo",
+    "modelo": "S40",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo/naranja",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "Volvo",
+    "modelo": "S60",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/blanca",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Golf gti",
+    "anio": "1990",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/amarillo",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Theramont",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Jeta A7",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/rojo",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Jeta MK7",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/rojo",
+    "ubicacion": "atras de fusiblera"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Pasat TDI",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris/rojo",
+    "ubicacion": "reley 645 fusiblera"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Pasajeros",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro/azul",
+    "ubicacion": "y claxon directo de bocina +"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Gol",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Amarok",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "cable en llave calibre 16"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Tijuan",
+    "anio": "2019",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "rojo/azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "constelacion",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "llave y claxón amarillo/azul arriba de bcm"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Bettle",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul cielo/roja",
+    "ubicacion": "lado derecho y claxón negro/amarillo directo abajo de faro"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Golf",
+    "anio": "2015 y 17",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Theramont",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Gol",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/blanca",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Constelacion",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/naranja",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Caddy",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "abajo de asiento ( solo si es a gasolina )"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Polo",
+    "anio": "2015",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Combi",
+    "anio": "1978",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "bcm conector negro junto a cable rosa grueso"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Amarok",
+    "anio": "2014",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "en fusiblera en motor cable j5 conector blanco"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Passat",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/negro",
+    "ubicacion": "lado derecho corriente y tierra"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Tijuan",
+    "anio": "2011",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "alimebtacion fe fusiblera N5 o 6 de 10a y el corte a pulso deurecyo de tierra al modulo"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Vento",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "BCM abajo de tablero conector negreo"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Jetta",
+    "anio": "2012",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/roja",
+    "ubicacion": "caja de fisibles"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Vento All Star",
+    "anio": "2017",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "crema/blanco",
+    "ubicacion": "atras de cluster"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Golf",
+    "anio": "2015",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/blanco",
+    "ubicacion": "lado izquierdo calibre 14"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Crafter TDI",
+    "anio": "2016",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "fusiblera motor"
+  },
+  {
+    "marca": "VW",
+    "modelo": "crafter TDI",
+    "anio": "2016",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/verde",
+    "ubicacion": "lado iquierdo abajo de conectores solo y claxon rojo en volante"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Tijuan",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/azul",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Sabeiro Robust",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/blanco",
+    "ubicacion": "lado izquierdo"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "Pilot",
+    "anio": "2019",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde",
+    "ubicacion": "atras de guantera bcm conector central y cable azul ignicion"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "Transporter",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo/cafe",
+    "ubicacion": "lado izquierdo y/o atras de fusiblera cable rosa bomba"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Vocho",
+    "anio": "1999",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "llave"
+  },
+  {
+    "marca": "VW",
+    "modelo": "Jetta",
+    "anio": "2018",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/negro",
+    "ubicacion": "lado derecho"
+  },
+  {
+    "marca": "Mercedes",
+    "modelo": "GLC 300",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo/azul",
+    "ubicacion": "fusiblera motor izquierda conector cafe"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Rubicon",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/verde",
+    "ubicacion": "chasis lado derecho"
+  },
+  {
+    "marca": "Vw",
+    "modelo": "Taos",
+    "anio": "2022",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "Blanco/cafe",
+    "ubicacion": "cableado lado derecho, corriente rojo con amarillo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "rush",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "Lado copiloto, encintado"
+  },
+  {
+    "marca": "Volvo",
+    "modelo": "S60",
+    "anio": "2022",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul/blanco",
+    "ubicacion": "lado copiloto debajo de la alfombra, ahi mismo se encuentra corriente continua"
+  },
+  {
+    "marca": "jac",
+    "modelo": "j7",
+    "anio": "2022",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosa",
+    "ubicacion": "lado conductor delante, corriente amarillo con rojo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "Xtrail",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "blanco/gris",
+    "ubicacion": "lado derecho a un costado de los pies"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "Mx5",
+    "anio": "2020",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "Verde/puntos gris",
+    "ubicacion": "lado izquierdo cal 18"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "Koleos",
+    "anio": "2022",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "cable calibre 14, todo lado izquierdo, corriente continúa rojo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Suburban",
+    "anio": "2022",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/morado",
+    "ubicacion": "lado derecho chasis cable corte rojo con morado, ignición  por movimiento"
+  },
+  {
+    "marca": "internacional",
+    "modelo": "tracto",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "morado",
+    "ubicacion": "lado derecho fusilera (engine ecm b6 t ignición)"
+  },
+  {
+    "marca": "Mitsubishi",
+    "modelo": "Expander",
+    "anio": "2022",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "Rojo",
+    "ubicacion": "lado chófer calibre 18"
+  }
+]

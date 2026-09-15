@@ -44,7 +44,8 @@ export type Section =
   | 'conversaciones-whatsapp'
   | 'agentes-ia'
   | 'pagos-internos'
-  | 'planillas-vehiculo';
+  | 'planillas-vehiculo'
+  | 'esquemas-apagado';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -67,6 +68,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'agentes-ia': 'Agentes IA',
   'pagos-internos': 'Pagos programados',
   'planillas-vehiculo': 'Planilla de vehículo',
+  'esquemas-apagado': 'Esquemas de apagado',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -90,6 +92,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   'agentes-ia': '/interno/agentes-ia',
   'pagos-internos': '/interno/pagos-internos',
   'planillas-vehiculo': '/interno/planillas-vehiculo',
+  'esquemas-apagado': '/interno/esquemas-apagado',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -97,8 +100,8 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
   supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
