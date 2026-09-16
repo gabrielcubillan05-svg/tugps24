@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canManageRRHH, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessRRHH, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -20,7 +20,7 @@ interface Incapacidad {
 
 async function requireRRHH(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canManageRRHH(session.role)) return null;
+  if (!session || !canAccessRRHH(session)) return null;
   return session;
 }
 

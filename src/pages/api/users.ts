@@ -15,6 +15,7 @@ import {
   canManageUsers,
   canAssignTasks,
   canAccessSection,
+  canAccessRRHH,
   canAccessSuspensiones,
   canSetUserBranches,
   destroyAllSessionsForUser,
@@ -51,7 +52,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // Acceso reducido: poblar el selector de empleados en Horario, de secretarias/gerentes en el
   // CRM (ambos atienden interesados), de operadores en Reportes programados, o de destinatarios
   // en el Chat (todos los roles tienen acceso).
-  const canHorario = canAccessSection(session.role, 'horario');
+  const canHorario = canAccessRRHH(session);
   const canChat = canAccessSection(session.role, 'chat');
   const CRM_CONTACT_ROLES = ['secretaria', 'gerente'];
   const canCrmContacts =

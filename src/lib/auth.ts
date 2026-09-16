@@ -27,7 +27,6 @@ export const ROLE_LABELS: Record<Role, string> = {
 export type Section =
   | 'novedades'
   | 'reportes'
-  | 'horario'
   | 'crm'
   | 'cotizaciones'
   | 'tareas'
@@ -51,7 +50,6 @@ export type Section =
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
   reportes: 'Reportes programados',
-  horario: 'Horario',
   crm: 'CRM',
   cotizaciones: 'Cotizaciones',
   tareas: 'Tareas',
@@ -76,7 +74,6 @@ export const SECTION_LABELS: Record<Section, string> = {
 export const SECTION_PATHS: Record<Section, string> = {
   novedades: '/interno/novedades',
   reportes: '/interno/reportes',
-  horario: '/interno/horario',
   crm: '/interno/crm',
   cotizaciones: '/interno/cotizaciones',
   tareas: '/interno/tareas',
@@ -102,9 +99,9 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'rrhh'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'rrhh'],
+  supervisor: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
+  gerente: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado'],
+  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'rrhh'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -174,6 +171,15 @@ export function canSeeAllPagosInternos(session: Pick<Session, 'role' | 'username
   return session.role === 'admin' || PAGOS_INTERNOS_EXTRA_USERNAMES.includes(session.username);
 }
 
+// Recursos Humanos (incluye horarios, compensatorios y contratos, antes en la sección aparte
+// "horario") quedó restringido a admin más Josué y Wilmar puntualmente, no a gerente/supervisor
+// en general — decisión explícita de Gabriel, no el patrón por rol que se usa en el resto.
+const RRHH_EXTRA_USERNAMES = [JOSUE_USERNAME, WILMAR_USERNAME];
+
+export function canAccessRRHH(session: Pick<Session, 'role' | 'username'>): boolean {
+  return session.role === 'admin' || RRHH_EXTRA_USERNAMES.includes(session.username);
+}
+
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
@@ -182,13 +188,10 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Sectio
   if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
   if (!base.includes('pagos-internos') && canAccessPagosInternos(session)) extra.push('pagos-internos');
   if (!base.includes('usuarios') && canSetUserBranches(session)) extra.push('usuarios');
+  if (!base.includes('rrhh') && canAccessRRHH(session)) extra.push('rrhh');
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
   if (canManageAiAgents(session)) extra.push('agentes-ia');
   return extra.length ? [...base, ...extra] : base;
-}
-
-export function canManageCompDays(role: Role): boolean {
-  return role === 'supervisor' || role === 'gerente' || role === 'admin';
 }
 
 export function canAssignTasks(role: Role): boolean {
@@ -201,10 +204,6 @@ export function canVerifyInstalls(role: Role): boolean {
 
 export function canManageMediaAssets(role: Role): boolean {
   return role === 'supervisor' || role === 'gerente' || role === 'admin';
-}
-
-export function canManageRRHH(role: Role): boolean {
-  return role === 'gerente' || role === 'admin';
 }
 
 // Usuarios puntuales con permiso para subir listas de Cobranza especial WP aunque su

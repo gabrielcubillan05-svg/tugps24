@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, canAccessSection, canAccessSuspensiones, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, canAccessSection, canAccessRRHH, canAccessSuspensiones, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { logAudit, readAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
@@ -194,7 +194,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       const permissions: GabotPermissions = {
         canLookupOthers,
         canAssignToOthers: canAssignTasks(session.role),
-        canHorario: canAccessSection(session.role, 'horario'),
+        canHorario: canAccessRRHH(session),
         canNovedades: canAccessSection(session.role, 'novedades'),
         canAuditoria: canAccessSection(session.role, 'auditoria'),
         canCrm: canAccessSection(session.role, 'crm'),

@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canManageCompDays, verifySameOrigin, getUsers } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessRRHH, verifySameOrigin, getUsers } from '../../lib/auth';
 import { getHireDate } from './employees';
 
 export const prerender = false;
@@ -25,7 +25,7 @@ interface ContractEntry {
 
 async function requireContracts(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canManageCompDays(session.role)) return null;
+  if (!session || !canAccessRRHH(session)) return null;
   return session;
 }
 

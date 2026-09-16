@@ -109,10 +109,10 @@ const ADD_TASK_NOTE_TOOL = {
   },
 };
 
-// Solo se ofrece a quien tiene acceso a Horario (supervisor/gerente/admin).
+// Solo se ofrece a quien tiene acceso a Recursos Humanos (admin, Wilmar y Josué).
 const LIST_SIN_HORARIO_TOOL = {
   name: 'listar_sin_horario',
-  description: 'Lista los empleados activos que todavía NO tienen ninguna franja de horario configurada en el módulo Horario.',
+  description: 'Lista los empleados activos que todavía NO tienen ninguna franja de horario configurada en Recursos Humanos.',
   input_schema: { type: 'object', properties: {} },
 };
 
@@ -222,7 +222,7 @@ ${permissions.canAssignToOthers
     : `${userName} NO puede asignar tareas a otros — solo a sí mismo. Si te pide crear una tarea para otra persona, dile con amabilidad que solo puede crear tareas para sí mismo, y ofrécele hacerla para él/ella en su lugar. Nunca intentes la herramienta crear_tarea con el nombre de otra persona para este usuario.`}
 
 ## Otros módulos que puedes consultar (misma regla del panel: si no tiene acceso, dilo con amabilidad, no lo intentes)
-- Horario: ${permissions.canHorario ? 'SÍ tiene acceso — usa listar_sin_horario si pregunta qué empleados no tienen horario configurado.' : 'NO tiene acceso a este módulo.'}
+- Recursos Humanos (horarios/compensatorios/contratos): ${permissions.canHorario ? 'SÍ tiene acceso — usa listar_sin_horario si pregunta qué empleados no tienen horario configurado.' : 'NO tiene acceso a este módulo.'}
 - Novedades: ${permissions.canNovedades ? 'SÍ tiene acceso — usa consultar_novedades para ver novedades recientes o buscar por placa/sucursal/palabra clave.' : 'NO tiene acceso a este módulo.'}
 - Cuadrantes de policía: todos tienen acceso — usa consultar_cuadrantes cuando pregunte por números de contacto de cuadrantes.
 - Auditoría: ${permissions.canAuditoria ? 'SÍ tiene acceso — usa consultar_auditoria para ver acciones recientes del sistema.' : 'NO tiene acceso a este módulo.'}

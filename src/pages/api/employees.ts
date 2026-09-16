@@ -4,7 +4,7 @@ import { logAudit } from '../../lib/audit';
 import {
   SESSION_COOKIE,
   getSession,
-  canManageRRHH,
+  canAccessRRHH,
   verifySameOrigin,
   getUsers,
   findUserById,
@@ -53,7 +53,7 @@ const EMPTY_PROFILE: EmployeeProfile = {
 
 async function requireRRHH(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canManageRRHH(session.role)) return null;
+  if (!session || !canAccessRRHH(session)) return null;
   return session;
 }
 
@@ -93,14 +93,9 @@ export const GET: APIRoute = async ({ cookies }) => {
 
   const [users, profiles] = await Promise.all([getUsers(redis), readProfiles(redis)]);
 
-  let scoped = users;
-  if (session.role === 'gerente') {
-    const me = await findUserById(redis, session.userId);
-    const misSucursales = branchesOf(me);
-    scoped = users.filter((u) => u.id === session.userId || branchesOf(u).some((b) => misSucursales.includes(b)));
-  }
-
-  const employees = scoped.map((u) => ({
+  // Solo admin, Wilmar y Josué llegan hasta aquí (canAccessRRHH) — igual que Pagos internos,
+  // ven todas las sucursales, sin filtrar por la propia.
+  const employees = users.map((u) => ({
     id: u.id,
     name: u.name,
     username: u.username,
@@ -137,13 +132,6 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const target = await findUserById(redis, id);
   if (!target) {
     return new Response(JSON.stringify({ error: 'empleado no encontrado' }), { status: 404 });
-  }
-  if (session.role === 'gerente') {
-    const me = await findUserById(redis, session.userId);
-    const misSucursales = branchesOf(me);
-    if (target.id !== session.userId && !branchesOf(target).some((b) => misSucursales.includes(b))) {
-      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
-    }
   }
 
   const raw = await redis.hget<string>(REDIS_KEY, id);
