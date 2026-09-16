@@ -57,7 +57,7 @@ async function requireRRHH(cookies: any) {
   return session;
 }
 
-async function readProfiles(redis: any): Promise<Record<string, EmployeeProfile>> {
+export async function readProfiles(redis: any): Promise<Record<string, EmployeeProfile>> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   const out: Record<string, EmployeeProfile> = {};
   for (const [id, v] of Object.entries(raw)) {

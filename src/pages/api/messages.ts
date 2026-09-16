@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, canAccessSection, canAccessRRHH, canAccessSuspensiones, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, canAssignTasks, canAccessSection, canAccessRRHH, canAccessSuspensiones, verifySameOrigin, ROLE_LABELS, JOSUE_USERNAME, WILMAR_USERNAME, branchesOf } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { logAudit, readAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
@@ -18,6 +18,9 @@ import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
 import { readScheduledReports, withStatus } from './scheduled-reports';
 import { readSchedule } from './schedule';
+import { getProfile, readProfiles } from './employees';
+import { computeVacationBalances, readContracts } from './contracts';
+import { readEntries as readVacationRequests } from './vacation-requests';
 import { readCuadrantes } from './cuadrantes';
 import { readRecentReports } from './reports';
 
@@ -361,6 +364,38 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           .join('\n')}`;
       }
 
+      async function consultarMisVacaciones(): Promise<string> {
+        const [profile, entries] = await Promise.all([getProfile(redis, sender.id), readContracts(redis)]);
+        const balances = await computeVacationBalances(redis, entries);
+        const balance = balances.find((b) => b.employee === sender.name);
+        const requests = (await readVacationRequests(redis)).filter((r) => r.employeeId === sender.id);
+        const balanceLine = balance
+          ? `Días disponibles: ${balance.remainingDays} · Acumulados: ${balance.accruedDays} · Tomados/asignados: ${balance.takenDays}${profile.hireDate ? ` · Antigüedad: ${balance.yearsOfService} año(s)` : ''}`
+          : 'Todavía no tiene fecha de ingreso registrada, así que no se puede calcular su balance.';
+        const reqLines = requests.length
+          ? requests.slice(0, 5).map((r) => `  · ${r.startDate} – ${r.endDate}: ${r.status}`).join('\n')
+          : '  (sin solicitudes de vacaciones registradas)';
+        return `${balanceLine}\nSus solicitudes de vacaciones más recientes:\n${reqLines}`;
+      }
+
+      async function consultarEmpleados(busqueda: string): Promise<string> {
+        const q = normalizeNameForMatch(busqueda);
+        const profiles = await readProfiles(redis);
+        const filtered = allUsers.filter((u) => {
+          if (!q) return true;
+          const p = profiles[u.id];
+          return [u.name, ...branchesOf(u), p?.cargo].some((f) => normalizeNameForMatch(f || '').includes(q));
+        });
+        const top = filtered.slice(0, 8);
+        if (!top.length) return `No encontré ningún empleado${busqueda ? ` que coincida con "${busqueda}"` : ''}.`;
+        return `Empleados${busqueda ? ` que coinciden con "${busqueda}"` : ''}:\n${top
+          .map((u) => {
+            const p = profiles[u.id];
+            return `  · ${u.name} — ${branchesOf(u).join(', ') || 'sin sucursal'} — ${p?.cargo || 'sin cargo registrado'}${u.active ? '' : ' (inactivo)'}`;
+          })
+          .join('\n')}`;
+      }
+
       const actions: GabotActions = {
         lookupOtherWorker,
         createTaskForWorker,
@@ -373,6 +408,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         consultarCrm,
         consultarSuspensiones,
         consultarReportesProgramados,
+        consultarMisVacaciones,
+        consultarEmpleados,
       };
 
       const result = await runGabotAgent(

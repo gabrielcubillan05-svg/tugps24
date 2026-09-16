@@ -25,7 +25,7 @@ interface VacationRequest {
   resolutionNote: string;
 }
 
-async function readEntries(redis: any): Promise<VacationRequest[]> {
+export async function readEntries(redis: any): Promise<VacationRequest[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {

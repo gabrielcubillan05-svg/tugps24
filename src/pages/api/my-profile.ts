@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { SESSION_COOKIE, getSession, getUsers, branchesOf, verifySameOrigin } from '../../lib/auth';
 import { getProfile, saveProfile } from './employees';
-import { computeVacationBalances } from './contracts';
+import { computeVacationBalances, readContracts } from './contracts';
 
 export const prerender = false;
 
@@ -18,19 +18,8 @@ export const GET: APIRoute = async ({ cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const [profile, users] = await Promise.all([getProfile(redis, session.userId), getUsers(redis)]);
+  const [profile, users, entries] = await Promise.all([getProfile(redis, session.userId), getUsers(redis), readContracts(redis)]);
   const me = users.find((u) => u.id === session.userId);
-  const raw = (await redis.hgetall<Record<string, string>>('internal:contracts')) || {};
-  const entries = Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((e): e is any => e !== null)
-    .map((e) => ({ indefinite: false, ...e }));
   const balances = await computeVacationBalances(redis, entries);
   const balance = me ? balances.find((b) => b.employee === me.name) : null;
 

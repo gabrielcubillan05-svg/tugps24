@@ -46,6 +46,8 @@ export interface GabotActions {
   consultarCrm: (busqueda: string) => Promise<string>;
   consultarSuspensiones: (busqueda: string) => Promise<string>;
   consultarReportesProgramados: (busqueda: string) => Promise<string>;
+  consultarMisVacaciones: () => Promise<string>;
+  consultarEmpleados: (busqueda: string) => Promise<string>;
 }
 
 // Solo se ofrece esta herramienta cuando quien escribe puede ver pendientes de otros
@@ -180,6 +182,25 @@ const REPORTES_PROGRAMADOS_TOOL = {
   },
 };
 
+// Se ofrece a CUALQUIER usuario, sin permiso especial — es autoservicio sobre sus propios datos,
+// igual que "Mi ficha" en el panel (no depende de canAccessRRHH).
+const MIS_VACACIONES_TOOL = {
+  name: 'consultar_mis_vacaciones',
+  description: 'Muestra el balance de vacaciones de quien pregunta (días disponibles, acumulados, tomados) y el estado de sus propias solicitudes de vacaciones. Solo consulta sobre sí mismo.',
+  input_schema: { type: 'object', properties: {} },
+};
+
+// Solo se ofrece a quien tiene acceso al Panel de RR.HH. (admin, Wilmar y Josué) — mismo permiso
+// que la sección 'rrhh' del panel (canAccessRRHH).
+const EMPLEADOS_TOOL = {
+  name: 'consultar_empleados',
+  description: 'Busca en el directorio de empleados por nombre, sucursal o cargo, y muestra su sucursal, cargo y si está activo. Solo consulta.',
+  input_schema: {
+    type: 'object',
+    properties: { busqueda: { type: 'string', description: 'Nombre, sucursal o cargo para buscar (opcional, deja vacío para ver los primeros del directorio)' } },
+  },
+};
+
 function buildSystemPrompt(
   userName: string,
   roleLabel: string,
@@ -229,6 +250,8 @@ ${permissions.canAssignToOthers
 - CRM: ${permissions.canCrm ? 'SÍ tiene acceso — usa consultar_crm para buscar un lead por nombre, teléfono o ciudad y confirmarle su estado, secretaria/sucursal asignada, próximo seguimiento o la nota más reciente. Es solo de consulta: si te piden cambiar algo del lead (estado, nota, fecha), dile con amabilidad que lo haga desde el panel de CRM.' : 'NO tiene acceso a este módulo.'}
 - Suspensiones: ${permissions.canSuspensiones ? 'SÍ tiene acceso — usa consultar_suspensiones para buscar un caso por cliente, placa o sucursal y confirmarle su estado y a quién está asignado.' : 'NO tiene acceso a este módulo.'}
 - Reportes programados: ${permissions.canReportes ? 'SÍ tiene acceso — usa consultar_reportes_programados para buscar por cliente, tipo de reporte u operador y confirmar si está al día, por realizar o vencido.' : 'NO tiene acceso a este módulo.'}
+- Mis vacaciones: todos tienen acceso a las suyas propias — usa consultar_mis_vacaciones si pregunta cuántos días tiene disponibles o el estado de una solicitud que ya hizo. Nunca uses esta herramienta para consultar las vacaciones de otra persona.
+- Directorio de empleados (Panel de RR.HH.): ${permissions.canHorario ? 'SÍ tiene acceso — usa consultar_empleados para buscar por nombre, sucursal o cargo.' : 'NO tiene acceso a este módulo.'}
 
 ## Límites estrictos
 - Nunca inventes datos que no estén en la información que tienes — ni de esta persona ni de otras.
@@ -309,6 +332,8 @@ export async function runGabotAgent(
     ...(permissions.canCrm ? [CRM_TOOL] : []),
     ...(permissions.canSuspensiones ? [SUSPENSIONES_TOOL] : []),
     ...(permissions.canReportes ? [REPORTES_PROGRAMADOS_TOOL] : []),
+    MIS_VACACIONES_TOOL,
+    ...(permissions.canHorario ? [EMPLEADOS_TOOL] : []),
   ];
   const messages: any[] = [...history, { role: 'user', content: newMessage }];
 
@@ -357,6 +382,10 @@ export async function runGabotAgent(
           content = await actions.consultarSuspensiones(String(tc.input.busqueda || ''));
         } else if (tc.name === 'consultar_reportes_programados') {
           content = await actions.consultarReportesProgramados(String(tc.input.busqueda || ''));
+        } else if (tc.name === 'consultar_mis_vacaciones') {
+          content = await actions.consultarMisVacaciones();
+        } else if (tc.name === 'consultar_empleados') {
+          content = await actions.consultarEmpleados(String(tc.input.busqueda || ''));
         } else {
           content = 'Esa herramienta no está disponible.';
         }

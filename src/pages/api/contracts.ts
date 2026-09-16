@@ -111,17 +111,9 @@ export async function createVacationEntry(redis: any, employee: string, startDat
   await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
-  if (!(await requireContracts(cookies))) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
-  }
-  const redis = getRedis();
-  if (!redis) {
-    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
-  }
-
+export async function readContracts(redis: any): Promise<ContractEntry[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  const entries = Object.values(raw)
+  return Object.values(raw)
     .map((v) => {
       try {
         return typeof v === 'string' ? JSON.parse(v) : v;
@@ -132,7 +124,18 @@ export const GET: APIRoute = async ({ cookies }) => {
     .filter((e): e is ContractEntry => e !== null)
     .map((e) => ({ indefinite: false, ...e }))
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
+}
 
+export const GET: APIRoute = async ({ cookies }) => {
+  if (!(await requireContracts(cookies))) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  const entries = await readContracts(redis);
   const withStatuses = entries.map(withStatus);
   const vacationBalances = (await computeVacationBalances(redis, entries)).sort((a, b) => a.employee.localeCompare(b.employee));
 
