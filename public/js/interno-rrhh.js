@@ -431,17 +431,42 @@ document.addEventListener('DOMContentLoaded', function () {
         byOperator.get(s.operator).push(s);
       });
 
-      scheduleList.innerHTML = [...byOperator.entries()].map(([operator, entries]) => `
-        <div class="list-item">
-          <div class="item-top"><span class="title">${escapeHtml(operator)}</span></div>
-          ${entries.map((e) => `
-            <div class="schedule-line" style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0;">
-              <p class="note" style="margin:0;">${escapeHtml(e.horario)}</p>
-              <button class="btn-small btn-delete" data-action="delete-sched" data-id="${e.id}" type="button">Eliminar</button>
+      scheduleList.innerHTML = [...byOperator.entries()].map(([operator, entries]) => {
+        const daysCovered = new Set(entries.flatMap((e) => e.days || []));
+        const freeDays = DAY_ORDER.filter((d) => !daysCovered.has(d));
+        const rows = entries.map((e, i) => {
+          const isLast = i === entries.length - 1;
+          const cells = DAY_ORDER.map((d) => {
+            if ((e.days || []).includes(d)) return '<td class="schedule-cell schedule-x">X</td>';
+            if (isLast && freeDays.includes(d)) return '<td class="schedule-cell schedule-libre">libre</td>';
+            return '<td class="schedule-cell"></td>';
+          }).join('');
+          return `
+            <tr>
+              <td class="schedule-hora">${escapeHtml(e.start)} a ${escapeHtml(e.end)}</td>
+              ${cells}
+              <td><button class="btn-small btn-delete" data-action="delete-sched" data-id="${e.id}" type="button">Eliminar</button></td>
+            </tr>
+          `;
+        }).join('');
+        return `
+          <div class="list-item">
+            <div class="item-top"><span class="title">${escapeHtml(operator)}</span></div>
+            <div class="table-scroll">
+              <table class="schedule-table">
+                <thead>
+                  <tr>
+                    <th>Hora</th>
+                    ${DAY_ORDER.map((d) => `<th>${d.slice(0, 3)}</th>`).join('')}
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
             </div>
-          `).join('')}
-        </div>
-      `).join('');
+          </div>
+        `;
+      }).join('');
     }
 
     function loadSchedule() {

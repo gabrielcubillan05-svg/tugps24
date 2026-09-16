@@ -324,6 +324,13 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
   .badge.status-vencido { background: var(--danger); color: #fff; }
   .badge.status-proximo, .badge.status-proxima { background: var(--glow-1); color: var(--teal-bright); }
   .badge.status-indefinido { background: #2f8a4f33; color: var(--ok); }
+
+  .schedule-table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  .schedule-table th, .schedule-table td { padding: 8px 10px; text-align: center; border: 1px solid var(--line); font-size: 12.5px; white-space: nowrap; }
+  .schedule-table th { color: var(--slate); font-weight: 600; background: var(--ink-900); }
+  .schedule-hora { text-align: left; color: var(--paper-dim); font-weight: 600; }
+  .schedule-x { color: var(--ok); font-weight: 700; }
+  .schedule-libre { color: var(--teal-bright); font-style: italic; }
 </style>
 
 <script src="/js/interno-rrhh.js" defer></script>
