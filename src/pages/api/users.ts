@@ -210,6 +210,11 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (isBranchManager) {
     // Josué y Wilmar pueden editarle a otros usuarios la sucursal, el rol, la contraseña y
     // activar/desactivar la cuenta — nada de nombre (eso sigue siendo exclusivo de admin).
+    // Nunca pueden tocar una cuenta que YA es admin, ni ascender a nadie a admin: ese límite
+    // es lo único que evita que tomen control de una cuenta de administrador o se autoasciendan.
+    if (user.role === 'admin') {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    }
     if (body.name !== undefined || body.currentPassword !== undefined) {
       return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal, el rol, la contraseña o el estado activo de este usuario' }), { status: 403 });
     }
@@ -218,7 +223,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
 
     if (body.role !== undefined) {
-      if (!ROLES.includes(body.role as Role)) {
+      if (!ROLES.includes(body.role as Role) || body.role === 'admin') {
         return new Response(JSON.stringify({ error: 'rol inválido' }), { status: 400 });
       }
       user.role = body.role as Role;
