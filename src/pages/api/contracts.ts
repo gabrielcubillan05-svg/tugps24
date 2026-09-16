@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessRRHH, verifySameOrigin, getUsers } from '../../lib/auth';
-import { getHireDate, getProfile } from './employees';
+import { getHireDate, getProfile, readProfiles } from './employees';
 import { readSchedule } from './schedule';
 
 export const prerender = false;
@@ -93,8 +93,13 @@ export function computeSeniority(hireDate: string | null): { yearsOfService: num
 }
 
 export async function computeVacationBalances(redis: any, entries: ContractEntry[]) {
-  const employees = [...new Set(entries.map((e) => e.employee))];
-  const [users, schedule] = await Promise.all([getUsers(redis), readSchedule(redis)]);
+  const [users, schedule, profiles] = await Promise.all([getUsers(redis), readSchedule(redis), readProfiles(redis)]);
+  // Además de quienes ya tienen Contrato/Vacaciones registrados, incluye a todo empleado con
+  // fecha de ingreso en su ficha — si no, su antigüedad se ve como "sin fecha" aunque sí la tenga.
+  const employees = [...new Set([
+    ...entries.map((e) => e.employee),
+    ...users.filter((u) => profiles[u.id]?.hireDate).map((u) => u.name),
+  ])];
 
   return Promise.all(employees.map(async (employee) => {
     // La fecha de ingreso vive en el perfil de RR.HH. del empleado (fuente única); si todavía
