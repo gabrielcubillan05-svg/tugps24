@@ -3553,5 +3553,689 @@
     "corteIgnicion": true,
     "colores": "Rojo",
     "ubicacion": "lado chófer calibre 18"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "frontier gasolina y llave",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "cable rojo grueso conector reposapiés"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "tracker 2021",
+    "anio": "2021",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris/negra",
+    "ubicacion": "Bomba cable gris rayas negras ramal del piloto"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "bt50",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/blanca/negro/verde",
+    "ubicacion": "Suiche color blanco Relay verde reposapiés cualquiera d ellos 2 negros raya blanca"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "corolla de llave",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "azul/gris/verde/verdeazul",
+    "ubicacion": "Bomba color verdeazul Suiche gris delgado"
+  },
+  {
+    "marca": "Akt",
+    "modelo": "cr4",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/negro",
+    "ubicacion": "Cdi azul negro"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "cx5 de botón",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "marron/marrón",
+    "ubicacion": "Bomba cable marrón cogin trasero"
+  },
+  {
+    "marca": "Apache",
+    "modelo": "RTR 180",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "Cdi ca.ble azul"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "cbf 150",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarilla/azul",
+    "ubicacion": "Cdi Azul raya amarilla"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "allegro",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "Suiche cable azul grueso pasa por el reposapiés detrás de un conector"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "626",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "Suiche cable azul igual al allegro"
+  },
+  {
+    "marca": "Jeep",
+    "modelo": "Cherokee",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "azul/rojo",
+    "ubicacion": "Rojo azul asiento trasero copiloto"
+  },
+  {
+    "marca": "Yamaha",
+    "modelo": "bws x",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/blanco",
+    "ubicacion": "Corte cdi blanco raya azul"
+  },
+  {
+    "marca": "Yamaha",
+    "modelo": "bws fi inyección",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "Fusilera adelante fusible ing"
+  },
+  {
+    "marca": "Yamaha",
+    "modelo": "NMAX 155 clasica y conect",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "salmon/salmón",
+    "ubicacion": "Ignición fusilera adelante cuarto fusible 7.5 cable salmón"
+  },
+  {
+    "marca": "Yamaha",
+    "modelo": "FZ 250",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "roja/salmon/salmón",
+    "ubicacion": "Corte runt cable salmón raya roja debajo del cogin"
+  },
+  {
+    "marca": "Yamaha",
+    "modelo": "XTZ 150 y 250 modelo nuevo",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/naranja/negro/rojo",
+    "ubicacion": "Ignición cdi cable naranja Pulsora negro raya azul Runt … creo que es rojo raya azul"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "sail",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "marron/marrón",
+    "ubicacion": "Corte bomba cable marrón pies del piloto"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "corolla de botón",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "verde",
+    "ubicacion": "Cable verde grueso por bomba demora en apagar"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "fortunner modelos viejos",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "Cable negro por suiche pasa por atrás del tablero"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "4 Runner 2021 de llave",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "verde/limon/limón",
+    "ubicacion": "Suiche cable verde limon"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "fortunner modelo nuevo",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "Corte bomba debajo del piloto Cable rojo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "4 runner modelos 2010 a 2018",
+    "anio": "2010",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro",
+    "ubicacion": "Suiche cable negro"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "4 runner de",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "Botón Cable blanco conector reposapiés del conductor"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "land cruiserd prado TXl",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "Cable azul claro delgado conector de abajo en el reposapies"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "hilux gasolina y llave midelos viejo",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "negro",
+    "ubicacion": "Cable negro como la fortunner"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "hilux modelo nuevo gasolina y llave",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo",
+    "ubicacion": "Bomba abajo del piloto cable rojo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "Hilux 2021 gasolina y llave",
+    "anio": "2021",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris",
+    "ubicacion": "Suiche cable gris delgado conector abajo del timón"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "hilux 2020 en adelante diésel y botón",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "blanco",
+    "ubicacion": "Corte fusilera abajo timón o atrás del tablero blanco fino cuarto conector abajo hacia arriba"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "burbuja land cruiser modelos viejos",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro/roja",
+    "ubicacion": "Corte suiche negro raya roja"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "4.5",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negro/roja",
+    "ubicacion": "Corte suiche negro raya roja"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "terios",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "blanca/negro/rojo/rosado/rosa",
+    "ubicacion": "Suiche negro raya blanca Bomba rosado o rojo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "terios modelo nuevos",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rojo/rosado/rosa",
+    "ubicacion": "Corte bomba lado copiloto cable rosado o rojo"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "Aveo 4 y 2 puertas",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "marron/marrón",
+    "ubicacion": "Corte bomba marrón grueso lado piloto"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "tuccson",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rosado/rosa",
+    "ubicacion": "Suiche rosado grueso"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "NHR",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/roja",
+    "ubicacion": "Suiche blanco raya roja"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "CX9",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/verde",
+    "ubicacion": "Bomba Blanco raya verde"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "duster modelo viejos",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosado/rosa",
+    "ubicacion": "Corte bomba cable rosado"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "duster modelos nuevos",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosado/rosa",
+    "ubicacion": "Por bomba color rosado al lado del copiloto"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "sandero modelos viejos",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosado/rosa",
+    "ubicacion": "Bomba color rosado"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "oroch",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosado/rosa",
+    "ubicacion": "Corte bomba cable rosado"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "alaskan diésel y de botón",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "Fusilera adelante lado derecho cuarto fusible #15 cuarto fusible arriba hacia abajo corriente inyectores se prende un testigo"
+  },
+  {
+    "marca": "Nissan",
+    "modelo": "frontier diésel y de botón",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "Fusilera adelante lado derecho cuarto fusible #15 cuarto fusible arriba hacia abajo corriente inyectores se prende un testigo"
+  },
+  {
+    "marca": "Hyundai",
+    "modelo": "H1 mini van",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco",
+    "ubicacion": "Suiche Cable blanco"
+  },
+  {
+    "marca": "Renault",
+    "modelo": "master mini van",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarillo",
+    "ubicacion": "Suiche cable amarillo"
+  },
+  {
+    "marca": "Suzuki",
+    "modelo": "ádress automática",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco",
+    "ubicacion": "Suiche color blanco"
+  },
+  {
+    "marca": "Honda",
+    "modelo": "XR150",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarilla/azul",
+    "ubicacion": "Cdi azul raya amarilla"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "3 grand touring",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "azul",
+    "ubicacion": "Corte bomba cable azul"
+  },
+  {
+    "marca": "Ford",
+    "modelo": "ecosport",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo/naranja",
+    "ubicacion": "Bomba amarillo con naranja"
+  },
+  {
+    "marca": "Suzuki",
+    "modelo": "grand vitara",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "rosado/rosa",
+    "ubicacion": "Bomba cable rosado"
+  },
+  {
+    "marca": "Suzuki",
+    "modelo": "Dr 150 y 65O",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "naranja",
+    "ubicacion": "Ignición cable naranja"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "traiblazer",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris",
+    "ubicacion": "Bomba cable gris"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "traiblazer modelos más viejos",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "",
+    "ubicacion": "Fusilera 4 fusible #15 abajo hacia arriba"
+  },
+  {
+    "marca": "Pulsar",
+    "modelo": "ns 160-200-dominar 250 y dominar 400",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris/rosa",
+    "ubicacion": "Runt cable gris raya rosada"
+  },
+  {
+    "marca": "Tvs",
+    "modelo": "sport modelo nuevo",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "naranja",
+    "ubicacion": "Ignición cable naranja empalme bajo el tanque"
+  },
+  {
+    "marca": "Tvs",
+    "modelo": "sport modelo viejo",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco",
+    "ubicacion": "Cable blanco bobina alta"
+  },
+  {
+    "marca": "Tvs",
+    "modelo": "rider 150",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/naranja",
+    "ubicacion": "Ignición naranja Bobina alta cable azul rey"
+  },
+  {
+    "marca": "Boxer",
+    "modelo": "ct100 modelo viejo",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "roja",
+    "ubicacion": "Pulsora banco raya roja"
+  },
+  {
+    "marca": "Boxer",
+    "modelo": "Ct100 modelo nuevo",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/marron/marrón",
+    "ubicacion": "Ignición cdi marrón raya azul"
+  },
+  {
+    "marca": "Akt",
+    "modelo": "nkd125 -TT150 -TT200 -flex",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/blanca",
+    "ubicacion": "Corte pulsora azul raya blanca"
+  },
+  {
+    "marca": "Ktm",
+    "modelo": "duke 200 2020",
+    "anio": "2020",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negra/rosado/rosa",
+    "ubicacion": "Corte runt conector cdi cable rosado raya negra"
+  },
+  {
+    "marca": "Jac",
+    "modelo": "turbo o camión JHR",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "negra/verde",
+    "ubicacion": "Corte suiche verde raya negra"
+  },
+  {
+    "marca": "Hino",
+    "modelo": "turbo o camión",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "rojo",
+    "ubicacion": "Suiche cable cable rojo"
+  },
+  {
+    "marca": "Suzuki",
+    "modelo": "gisser 250",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/blanco",
+    "ubicacion": "Ignición blanco raya azul"
+  },
+  {
+    "marca": "Suzuki",
+    "modelo": "gxr150",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul/blanco",
+    "ubicacion": "Ignición blanco raya azul"
+  },
+  {
+    "marca": "Suzuki",
+    "modelo": "ax4",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "azul",
+    "ubicacion": "Cdi cable azul"
+  },
+  {
+    "marca": "Mazda",
+    "modelo": "cx30 botón",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "blanco/gris",
+    "ubicacion": "Corte bomba blanco raya gris"
+  },
+  {
+    "marca": "Suzuki",
+    "modelo": "vitara modelo viejo",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "blanco/negro",
+    "ubicacion": "Suiche blanco negro"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "Sportage",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "gris/marron/marrón",
+    "ubicacion": "Bomba marrón raya gris"
+  },
+  {
+    "marca": "Kia",
+    "modelo": "río",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "naranja",
+    "ubicacion": "Bomba cable naranja"
+  },
+  {
+    "marca": "Mini",
+    "modelo": "van fotón",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "gris/negro",
+    "ubicacion": "Suiche negro raya gris"
+  },
+  {
+    "marca": "Chevrolet",
+    "modelo": "libre DMAX",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarilla/negro",
+    "ubicacion": "Suiche cable negro raya amarilla"
+  },
+  {
+    "marca": "Yamaha",
+    "modelo": "SZR",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "cafe/café",
+    "ubicacion": "Runt cable café claro"
+  },
+  {
+    "marca": "Victory",
+    "modelo": "nitro 150",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": true,
+    "colores": "amarilla/negro",
+    "ubicacion": "Runt cable negro raya amarilla"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "rav 4",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": false,
+    "colores": "amarillo",
+    "ubicacion": "Bomba cable amarillo"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "corolla cross hibrida",
+    "anio": "",
+    "corteBomba": true,
+    "corteIgnicion": true,
+    "colores": "blanco/rojo/verde",
+    "ubicacion": "Corte bomba cable verde Ignición abs blanco primer conector a la izquierda Positivo constante rojo segundo conector Nota el vehículo apaga por bomba pero hace transición a sistema de baterías"
+  },
+  {
+    "marca": "Toyota",
+    "modelo": "prado disel y de botón",
+    "anio": "",
+    "corteBomba": false,
+    "corteIgnicion": false,
+    "colores": "azul/rojo",
+    "ubicacion": "Corte conector fusilera al lado del timón Cable rojo raya azul segundo conector ."
   }
 ]
