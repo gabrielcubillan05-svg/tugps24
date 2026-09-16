@@ -132,7 +132,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; operator?: string; scheduledDate?: string | null; assignNext?: boolean };
+  let body: { id?: string; operator?: string; scheduledDate?: string | null; assignNext?: boolean; note?: string };
   try {
     body = await request.json();
   } catch {
@@ -155,6 +155,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     const target = pending[0];
     target.scheduledDate = scheduledDate;
+    if (body.note !== undefined && String(body.note).trim()) target.note = String(body.note).trim();
     await redis.hset(REDIS_KEY, { [target.id]: JSON.stringify(target) });
     await logAudit(redis, session, 'comp_day_schedule', operator, scheduledDate);
     return new Response(JSON.stringify({ entry: target }), {

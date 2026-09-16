@@ -80,6 +80,9 @@ document.addEventListener('DOMContentLoaded', function () {
         employees = data.employees;
         populateCargoFilter();
         render();
+        // La lista de Compensatorios también filtra por cargo — si ya cargó antes que los
+        // empleados, se refresca aquí para que el filtro y los nombres queden completos.
+        if (typeof refreshCompDaysCargoUI === 'function') refreshCompDaysCargoUI();
       })
       .catch(() => {
         grid.innerHTML = '<div class="empty">No se pudo cargar.</div>';
@@ -124,6 +127,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="item-top">
           <span class="title">${fmtDateOnly(e.startDate)} – ${fmtDateOnly(e.endDate)}</span>
         </div>
+        ${e.diagnostico ? `<div class="meta"><strong>Diagnóstico:</strong> ${escapeHtml(e.diagnostico)}</div>` : ''}
         ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
         <div class="item-actions">
           <button class="btn-small btn-delete" data-action="delete-inc" data-id="${e.id}">Eliminar</button>
@@ -139,14 +143,76 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => renderIncapacidades([]));
   }
 
+  function calcAge(fechaNacimiento) {
+    if (!fechaNacimiento) return null;
+    const [y, m, d] = String(fechaNacimiento).slice(0, 10).split('-').map(Number);
+    if (!y) return null;
+    const today = new Date();
+    let age = today.getFullYear() - y;
+    const hasHadBirthdayThisYear = today.getMonth() + 1 > m || (today.getMonth() + 1 === m && today.getDate() >= d);
+    if (!hasHadBirthdayThisYear) age -= 1;
+    return age;
+  }
+
+  const hijosList = document.getElementById('hijosList');
+
+  function renderHijosList(hijos) {
+    if (!hijosList) return;
+    if (!hijos.length) {
+      hijosList.innerHTML = '<div class="empty" style="padding:8px 0;">Sin hijos registrados.</div>';
+      return;
+    }
+    hijosList.innerHTML = hijos.map((h, i) => {
+      const age = calcAge(h.fechaNacimiento);
+      return `
+      <div class="esquema-form" data-hijo-row data-index="${i}" style="align-items:center;">
+        <input type="text" data-hijo-nombre placeholder="Nombre" value="${escapeHtml(h.nombre)}" style="flex:2;" />
+        <input type="date" data-hijo-fecha value="${h.fechaNacimiento ? h.fechaNacimiento.slice(0, 10) : ''}" style="flex:1;" />
+        <select data-hijo-genero style="flex:1;">
+          <option value="">Género</option>
+          <option value="Masculino" ${h.genero === 'Masculino' ? 'selected' : ''}>Masculino</option>
+          <option value="Femenino" ${h.genero === 'Femenino' ? 'selected' : ''}>Femenino</option>
+          <option value="Otro" ${h.genero === 'Otro' ? 'selected' : ''}>Otro</option>
+        </select>
+        <span class="ficha-readonly" style="padding:0 6px;">${age !== null ? age + ' año(s)' : ''}</span>
+        <button class="btn-small btn-delete" data-action="remove-hijo" data-index="${i}" type="button">Quitar</button>
+      </div>
+    `;
+    }).join('');
+  }
+
+  function collectHijosFromForm() {
+    return Array.from(hijosList.querySelectorAll('[data-hijo-row]')).map((row) => ({
+      nombre: row.querySelector('[data-hijo-nombre]').value.trim(),
+      fechaNacimiento: row.querySelector('[data-hijo-fecha]').value || '',
+      genero: row.querySelector('[data-hijo-genero]').value,
+    }));
+  }
+
+  let currentHijos = [];
+  if (hijosList) {
+    document.getElementById('hijoAgregar').addEventListener('click', () => {
+      currentHijos = collectHijosFromForm();
+      currentHijos.push({ nombre: '', fechaNacimiento: '', genero: '' });
+      renderHijosList(currentHijos);
+    });
+    hijosList.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action="remove-hijo"]');
+      if (!btn) return;
+      currentHijos = collectHijosFromForm();
+      currentHijos.splice(Number(btn.getAttribute('data-index')), 1);
+      renderHijosList(currentHijos);
+    });
+  }
+
   function openFicha(employee) {
     currentEmployee = employee;
     const p = employee.profile;
     fichaNombre.textContent = `Ficha de ${employee.name}`;
     document.getElementById('f-cedula').value = p.cedula || '';
     document.getElementById('f-fechaNacimiento').value = p.fechaNacimiento ? p.fechaNacimiento.slice(0, 10) : '';
-    document.getElementById('f-hijos').value = p.hijos || 0;
-    document.getElementById('f-hijosEdades').value = p.hijosEdades || '';
+    currentHijos = Array.isArray(p.hijos) ? p.hijos : [];
+    renderHijosList(currentHijos);
     document.getElementById('f-telefono').value = p.telefono || '';
     document.getElementById('f-direccion').value = p.direccion || '';
     document.getElementById('f-correo').value = p.correo || '';
@@ -202,8 +268,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const fields = {
       cedula: document.getElementById('f-cedula').value.trim(),
       fechaNacimiento: document.getElementById('f-fechaNacimiento').value || null,
-      hijos: Number(document.getElementById('f-hijos').value) || 0,
-      hijosEdades: document.getElementById('f-hijosEdades').value.trim(),
+      hijos: collectHijosFromForm(),
       telefono: document.getElementById('f-telefono').value.trim(),
       direccion: document.getElementById('f-direccion').value.trim(),
       correo: document.getElementById('f-correo').value.trim(),
@@ -239,11 +304,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!currentEmployee) return;
     const startDate = document.getElementById('inc-start').value;
     const endDate = document.getElementById('inc-end').value;
+    const diagnostico = document.getElementById('inc-diagnostico').value.trim();
     const note = document.getElementById('inc-note').value.trim();
     fetch('/api/incapacidades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ employeeId: currentEmployee.id, employeeName: currentEmployee.name, startDate, endDate, note }),
+      body: JSON.stringify({ employeeId: currentEmployee.id, employeeName: currentEmployee.name, startDate, endDate, diagnostico, note }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
@@ -445,24 +511,49 @@ document.addEventListener('DOMContentLoaded', function () {
   const compDaysTotals = document.getElementById('compDaysTotals');
   const cdEmployeeFilter = document.getElementById('cdEmployeeFilter');
   const cdStatusFilter = document.getElementById('cdStatusFilter');
+  const cdCargoFilter = document.getElementById('cdCargoFilter');
   if (compDaysList) {
     let allCompDaysEntries = [];
 
+    function cargoOf(operatorName) {
+      const emp = employees.find((e) => e.name === operatorName);
+      return (emp && emp.profile && emp.profile.cargo) || '';
+    }
+
+    function populateCdCargoFilter() {
+      if (!cdCargoFilter) return;
+      const cargos = [...new Set(employees.map((e) => e.profile.cargo).filter(Boolean))].sort();
+      const current = cdCargoFilter.value;
+      cdCargoFilter.innerHTML = '<option value="">Todos los cargos</option>' +
+        cargos.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      cdCargoFilter.value = current;
+    }
+
     function renderCompDaysTotals(totals, grantedTotals) {
       if (!compDaysTotals) return;
-      const employees = [...new Set([...Object.keys(totals), ...Object.keys(grantedTotals)])].sort();
-      if (!employees.length) {
-        compDaysTotals.innerHTML = '';
+      const cargo = cdCargoFilter ? cdCargoFilter.value : '';
+      let employeeNames = [...new Set([...Object.keys(totals), ...Object.keys(grantedTotals)])];
+      if (cargo) employeeNames = employeeNames.filter((op) => cargoOf(op) === cargo);
+      // De mayor a menor cantidad de pendientes, para ver primero a quien más días tiene sin asignar.
+      employeeNames.sort((a, b) => (totals[b] || 0) - (totals[a] || 0) || a.localeCompare(b));
+      if (!employeeNames.length) {
+        compDaysTotals.innerHTML = '<div class="empty">No hay empleados que coincidan.</div>';
         return;
       }
-      compDaysTotals.innerHTML = employees.map((op) => `
-        <div class="stat-box">
-          <span class="n">${totals[op] || 0}</span>
-          <span class="l">${escapeHtml(op)}${grantedTotals[op] ? ' · ' + grantedTotals[op] + ' ya dado(s)' : ''}</span>
+      compDaysTotals.innerHTML = employeeNames.map((op) => `
+        <div class="list-item">
+          <div class="item-top">
+            <span class="title">${escapeHtml(op)}</span>
+            <span class="badge">${totals[op] || 0} pendiente(s)</span>
+            ${grantedTotals[op] ? `<span class="badge status-indefinido">${grantedTotals[op]} ya dado(s)</span>` : ''}
+          </div>
           ${totals[op] ? `
-            <button class="btn-small btn-done" data-action="assign-next" data-operator="${escapeHtml(op)}" type="button" style="margin-top:6px;">Asignar día libre</button>
+            <div class="item-actions" style="align-items:center;">
+              <button class="btn-small btn-done" data-action="assign-next" data-operator="${escapeHtml(op)}" type="button">Asignar día libre</button>
+            </div>
             <div class="assign-next-picker" data-operator="${escapeHtml(op)}" hidden>
               <input type="date" data-assign-next-input style="width:auto;" />
+              <input type="text" data-assign-next-note placeholder="Motivo (opcional)" style="width:auto; flex:1; min-width:160px;" />
               <button class="btn-small btn-done" data-action="confirm-assign-next" data-operator="${escapeHtml(op)}" type="button">Confirmar</button>
             </div>
           ` : ''}
@@ -505,24 +596,39 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
           <div class="item-actions" style="align-items:center;">
-            <label style="color:var(--slate); font-size:12px;">Compensatorio:</label>
-            <input type="date" data-schedule-input data-id="${e.id}" value="${e.scheduledDate ? e.scheduledDate.slice(0, 10) : ''}" style="width:auto;" />
-            <button class="btn-small btn-done" data-action="save-schedule" data-id="${e.id}" type="button">Guardar fecha</button>
+            ${e.scheduledDate ? `
+              <button class="btn-small btn-delete" data-action="cancel-schedule" data-id="${e.id}" type="button">Cancelado (regresar a pendiente)</button>
+            ` : `
+              <label style="color:var(--slate); font-size:12px;">Compensatorio:</label>
+              <input type="date" data-schedule-input data-id="${e.id}" style="width:auto;" />
+              <button class="btn-small btn-done" data-action="save-schedule" data-id="${e.id}" type="button">Guardar fecha</button>
+            `}
             <button class="btn-small btn-delete" data-action="delete-cd" data-id="${e.id}">Eliminar</button>
           </div>
         </div>
       `).join('');
     }
 
+    let latestTotals = {};
+    let latestGranted = {};
+
     function renderCompDays(entries, totals, grantedTotals) {
       allCompDaysEntries = entries;
+      latestTotals = totals;
+      latestGranted = grantedTotals;
       renderCompDaysTotals(totals, grantedTotals);
       populateCdEmployeeFilter();
       renderCompDaysList();
     }
 
+    window.refreshCompDaysCargoUI = function () {
+      populateCdCargoFilter();
+      renderCompDaysTotals(latestTotals, latestGranted);
+    };
+
     if (cdEmployeeFilter) cdEmployeeFilter.addEventListener('change', renderCompDaysList);
     if (cdStatusFilter) cdStatusFilter.addEventListener('change', renderCompDaysList);
+    if (cdCargoFilter) cdCargoFilter.addEventListener('change', () => renderCompDaysTotals(latestTotals, latestGranted));
 
     function loadCompDays() {
       fetch('/api/comp-days')
@@ -573,12 +679,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const operator = confirmBtn.getAttribute('data-operator');
         const picker = compDaysTotals.querySelector(`.assign-next-picker[data-operator="${operator}"]`);
         const input = picker ? picker.querySelector('[data-assign-next-input]') : null;
+        const noteInput = picker ? picker.querySelector('[data-assign-next-note]') : null;
         const scheduledDate = input ? input.value : '';
         if (!scheduledDate) return;
         fetch('/api/comp-days', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operator, scheduledDate, assignNext: true }),
+          body: JSON.stringify({ operator, scheduledDate, assignNext: true, note: noteInput ? noteInput.value.trim() : '' }),
         })
           .then(async (res) => {
             const data = await res.json().catch(() => ({}));
@@ -606,6 +713,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const id = schedBtn.getAttribute('data-id');
         const input = compDaysList.querySelector(`input[data-schedule-input][data-id="${id}"]`);
         const scheduledDate = input ? input.value || null : null;
+        if (!scheduledDate) return;
         fetch('/api/comp-days', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -613,6 +721,19 @@ document.addEventListener('DOMContentLoaded', function () {
         })
           .then(() => loadCompDays())
           .catch(() => alert('No se pudo guardar la fecha.'));
+        return;
+      }
+      const cancelBtn = e.target.closest('button[data-action="cancel-schedule"]');
+      if (cancelBtn) {
+        if (!confirm('¿Cancelar esta asignación y regresarlo a pendiente?')) return;
+        const id = cancelBtn.getAttribute('data-id');
+        fetch('/api/comp-days', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, scheduledDate: null }),
+        })
+          .then(() => loadCompDays())
+          .catch(() => alert('No se pudo cancelar la asignación.'));
       }
     });
 

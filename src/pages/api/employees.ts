@@ -15,11 +15,16 @@ export const prerender = false;
 
 const REDIS_KEY = 'internal:employee-profiles';
 
+export interface Hijo {
+  nombre: string;
+  fechaNacimiento: string;
+  genero: string;
+}
+
 export interface EmployeeProfile {
   cedula: string;
   fechaNacimiento: string;
-  hijos: number;
-  hijosEdades: string;
+  hijos: Hijo[];
   telefono: string;
   direccion: string;
   correo: string;
@@ -36,8 +41,7 @@ export interface EmployeeProfile {
 export const EMPTY_PROFILE: EmployeeProfile = {
   cedula: '',
   fechaNacimiento: '',
-  hijos: 0,
-  hijosEdades: '',
+  hijos: [],
   telefono: '',
   direccion: '',
   correo: '',
@@ -57,12 +61,20 @@ async function requireRRHH(cookies: any) {
   return session;
 }
 
+// Perfiles viejos guardaban "hijos" como número (cantidad) — se descartan al pasar a la lista
+// estructurada, ya que no hay nombre/fecha real que migrar de un simple conteo.
+function normalizeProfile(parsed: any): EmployeeProfile {
+  const profile = { ...EMPTY_PROFILE, ...parsed };
+  if (!Array.isArray(profile.hijos)) profile.hijos = [];
+  return profile;
+}
+
 export async function readProfiles(redis: any): Promise<Record<string, EmployeeProfile>> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   const out: Record<string, EmployeeProfile> = {};
   for (const [id, v] of Object.entries(raw)) {
     try {
-      out[id] = { ...EMPTY_PROFILE, ...(typeof v === 'string' ? JSON.parse(v) : v) };
+      out[id] = normalizeProfile(typeof v === 'string' ? JSON.parse(v) : v);
     } catch {
       // ignora perfiles corruptos
     }
@@ -85,7 +97,7 @@ export async function getProfile(redis: any, userId: string): Promise<EmployeePr
   const raw = await redis.hget<string>(REDIS_KEY, userId);
   if (!raw) return { ...EMPTY_PROFILE };
   try {
-    return { ...EMPTY_PROFILE, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+    return normalizeProfile(typeof raw === 'string' ? JSON.parse(raw) : raw);
   } catch {
     return { ...EMPTY_PROFILE };
   }
@@ -152,7 +164,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   let existing: EmployeeProfile = { ...EMPTY_PROFILE };
   if (raw) {
     try {
-      existing = { ...EMPTY_PROFILE, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+      existing = normalizeProfile(typeof raw === 'string' ? JSON.parse(raw) : raw);
     } catch {
       // usa el perfil vacío si el registro guardado está corrupto
     }
@@ -162,8 +174,15 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const updated: EmployeeProfile = { ...existing };
   for (const key of Object.keys(EMPTY_PROFILE) as (keyof EmployeeProfile)[]) {
     if (fields[key] === undefined) continue;
-    if (key === 'hijos') updated.hijos = Number(fields.hijos) || 0;
-    else if (key === 'cajaCompensacion' || key === 'cuentaNomina' || key === 'nesagaviria') {
+    if (key === 'hijos') {
+      updated.hijos = Array.isArray(fields.hijos)
+        ? fields.hijos.map((h: any) => ({
+            nombre: String(h?.nombre || '').trim(),
+            fechaNacimiento: h?.fechaNacimiento ? String(h.fechaNacimiento) : '',
+            genero: String(h?.genero || '').trim(),
+          }))
+        : [];
+    } else if (key === 'cajaCompensacion' || key === 'cuentaNomina' || key === 'nesagaviria') {
       (updated as any)[key] = Boolean(fields[key]);
     } else if (key === 'hireDate') {
       updated.hireDate = fields.hireDate ? String(fields.hireDate) : null;

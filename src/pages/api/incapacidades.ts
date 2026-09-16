@@ -14,6 +14,7 @@ interface Incapacidad {
   employeeName: string;
   startDate: string;
   endDate: string;
+  diagnostico: string;
   note: string;
   createdAt: string;
 }
@@ -84,6 +85,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     employeeName,
     startDate,
     endDate,
+    diagnostico: String(body?.diagnostico || '').trim(),
     note: String(body?.note || '').trim(),
     createdAt: new Date().toISOString(),
   };

@@ -50,12 +50,14 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <div class="form-grid cols-4">
         <div class="field"><label>Cédula</label><input id="f-cedula" type="text" /></div>
         <div class="field"><label>Fecha de nacimiento</label><input id="f-fechaNacimiento" type="date" /></div>
-        <div class="field"><label>Hijos (cantidad)</label><input id="f-hijos" type="number" min="0" /></div>
-        <div class="field"><label>Edades de los hijos</label><input id="f-hijosEdades" type="text" placeholder="ej. 5, 9" /></div>
         <div class="field"><label>Teléfono</label><input id="f-telefono" type="text" /></div>
         <div class="field field-note"><label>Dirección</label><input id="f-direccion" type="text" /></div>
         <div class="field"><label>Correo</label><input id="f-correo" type="email" /></div>
       </div>
+
+      <h3 class="ficha-section-title">Hijos (para regalos y saber cuándo cumplen 12 años)</h3>
+      <div id="hijosList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
+      <button class="btn-small" id="hijoAgregar" type="button">Agregar hijo/a</button>
 
       <h3 class="ficha-section-title">Información laboral</h3>
       <div class="form-grid cols-4">
@@ -86,10 +88,13 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <div id="f-vacaciones" class="ficha-readonly" style="margin-bottom:20px;"></div>
 
       <h3 class="ficha-section-title">Incapacidades</h3>
-      <form id="incapForm" class="esquema-form" style="margin-bottom:14px;">
-        <input id="inc-start" type="date" required />
-        <input id="inc-end" type="date" required />
-        <input id="inc-note" type="text" placeholder="Nota (opcional)" />
+      <form id="incapForm" style="margin-bottom:14px;">
+        <div class="form-grid cols-4">
+          <div class="field"><label for="inc-start">Fecha de inicio</label><input id="inc-start" type="date" required /></div>
+          <div class="field"><label for="inc-end">Fecha fin</label><input id="inc-end" type="date" required /></div>
+          <div class="field"><label for="inc-diagnostico">Diagnóstico</label><input id="inc-diagnostico" type="text" placeholder="Diagnóstico" /></div>
+          <div class="field"><label for="inc-note">Nota</label><input id="inc-note" type="text" placeholder="Nota (opcional)" /></div>
+        </div>
         <button class="btn-small btn-done" type="submit">Agregar incapacidad</button>
       </form>
       <div class="records-grid" id="incapList"></div>
@@ -172,7 +177,10 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
         <button class="btn" type="submit">Registrar</button>
       </form>
       <h3 class="ficha-section-title">Días disponibles por empleado</h3>
-      <div class="stats-row" id="compDaysTotals" style="margin-bottom:20px;"></div>
+      <div class="filters">
+        <select id="cdCargoFilter"><option value="">Todos los cargos</option></select>
+      </div>
+      <div class="list-col" id="compDaysTotals" style="margin-bottom:20px;"></div>
       <div class="filters">
         <select id="cdEmployeeFilter"><option value="">Todos los empleados</option></select>
         <select id="cdStatusFilter">
@@ -294,7 +302,11 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
   .esquema-add-msg { font-size: 12.5px; color: var(--teal-bright); margin-left: 10px; }
   .esquema-add-msg.error { color: #e0392f; }
 
-  .assign-next-picker { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+  /* Una regla de autor con display:flex siempre gana sobre el display:none que el navegador
+     aplica a [hidden] (los estilos de autor superan a los del user-agent sin importar
+     especificidad) — por eso había que acotarla con :not([hidden]), si no el picker de fecha
+     quedaba visible desde el principio y el botón "Asignar día libre" parecía no hacer nada. */
+  .assign-next-picker:not([hidden]) { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
   .day-checks { display: flex; gap: 10px; flex-wrap: wrap; }
   .day-check {
     display: flex;
