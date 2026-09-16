@@ -32,7 +32,7 @@ export const REQUEST_TYPES = [
   'Anulación de pago errado',
 ];
 
-export const STATUSES = ['Pendiente', 'Completada', 'No completada'];
+export const STATUSES = ['Pendiente', 'En seguimiento', 'Completada', 'No completada'];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 interface TimelineEvent {
@@ -329,11 +329,16 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       if (uploaded.path) sol.photoPaths.push(uploaded.path);
     }
     addEvent(sol, 'note', note ? (photoFile ? `${note} (foto adjunta)` : note) : 'Adjuntó una foto', actorName, now);
+    // Si alguien distinto al creador responde mientras sigue "Pendiente", pasa a "En seguimiento"
+    // — ya no cuenta como sin atender, aunque todavía no se haya marcado completada o no.
+    if (sol.status === 'Pendiente' && !isCreator) {
+      sol.status = 'En seguimiento';
+    }
   } else if (action === 'complete' || action === 'notCompleted') {
     if (!isKellyOrWilmar && !isOverride) {
       return new Response(JSON.stringify({ error: 'solo Kelly o Wilmar pueden cerrar esta solicitud' }), { status: 403 });
     }
-    if (sol.status !== 'Pendiente') {
+    if (sol.status === 'Completada' || sol.status === 'No completada') {
       return new Response(JSON.stringify({ error: 'esta solicitud ya está cerrada' }), { status: 400 });
     }
     sol.status = action === 'complete' ? 'Completada' : 'No completada';
@@ -346,8 +351,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!isKellyOrWilmar && !isOverride) {
       return new Response(JSON.stringify({ error: 'solo Kelly o Wilmar pueden reabrir esta solicitud' }), { status: 403 });
     }
-    if (sol.status === 'Pendiente') {
-      return new Response(JSON.stringify({ error: 'esta solicitud ya está pendiente' }), { status: 400 });
+    if (sol.status !== 'Completada' && sol.status !== 'No completada') {
+      return new Response(JSON.stringify({ error: 'esta solicitud no está cerrada' }), { status: 400 });
     }
     sol.status = 'Pendiente';
     sol.resolvedAt = null;

@@ -959,12 +959,18 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
       vacRequestsList.innerHTML = entries.map((e) => `
-        <div class="list-item">
+        <div class="list-item" data-vac-row data-id="${e.id}">
           <div class="item-top">
             <span class="title">${escapeHtml(e.employeeName)}</span>
             <span class="badge ${VAC_STATUS_CLASS[e.status] || ''}">${VAC_STATUS_LABELS[e.status] || e.status}</span>
           </div>
-          <div class="meta">${fmtDateOnly(e.startDate)} – ${fmtDateOnly(e.endDate)}</div>
+          ${e.status === 'pendiente' ? `
+            <div class="item-actions" style="align-items:center;">
+              <label style="color:var(--slate); font-size:12px;">Fechas (editables antes de aprobar):</label>
+              <input type="date" data-vac-start value="${e.startDate.slice(0, 10)}" style="width:auto;" />
+              <input type="date" data-vac-end value="${e.endDate.slice(0, 10)}" style="width:auto;" />
+            </div>
+          ` : `<div class="meta">${fmtDateOnly(e.startDate)} – ${fmtDateOnly(e.endDate)}</div>`}
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
           ${e.status === 'pendiente' ? `
             <div class="item-actions">
@@ -992,10 +998,17 @@ document.addEventListener('DOMContentLoaded', function () {
       const btn = approveBtn || rejectBtn;
       if (!btn) return;
       const status = approveBtn ? 'aprobada' : 'rechazada';
+      const id = btn.getAttribute('data-id');
+      const row = vacRequestsList.querySelector(`[data-vac-row][data-id="${id}"]`);
+      const startInput = row ? row.querySelector('[data-vac-start]') : null;
+      const endInput = row ? row.querySelector('[data-vac-end]') : null;
+      const payload = { id, status };
+      if (startInput) payload.startDate = startInput.value;
+      if (endInput) payload.endDate = endInput.value;
       fetch('/api/vacation-requests', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: btn.getAttribute('data-id'), status }),
+        body: JSON.stringify(payload),
       })
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));

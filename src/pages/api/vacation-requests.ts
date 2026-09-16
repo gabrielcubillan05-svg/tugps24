@@ -117,8 +117,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   const body = await request.json().catch(() => null);
   const id = String(body?.id || '');
-  const status = body?.status as Status;
-  if (!id || (status !== 'aprobada' && status !== 'rechazada')) {
+  const status = body?.status as Status | undefined;
+  // Permite editar las fechas (para aprobar con una fecha aproximada a la pedida) sin
+  // necesariamente cambiar el estado en la misma llamada — status es opcional.
+  if (!id || (status !== undefined && status !== 'aprobada' && status !== 'rechazada')) {
     return new Response(JSON.stringify({ error: 'faltan datos' }), { status: 400 });
   }
 
@@ -127,10 +129,16 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
   const entry: VacationRequest = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  entry.status = status;
-  entry.resolvedAt = new Date().toISOString();
-  entry.resolvedByName = session.name;
-  entry.resolutionNote = String(body?.resolutionNote || '').trim();
+
+  if (body?.startDate !== undefined) entry.startDate = String(body.startDate).trim();
+  if (body?.endDate !== undefined) entry.endDate = String(body.endDate).trim();
+
+  if (status !== undefined) {
+    entry.status = status;
+    entry.resolvedAt = new Date().toISOString();
+    entry.resolvedByName = session.name;
+    entry.resolutionNote = String(body?.resolutionNote || '').trim();
+  }
 
   await redis.hset(REDIS_KEY, { [id]: JSON.stringify(entry) });
 
@@ -138,7 +146,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     await createVacationEntry(redis, entry.employeeName, entry.startDate, entry.endDate, entry.note);
   }
 
-  await logAudit(redis, session, 'vacation_request_resolve', entry.employeeName, status);
+  await logAudit(redis, session, status ? 'vacation_request_resolve' : 'vacation_request_edit', entry.employeeName, status || `${entry.startDate} – ${entry.endDate}`);
 
   return new Response(JSON.stringify({ entry }), {
     headers: { 'Content-Type': 'application/json' },

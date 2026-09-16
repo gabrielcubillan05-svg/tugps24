@@ -58,6 +58,7 @@ if (!canAccessSolicitudesAdministrativas(session)) {
     <div class="tabs">
       <button class="tab-btn active" data-status="" type="button">Todas</button>
       <button class="tab-btn" data-status="Pendiente" type="button">Pendientes</button>
+      <button class="tab-btn" data-status="En seguimiento" type="button">En seguimiento</button>
       <button class="tab-btn" data-status="Completada" type="button">Completadas</button>
       <button class="tab-btn" data-status="No completada" type="button">No completadas</button>
     </div>
@@ -103,6 +104,7 @@ if (!canAccessSolicitudesAdministrativas(session)) {
   .btn-attach-photo { cursor: pointer; display: inline-flex; align-items: center; }
   .btn-attach-photo.has-photo { background: #2f8a4f33; color: var(--ok); }
   .badge.status-Pendiente { background: var(--glow-1); color: var(--amber); }
+  .badge.status-En-seguimiento { background: #4a90d922; color: #7ab8ec; }
   .badge.status-Completada { background: #2f8a4f33; color: var(--ok); }
   .badge.status-No-completada { background: #e0563f22; color: var(--danger); }
 </style>

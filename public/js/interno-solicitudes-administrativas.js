@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', function () {
     statsRow.innerHTML = `
       <div class="stat-box"><span class="n">${stats.total}</span><span class="l">Total</span></div>
       <div class="stat-box overdue"><span class="n">${stats.byStatus['Pendiente'] || 0}</span><span class="l">Pendientes</span></div>
+      <div class="stat-box"><span class="n">${stats.byStatus['En seguimiento'] || 0}</span><span class="l">En seguimiento</span></div>
       <div class="stat-box"><span class="n">${stats.byStatus['Completada'] || 0}</span><span class="l">Completadas</span></div>
       <div class="stat-box overdue"><span class="n">${stats.byStatus['No completada'] || 0}</span><span class="l">No completadas</span></div>
       <div class="stat-box"><span class="n">${stats.reactivacionesTotal}</span><span class="l">Reactivaciones totales</span></div>
@@ -77,13 +78,17 @@ document.addEventListener('DOMContentLoaded', function () {
     typeStats.innerHTML = rows;
   }
 
+  function isClosed(status) {
+    return status === 'Completada' || status === 'No completada';
+  }
+
   function actionsFor(s) {
     const parts = [];
-    if (s.status === 'Pendiente' && isKellyOrWilmar) {
+    if (!isClosed(s.status) && isKellyOrWilmar) {
       parts.push(`<button class="btn-small btn-done" data-action="complete" data-id="${s.id}" type="button">Completada</button>`);
       parts.push(`<button class="btn-small btn-delete" data-action="notCompleted" data-id="${s.id}" type="button">No completada</button>`);
     }
-    if (s.status !== 'Pendiente' && isKellyOrWilmar) {
+    if (isClosed(s.status) && isKellyOrWilmar) {
       parts.push(`<button class="btn-small" data-action="reopen" data-id="${s.id}" type="button">Reabrir</button>`);
     }
     return parts.join('');
@@ -95,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     solicitudesList.innerHTML = items.map((s) => `
-      <div class="solicitud-item ${s.status !== 'Pendiente' ? 'closed' : ''}" data-id="${s.id}">
+      <div class="solicitud-item ${isClosed(s.status) ? 'closed' : ''}" data-id="${s.id}">
         <div class="solicitud-top">
           <span class="solicitud-client">${escapeHtml(s.clientName)}</span>
           <span class="badge ${statusClass(s.status)}">${escapeHtml(s.status)}</span>
