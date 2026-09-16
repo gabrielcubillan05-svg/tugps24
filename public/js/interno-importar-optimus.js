@@ -44,6 +44,18 @@ document.addEventListener('DOMContentLoaded', function () {
       .replace(/"/g, '&quot;');
   }
 
+  // Campos que este importador sabe llenar en la ficha (EmployeeProfile). Cada registro pegado
+  // solo genera un input por el campo que de verdad trae — así un import parcial (ej. solo
+  // fecha de ingreso) no borra sin querer los demás campos ya cargados antes.
+  const KNOWN_FIELDS = {
+    cedula: { label: 'Cédula', type: 'text' },
+    fechaNacimiento: { label: 'Fecha nacimiento', type: 'date' },
+    telefono: { label: 'Teléfono', type: 'text' },
+    direccion: { label: 'Dirección', type: 'text' },
+    correo: { label: 'Correo', type: 'text' },
+    hireDate: { label: 'Fecha de ingreso', type: 'date' },
+  };
+
   function render() {
     if (!optimusData.length) {
       listEl.innerHTML = '<div class="empty">Pega el JSON de datos arriba y presiona "Cargar datos".</div>';
@@ -54,18 +66,18 @@ document.addEventListener('DOMContentLoaded', function () {
       const options = ['<option value="">-- no importar --</option>']
         .concat(employees.map((e) => `<option value="${e.id}" ${match && match.id === e.id ? 'selected' : ''}>${escapeHtml(e.name)} (${escapeHtml(e.username)})</option>`))
         .join('');
+      const fieldInputs = Object.keys(KNOWN_FIELDS)
+        .filter((f) => Object.prototype.hasOwnProperty.call(r, f))
+        .map((f) => `<label>${KNOWN_FIELDS[f].label}<input type="${KNOWN_FIELDS[f].type}" data-field="${f}" value="${escapeHtml(r[f])}" /></label>`)
+        .join('');
       return `
         <div class="import-row ${match ? '' : 'import-nomatch'}" data-idx="${idx}">
           <div class="import-fields">
-            <label>Nombre (Optimus)<input type="text" value="${escapeHtml(r.nombre)}" disabled /></label>
-            <label>Cédula<input type="text" data-field="cedula" value="${escapeHtml(r.cedula)}" /></label>
-            <label>Fecha nacimiento<input type="date" data-field="fechaNacimiento" value="${escapeHtml(r.fechaNacimiento)}" /></label>
-            <label>Teléfono<input type="text" data-field="telefono" value="${escapeHtml(r.telefono)}" /></label>
-            <label>Dirección<input type="text" data-field="direccion" value="${escapeHtml(r.direccion)}" /></label>
-            <label>Correo<input type="text" data-field="correo" value="${escapeHtml(r.correo)}" /></label>
+            <label>Nombre (origen)<input type="text" value="${escapeHtml(r.nombre)}" disabled /></label>
+            ${fieldInputs}
           </div>
           <div class="import-match">
-            <div class="orig-name">Sucursal Optimus: ${escapeHtml(r.sucursal || '')} · ${escapeHtml(r.puesto || '')}${!match ? ' — sin coincidencia automática' : ''}</div>
+            <div class="orig-name">${escapeHtml(r.sucursal || '')}${r.sucursal && r.puesto ? ' · ' : ''}${escapeHtml(r.puesto || '')}${!match ? ' — sin coincidencia automática' : ''}</div>
             <select data-employee-select>${options}</select>
             <div class="import-row-status"></div>
           </div>

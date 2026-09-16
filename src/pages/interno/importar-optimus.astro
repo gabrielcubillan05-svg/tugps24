@@ -13,13 +13,14 @@ if (!canAccessRRHH(session)) {
 }
 ---
 
-<InternoLayout title="Importar datos de Optimus" active="rrhh" session={session}>
+<InternoLayout title="Importar datos a la ficha" active="rrhh" session={session}>
   <div class="panel-card">
-    <h2>Importar datos de Optimus</h2>
+    <h2>Importar datos a la ficha</h2>
     <p class="hint">
-      Trae cédula, fecha de nacimiento, teléfono, dirección y correo desde el export de Optimus, para
-      completar la ficha de cada empleado. Revisa que cada fila esté emparejada con el empleado correcto
-      antes de guardar — algunos nombres de usuario de Optimus no coinciden con los de este sistema.
+      Completa cédula, fecha de nacimiento, teléfono, dirección, correo y/o fecha de ingreso desde un
+      export externo (Optimus u otro). Solo se actualiza el campo que traiga cada registro pegado —
+      un import parcial no borra los demás datos ya cargados. Revisa que cada fila esté emparejada con
+      el empleado correcto antes de guardar — algunos nombres no coinciden exactamente con los de este sistema.
     </p>
     <p class="hint">Pega aquí el JSON con los datos (te lo paso aparte, no queda guardado en el código del sitio) y presiona "Cargar datos".</p>
     <textarea id="pasteArea" rows="6" style="width:100%;font-family:monospace;font-size:12px;" placeholder="[ { &quot;nombre&quot;: ..., &quot;cedula&quot;: ..., ... } ]"></textarea>
