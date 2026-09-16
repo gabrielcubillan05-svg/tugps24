@@ -439,6 +439,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (caso.status !== 'Nuevo' && caso.status !== 'En revisión') {
       return new Response(JSON.stringify({ error: 'este caso ya no está en revisión de sucursal' }), { status: 400 });
     }
+    if (!caso.requestPhotoPath) {
+      return new Response(JSON.stringify({ error: 'debes subir la foto del caso antes de escalarlo a Josué' }), { status: 400 });
+    }
     const josue = await findUserByUsername(redis, JOSUE_USERNAME);
     if (!josue) {
       const allUsers = await getUsers(redis);
