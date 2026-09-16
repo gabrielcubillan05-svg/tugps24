@@ -171,6 +171,12 @@ export function canSeeAllPagosInternos(session: Pick<Session, 'role' | 'username
   return session.role === 'admin' || PAGOS_INTERNOS_EXTRA_USERNAMES.includes(session.username);
 }
 
+// Josué ve las Estadísticas completas de todo el país, aunque su rol no sea admin/gerente/
+// supervisor — el resto de gerentes/supervisores ven solo lo suyo (acotado en dashboard-stats.ts).
+export function canAccessEstadisticas(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'estadisticas') || session.username.toLowerCase() === JOSUE_USERNAME;
+}
+
 // Recursos Humanos (incluye horarios, compensatorios y contratos, antes en la sección aparte
 // "horario") quedó restringido a admin más Josué y Wilmar puntualmente, no a gerente/supervisor
 // en general — decisión explícita de Gabriel, no el patrón por rol que se usa en el resto.
@@ -187,6 +193,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Sectio
   if (!base.includes('suspensiones') && canAccessSuspensiones(session)) extra.push('suspensiones');
   if (!base.includes('solicitudes-administrativas') && canAccessSolicitudesAdministrativas(session)) extra.push('solicitudes-administrativas');
   if (!base.includes('pagos-internos') && canAccessPagosInternos(session)) extra.push('pagos-internos');
+  if (!base.includes('estadisticas') && canAccessEstadisticas(session)) extra.push('estadisticas');
   if (!base.includes('usuarios') && canSetUserBranches(session)) extra.push('usuarios');
   if (!base.includes('rrhh') && canAccessRRHH(session)) extra.push('rrhh');
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');

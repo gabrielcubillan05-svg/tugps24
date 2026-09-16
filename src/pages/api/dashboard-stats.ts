@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, canAccessSection, findUserById, branchesOf, getUsers } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessEstadisticas, findUserById, branchesOf, getUsers, JOSUE_USERNAME } from '../../lib/auth';
 import { readLeads, STATUSES } from './leads';
 import { SHIFT_SUPERVISORS, shiftBucketFor } from '../../lib/shift';
 import { readSchedule } from './schedule';
@@ -81,7 +81,7 @@ function conversionRanking<T>(items: T[], keyFn: (item: T) => string, installedF
 
 export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAccessSection(session.role, 'estadisticas')) {
+  if (!session || !canAccessEstadisticas(session)) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -92,16 +92,17 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const cityFilter = url.searchParams.get('city') || '';
   const secretaryFilter = url.searchParams.get('secretary') || '';
 
-  // Alcance: admin ve todo el país; gerente ve solo su(s) propia(s) sucursal(es) (igual que en
-  // tasks.ts/suspensiones.ts); un supervisor de turno (José Miguel/Junior) ve las novedades solo
-  // de los operadores de su turno — el CRM no es "su personal" (son de monitoreo, no de ventas),
-  // así que para supervisor el CRM se muestra completo, sin acotar.
+  // Alcance: admin y Josué ven todo el país; gerente ve solo su(s) propia(s) sucursal(es) (igual
+  // que en tasks.ts/suspensiones.ts); un supervisor de turno (José Miguel/Junior) ve las novedades
+  // solo de los operadores de su turno — el CRM no es "su personal" (son de monitoreo, no de
+  // ventas), así que para supervisor el CRM se muestra completo, sin acotar.
+  const seesAll = session.role === 'admin' || session.username.toLowerCase() === JOSUE_USERNAME;
   let scopedBranches: string[] | null = null;
   let scopedOperatorNames: string[] | null = null;
-  if (session.role === 'gerente') {
+  if (!seesAll && session.role === 'gerente') {
     const me = await findUserById(redis, session.userId);
     scopedBranches = branchesOf(me);
-  } else if (session.role === 'supervisor') {
+  } else if (!seesAll && session.role === 'supervisor') {
     const shiftSupervisor = SHIFT_SUPERVISORS.find((s) => s.username === session.username.toLowerCase());
     if (shiftSupervisor) {
       const [allUsers, schedule] = await Promise.all([getUsers(redis), readSchedule(redis)]);
