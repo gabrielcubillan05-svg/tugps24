@@ -4,7 +4,7 @@ import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
-import { SESSION_COOKIE, getSession, canAccessSection, getUsers, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, getUsers, findUserById, branchesOf, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -75,6 +75,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const status = url.searchParams.get('status') || '';
 
   let casos = await readCasos(redis);
+
+  // Cada gerente/supervisor ve solo los casos de su(s) propia(s) sucursal(es); admin ve todo.
+  if (session.role === 'gerente' || session.role === 'supervisor') {
+    const viewer = await findUserById(redis, session.userId);
+    const viewerBranches = branchesOf(viewer);
+    casos = viewerBranches.length ? casos.filter((c) => viewerBranches.includes(c.branch)) : [];
+  }
 
   if (q) {
     casos = casos.filter((c) =>

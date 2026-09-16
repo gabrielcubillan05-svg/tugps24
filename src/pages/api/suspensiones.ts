@@ -189,7 +189,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const seesAllOverride = isJosueSession(session) || isTesoreriaSession(session);
   if (!seesAllOverride && session.role === 'operador') {
     casos = casos.filter((c) => c.createdById === session.userId);
-  } else if (!seesAllOverride && session.role === 'secretaria') {
+  } else if (!seesAllOverride && (session.role === 'secretaria' || session.role === 'gerente' || session.role === 'supervisor')) {
+    // Cada gerente/supervisor ve solo los casos de su(s) propia(s) sucursal(es) — Josué y Wilmar
+    // son la única excepción (ven todo, arriba), sin importar su rol.
     const viewer = await findUserById(redis, session.userId);
     viewerBranches = branchesOf(viewer);
     casos = viewerBranches.length ? casos.filter((c) => viewerBranches.includes(c.branch)) : [];

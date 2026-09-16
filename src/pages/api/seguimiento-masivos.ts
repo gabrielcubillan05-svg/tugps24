@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, findUserById, branchesOf, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -71,6 +71,16 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const all = await readClientes(redis);
   let items = all;
+
+  // Cada gerente/supervisor ve solo los clientes de su(s) propia(s) sucursal(es) (los que no
+  // tienen sucursal asignada se muestran igual, para no ocultar datos por un campo vacío);
+  // admin ve todo.
+  if (session.role === 'gerente' || session.role === 'supervisor') {
+    const viewer = await findUserById(redis, session.userId);
+    const viewerBranches = branchesOf(viewer);
+    items = viewerBranches.length ? items.filter((c) => !c.branch || viewerBranches.includes(c.branch)) : items.filter((c) => !c.branch);
+  }
+
   if (q) {
     items = items.filter((c) => c.clientName.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q));
   }
