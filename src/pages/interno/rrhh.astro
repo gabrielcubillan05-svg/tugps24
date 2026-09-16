@@ -11,74 +11,249 @@ if (!canAccessSection(session.role, 'rrhh')) {
   const fallback = firstSectionFor(session.role);
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }
+
+const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 ---
 
 <InternoLayout title="Recursos Humanos" active="rrhh" session={session}>
-  <div class="panel-card">
-    <h2>Directorio de empleados</h2>
-    <div class="filters">
-      <input id="rrhhSearch" type="text" placeholder="Buscar por nombre..." autocomplete="off" />
+  <div class="rrhh-tabs">
+    <button class="rrhh-tab active" data-tab="directorio" type="button">Directorio</button>
+    <button class="rrhh-tab" data-tab="horarios" type="button">Horarios</button>
+    <button class="rrhh-tab" data-tab="compensatorios" type="button">Compensatorios</button>
+    <button class="rrhh-tab" data-tab="contratos" type="button">Contratos y vacaciones</button>
+  </div>
+
+  <div class="rrhh-panel" data-panel="directorio">
+    <div class="panel-card">
+      <h2>Directorio de empleados</h2>
+      <div class="filters">
+        <input id="rrhhSearch" type="text" placeholder="Buscar por nombre..." autocomplete="off" />
+      </div>
+      <div class="records-grid" id="employeeGrid" style="margin-top:14px;">
+        <div class="empty">Cargando...</div>
+      </div>
     </div>
-    <div class="records-grid" id="employeeGrid" style="margin-top:14px;">
-      <div class="empty">Cargando...</div>
+
+    <div class="panel-card" id="fichaPanel" hidden>
+      <h2 id="fichaNombre">Ficha del empleado</h2>
+      <button class="btn-small" id="fichaCerrar" type="button" style="margin-bottom:16px;">Cerrar</button>
+
+      <h3 class="ficha-section-title">Información personal</h3>
+      <div class="form-grid cols-4">
+        <div class="field"><label>Cédula</label><input id="f-cedula" type="text" /></div>
+        <div class="field"><label>Fecha de nacimiento</label><input id="f-fechaNacimiento" type="date" /></div>
+        <div class="field"><label>Hijos (cantidad)</label><input id="f-hijos" type="number" min="0" /></div>
+        <div class="field"><label>Edades de los hijos</label><input id="f-hijosEdades" type="text" placeholder="ej. 5, 9" /></div>
+        <div class="field"><label>Teléfono</label><input id="f-telefono" type="text" /></div>
+        <div class="field field-note"><label>Dirección</label><input id="f-direccion" type="text" /></div>
+        <div class="field"><label>Correo</label><input id="f-correo" type="email" /></div>
+      </div>
+
+      <h3 class="ficha-section-title">Información laboral</h3>
+      <div class="form-grid cols-4">
+        <div class="field"><label>Área</label><input id="f-area" type="text" /></div>
+        <div class="field"><label>Cargo</label><input id="f-cargo" type="text" /></div>
+        <div class="field"><label>Jefe directo</label><input id="f-jefeDirecto" type="text" /></div>
+        <div class="field"><label>Sucursal(es)</label><div id="f-sucursales" class="ficha-readonly"></div></div>
+      </div>
+
+      <h3 class="ficha-section-title">Vinculación</h3>
+      <div class="form-grid cols-4">
+        <div class="field"><label>Fecha de ingreso</label><input id="f-hireDate" type="date" /></div>
+        <div class="field"><label>Antigüedad</label><div id="f-antiguedad" class="ficha-readonly"></div></div>
+        <div class="field field-full"><label>Contratos registrados</label><div id="f-contratos" class="ficha-readonly"></div></div>
+      </div>
+
+      <h3 class="ficha-section-title">Afiliaciones</h3>
+      <div class="form-grid cols-4">
+        <div class="field"><label>EPS</label><input id="f-eps" type="text" /></div>
+        <div class="field"><label class="day-check"><input id="f-cajaCompensacion" type="checkbox" /> Caja de compensación</label></div>
+        <div class="field"><label class="day-check"><input id="f-cuentaNomina" type="checkbox" /> Cuenta nómina</label></div>
+        <div class="field"><label class="day-check"><input id="f-nesagaviria" type="checkbox" /> Nesagaviria</label></div>
+      </div>
+      <button class="btn" id="fichaGuardar" type="button">Guardar ficha</button>
+      <span id="fichaMsg" class="esquema-add-msg"></span>
+
+      <h3 class="ficha-section-title">Vacaciones</h3>
+      <div id="f-vacaciones" class="ficha-readonly" style="margin-bottom:20px;"></div>
+
+      <h3 class="ficha-section-title">Incapacidades</h3>
+      <form id="incapForm" class="esquema-form" style="margin-bottom:14px;">
+        <input id="inc-start" type="date" required />
+        <input id="inc-end" type="date" required />
+        <input id="inc-note" type="text" placeholder="Nota (opcional)" />
+        <button class="btn-small btn-done" type="submit">Agregar incapacidad</button>
+      </form>
+      <div class="records-grid" id="incapList"></div>
     </div>
   </div>
 
-  <div class="panel-card" id="fichaPanel" hidden>
-    <h2 id="fichaNombre">Ficha del empleado</h2>
-    <button class="btn-small" id="fichaCerrar" type="button" style="margin-bottom:16px;">Cerrar</button>
-
-    <h3 class="ficha-section-title">Información personal</h3>
-    <div class="form-grid cols-4">
-      <div class="field"><label>Cédula</label><input id="f-cedula" type="text" /></div>
-      <div class="field"><label>Fecha de nacimiento</label><input id="f-fechaNacimiento" type="date" /></div>
-      <div class="field"><label>Hijos (cantidad)</label><input id="f-hijos" type="number" min="0" /></div>
-      <div class="field"><label>Edades de los hijos</label><input id="f-hijosEdades" type="text" placeholder="ej. 5, 9" /></div>
-      <div class="field"><label>Teléfono</label><input id="f-telefono" type="text" /></div>
-      <div class="field field-note"><label>Dirección</label><input id="f-direccion" type="text" /></div>
-      <div class="field"><label>Correo</label><input id="f-correo" type="email" /></div>
+  <div class="rrhh-panel" data-panel="horarios" hidden>
+    <div class="panel-card">
+      <h2>Horario de empleados</h2>
+      <p class="hint">
+        Si un empleado tiene horario mixto (turnos distintos según el día), agrega una franja a la vez —
+        puedes guardar varias para el mismo empleado y todas quedarán listadas juntas.
+      </p>
+      <form id="scheduleForm">
+        <div class="form-grid">
+          <div class="field">
+            <label for="sc-operator">Empleado</label>
+            <select id="sc-operator" required>
+              <option value="">Cargando empleados...</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sc-start">Hora inicio</label>
+            <input id="sc-start" type="time" required />
+          </div>
+          <div class="field">
+            <label for="sc-end">Hora fin</label>
+            <input id="sc-end" type="time" required />
+          </div>
+          <div class="field field-note">
+            <label>Días</label>
+            <div class="day-checks">
+              {DAYS.map((d) => (
+                <label class="day-check"><input type="checkbox" class="sc-day" value={d} /> {d.slice(0, 3)}</label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <button class="btn" type="submit">Agregar franja</button>
+        <p id="scheduleError" class="error-msg" style="display:none; margin-top:10px;"></p>
+      </form>
     </div>
-
-    <h3 class="ficha-section-title">Información laboral</h3>
-    <div class="form-grid cols-4">
-      <div class="field"><label>Área</label><input id="f-area" type="text" /></div>
-      <div class="field"><label>Cargo</label><input id="f-cargo" type="text" /></div>
-      <div class="field"><label>Jefe directo</label><input id="f-jefeDirecto" type="text" /></div>
-      <div class="field"><label>Sucursal(es)</label><div id="f-sucursales" class="ficha-readonly"></div></div>
+    <div class="panel-card">
+      <h2>Horarios actuales</h2>
+      <div class="records-grid" id="scheduleList">
+        <div class="empty">Cargando...</div>
+      </div>
     </div>
+  </div>
 
-    <h3 class="ficha-section-title">Vinculación</h3>
-    <div class="form-grid cols-4">
-      <div class="field"><label>Fecha de ingreso</label><input id="f-hireDate" type="date" /></div>
-      <div class="field"><label>Antigüedad</label><div id="f-antiguedad" class="ficha-readonly"></div></div>
-      <div class="field field-full"><label>Contratos registrados</label><div id="f-contratos" class="ficha-readonly"></div></div>
+  <div class="rrhh-panel" data-panel="compensatorios" hidden>
+    <div class="panel-card">
+      <h2>Días compensatorios</h2>
+      <p class="hint">
+        Cada vez que un empleado trabaje un día extra, regístralo aquí con la fecha en que trabajó.
+        Si ya sabes cuándo se le dará el descanso, coloca también esa fecha; si no, queda pendiente y
+        más abajo puedes asignársela cuando quieras, de los días que tenga disponibles.
+      </p>
+      <form id="compDaysForm" style="margin-bottom:20px;">
+        <div class="form-grid cols-4">
+          <div class="field">
+            <label for="cd-operator">Empleado</label>
+            <select id="cd-operator" required>
+              <option value="">Cargando empleados...</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cd-worked">Fecha que trabajó</label>
+            <input id="cd-worked" type="date" required />
+          </div>
+          <div class="field">
+            <label for="cd-scheduled">Fecha del compensatorio (opcional)</label>
+            <input id="cd-scheduled" type="date" />
+          </div>
+          <div class="field field-note">
+            <label for="cd-note">Nota</label>
+            <input id="cd-note" type="text" placeholder="Motivo (opcional)" />
+          </div>
+        </div>
+        <button class="btn" type="submit">Registrar</button>
+      </form>
+      <h3 class="ficha-section-title">Días disponibles por empleado</h3>
+      <div class="stats-row" id="compDaysTotals" style="margin-bottom:20px;"></div>
+      <div class="filters">
+        <select id="cdEmployeeFilter"><option value="">Todos los empleados</option></select>
+        <select id="cdStatusFilter">
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendientes</option>
+          <option value="asignado">Asignados</option>
+        </select>
+      </div>
+      <div class="records-grid" id="compDaysList">
+        <div class="empty">Cargando...</div>
+      </div>
     </div>
+  </div>
 
-    <h3 class="ficha-section-title">Afiliaciones</h3>
-    <div class="form-grid cols-4">
-      <div class="field"><label>EPS</label><input id="f-eps" type="text" /></div>
-      <div class="field"><label class="day-check"><input id="f-cajaCompensacion" type="checkbox" /> Caja de compensación</label></div>
-      <div class="field"><label class="day-check"><input id="f-cuentaNomina" type="checkbox" /> Cuenta nómina</label></div>
-      <div class="field"><label class="day-check"><input id="f-nesagaviria" type="checkbox" /> Nesagaviria</label></div>
+  <div class="rrhh-panel" data-panel="contratos" hidden>
+    <div class="panel-card">
+      <h2>Contratos y vacaciones</h2>
+      <form id="contractForm" style="margin-bottom:20px;">
+        <div class="form-grid cols-4">
+          <div class="field">
+            <label for="ct-employee">Empleado</label>
+            <select id="ct-employee" required>
+              <option value="">Cargando empleados...</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ct-hire-date">Fecha de ingreso</label>
+            <div style="display:flex; gap:6px;">
+              <input id="ct-hire-date" type="date" style="flex:1;" />
+              <button class="btn-small btn-done" id="ct-hire-date-save" type="button">Guardar</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="ct-type">Tipo</label>
+            <select id="ct-type" required>
+              <option value="Contrato">Contrato</option>
+              <option value="Vacaciones">Vacaciones</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ct-start">Fecha inicio</label>
+            <input id="ct-start" type="date" required />
+          </div>
+          <div class="field">
+            <label for="ct-end">Fecha fin</label>
+            <input id="ct-end" type="date" />
+            <label class="day-check" style="margin-top:8px;">
+              <input type="checkbox" id="ct-indefinite" /> Contrato indefinido (sin fecha fin)
+            </label>
+          </div>
+          <div class="field field-note">
+            <label for="ct-note">Nota</label>
+            <input id="ct-note" type="text" placeholder="Detalle (opcional)" />
+          </div>
+        </div>
+        <button class="btn" type="submit">Registrar</button>
+      </form>
+      <h3 class="ficha-section-title">Balance de vacaciones por empleado</h3>
+      <div class="records-grid" id="vacationBalances" style="margin-bottom:20px;"></div>
+      <div class="records-grid" id="contractsList">
+        <div class="empty">Cargando...</div>
+      </div>
     </div>
-    <button class="btn" id="fichaGuardar" type="button">Guardar ficha</button>
-    <span id="fichaMsg" class="esquema-add-msg"></span>
-
-    <h3 class="ficha-section-title">Vacaciones</h3>
-    <div id="f-vacaciones" class="ficha-readonly" style="margin-bottom:20px;"></div>
-
-    <h3 class="ficha-section-title">Incapacidades</h3>
-    <form id="incapForm" class="esquema-form" style="margin-bottom:14px;">
-      <input id="inc-start" type="date" required />
-      <input id="inc-end" type="date" required />
-      <input id="inc-note" type="text" placeholder="Nota (opcional)" />
-      <button class="btn-small btn-done" type="submit">Agregar incapacidad</button>
-    </form>
-    <div class="records-grid" id="incapList"></div>
   </div>
 </InternoLayout>
 
 <style is:global>
+  .rrhh-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .rrhh-tab {
+    padding: 9px 18px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--ink-800);
+    color: var(--paper-dim);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .rrhh-tab:hover { border-color: var(--amber); color: var(--paper); }
+  .rrhh-tab.active { background: var(--amber); border-color: var(--amber); color: var(--ink-900); }
+
+  .rrhh-panel .hint { color: var(--slate); font-size: 13px; margin-bottom: 14px; }
+
   .records-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -100,6 +275,25 @@ if (!canAccessSection(session.role, 'rrhh')) {
   .esquema-form { display: flex; flex-wrap: wrap; gap: 10px; }
   .esquema-add-msg { font-size: 12.5px; color: var(--teal-bright); margin-left: 10px; }
   .esquema-add-msg.error { color: #e0392f; }
+
+  .assign-next-picker { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+  .day-checks { display: flex; gap: 10px; flex-wrap: wrap; }
+  .day-check {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    color: var(--paper-dim);
+    cursor: pointer;
+    width: auto;
+  }
+  .day-check input { width: auto; }
+  .badge.status-vencido { background: var(--danger); color: #fff; }
+  .badge.status-proximo, .badge.status-proxima { background: #ff7a1a29; color: var(--teal-bright); }
+  .badge.status-indefinido { background: #2f8a4f33; color: var(--ok); }
 </style>
 
 <script src="/js/interno-rrhh.js" defer></script>
