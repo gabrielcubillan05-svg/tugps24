@@ -3,6 +3,8 @@ export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
 import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { getRedis } from '../../lib/redis';
+import { readExtraEntries } from '../../pages/api/vehicle-cutoff';
 import vehicleCutoffData from '../../lib/vehicle-cutoff-data.json';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
@@ -12,14 +14,18 @@ if (!canAccessSection(session.role, 'esquemas-apagado')) {
   const fallback = firstSectionFor(session.role);
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }
+
+const redis = getRedis();
+const extraRecords = redis ? await readExtraEntries(redis) : [];
+const allRecords = [...vehicleCutoffData, ...extraRecords];
 ---
 
 <InternoLayout title="Esquemas de apagado" active="esquemas-apagado" session={session}>
-  <div id="esquemasData" data-records={JSON.stringify(vehicleCutoffData)} style="display:none;"></div>
+  <div id="esquemasData" data-records={JSON.stringify(allRecords)} style="display:none;"></div>
 
   <div class="panel-card esquemas-hero">
     <h2>Esquemas de apagado por vehículo</h2>
-    <p class="hint">Referencia de cableado para instalar el corte de bomba/ignición del GPS — {vehicleCutoffData.length} vehículos registrados. Busca por marca, modelo, año o color de cable.</p>
+    <p class="hint">Referencia de cableado para instalar el corte de bomba/ignición del GPS — {allRecords.length} vehículos registrados. Busca por marca, modelo, año o color de cable.</p>
     <div class="filters esquemas-filters">
       <input id="searchInput" type="text" placeholder="Buscar por marca, modelo, año, color..." autocomplete="off" />
       <select id="marcaFilter"><option value="">Todas las marcas</option></select>
@@ -31,6 +37,21 @@ if (!canAccessSection(session.role, 'esquemas-apagado')) {
     </div>
     <div class="esquemas-count" id="esquemasCount"></div>
   </div>
+
+  <details class="panel-card esquemas-add">
+    <summary>Agregar nuevo esquema</summary>
+    <form id="addEsquemaForm" class="esquema-form">
+      <input name="marca" type="text" placeholder="Marca *" required />
+      <input name="modelo" type="text" placeholder="Modelo *" required />
+      <input name="anio" type="text" placeholder="Año" />
+      <input name="colores" type="text" placeholder="Colores de cable" />
+      <label class="esquema-check"><input name="corteBomba" type="checkbox" /> Corte de bomba</label>
+      <label class="esquema-check"><input name="corteIgnicion" type="checkbox" /> Corte de ignición</label>
+      <textarea name="ubicacion" placeholder="Ubicación / detalle del cableado" rows="2"></textarea>
+      <button type="submit" class="btn-primary">Guardar esquema</button>
+      <span id="addEsquemaMsg" class="esquema-add-msg"></span>
+    </form>
+  </details>
 
   <div class="esquemas-grid" id="esquemasGrid"></div>
 </InternoLayout>
@@ -70,6 +91,14 @@ if (!canAccessSection(session.role, 'esquemas-apagado')) {
   .esquema-colores-text { font-size: 13px; color: var(--paper); text-transform: capitalize; }
   .esquema-ubicacion { font-size: 12.5px; color: var(--paper-dim); line-height: 1.5; }
   .esquema-ubicacion strong { color: var(--slate); font-weight: 600; }
+
+  .esquemas-add summary { cursor: pointer; font-weight: 600; color: var(--paper); }
+  .esquema-form { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .esquema-form input[type="text"], .esquema-form textarea { flex: 1 1 200px; }
+  .esquema-form textarea { flex-basis: 100%; resize: vertical; }
+  .esquema-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--paper-dim); flex: 0 0 auto; }
+  .esquema-add-msg { font-size: 12.5px; color: var(--teal-bright); flex-basis: 100%; }
+  .esquema-add-msg.error { color: #e0392f; }
 </style>
 
 <script src="/js/interno-esquemas-apagado.js" defer></script>

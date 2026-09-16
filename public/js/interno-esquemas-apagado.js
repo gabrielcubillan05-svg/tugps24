@@ -144,4 +144,53 @@ document.addEventListener('DOMContentLoaded', function () {
   tipoFilter.addEventListener('change', render);
 
   render();
+
+  const addForm = document.getElementById('addEsquemaForm');
+  if (addForm) {
+    const msgEl = document.getElementById('addEsquemaMsg');
+    addForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msgEl.textContent = '';
+      msgEl.classList.remove('error');
+      const fd = new FormData(addForm);
+      const body = {
+        marca: fd.get('marca'),
+        modelo: fd.get('modelo'),
+        anio: fd.get('anio'),
+        colores: fd.get('colores'),
+        ubicacion: fd.get('ubicacion'),
+        corteBomba: fd.get('corteBomba') === 'on',
+        corteIgnicion: fd.get('corteIgnicion') === 'on',
+      };
+      try {
+        const res = await fetch('/api/vehicle-cutoff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          msgEl.textContent = data.error || 'No se pudo guardar el esquema.';
+          msgEl.classList.add('error');
+          return;
+        }
+        const entry = data.entry;
+        entry._marca = canonicalBrand(entry.marca);
+        entry._search = normalize([entry.marca, entry.modelo, entry.anio, entry.colores, entry.ubicacion].join(' '));
+        records.push(entry);
+        if (!marcas.includes(entry._marca)) {
+          marcas.push(entry._marca);
+          marcas.sort((a, b) => a.localeCompare(b));
+          marcaFilter.innerHTML = '<option value="">Todas las marcas</option>' +
+            marcas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+        }
+        addForm.reset();
+        msgEl.textContent = 'Esquema guardado.';
+        render();
+      } catch {
+        msgEl.textContent = 'Error de conexión al guardar.';
+        msgEl.classList.add('error');
+      }
+    });
+  }
 });
