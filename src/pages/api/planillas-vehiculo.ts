@@ -100,10 +100,10 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   let planillas = await readPlanillas(redis);
 
-  const isManager = session.role === 'gerente' || session.role === 'admin';
-  if (!isManager) {
-    planillas = planillas.filter((p) => p.tecnicoId === session.userId);
-  } else if (session.role === 'gerente') {
+  // Técnico y gerente ven todas las planillas de su(s) propia(s) sucursal(es) — no solo las que
+  // ellos mismos crearon, porque la entrada y la salida de un mismo vehículo las puede hacer un
+  // técnico distinto. Admin ve todas sin acotar.
+  if (session.role === 'tecnico' || session.role === 'gerente') {
     const me = await findUserById(redis, session.userId);
     const myBranches = branchesOf(me);
     planillas = planillas.filter((p) => myBranches.includes(p.branch));
@@ -294,9 +294,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
-  const isManager = session.role === 'gerente' || session.role === 'admin';
-  if (!isManager && planilla.tecnicoId !== session.userId) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  // La salida la puede registrar cualquier técnico de la misma sucursal, no solo quien hizo la
+  // entrada (ver nota en GET) — se acota igual que la lectura.
+  if (session.role === 'tecnico' || session.role === 'gerente') {
+    const me = await findUserById(redis, session.userId);
+    const myBranches = branchesOf(me);
+    if (!myBranches.includes(planilla.branch)) {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    }
   }
 
   if (!salidaConforme && !salidaObservacion) {
