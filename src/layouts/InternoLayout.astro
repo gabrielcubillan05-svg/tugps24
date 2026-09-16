@@ -4,7 +4,7 @@ import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor } from '../lib/
 
 export interface Props {
   title: string;
-  active: Section | 'mi-ficha' | null;
+  active: Section | 'mi-ficha' | 'inicio' | null;
   session: Session;
 }
 
@@ -24,11 +24,10 @@ const ICONS: Record<string, string> = {
 };
 
 const NAV_GROUPS: { label: string; icon: keyof typeof ICONS; sections: Section[] }[] = [
-  { label: 'Principal', icon: 'home', sections: ['novedades', 'reportes', 'estadisticas'] },
-  { label: 'Operación', icon: 'wrench', sections: ['tareas', 'planillas-vehiculo', 'esquemas-apagado'] },
-  { label: 'Seguridad', icon: 'shield', sections: ['cuadrantes', 'casos-importantes', 'suspensiones'] },
-  { label: 'Comercial', icon: 'briefcase', sections: ['crm', 'cotizaciones', 'seguimiento-masivos', 'conversaciones-whatsapp', 'cobros'] },
-  { label: 'Administración', icon: 'settings', sections: ['auditoria', 'usuarios', 'solicitudes-administrativas', 'pagos-internos', 'agentes-ia'] },
+  { label: 'Operación', icon: 'wrench', sections: ['novedades', 'reportes', 'estadisticas', 'tareas', 'planillas-vehiculo', 'esquemas-apagado', 'casos-importantes'] },
+  { label: 'Seguridad', icon: 'shield', sections: ['cuadrantes'] },
+  { label: 'Comercial', icon: 'briefcase', sections: ['crm', 'cotizaciones', 'seguimiento-masivos', 'conversaciones-whatsapp', 'cobros', 'suspensiones', 'solicitudes-administrativas'] },
+  { label: 'Administración', icon: 'settings', sections: ['auditoria', 'usuarios', 'pagos-internos', 'agentes-ia'] },
   { label: 'Chat', icon: 'chat', sections: ['chat'] },
 ];
 
@@ -528,6 +527,10 @@ if (sections.includes('rrhh')) {
           </div>
         </div>
         <nav class="top-nav">
+          <a href="/interno" class={`nav-pill ${active === 'inicio' || active === null ? 'active' : ''}`}>
+            <Fragment set:html={ICONS.home} />
+            Inicio
+          </a>
           {navGroups.map((g) => {
             if (g.items.length === 1) {
               const s = g.items[0];
@@ -539,7 +542,7 @@ if (sections.includes('rrhh')) {
                 </a>
               );
             }
-            const isActive = active !== null && active !== 'mi-ficha' && g.items.includes(active);
+            const isActive = active !== null && active !== 'mi-ficha' && active !== 'inicio' && g.items.includes(active);
             return (
               <div class="nav-group">
                 <button type="button" class={`nav-pill nav-group-btn ${isActive ? 'active' : ''}`} data-nav-group>
