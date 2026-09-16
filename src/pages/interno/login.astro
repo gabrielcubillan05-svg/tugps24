@@ -22,6 +22,12 @@ const lockedOut = errorParam === 'locked';
     <meta name="robots" content="noindex, nofollow" />
     <title>Acceso interno — TuGPS24</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <script src="/js/theme-toggle.js" is:inline></script>
     <style>
       :root {
@@ -33,6 +39,10 @@ const lockedOut = errorParam === 'locked';
         --slate: #948d80;
         --amber: #ff7a1a;
         --danger: #e0563f;
+        --glow-1: #ff7a1a29;
+        --shadow-soft: #00000059;
+        --btn-shadow: #ff7a1a73;
+        --body: "Poppins", system-ui, sans-serif;
       }
       html[data-theme="light"] {
         --ink-900: #faf7f2;
@@ -43,12 +53,15 @@ const lockedOut = errorParam === 'locked';
         --slate: #8a8072;
         --amber: #e8630a;
         --danger: #c9432e;
+        --glow-1: #e8630a1a;
+        --shadow-soft: #1e140a14;
+        --btn-shadow: #e8630a4d;
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
         background: var(--ink-900);
         color: var(--paper);
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: var(--body);
         min-height: 100vh;
         line-height: 1.5;
       }
@@ -60,6 +73,7 @@ const lockedOut = errorParam === 'locked';
         padding: 36px;
         width: 100%;
         max-width: 360px;
+        box-shadow: 0 1px 2px var(--shadow-soft), 0 10px 26px -14px var(--shadow-soft);
       }
       .login-box h1 { font-size: 20px; margin-bottom: 8px; }
       .login-box p { color: var(--slate); font-size: 13.5px; margin-bottom: 20px; }
@@ -73,7 +87,9 @@ const lockedOut = errorParam === 'locked';
         color: var(--paper);
         border-radius: 8px;
         padding: 10px 12px;
+        transition: border-color 0.15s, box-shadow 0.15s;
       }
+      input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--glow-1); }
       .btn {
         background: var(--amber);
         color: #1a0f00;
@@ -83,7 +99,10 @@ const lockedOut = errorParam === 'locked';
         padding: 12px 20px;
         font-weight: 600;
         width: 100%;
+        box-shadow: 0 4px 14px var(--btn-shadow);
+        transition: transform 0.15s, box-shadow 0.15s;
       }
+      .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px var(--btn-shadow); }
       .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 14px; }
     </style>
   </head>
