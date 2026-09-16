@@ -99,8 +99,8 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
-  gerente: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado'],
+  supervisor: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
+  gerente: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
   admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'rrhh'],
 };
 

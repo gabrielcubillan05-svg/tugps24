@@ -1,7 +1,9 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, canAccessSection } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, findUserById, branchesOf, getUsers } from '../../lib/auth';
 import { readLeads, STATUSES } from './leads';
+import { SHIFT_SUPERVISORS, shiftBucketFor } from '../../lib/shift';
+import { readSchedule } from './schedule';
 
 export const prerender = false;
 
@@ -90,7 +92,33 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const cityFilter = url.searchParams.get('city') || '';
   const secretaryFilter = url.searchParams.get('secretary') || '';
 
-  const allLeads = await readLeads(redis);
+  // Alcance: admin ve todo el país; gerente ve solo su(s) propia(s) sucursal(es) (igual que en
+  // tasks.ts/suspensiones.ts); un supervisor de turno (José Miguel/Junior) ve las novedades solo
+  // de los operadores de su turno — el CRM no es "su personal" (son de monitoreo, no de ventas),
+  // así que para supervisor el CRM se muestra completo, sin acotar.
+  let scopedBranches: string[] | null = null;
+  let scopedOperatorNames: string[] | null = null;
+  if (session.role === 'gerente') {
+    const me = await findUserById(redis, session.userId);
+    scopedBranches = branchesOf(me);
+  } else if (session.role === 'supervisor') {
+    const shiftSupervisor = SHIFT_SUPERVISORS.find((s) => s.username === session.username.toLowerCase());
+    if (shiftSupervisor) {
+      const [allUsers, schedule] = await Promise.all([getUsers(redis), readSchedule(redis)]);
+      scopedOperatorNames = allUsers
+        .filter((u) => u.role === 'operador')
+        .filter((u) => {
+          const bucket = shiftBucketFor(schedule, u.name);
+          return bucket !== null && shiftSupervisor.buckets.includes(bucket);
+        })
+        .map((u) => u.name);
+    } else {
+      scopedOperatorNames = [];
+    }
+  }
+
+  const allLeadsUnscoped = await readLeads(redis);
+  const allLeads = scopedBranches ? allLeadsUnscoped.filter((l) => scopedBranches!.includes(l.city)) : allLeadsUnscoped;
   const cities = [...new Set(allLeads.map((l) => l.city).filter(Boolean))].sort();
   const secretaries = [...new Set(allLeads.map((l) => l.secretary).filter(Boolean))].sort();
 
@@ -127,7 +155,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       if (chunk.length < REPORTS_CHUNK_SIZE) break;
     }
   }
-  const reports: Report[] = rawReports
+  let reports: Report[] = rawReports
     .map((r) => {
       try {
         return typeof r === 'string' ? JSON.parse(r) : r;
@@ -136,6 +164,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       }
     })
     .filter((r): r is Report => r !== null);
+  if (scopedBranches) reports = reports.filter((r) => scopedBranches!.includes(r.branch));
+  else if (scopedOperatorNames) reports = reports.filter((r) => scopedOperatorNames!.includes(r.createdByName));
 
   const reportsByCategory: Record<string, number> = {};
   for (const c of REPORT_CATEGORIES) reportsByCategory[c] = 0;
@@ -184,7 +214,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         filters: { city: cityFilter, secretary: secretaryFilter },
       },
       novedades: {
-        total: reportsTotal,
+        total: scopedBranches || scopedOperatorNames ? reports.length : reportsTotal,
         scannedCount: reports.length,
         byCategory: reportsByCategory,
         byBranch: reportsByBranch,
