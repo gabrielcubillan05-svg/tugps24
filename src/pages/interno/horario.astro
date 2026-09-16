@@ -54,7 +54,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
   </div>
   <div class="panel-card">
     <h2>Horarios actuales</h2>
-    <div class="list-col" id="scheduleList">
+    <div class="records-grid" id="scheduleList">
       <div class="empty">Cargando...</div>
     </div>
   </div>
@@ -101,7 +101,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
             <option value="asignado">Asignados</option>
           </select>
         </div>
-        <div class="list-col" id="compDaysList">
+        <div class="records-grid" id="compDaysList">
           <div class="empty">Cargando...</div>
         </div>
       </div>
@@ -125,6 +125,13 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
               <select id="ct-employee" required>
                 <option value="">Cargando empleados...</option>
               </select>
+            </div>
+            <div class="field">
+              <label for="ct-hire-date">Fecha de ingreso</label>
+              <div style="display:flex; gap:6px;">
+                <input id="ct-hire-date" type="date" style="flex:1;" />
+                <button class="btn-small btn-done" id="ct-hire-date-save" type="button">Guardar</button>
+              </div>
             </div>
             <div class="field">
               <label for="ct-type">Tipo</label>
@@ -152,8 +159,8 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
           <button class="btn" type="submit">Registrar</button>
         </form>
         <h3 style="font-size:13.5px; color:var(--paper-dim); margin-bottom:10px;">Balance de vacaciones por empleado</h3>
-        <div class="list-col" id="vacationBalances" style="margin-bottom:20px;"></div>
-        <div class="list-col" id="contractsList">
+        <div class="records-grid" id="vacationBalances" style="margin-bottom:20px;"></div>
+        <div class="records-grid" id="contractsList">
           <div class="empty">Cargando...</div>
         </div>
       </div>
@@ -168,6 +175,12 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
 </InternoLayout>
 
 <style is:global>
+  .records-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+  .assign-next-picker { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
   .day-checks { display: flex; gap: 10px; flex-wrap: wrap; }
   .day-check {
     display: flex;

@@ -12,8 +12,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function fmtDateOnly(iso) {
+    // No usar new Date() aquí: un "YYYY-MM-DD" se interpreta como medianoche UTC
+    // y al formatear en hora de Colombia (UTC-5) muestra el día anterior.
     if (!iso) return '';
-    return new Date(iso).toLocaleDateString('es-CO', { dateStyle: 'medium' });
+    const [y, m, d] = String(iso).slice(0, 10).split('-');
+    if (!y || !m || !d) return '';
+    return `${d}/${m}/${y}`;
   }
 
   // ---------- Lista de empleados (para los selectores de esta página) ----------
@@ -21,13 +25,15 @@ document.addEventListener('DOMContentLoaded', function () {
   const cdOperatorSelect = document.getElementById('cd-operator');
   const ctEmployeeSelect = document.getElementById('ct-employee');
 
+  let employeesById = [];
   function loadEmployees() {
     fetch('/api/users')
       .then((res) => res.json())
       .then((data) => {
         if (!data || !Array.isArray(data.users)) return;
+        employeesById = data.users;
         const options = '<option value="">Selecciona un empleado</option>' +
-          data.users.map((u) => `<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+          data.users.map((u) => `<option value="${escapeHtml(u.name)}" data-id="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');
         if (scOperatorSelect) scOperatorSelect.innerHTML = options;
         if (cdOperatorSelect) cdOperatorSelect.innerHTML = options;
         if (ctEmployeeSelect) ctEmployeeSelect.innerHTML = options;
@@ -40,6 +46,46 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
   loadEmployees();
+
+  // ---------- Fecha de ingreso (perfil de RR.HH., se edita también desde Contratos) ----------
+  const ctHireDateInput = document.getElementById('ct-hire-date');
+  const ctHireDateSaveBtn = document.getElementById('ct-hire-date-save');
+  if (ctEmployeeSelect && ctHireDateInput) {
+    ctEmployeeSelect.addEventListener('change', function () {
+      const user = employeesById.find((u) => u.name === ctEmployeeSelect.value);
+      ctHireDateInput.value = '';
+      if (!user) return;
+      fetch('/api/employees')
+        .then((res) => res.json())
+        .then((data) => {
+          const entry = data && Array.isArray(data.employees) ? data.employees.find((e) => e.id === user.id) : null;
+          if (entry && entry.profile && entry.profile.hireDate) {
+            ctHireDateInput.value = entry.profile.hireDate.slice(0, 10);
+          }
+        })
+        .catch(() => {});
+    });
+  }
+  if (ctHireDateSaveBtn) {
+    ctHireDateSaveBtn.addEventListener('click', function () {
+      const user = employeesById.find((u) => u.name === ctEmployeeSelect.value);
+      if (!user) {
+        alert('Selecciona primero un empleado.');
+        return;
+      }
+      fetch('/api/employees', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.id, fields: { hireDate: ctHireDateInput.value || null } }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
+          if (typeof loadContracts === 'function') loadContracts();
+        })
+        .catch((err) => alert(err.message || 'No se pudo guardar la fecha de ingreso.'));
+    });
+  }
 
   // ---------- Horario ----------
   const DAY_ORDER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -170,7 +216,13 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="stat-box">
           <span class="n">${totals[op] || 0}</span>
           <span class="l">${escapeHtml(op)}${grantedTotals[op] ? ' · ' + grantedTotals[op] + ' ya dado(s)' : ''}</span>
-          ${totals[op] ? `<button class="btn-small btn-done" data-action="assign-next" data-operator="${escapeHtml(op)}" type="button" style="margin-top:6px;">Asignar día libre</button>` : ''}
+          ${totals[op] ? `
+            <button class="btn-small btn-done" data-action="assign-next" data-operator="${escapeHtml(op)}" type="button" style="margin-top:6px;">Asignar día libre</button>
+            <div class="assign-next-picker" data-operator="${escapeHtml(op)}" hidden>
+              <input type="date" data-assign-next-input style="width:auto;" />
+              <button class="btn-small btn-done" data-action="confirm-assign-next" data-operator="${escapeHtml(op)}" type="button">Confirmar</button>
+            </div>
+          ` : ''}
         </div>
       `).join('');
     }
@@ -206,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="item-top">
             <span class="title">${escapeHtml(e.operator)}</span>
             <span class="badge">Trabajó: ${fmtDateOnly(e.workedDate)}</span>
-            ${e.scheduledDate ? '<span class="badge status-indefinido">Asignado</span>' : '<span class="badge status-proximo">Pendiente</span>'}
+            ${e.scheduledDate ? `<span class="badge status-indefinido">Asignado: ${fmtDateOnly(e.scheduledDate)}</span>` : '<span class="badge status-proximo">Pendiente</span>'}
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
           <div class="item-actions" style="align-items:center;">
@@ -268,22 +320,32 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     compDaysTotals.addEventListener('click', function (e) {
-      const btn = e.target.closest('button[data-action="assign-next"]');
-      if (!btn) return;
-      const operator = btn.getAttribute('data-operator');
-      const scheduledDate = prompt(`Fecha del compensatorio para ${operator} (AAAA-MM-DD):`);
-      if (!scheduledDate) return;
-      fetch('/api/comp-days', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator, scheduledDate, assignNext: true }),
-      })
-        .then(async (res) => {
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || 'No se pudo asignar.');
-          loadCompDays();
+      const openBtn = e.target.closest('button[data-action="assign-next"]');
+      if (openBtn) {
+        const operator = openBtn.getAttribute('data-operator');
+        const picker = compDaysTotals.querySelector(`.assign-next-picker[data-operator="${operator}"]`);
+        if (picker) picker.hidden = !picker.hidden;
+        return;
+      }
+      const confirmBtn = e.target.closest('button[data-action="confirm-assign-next"]');
+      if (confirmBtn) {
+        const operator = confirmBtn.getAttribute('data-operator');
+        const picker = compDaysTotals.querySelector(`.assign-next-picker[data-operator="${operator}"]`);
+        const input = picker ? picker.querySelector('[data-assign-next-input]') : null;
+        const scheduledDate = input ? input.value : '';
+        if (!scheduledDate) return;
+        fetch('/api/comp-days', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operator, scheduledDate, assignNext: true }),
         })
-        .catch((err) => alert(err.message || 'No se pudo asignar.'));
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo asignar.');
+            loadCompDays();
+          })
+          .catch((err) => alert(err.message || 'No se pudo asignar.'));
+      }
     });
 
     compDaysList.addEventListener('click', function (e) {
