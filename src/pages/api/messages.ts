@@ -18,6 +18,7 @@ import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
 import { readScheduledReports, withStatus } from './scheduled-reports';
 import { readSchedule } from './schedule';
+import { SHIFT_SUPERVISORS, shiftBucketFor } from '../../lib/shift';
 import { getProfile, readProfiles } from './employees';
 import { computeVacationBalances, readContracts } from './contracts';
 import { readEntries as readVacationRequests } from './vacation-requests';
@@ -194,8 +195,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       // trabajador — a cualquier otro rol solo se le ofrece información sobre sí mismo (ni
       // siquiera se le manda la herramienta, así que no hay forma de que el modelo la use).
       const canLookupOthers = session.role === 'admin' || [JOSUE_USERNAME, WILMAR_USERNAME].includes(session.username.toLowerCase());
+      // José Miguel y Junior Cárdenas (supervisores de turno, por username — igual que en
+      // tasks.ts) pueden preguntarle a GPSITO por los pendientes de SUS operadores a cargo,
+      // aunque no tengan el permiso general de canLookupOthers.
+      const shiftSupervisor = SHIFT_SUPERVISORS.find((s) => s.username === session.username.toLowerCase());
+      const canLookupTeam = !canLookupOthers && !!shiftSupervisor;
       const permissions: GabotPermissions = {
         canLookupOthers,
+        canLookupTeam,
         canAssignToOthers: canAssignTasks(session.role),
         canHorario: canAccessRRHH(session),
         canNovedades: canAccessSection(session.role, 'novedades'),
@@ -209,6 +216,19 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         const target = normalizeNameForMatch(nombre);
         const match = allUsers.find((u) => u.active && normalizeNameForMatch(u.name).includes(target) && target.length > 0);
         if (!match) return `No se encontró ningún trabajador activo que coincida con "${nombre}".`;
+
+        if (!canLookupOthers && canLookupTeam) {
+          // Solo puede consultar a operadores de su propio turno — no a cualquiera.
+          if (match.role !== 'operador') {
+            return `${sender.name} solo tiene permiso para consultar a los operadores de su turno a cargo, no a "${match.name}".`;
+          }
+          const schedule = await readSchedule(redis);
+          const bucket = shiftBucketFor(schedule, match.name);
+          if (bucket === null || !shiftSupervisor!.buckets.includes(bucket)) {
+            return `${match.name} no está en el turno a cargo de ${sender.name}, así que no tiene permiso para consultar sus pendientes.`;
+          }
+        }
+
         const lines = collectPendingLines(match, data);
         return lines.length
           ? `Pendientes de ${match.name} (${ROLE_LABELS[match.role]}):\n${lines.join('\n')}`

@@ -24,6 +24,7 @@ export interface CreateTaskInput {
 // aplica exactamente la misma regla que el panel real para esa sección/acción.
 export interface GabotPermissions {
   canLookupOthers: boolean;
+  canLookupTeam: boolean;
   canAssignToOthers: boolean;
   canHorario: boolean;
   canNovedades: boolean;
@@ -228,7 +229,9 @@ Responde en texto plano, breve y directo — como un mensaje de chat de trabajo 
 ## Permisos sobre pendientes de otros trabajadores
 ${permissions.canLookupOthers
     ? `${userName} SÍ tiene permiso de administrador/supervisión general, así que puedes usar la herramienta consultar_pendientes_de cuando te pregunte por los pendientes de otro trabajador por nombre.`
-    : `${userName} NO tiene permiso para ver pendientes de otros trabajadores — solo puedes hablarle de LOS SUYOS (la lista de arriba). Si te pregunta por los pendientes de otra persona, dile con amabilidad que solo puedes ayudarle con sus propios pendientes.`}
+    : permissions.canLookupTeam
+      ? `${userName} es supervisor de turno: SÍ puede usar consultar_pendientes_de, pero SOLO para los operadores de su propio turno a cargo — si pregunta por alguien fuera de su equipo, la herramienta te devolverá un mensaje diciendo que no tiene permiso para esa persona; en ese caso dile con amabilidad que solo puede consultar a los operadores de su turno.`
+      : `${userName} NO tiene permiso para ver pendientes de otros trabajadores — solo puedes hablarle de LOS SUYOS (la lista de arriba). Si te pregunta por los pendientes de otra persona, dile con amabilidad que solo puedes ayudarle con sus propios pendientes.`}
 
 ## Eres también su asistente personal de Tareas
 Cualquiera puede pedirte, sobre SUS PROPIAS tareas:
@@ -321,7 +324,7 @@ export async function runGabotAgent(
 
   const systemPrompt = buildSystemPrompt(userName, roleLabel, pendingLines, extraInstructions, permissions);
   const tools = [
-    ...(permissions.canLookupOthers ? [LOOKUP_TOOL] : []),
+    ...(permissions.canLookupOthers || permissions.canLookupTeam ? [LOOKUP_TOOL] : []),
     CREATE_TASK_TOOL,
     MARK_TASK_TOOL,
     ADD_TASK_NOTE_TOOL,
