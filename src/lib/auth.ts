@@ -45,7 +45,8 @@ export type Section =
   | 'agentes-ia'
   | 'pagos-internos'
   | 'planillas-vehiculo'
-  | 'esquemas-apagado';
+  | 'esquemas-apagado'
+  | 'rrhh';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -69,6 +70,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'pagos-internos': 'Pagos programados',
   'planillas-vehiculo': 'Planilla de vehículo',
   'esquemas-apagado': 'Esquemas de apagado',
+  rrhh: 'Recursos Humanos',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -93,6 +95,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   'pagos-internos': '/interno/pagos-internos',
   'planillas-vehiculo': '/interno/planillas-vehiculo',
   'esquemas-apagado': '/interno/esquemas-apagado',
+  rrhh: '/interno/rrhh',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -100,8 +103,8 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
   supervisor: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos'],
-  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado'],
-  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado'],
+  gerente: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'rrhh'],
+  admin: ['novedades', 'reportes', 'horario', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'rrhh'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -198,6 +201,10 @@ export function canVerifyInstalls(role: Role): boolean {
 
 export function canManageMediaAssets(role: Role): boolean {
   return role === 'supervisor' || role === 'gerente' || role === 'admin';
+}
+
+export function canManageRRHH(role: Role): boolean {
+  return role === 'gerente' || role === 'admin';
 }
 
 // Usuarios puntuales con permiso para subir listas de Cobranza especial WP aunque su

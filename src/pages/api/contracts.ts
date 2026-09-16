@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canManageCompDays, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canManageCompDays, verifySameOrigin, getUsers } from '../../lib/auth';
+import { getHireDate } from './employees';
 
 export const prerender = false;
 
@@ -56,20 +57,28 @@ function daysBetween(startDate: string, endDate: string): number {
   return Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
 }
 
-function computeVacationBalances(entries: ContractEntry[]) {
-  const employees = [...new Set(entries.map((e) => e.employee))];
-  return employees.map((employee) => {
-    const contracts = entries.filter((e) => e.employee === employee && e.type === 'Contrato' && e.startDate);
-    const hireDate = contracts.length
-      ? contracts.map((e) => e.startDate).sort()[0]
-      : null;
+export function computeSeniority(hireDate: string | null): { yearsOfService: number; accruedDays: number } {
+  if (!hireDate) return { yearsOfService: 0, accruedDays: 0 };
+  const ms = Date.now() - new Date(hireDate).getTime();
+  const yearsOfService = Math.max(0, Math.floor(ms / (365.25 * 24 * 60 * 60 * 1000)));
+  return { yearsOfService, accruedDays: yearsOfService * VACATION_DAYS_PER_YEAR };
+}
 
-    let yearsOfService = 0;
-    if (hireDate) {
-      const ms = Date.now() - new Date(hireDate).getTime();
-      yearsOfService = Math.max(0, Math.floor(ms / (365.25 * 24 * 60 * 60 * 1000)));
+async function computeVacationBalances(redis: any, entries: ContractEntry[]) {
+  const employees = [...new Set(entries.map((e) => e.employee))];
+  const users = await getUsers(redis);
+
+  return Promise.all(employees.map(async (employee) => {
+    // La fecha de ingreso vive en el perfil de RR.HH. del empleado (fuente única); si todavía
+    // no se ha registrado ahí, se usa el contrato más antiguo como antes (datos viejos).
+    const user = users.find((u) => u.name === employee);
+    let hireDate = user ? await getHireDate(redis, user.id) : null;
+    if (!hireDate) {
+      const contracts = entries.filter((e) => e.employee === employee && e.type === 'Contrato' && e.startDate);
+      hireDate = contracts.length ? contracts.map((e) => e.startDate).sort()[0] : null;
     }
-    const accruedDays = hireDate ? yearsOfService * VACATION_DAYS_PER_YEAR : 0;
+
+    const { yearsOfService, accruedDays } = computeSeniority(hireDate);
 
     const takenDays = entries
       .filter((e) => e.employee === employee && e.type === 'Vacaciones' && e.startDate && e.endDate)
@@ -83,7 +92,7 @@ function computeVacationBalances(entries: ContractEntry[]) {
       takenDays,
       remainingDays: accruedDays - takenDays,
     };
-  });
+  }));
 }
 
 export const GET: APIRoute = async ({ cookies }) => {
@@ -109,7 +118,7 @@ export const GET: APIRoute = async ({ cookies }) => {
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   const withStatuses = entries.map(withStatus);
-  const vacationBalances = computeVacationBalances(entries).sort((a, b) => a.employee.localeCompare(b.employee));
+  const vacationBalances = (await computeVacationBalances(redis, entries)).sort((a, b) => a.employee.localeCompare(b.employee));
 
   return new Response(JSON.stringify({ entries: withStatuses, types: TYPES, vacationBalances }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
