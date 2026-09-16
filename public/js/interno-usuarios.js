@@ -6,12 +6,14 @@ document.addEventListener('DOMContentLoaded', function () {
   const userFormError = document.getElementById('userFormError');
   const seedBtn = document.getElementById('seedBtn');
   const seedResult = document.getElementById('seedResult');
+  const branchOperadoresBtn = document.getElementById('branchOperadoresBtn');
+  const branchOperadoresResult = document.getElementById('branchOperadoresResult');
   const searchInput = document.getElementById('searchInput');
   const roleFilter = document.getElementById('roleFilter');
 
   let allUsers = [];
   let roles = [];
-  const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
+  const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería', 'Central de Monitoreo'];
 
   function escapeHtml(str) {
     return String(str || '')
@@ -125,6 +127,36 @@ document.addEventListener('DOMContentLoaded', function () {
         seedResult.style.display = 'block';
       })
       .finally(() => { seedBtn.disabled = false; });
+  });
+
+  if (branchOperadoresBtn) branchOperadoresBtn.addEventListener('click', async function () {
+    const operadores = allUsers.filter((u) => u.role === 'operador');
+    if (!operadores.length) {
+      alert('No hay usuarios con rol Operador cargados todavía.');
+      return;
+    }
+    if (!confirm(`Se les va a asignar la sucursal "Central de Monitoreo" a ${operadores.length} operador(es), reemplazando la que tengan hoy. ¿Confirmas?`)) return;
+
+    branchOperadoresBtn.disabled = true;
+    let ok = 0;
+    let failed = 0;
+    for (const u of operadores) {
+      try {
+        const res = await fetch('/api/users', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: u.id, branches: ['Central de Monitoreo'] }),
+        });
+        if (!res.ok) throw new Error();
+        ok++;
+      } catch {
+        failed++;
+      }
+    }
+    branchOperadoresBtn.disabled = false;
+    branchOperadoresResult.textContent = `Actualizados: ${ok} · Con error: ${failed}`;
+    branchOperadoresResult.style.display = 'block';
+    loadUsers();
   });
 
   usersList.addEventListener('change', function (e) {

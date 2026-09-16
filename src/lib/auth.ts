@@ -240,7 +240,7 @@ export interface User {
   branches?: string[];
 }
 
-export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
+export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería', 'Central de Monitoreo'];
 
 // Un usuario puede tener varias sucursales asignadas (branches). Esta función normaliza los
 // datos viejos que todavía solo tengan el campo singular `branch`, para no requerir migración.

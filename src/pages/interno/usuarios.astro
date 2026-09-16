@@ -62,6 +62,17 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
   </div>
   )}
 
+  {isFullAdmin && (
+  <div class="panel-card">
+    <h2>Sucursal de los operadores</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Asigna la sucursal <b>Central de Monitoreo</b> a todos los usuarios con rol Operador (reemplaza la(s) sucursal(es) que tengan hoy).
+    </p>
+    <button class="btn-ghost" id="branchOperadoresBtn" type="button">Asignar Central de Monitoreo a los operadores</button>
+    <p id="branchOperadoresResult" style="display:none; margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></p>
+  </div>
+  )}
+
   <div class="panel-card">
     <h2>Usuarios</h2>
     {!isFullAdmin && <p class="hint">Puedes crear usuarios nuevos, asignarles sucursal o rol, restablecer su contraseña, y activar o desactivar su cuenta.</p>}
