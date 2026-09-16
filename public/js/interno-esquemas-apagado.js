@@ -102,6 +102,29 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  let editingId = null;
+
+  function editFormHtml(r) {
+    return `
+      <div class="esquema-card esquema-card-editing" data-id="${r.id}">
+        <div class="esquema-form" style="flex-direction:column;">
+          <input name="marca" type="text" placeholder="Marca *" value="${escapeHtml(r.marca)}" required />
+          <input name="modelo" type="text" placeholder="Modelo *" value="${escapeHtml(r.modelo)}" required />
+          <input name="anio" type="text" placeholder="Año" value="${escapeHtml(r.anio)}" />
+          <input name="colores" type="text" placeholder="Colores de cable" value="${escapeHtml(r.colores)}" />
+          <label class="esquema-check"><input name="corteBomba" type="checkbox" ${r.corteBomba ? 'checked' : ''} /> Corte de bomba</label>
+          <label class="esquema-check"><input name="corteIgnicion" type="checkbox" ${r.corteIgnicion ? 'checked' : ''} /> Corte de ignición</label>
+          <textarea name="ubicacion" placeholder="Ubicación / detalle" rows="2">${escapeHtml(r.ubicacion)}</textarea>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-small btn-done" data-action="save-edit" data-id="${r.id}" type="button">Guardar</button>
+            <button class="btn-small" data-action="cancel-edit" type="button">Cancelar</button>
+          </div>
+          <span class="esquema-add-msg" data-edit-msg></span>
+        </div>
+      </div>
+    `;
+  }
+
   function render() {
     const filtered = getFiltered().sort((a, b) => a._marca.localeCompare(b._marca) || a.modelo.localeCompare(b.modelo));
     countEl.textContent = `${filtered.length} de ${records.length} vehículo(s)`;
@@ -111,8 +134,10 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    grid.innerHTML = filtered.map((r) => `
-      <div class="esquema-card">
+    grid.innerHTML = filtered.map((r) => {
+      if (r.id === editingId) return editFormHtml(r);
+      return `
+      <div class="esquema-card" data-id="${r.id}">
         <div class="esquema-top">
           <div>
             <div class="esquema-marca">${escapeHtml(r._marca)}</div>
@@ -131,8 +156,12 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         ` : ''}
         ${r.ubicacion ? `<div class="esquema-ubicacion"><strong>Ubicación:</strong> ${escapeHtml(r.ubicacion)}</div>` : ''}
+        <div class="item-actions">
+          <button class="btn-small" data-action="edit" data-id="${r.id}" type="button">Editar</button>
+        </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   let debounceTimer;
@@ -142,6 +171,69 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   marcaFilter.addEventListener('change', render);
   tipoFilter.addEventListener('change', render);
+
+  grid.addEventListener('click', async (e) => {
+    const editBtn = e.target.closest('button[data-action="edit"]');
+    if (editBtn) {
+      editingId = editBtn.getAttribute('data-id');
+      render();
+      return;
+    }
+    const cancelBtn = e.target.closest('button[data-action="cancel-edit"]');
+    if (cancelBtn) {
+      editingId = null;
+      render();
+      return;
+    }
+    const saveBtn = e.target.closest('button[data-action="save-edit"]');
+    if (saveBtn) {
+      const id = saveBtn.getAttribute('data-id');
+      const card = saveBtn.closest('.esquema-card-editing');
+      const msgEl = card.querySelector('[data-edit-msg]');
+      const fields = {
+        marca: card.querySelector('[name="marca"]').value.trim(),
+        modelo: card.querySelector('[name="modelo"]').value.trim(),
+        anio: card.querySelector('[name="anio"]').value.trim(),
+        colores: card.querySelector('[name="colores"]').value.trim(),
+        ubicacion: card.querySelector('[name="ubicacion"]').value.trim(),
+        corteBomba: card.querySelector('[name="corteBomba"]').checked,
+        corteIgnicion: card.querySelector('[name="corteIgnicion"]').checked,
+      };
+      if (!fields.marca || !fields.modelo) {
+        msgEl.textContent = 'Marca y modelo son obligatorios.';
+        msgEl.classList.add('error');
+        return;
+      }
+      try {
+        const res = await fetch('/api/vehicle-cutoff', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, fields }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          msgEl.textContent = data.error || 'No se pudo guardar.';
+          msgEl.classList.add('error');
+          return;
+        }
+        const record = records.find((r) => r.id === id);
+        Object.assign(record, fields);
+        record._marca = canonicalBrand(record.marca);
+        record._search = normalize([record.marca, record.modelo, record.anio, record.colores, record.ubicacion].join(' '));
+        if (!marcas.includes(record._marca)) {
+          marcas.push(record._marca);
+          marcas.sort((a, b) => a.localeCompare(b));
+          marcaFilter.innerHTML = '<option value="">Todas las marcas</option>' +
+            marcas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+        }
+        editingId = null;
+        render();
+      } catch {
+        msgEl.textContent = 'Error de conexión al guardar.';
+        msgEl.classList.add('error');
+      }
+    }
+  });
 
   render();
 

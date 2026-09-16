@@ -4,7 +4,7 @@ export const prerender = false;
 import InternoLayout from '../../layouts/InternoLayout.astro';
 import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
 import { getRedis } from '../../lib/redis';
-import { readExtraEntries } from '../../pages/api/vehicle-cutoff';
+import { readExtraEntries, readOverrides } from '../../pages/api/vehicle-cutoff';
 import vehicleCutoffData from '../../lib/vehicle-cutoff-data.json';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
@@ -16,8 +16,12 @@ if (!canAccessSection(session.role, 'esquemas-apagado')) {
 }
 
 const redis = getRedis();
-const extraRecords = redis ? await readExtraEntries(redis) : [];
-const allRecords = [...vehicleCutoffData, ...extraRecords];
+const [extraRecords, overrides] = redis ? await Promise.all([readExtraEntries(redis), readOverrides(redis)]) : [[], {}];
+// A cada registro del archivo estático se le da un id estable por posición ("static-<índice>")
+// para poder editarlo — nunca reordenar ni insertar en medio de vehicle-cutoff-data.json, solo
+// agregar al final, o esos ids (y los overrides ya guardados con ellos) dejarían de coincidir.
+const baseRecords = vehicleCutoffData.map((r, i) => ({ id: `static-${i}`, ...r, ...(overrides[`static-${i}`] || {}) }));
+const allRecords = [...baseRecords, ...extraRecords];
 ---
 
 <InternoLayout title="Esquemas de apagado" active="esquemas-apagado" session={session}>
