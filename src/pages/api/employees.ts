@@ -33,7 +33,7 @@ export interface EmployeeProfile {
   nesagaviria: boolean;
 }
 
-const EMPTY_PROFILE: EmployeeProfile = {
+export const EMPTY_PROFILE: EmployeeProfile = {
   cedula: '',
   fechaNacimiento: '',
   hijos: 0,
@@ -79,6 +79,20 @@ export async function getHireDate(redis: any, userId: string): Promise<string | 
   } catch {
     return null;
   }
+}
+
+export async function getProfile(redis: any, userId: string): Promise<EmployeeProfile> {
+  const raw = await redis.hget<string>(REDIS_KEY, userId);
+  if (!raw) return { ...EMPTY_PROFILE };
+  try {
+    return { ...EMPTY_PROFILE, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  } catch {
+    return { ...EMPTY_PROFILE };
+  }
+}
+
+export async function saveProfile(redis: any, userId: string, profile: EmployeeProfile): Promise<void> {
+  await redis.hset(REDIS_KEY, { [userId]: JSON.stringify(profile) });
 }
 
 export const GET: APIRoute = async ({ cookies }) => {

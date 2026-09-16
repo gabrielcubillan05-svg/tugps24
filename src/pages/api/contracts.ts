@@ -12,7 +12,7 @@ const TYPES = ['Contrato', 'Vacaciones'];
 const VACATION_DAYS_PER_YEAR = 15;
 const UPCOMING_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
 
-interface ContractEntry {
+export interface ContractEntry {
   id: string;
   employee: string;
   type: string;
@@ -64,7 +64,7 @@ export function computeSeniority(hireDate: string | null): { yearsOfService: num
   return { yearsOfService, accruedDays: yearsOfService * VACATION_DAYS_PER_YEAR };
 }
 
-async function computeVacationBalances(redis: any, entries: ContractEntry[]) {
+export async function computeVacationBalances(redis: any, entries: ContractEntry[]) {
   const employees = [...new Set(entries.map((e) => e.employee))];
   const users = await getUsers(redis);
 
@@ -93,6 +93,22 @@ async function computeVacationBalances(redis: any, entries: ContractEntry[]) {
       remainingDays: accruedDays - takenDays,
     };
   }));
+}
+
+// Se usa al aprobar una solicitud de vacaciones (vacation-requests.ts) para que quede reflejada
+// en el balance ya calculado aquí, sin duplicar la lógica de días tomados.
+export async function createVacationEntry(redis: any, employee: string, startDate: string, endDate: string, note: string): Promise<void> {
+  const entry: ContractEntry = {
+    id: randomUUID(),
+    employee,
+    type: 'Vacaciones',
+    startDate,
+    endDate,
+    indefinite: false,
+    note,
+    createdAt: new Date().toISOString(),
+  };
+  await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });
 }
 
 export const GET: APIRoute = async ({ cookies }) => {

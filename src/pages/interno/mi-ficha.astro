@@ -1,0 +1,62 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+---
+
+<InternoLayout title="Mi ficha" active="mi-ficha" session={session}>
+  <div class="panel-card">
+    <h2 id="miFichaNombre">Mi ficha</h2>
+    <div class="form-grid cols-4">
+      <div class="field"><label>Cédula</label><div class="ficha-readonly" id="mf-cedula">—</div></div>
+      <div class="field"><label>Área</label><div class="ficha-readonly" id="mf-area">—</div></div>
+      <div class="field"><label>Cargo</label><div class="ficha-readonly" id="mf-cargo">—</div></div>
+      <div class="field"><label>Sucursal(es)</label><div class="ficha-readonly" id="mf-sucursales">—</div></div>
+      <div class="field"><label>Fecha de ingreso</label><div class="ficha-readonly" id="mf-hireDate">—</div></div>
+      <div class="field"><label>Antigüedad</label><div class="ficha-readonly" id="mf-antiguedad">—</div></div>
+    </div>
+
+    <h3 class="ficha-section-title">Datos de contacto (puedes actualizarlos)</h3>
+    <div class="form-grid cols-4">
+      <div class="field"><label>Teléfono</label><input id="mf-telefono" type="text" /></div>
+      <div class="field field-note"><label>Dirección</label><input id="mf-direccion" type="text" /></div>
+      <div class="field"><label>Correo</label><input id="mf-correo" type="email" /></div>
+    </div>
+    <button class="btn" id="mfGuardar" type="button">Guardar</button>
+    <span id="mfMsg" class="esquema-add-msg"></span>
+  </div>
+
+  <div class="panel-card">
+    <h2>Vacaciones</h2>
+    <div id="mf-vacaciones" class="ficha-readonly" style="margin-bottom:20px;">Cargando...</div>
+
+    <h3 class="ficha-section-title">Solicitar vacaciones</h3>
+    <form id="vacForm" class="esquema-form" style="margin-bottom:14px;">
+      <input id="vac-start" type="date" required />
+      <input id="vac-end" type="date" required />
+      <input id="vac-note" type="text" placeholder="Nota (opcional)" />
+      <button class="btn-small btn-done" type="submit">Solicitar</button>
+    </form>
+
+    <h3 class="ficha-section-title">Mis solicitudes</h3>
+    <div class="records-grid" id="vacList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .ficha-section-title { font-size: 13.5px; color: var(--paper-dim); margin: 18px 0 10px; }
+  .ficha-readonly { color: var(--paper); font-size: 13.5px; padding: 8px 0; }
+  .esquema-form { display: flex; flex-wrap: wrap; gap: 10px; }
+  .esquema-add-msg { font-size: 12.5px; color: var(--teal-bright); margin-left: 10px; }
+  .esquema-add-msg.error { color: #e0392f; }
+  .records-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+</style>
+
+<script src="/js/interno-mi-ficha.js" defer></script>
