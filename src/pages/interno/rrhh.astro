@@ -71,6 +71,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <div class="form-grid cols-4">
         <div class="field"><label>Fecha de ingreso</label><input id="f-hireDate" type="date" /></div>
         <div class="field"><label>Antigüedad</label><div id="f-antiguedad" class="ficha-readonly"></div></div>
+        <div class="field"><label>Ajuste manual de vacaciones (+/-)</label><input id="f-vacacionesAjuste" type="number" step="1" placeholder="0" /></div>
         <div class="field field-full"><label>Contratos registrados</label><div id="f-contratos" class="ficha-readonly"></div></div>
       </div>
 
@@ -235,11 +236,27 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
             <label for="ct-note">Nota</label>
             <input id="ct-note" type="text" placeholder="Detalle (opcional)" />
           </div>
+          <div class="field">
+            <label class="day-check"><input type="checkbox" id="ct-pagada" /> Vacaciones pagadas en dinero (no disfrutadas en días)</label>
+          </div>
         </div>
         <button class="btn" type="submit">Registrar</button>
       </form>
       <h3 class="ficha-section-title">Balance de vacaciones por empleado</h3>
       <div class="records-grid" id="vacationBalances" style="margin-bottom:20px;"></div>
+      <div class="filters">
+        <select id="ctTypeFilter">
+          <option value="">Todos los tipos</option>
+          <option value="Contrato">Contratos</option>
+          <option value="Vacaciones">Vacaciones</option>
+        </select>
+        <select id="ctBranchFilter">
+          <option value="">Todas las sucursales</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+        <select id="ctEmployeeFilter"><option value="">Todos los empleados</option></select>
+        <select id="ctCargoFilter"><option value="">Todos los cargos</option></select>
+      </div>
       <div class="records-grid" id="contractsList">
         <div class="empty">Cargando...</div>
       </div>

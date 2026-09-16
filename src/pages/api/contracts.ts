@@ -3,14 +3,19 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessRRHH, verifySameOrigin, getUsers } from '../../lib/auth';
-import { getHireDate } from './employees';
+import { getHireDate, getProfile } from './employees';
+import { readSchedule } from './schedule';
 
 export const prerender = false;
 
 const REDIS_KEY = 'internal:contracts';
 const TYPES = ['Contrato', 'Vacaciones'];
 const VACATION_DAYS_PER_YEAR = 15;
-const UPCOMING_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+// Un mes: lo que Gabriel pidió para el aviso de contratos por vencer (antes eran 90 días).
+const UPCOMING_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const DAY_ORDER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+// Índice de Date.prototype.getDay() (0=domingo) para cada nombre de día.
+const DAY_NAME_TO_INDEX: Record<string, number> = { Domingo: 0, Lunes: 1, Martes: 2, Miércoles: 3, Jueves: 4, Viernes: 5, Sábado: 6 };
 
 export interface ContractEntry {
   id: string;
@@ -19,6 +24,7 @@ export interface ContractEntry {
   startDate: string;
   endDate: string | null;
   indefinite: boolean;
+  pagada: boolean;
   note: string;
   createdAt: string;
 }
@@ -29,7 +35,7 @@ async function requireContracts(cookies: any) {
   return session;
 }
 
-function withStatus(e: ContractEntry) {
+export function withStatus(e: ContractEntry) {
   const now = Date.now();
   if (e.type === 'Contrato') {
     if (e.indefinite || !e.endDate) {
@@ -50,11 +56,33 @@ function withStatus(e: ContractEntry) {
   return { ...e, status: 'programada' as const };
 }
 
-function daysBetween(startDate: string, endDate: string): number {
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
-  return Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
+// Días hábiles entre dos fechas (incluyendo ambas): domingo no cuenta (sábado sí, confirmado con
+// Gabriel), y si se pasa el día libre semanal de un operador (según su horario), tampoco cuenta.
+function businessDaysBetween(startDate: string, endDate: string, extraFreeDayIndex: number | null): number {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
+  let count = 0;
+  for (let t = start.getTime(); t <= end.getTime(); t += 24 * 60 * 60 * 1000) {
+    const dow = new Date(t).getUTCDay();
+    if (dow === 0) continue;
+    if (extraFreeDayIndex !== null && dow === extraFreeDayIndex) continue;
+    count++;
+  }
+  return count;
+}
+
+// Día de la semana (índice de getDay(), 0=domingo) que un operador tiene libre según su horario
+// — solo tiene sentido cuando cubre exactamente un día suelto sin turno asignado; si trabaja
+// los 7 días o el patrón no es claro, no se descuenta ninguno extra (además del domingo).
+function operatorFreeDayIndex(schedule: { operator: string; days: string[] }[], employeeName: string): number | null {
+  const covered = new Set(
+    schedule.filter((e) => e.operator === employeeName).flatMap((e) => e.days || [])
+  );
+  if (!covered.size) return null;
+  const free = DAY_ORDER.filter((d) => !covered.has(d));
+  if (free.length !== 1) return null;
+  return DAY_NAME_TO_INDEX[free[0]] ?? null;
 }
 
 export function computeSeniority(hireDate: string | null): { yearsOfService: number; accruedDays: number } {
@@ -66,7 +94,7 @@ export function computeSeniority(hireDate: string | null): { yearsOfService: num
 
 export async function computeVacationBalances(redis: any, entries: ContractEntry[]) {
   const employees = [...new Set(entries.map((e) => e.employee))];
-  const users = await getUsers(redis);
+  const [users, schedule] = await Promise.all([getUsers(redis), readSchedule(redis)]);
 
   return Promise.all(employees.map(async (employee) => {
     // La fecha de ingreso vive en el perfil de RR.HH. del empleado (fuente única); si todavía
@@ -80,9 +108,20 @@ export async function computeVacationBalances(redis: any, entries: ContractEntry
 
     const { yearsOfService, accruedDays } = computeSeniority(hireDate);
 
-    const takenDays = entries
-      .filter((e) => e.employee === employee && e.type === 'Vacaciones' && e.startDate && e.endDate)
-      .reduce((sum, e) => sum + daysBetween(e.startDate, e.endDate as string), 0);
+    // A los operadores no se les cuenta su día libre semanal dentro de los días de vacaciones
+    // tomados (además del domingo, que nunca cuenta).
+    const freeDayIndex = user && user.role === 'operador' ? operatorFreeDayIndex(schedule, employee) : null;
+    const vacationEntries = entries.filter((e) => e.employee === employee && e.type === 'Vacaciones' && e.startDate && e.endDate);
+    const takenDays = vacationEntries.reduce((sum, e) => sum + businessDaysBetween(e.startDate, e.endDate as string, freeDayIndex), 0);
+    const paidDays = vacationEntries
+      .filter((e) => e.pagada)
+      .reduce((sum, e) => sum + businessDaysBetween(e.startDate, e.endDate as string, freeDayIndex), 0);
+
+    // Ajuste manual (positivo o negativo) para el historial de ~4 años sin fechas exactas: se
+    // indica cuántos días ya se sabe que se disfrutaron/pagaron, sin inventar entradas con
+    // fechas que no se tienen.
+    const profile = user ? await getProfile(redis, user.id) : null;
+    const ajusteInicial = profile?.vacacionesAjuste || 0;
 
     return {
       employee,
@@ -90,14 +129,16 @@ export async function computeVacationBalances(redis: any, entries: ContractEntry
       yearsOfService,
       accruedDays,
       takenDays,
-      remainingDays: accruedDays - takenDays,
+      paidDays,
+      ajusteInicial,
+      remainingDays: accruedDays - takenDays + ajusteInicial,
     };
   }));
 }
 
 // Se usa al aprobar una solicitud de vacaciones (vacation-requests.ts) para que quede reflejada
 // en el balance ya calculado aquí, sin duplicar la lógica de días tomados.
-export async function createVacationEntry(redis: any, employee: string, startDate: string, endDate: string, note: string): Promise<void> {
+export async function createVacationEntry(redis: any, employee: string, startDate: string, endDate: string, note: string, pagada = false): Promise<void> {
   const entry: ContractEntry = {
     id: randomUUID(),
     employee,
@@ -105,6 +146,7 @@ export async function createVacationEntry(redis: any, employee: string, startDat
     startDate,
     endDate,
     indefinite: false,
+    pagada,
     note,
     createdAt: new Date().toISOString(),
   };
@@ -122,7 +164,7 @@ export async function readContracts(redis: any): Promise<ContractEntry[]> {
       }
     })
     .filter((e): e is ContractEntry => e !== null)
-    .map((e) => ({ indefinite: false, ...e }))
+    .map((e) => ({ indefinite: false, pagada: false, ...e }))
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
 }
 
@@ -163,6 +205,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     startDate?: string;
     endDate?: string | null;
     indefinite?: boolean;
+    pagada?: boolean;
     note?: string;
   };
   try {
@@ -176,6 +219,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const startDate = String(body.startDate || '').trim();
   const indefinite = type === 'Contrato' && Boolean(body.indefinite);
   const endDate = indefinite ? null : body.endDate ? String(body.endDate) : null;
+  const pagada = type === 'Vacaciones' && Boolean(body.pagada);
   const note = String(body.note || '').trim();
 
   if (!employee || !TYPES.includes(type) || !startDate) {
@@ -192,6 +236,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     startDate,
     endDate,
     indefinite,
+    pagada,
     note,
     createdAt: new Date().toISOString(),
   };

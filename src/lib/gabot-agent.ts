@@ -49,6 +49,7 @@ export interface GabotActions {
   consultarReportesProgramados: (busqueda: string) => Promise<string>;
   consultarMisVacaciones: () => Promise<string>;
   consultarEmpleados: (busqueda: string) => Promise<string>;
+  consultarContratosPorVencer: () => Promise<string>;
 }
 
 // Solo se ofrece esta herramienta cuando quien escribe puede ver pendientes de otros
@@ -202,6 +203,13 @@ const EMPLEADOS_TOOL = {
   },
 };
 
+// Mismo permiso que EMPLEADOS_TOOL (canAccessRRHH).
+const CONTRATOS_POR_VENCER_TOOL = {
+  name: 'consultar_contratos_por_vencer',
+  description: 'Lista los contratos de empleados que ya vencieron o vencen dentro de 1 mes. Solo consulta.',
+  input_schema: { type: 'object', properties: {} },
+};
+
 function buildSystemPrompt(
   userName: string,
   roleLabel: string,
@@ -254,7 +262,7 @@ ${permissions.canAssignToOthers
 - Suspensiones: ${permissions.canSuspensiones ? 'SÍ tiene acceso — usa consultar_suspensiones para buscar un caso por cliente, placa o sucursal y confirmarle su estado y a quién está asignado.' : 'NO tiene acceso a este módulo.'}
 - Reportes programados: ${permissions.canReportes ? 'SÍ tiene acceso — usa consultar_reportes_programados para buscar por cliente, tipo de reporte u operador y confirmar si está al día, por realizar o vencido.' : 'NO tiene acceso a este módulo.'}
 - Mis vacaciones: todos tienen acceso a las suyas propias — usa consultar_mis_vacaciones si pregunta cuántos días tiene disponibles o el estado de una solicitud que ya hizo. Nunca uses esta herramienta para consultar las vacaciones de otra persona.
-- Directorio de empleados (Panel de RR.HH.): ${permissions.canHorario ? 'SÍ tiene acceso — usa consultar_empleados para buscar por nombre, sucursal o cargo.' : 'NO tiene acceso a este módulo.'}
+- Directorio de empleados (Panel de RR.HH.): ${permissions.canHorario ? 'SÍ tiene acceso — usa consultar_empleados para buscar por nombre, sucursal o cargo, y consultar_contratos_por_vencer si pregunta por contratos vencidos o próximos a vencer.' : 'NO tiene acceso a este módulo.'}
 
 ## Límites estrictos
 - Nunca inventes datos que no estén en la información que tienes — ni de esta persona ni de otras.
@@ -336,7 +344,7 @@ export async function runGabotAgent(
     ...(permissions.canSuspensiones ? [SUSPENSIONES_TOOL] : []),
     ...(permissions.canReportes ? [REPORTES_PROGRAMADOS_TOOL] : []),
     MIS_VACACIONES_TOOL,
-    ...(permissions.canHorario ? [EMPLEADOS_TOOL] : []),
+    ...(permissions.canHorario ? [EMPLEADOS_TOOL, CONTRATOS_POR_VENCER_TOOL] : []),
   ];
   const messages: any[] = [...history, { role: 'user', content: newMessage }];
 
@@ -389,6 +397,8 @@ export async function runGabotAgent(
           content = await actions.consultarMisVacaciones();
         } else if (tc.name === 'consultar_empleados') {
           content = await actions.consultarEmpleados(String(tc.input.busqueda || ''));
+        } else if (tc.name === 'consultar_contratos_por_vencer') {
+          content = await actions.consultarContratosPorVencer();
         } else {
           content = 'Esa herramienta no está disponible.';
         }

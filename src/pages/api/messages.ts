@@ -20,7 +20,7 @@ import { readScheduledReports, withStatus } from './scheduled-reports';
 import { readSchedule } from './schedule';
 import { SHIFT_SUPERVISORS, shiftBucketFor } from '../../lib/shift';
 import { getProfile, readProfiles } from './employees';
-import { computeVacationBalances, readContracts } from './contracts';
+import { computeVacationBalances, readContracts, withStatus as withContractStatus } from './contracts';
 import { readEntries as readVacationRequests } from './vacation-requests';
 import { readCuadrantes } from './cuadrantes';
 import { readRecentReports } from './reports';
@@ -416,6 +416,18 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           .join('\n')}`;
       }
 
+      async function consultarContratosPorVencer(): Promise<string> {
+        const entries = await readContracts(redis);
+        const withStatuses = entries
+          .filter((e) => e.type === 'Contrato')
+          .map((e) => withContractStatus(e))
+          .filter((e) => e.status === 'vencido' || e.status === 'proximo');
+        if (!withStatuses.length) return 'No hay contratos vencidos ni por vencer en el próximo mes.';
+        return `Contratos vencidos o por vencer en el próximo mes:\n${withStatuses
+          .map((e) => `  · ${e.employee} — ${e.status === 'vencido' ? 'vencido' : 'por vencer'} el ${e.endDate}`)
+          .join('\n')}`;
+      }
+
       const actions: GabotActions = {
         lookupOtherWorker,
         createTaskForWorker,
@@ -430,6 +442,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         consultarReportesProgramados,
         consultarMisVacaciones,
         consultarEmpleados,
+        consultarContratosPorVencer,
       };
 
       const result = await runGabotAgent(

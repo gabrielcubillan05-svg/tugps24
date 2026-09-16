@@ -221,6 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('f-jefeDirecto').value = p.jefeDirecto || '';
     document.getElementById('f-sucursales').textContent = employee.branches.join(', ') || 'Sin sucursal';
     document.getElementById('f-hireDate').value = p.hireDate ? p.hireDate.slice(0, 10) : '';
+    document.getElementById('f-vacacionesAjuste').value = p.vacacionesAjuste || 0;
     document.getElementById('f-eps').value = p.eps || '';
     document.getElementById('f-cajaCompensacion').checked = !!p.cajaCompensacion;
     document.getElementById('f-cuentaNomina').checked = !!p.cuentaNomina;
@@ -276,6 +277,7 @@ document.addEventListener('DOMContentLoaded', function () {
       cargo: document.getElementById('f-cargo').value.trim(),
       jefeDirecto: document.getElementById('f-jefeDirecto').value.trim(),
       hireDate: document.getElementById('f-hireDate').value || null,
+      vacacionesAjuste: Number(document.getElementById('f-vacacionesAjuste').value) || 0,
       eps: document.getElementById('f-eps').value.trim(),
       cajaCompensacion: document.getElementById('f-cajaCompensacion').checked,
       cuentaNomina: document.getElementById('f-cuentaNomina').checked,
@@ -788,7 +790,18 @@ document.addEventListener('DOMContentLoaded', function () {
     programada: 'Programada',
   };
 
+  const ctTypeFilter = document.getElementById('ctTypeFilter');
+  const ctBranchFilter = document.getElementById('ctBranchFilter');
+  const ctEmployeeFilter = document.getElementById('ctEmployeeFilter');
+  const ctCargoFilter = document.getElementById('ctCargoFilter');
+
   if (contractsList) {
+    let allContractEntries = [];
+
+    function employeeInfo(name) {
+      return employees.find((e) => e.name === name);
+    }
+
     function renderVacationBalances(balances) {
       if (!vacationBalancesEl) return;
       if (!balances.length) {
@@ -803,22 +816,55 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
           <div class="meta">
             ${b.hireDate ? 'Ingreso: ' + fmtDateOnly(b.hireDate) + ' · Antigüedad: ' + b.yearsOfService + ' año(s)' : 'Sin fecha de ingreso registrada'}
-            · Acumulados: ${b.accruedDays} · Tomados/asignados: ${b.takenDays}
+            · Acumulados: ${b.accruedDays} · Tomados/asignados: ${b.takenDays}${b.paidDays ? ` (${b.paidDays} pagado(s))` : ''}${b.ajusteInicial ? ` · Ajuste manual: ${b.ajusteInicial > 0 ? '+' : ''}${b.ajusteInicial}` : ''}
           </div>
         </div>
       `).join('');
     }
 
-    function renderContracts(entries) {
+    function populateContractFilters() {
+      if (ctEmployeeFilter) {
+        const names = [...new Set(allContractEntries.map((e) => e.employee))].sort();
+        const current = ctEmployeeFilter.value;
+        ctEmployeeFilter.innerHTML = '<option value="">Todos los empleados</option>' +
+          names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+        ctEmployeeFilter.value = current;
+      }
+      if (ctCargoFilter) {
+        const cargos = [...new Set(employees.map((e) => e.profile.cargo).filter(Boolean))].sort();
+        const current = ctCargoFilter.value;
+        ctCargoFilter.innerHTML = '<option value="">Todos los cargos</option>' +
+          cargos.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        ctCargoFilter.value = current;
+      }
+    }
+
+    function getFilteredContracts() {
+      const type = ctTypeFilter ? ctTypeFilter.value : '';
+      const branch = ctBranchFilter ? ctBranchFilter.value : '';
+      const employeeName = ctEmployeeFilter ? ctEmployeeFilter.value : '';
+      const cargo = ctCargoFilter ? ctCargoFilter.value : '';
+      return allContractEntries.filter((e) => {
+        if (type && e.type !== type) return false;
+        if (employeeName && e.employee !== employeeName) return false;
+        const info = employeeInfo(e.employee);
+        if (branch && (!info || !info.branches.includes(branch))) return false;
+        if (cargo && (!info || info.profile.cargo !== cargo)) return false;
+        return true;
+      });
+    }
+
+    function renderContracts() {
+      const entries = getFilteredContracts();
       if (!entries.length) {
-        contractsList.innerHTML = '<div class="empty">No hay registros todavía.</div>';
+        contractsList.innerHTML = '<div class="empty">No hay registros con esos filtros.</div>';
         return;
       }
       contractsList.innerHTML = entries.map((e) => `
         <div class="list-item">
           <div class="item-top">
             <span class="title">${escapeHtml(e.employee)}</span>
-            <span class="badge">${escapeHtml(e.type)}</span>
+            <span class="badge">${escapeHtml(e.type)}${e.pagada ? ' (pagada)' : ''}</span>
             <span class="badge status-${e.status}">${STATUS_LABELS[e.status] || e.status}</span>
           </div>
           <div class="meta">
@@ -832,12 +878,18 @@ document.addEventListener('DOMContentLoaded', function () {
       `).join('');
     }
 
+    [ctTypeFilter, ctBranchFilter, ctEmployeeFilter, ctCargoFilter].forEach((el) => {
+      if (el) el.addEventListener('change', renderContracts);
+    });
+
     function loadContracts() {
       fetch('/api/contracts')
         .then((res) => res.json())
         .then((data) => {
           if (data && Array.isArray(data.entries)) {
-            renderContracts(data.entries);
+            allContractEntries = data.entries;
+            populateContractFilters();
+            renderContracts();
             renderVacationBalances(data.vacationBalances || []);
           } else {
             contractsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
@@ -857,6 +909,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const indefinite = ctIndefiniteCheck.checked;
         const endDate = indefinite ? null : (ctEndInput.value || null);
         const note = document.getElementById('ct-note').value.trim();
+        const pagada = document.getElementById('ct-pagada').checked;
         if (!employee || !type || !startDate) return;
         if (type === 'Vacaciones' && !endDate) {
           alert('Las vacaciones necesitan fecha de fin.');
@@ -866,7 +919,7 @@ document.addEventListener('DOMContentLoaded', function () {
         fetch('/api/contracts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ employee, type, startDate, endDate, indefinite, note }),
+          body: JSON.stringify({ employee, type, startDate, endDate, indefinite, note, pagada }),
         })
           .then(async (res) => {
             const data = await res.json().catch(() => ({}));

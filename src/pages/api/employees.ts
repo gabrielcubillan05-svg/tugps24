@@ -36,6 +36,9 @@ export interface EmployeeProfile {
   cajaCompensacion: boolean;
   cuentaNomina: boolean;
   nesagaviria: boolean;
+  // Ajuste manual (+/-) al saldo de vacaciones, para el historial viejo sin fechas exactas
+  // (ej. "ya se sabe que se disfrutaron/pagaron 20 días de hace 3 años", sin inventar entradas).
+  vacacionesAjuste: number;
 }
 
 export const EMPTY_PROFILE: EmployeeProfile = {
@@ -53,6 +56,7 @@ export const EMPTY_PROFILE: EmployeeProfile = {
   cajaCompensacion: false,
   cuentaNomina: false,
   nesagaviria: false,
+  vacacionesAjuste: 0,
 };
 
 async function requireRRHH(cookies: any) {
@@ -184,6 +188,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
         : [];
     } else if (key === 'cajaCompensacion' || key === 'cuentaNomina' || key === 'nesagaviria') {
       (updated as any)[key] = Boolean(fields[key]);
+    } else if (key === 'vacacionesAjuste') {
+      updated.vacacionesAjuste = Number(fields.vacacionesAjuste) || 0;
     } else if (key === 'hireDate') {
       updated.hireDate = fields.hireDate ? String(fields.hireDate) : null;
     } else {

@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const b = data.balance;
         document.getElementById('mf-antiguedad').textContent = b ? `${b.yearsOfService} año(s)` : 'Sin fecha de ingreso registrada';
         document.getElementById('mf-vacaciones').textContent = b
-          ? `${b.remainingDays} día(s) disponibles · Acumulados: ${b.accruedDays} · Tomados/asignados: ${b.takenDays}`
+          ? `${b.remainingDays} día(s) disponibles · Acumulados: ${b.accruedDays} · Tomados/asignados: ${b.takenDays}${b.paidDays ? ` (${b.paidDays} pagado(s))` : ''}`
           : 'Sin datos todavía (aún no se registra tu fecha de ingreso).';
       })
       .catch((err) => {
