@@ -1,0 +1,51 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessRRHH, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessRRHH(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Importar datos de Optimus" active="rrhh" session={session}>
+  <div class="panel-card">
+    <h2>Importar datos de Optimus</h2>
+    <p class="hint">
+      Trae cédula, fecha de nacimiento, teléfono, dirección y correo desde el export de Optimus, para
+      completar la ficha de cada empleado. Revisa que cada fila esté emparejada con el empleado correcto
+      antes de guardar — algunos nombres de usuario de Optimus no coinciden con los de este sistema.
+    </p>
+    <p class="hint">Pega aquí el JSON con los datos (te lo paso aparte, no queda guardado en el código del sitio) y presiona "Cargar datos".</p>
+    <textarea id="pasteArea" rows="6" style="width:100%;font-family:monospace;font-size:12px;" placeholder="[ { &quot;nombre&quot;: ..., &quot;cedula&quot;: ..., ... } ]"></textarea>
+    <div class="import-actions">
+      <button id="btnCargar" class="btn" type="button">Cargar datos</button>
+      <button id="btnGuardar" class="btn" type="button">Guardar los emparejados</button>
+    </div>
+    <div id="importSummary" class="hint"></div>
+    <div id="importList" class="import-list"></div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .import-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .import-row { background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; align-items: start; }
+  .import-row.import-skip { opacity: 0.55; }
+  .import-row.import-nomatch { border-color: var(--danger); }
+  .import-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12.5px; }
+  .import-fields label { display: flex; flex-direction: column; gap: 2px; color: var(--slate); }
+  .import-fields input { font-size: 12.5px; padding: 4px 6px; }
+  .import-match select { width: 100%; }
+  .import-match .orig-name { font-size: 12px; color: var(--slate); margin-bottom: 4px; }
+  .import-actions { margin: 10px 0; }
+  .import-row-status { font-size: 12px; margin-top: 6px; }
+  .import-row-status.ok { color: var(--ok); }
+  .import-row-status.err { color: var(--danger); }
+</style>
+
+<script src="/js/interno-importar-optimus.js" defer></script>
