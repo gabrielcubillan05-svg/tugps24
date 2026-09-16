@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, BRANCHES } from '../../lib/auth';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -21,6 +21,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
     <button class="rrhh-tab" data-tab="horarios" type="button">Horarios</button>
     <button class="rrhh-tab" data-tab="compensatorios" type="button">Compensatorios</button>
     <button class="rrhh-tab" data-tab="contratos" type="button">Contratos y vacaciones</button>
+    <button class="rrhh-tab" data-tab="solicitudes" type="button">Solicitudes de vacaciones</button>
   </div>
 
   <div class="rrhh-panel" data-panel="directorio">
@@ -28,6 +29,13 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <h2>Directorio de empleados</h2>
       <div class="filters">
         <input id="rrhhSearch" type="text" placeholder="Buscar por nombre..." autocomplete="off" />
+        <select id="rrhhBranchFilter">
+          <option value="">Todas las sucursales</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+        <select id="rrhhCargoFilter">
+          <option value="">Todos los cargos</option>
+        </select>
       </div>
       <div class="records-grid" id="employeeGrid" style="margin-top:14px;">
         <div class="empty">Cargando...</div>
@@ -225,6 +233,16 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <h3 class="ficha-section-title">Balance de vacaciones por empleado</h3>
       <div class="records-grid" id="vacationBalances" style="margin-bottom:20px;"></div>
       <div class="records-grid" id="contractsList">
+        <div class="empty">Cargando...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rrhh-panel" data-panel="solicitudes" hidden>
+    <div class="panel-card">
+      <h2>Solicitudes de vacaciones</h2>
+      <p class="hint">Cada empleado puede solicitar sus vacaciones desde "Mi ficha". Apruébalas o recházalas aquí — al aprobar una, se registra automáticamente en Contratos y descuenta del balance.</p>
+      <div class="records-grid" id="vacRequestsList">
         <div class="empty">Cargando...</div>
       </div>
     </div>

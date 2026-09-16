@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   const searchInput = document.getElementById('rrhhSearch');
+  const branchFilter = document.getElementById('rrhhBranchFilter');
+  const cargoFilter = document.getElementById('rrhhCargoFilter');
   const fichaPanel = document.getElementById('fichaPanel');
   const fichaNombre = document.getElementById('fichaNombre');
   const fichaMsg = document.getElementById('fichaMsg');
@@ -37,9 +39,24 @@ document.addEventListener('DOMContentLoaded', function () {
   let employees = [];
   let currentEmployee = null;
 
+  function populateCargoFilter() {
+    const cargos = [...new Set(employees.map((e) => e.profile.cargo).filter(Boolean))].sort();
+    const current = cargoFilter.value;
+    cargoFilter.innerHTML = '<option value="">Todos los cargos</option>' +
+      cargos.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    cargoFilter.value = current;
+  }
+
   function render() {
     const q = (searchInput.value || '').trim().toLowerCase();
-    const filtered = q ? employees.filter((e) => e.name.toLowerCase().includes(q)) : employees;
+    const branch = branchFilter.value;
+    const cargo = cargoFilter.value;
+    const filtered = employees.filter((e) => {
+      if (q && !e.name.toLowerCase().includes(q)) return false;
+      if (branch && !e.branches.includes(branch)) return false;
+      if (cargo && e.profile.cargo !== cargo) return false;
+      return true;
+    });
     if (!filtered.length) {
       grid.innerHTML = '<div class="empty">No hay empleados que coincidan.</div>';
       return;
@@ -61,6 +78,7 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
         employees = data.employees;
+        populateCargoFilter();
         render();
       })
       .catch(() => {
@@ -74,6 +92,8 @@ document.addEventListener('DOMContentLoaded', function () {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(render, 150);
   });
+  branchFilter.addEventListener('change', render);
+  cargoFilter.addEventListener('change', render);
 
   function renderVacaciones(balance) {
     const el = document.getElementById('f-vacaciones');
@@ -726,5 +746,64 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     loadContracts();
+  }
+
+  // ---------- Solicitudes de vacaciones ----------
+  const vacRequestsList = document.getElementById('vacRequestsList');
+  const VAC_STATUS_LABELS = { pendiente: 'Pendiente', aprobada: 'Aprobada', rechazada: 'Rechazada' };
+  const VAC_STATUS_CLASS = { pendiente: 'status-proximo', aprobada: 'status-indefinido', rechazada: 'status-vencido' };
+
+  if (vacRequestsList) {
+    function renderVacRequests(entries) {
+      if (!entries.length) {
+        vacRequestsList.innerHTML = '<div class="empty">No hay solicitudes todavía.</div>';
+        return;
+      }
+      vacRequestsList.innerHTML = entries.map((e) => `
+        <div class="list-item">
+          <div class="item-top">
+            <span class="title">${escapeHtml(e.employeeName)}</span>
+            <span class="badge ${VAC_STATUS_CLASS[e.status] || ''}">${VAC_STATUS_LABELS[e.status] || e.status}</span>
+          </div>
+          <div class="meta">${fmtDateOnly(e.startDate)} – ${fmtDateOnly(e.endDate)}</div>
+          ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
+          ${e.status === 'pendiente' ? `
+            <div class="item-actions">
+              <button class="btn-small btn-done" data-action="approve-vac" data-id="${e.id}">Aprobar</button>
+              <button class="btn-small btn-delete" data-action="reject-vac" data-id="${e.id}">Rechazar</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    function loadVacRequests() {
+      fetch('/api/vacation-requests')
+        .then((res) => res.json())
+        .then((data) => renderVacRequests((data && data.entries) || []))
+        .catch(() => {
+          vacRequestsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+        });
+    }
+    loadVacRequests();
+
+    vacRequestsList.addEventListener('click', function (e) {
+      const approveBtn = e.target.closest('button[data-action="approve-vac"]');
+      const rejectBtn = e.target.closest('button[data-action="reject-vac"]');
+      const btn = approveBtn || rejectBtn;
+      if (!btn) return;
+      const status = approveBtn ? 'aprobada' : 'rechazada';
+      fetch('/api/vacation-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: btn.getAttribute('data-id'), status }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo actualizar.');
+          loadVacRequests();
+        })
+        .catch((err) => alert(err.message || 'No se pudo actualizar.'));
+    });
   }
 });

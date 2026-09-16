@@ -4,7 +4,7 @@ import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor } from '../lib/
 
 export interface Props {
   title: string;
-  active: Section | null;
+  active: Section | 'mi-ficha' | null;
   session: Session;
 }
 
@@ -29,13 +29,22 @@ const NAV_GROUPS: { label: string; icon: keyof typeof ICONS; sections: Section[]
   { label: 'Seguridad', icon: 'shield', sections: ['cuadrantes', 'casos-importantes', 'suspensiones'] },
   { label: 'Comercial', icon: 'briefcase', sections: ['crm', 'cotizaciones', 'seguimiento-masivos', 'conversaciones-whatsapp', 'cobros'] },
   { label: 'Administración', icon: 'settings', sections: ['auditoria', 'usuarios', 'solicitudes-administrativas', 'pagos-internos', 'agentes-ia'] },
-  { label: 'Recursos Humanos', icon: 'users', sections: ['rrhh'] },
   { label: 'Chat', icon: 'chat', sections: ['chat'] },
 ];
 
 const navGroups = NAV_GROUPS.map((g) => ({ ...g, items: g.sections.filter((s) => sections.includes(s)) })).filter(
   (g) => g.items.length > 0
 );
+
+// Recursos Humanos es un caso especial: "Mi ficha" la ve cualquier empleado (no depende de un
+// Section/rol), mientras que el panel completo de gestión solo aparece para quien tenga acceso
+// a la sección 'rrhh' (admin, Wilmar y Josué) — por eso no encaja en el mapeo genérico de arriba.
+const rrhhLinks: { label: string; path: string; active: boolean }[] = [
+  { label: 'Mi ficha', path: '/interno/mi-ficha', active: active === 'mi-ficha' },
+];
+if (sections.includes('rrhh')) {
+  rrhhLinks.push({ label: 'Panel de RR.HH.', path: SECTION_PATHS.rrhh, active: active === 'rrhh' });
+}
 ---
 
 <!DOCTYPE html>
@@ -530,7 +539,7 @@ const navGroups = NAV_GROUPS.map((g) => ({ ...g, items: g.sections.filter((s) =>
                 </a>
               );
             }
-            const isActive = active !== null && g.items.includes(active);
+            const isActive = active !== null && active !== 'mi-ficha' && g.items.includes(active);
             return (
               <div class="nav-group">
                 <button type="button" class={`nav-pill nav-group-btn ${isActive ? 'active' : ''}`} data-nav-group>
@@ -546,6 +555,18 @@ const navGroups = NAV_GROUPS.map((g) => ({ ...g, items: g.sections.filter((s) =>
               </div>
             );
           })}
+          <div class="nav-group">
+            <button type="button" class={`nav-pill nav-group-btn ${rrhhLinks.some((l) => l.active) ? 'active' : ''}`} data-nav-group>
+              <Fragment set:html={ICONS.users} />
+              Recursos Humanos
+              <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            <div class="nav-dropdown">
+              {rrhhLinks.map((l) => (
+                <a href={l.path} class={l.active ? 'active' : ''}>{l.label}</a>
+              ))}
+            </div>
+          </div>
         </nav>
         <div class="head-actions">
           <div class="bell-wrap">
@@ -565,10 +586,19 @@ const navGroups = NAV_GROUPS.map((g) => ({ ...g, items: g.sections.filter((s) =>
             <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
             <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
-          <button class="btn-ghost" id="changePasswordBtn" type="button">Cambiar clave</button>
-          <form method="POST" action="/api/auth/logout">
-            <button class="btn-ghost" type="submit">Cerrar sesión</button>
-          </form>
+          <div class="nav-group">
+            <button type="button" class="nav-pill nav-group-btn" data-nav-group>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>
+              {session.username}
+              <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            <div class="nav-dropdown" style="right: 0; left: auto;">
+              <button class="btn-ghost" id="changePasswordBtn" type="button" style="width:100%; justify-content:flex-start;">Cambiar clave</button>
+              <form method="POST" action="/api/auth/logout">
+                <button class="btn-ghost" type="submit" style="width:100%; justify-content:flex-start;">Cerrar sesión</button>
+              </form>
+            </div>
+          </div>
         </div>
       </header>
 
