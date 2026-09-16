@@ -22,6 +22,19 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }).observe(document.body, { childList: true, subtree: true });
 
+  document.querySelectorAll('[data-nav-group]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const group = btn.closest('.nav-group');
+      const wasOpen = group.classList.contains('open');
+      document.querySelectorAll('.nav-group.open').forEach(function (g) { g.classList.remove('open'); });
+      if (!wasOpen) group.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.nav-group.open').forEach(function (g) { g.classList.remove('open'); });
+  });
+
   const userId = document.body.dataset.userId;
   const openBtn = document.getElementById('changePasswordBtn');
   const overlay = document.getElementById('pwModalOverlay');

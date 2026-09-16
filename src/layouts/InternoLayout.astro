@@ -10,6 +10,32 @@ export interface Props {
 
 const { title, active, session } = Astro.props;
 const sections = sectionsFor(session);
+
+// Agrupación puramente visual del nav (no cambia permisos: sectionsFor ya decide qué ve cada
+// quien; aquí solo se organiza la presentación en menús por categoría, estilo Hotelia).
+const ICONS: Record<string, string> = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>',
+  wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+};
+
+const NAV_GROUPS: { label: string; icon: keyof typeof ICONS; sections: Section[] }[] = [
+  { label: 'Principal', icon: 'home', sections: ['novedades', 'reportes', 'estadisticas'] },
+  { label: 'Operación', icon: 'wrench', sections: ['tareas', 'planillas-vehiculo', 'esquemas-apagado'] },
+  { label: 'Seguridad', icon: 'shield', sections: ['cuadrantes', 'casos-importantes', 'suspensiones'] },
+  { label: 'Comercial', icon: 'briefcase', sections: ['crm', 'cotizaciones', 'seguimiento-masivos', 'conversaciones-whatsapp', 'cobros'] },
+  { label: 'Administración', icon: 'settings', sections: ['auditoria', 'usuarios', 'solicitudes-administrativas', 'pagos-internos', 'agentes-ia'] },
+  { label: 'Recursos Humanos', icon: 'users', sections: ['rrhh'] },
+  { label: 'Chat', icon: 'chat', sections: ['chat'] },
+];
+
+const navGroups = NAV_GROUPS.map((g) => ({ ...g, items: g.sections.filter((s) => sections.includes(s)) })).filter(
+  (g) => g.items.length > 0
+);
 ---
 
 <!DOCTYPE html>
@@ -27,6 +53,12 @@ const sections = sectionsFor(session);
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="TuGPS24" />
     <link rel="apple-touch-icon" href="/img/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <script src="/js/theme-toggle.js" is:inline></script>
     <script src="/js/interno-sw-register.js" defer></script>
     <style is:global>
@@ -39,9 +71,23 @@ const sections = sectionsFor(session);
         --paper-dim: #c9c2b2;
         --slate: #948d80;
         --amber: #ff7a1a;
+        --amber-dim: #c85e12;
+        --teal: #ffb066;
         --teal-bright: #ffab5c;
         --danger: #e0563f;
         --ok: #6fce8f;
+        --glow-1: #ff7a1a29;
+        --glow-2: #ffb06624;
+        --ring-1: #ff7a1a8c;
+        --ring-2: #ffab5c80;
+        --shadow-soft: #00000059;
+        --shadow-strong: #000000b3;
+        --btn-shadow: #ff7a1a73;
+        --grid-line: #ffffff0d;
+        --radius: 14px;
+        --display: "Poppins", system-ui, sans-serif;
+        --body: "Poppins", system-ui, sans-serif;
+        --mono: "IBM Plex Mono", monospace;
       }
       html[data-theme="light"] {
         --ink-900: #faf7f2;
@@ -52,21 +98,32 @@ const sections = sectionsFor(session);
         --paper-dim: #5b5347;
         --slate: #8a8072;
         --amber: #e8630a;
+        --amber-dim: #c85e12;
+        --teal: #d9640f;
         --teal-bright: #c85e12;
         --danger: #c9432e;
         --ok: #2f8a4f;
+        --glow-1: #e8630a1a;
+        --glow-2: #e8630a14;
+        --ring-1: #e8630a66;
+        --ring-2: #c85e1259;
+        --shadow-soft: #1e140a14;
+        --shadow-strong: #1e140a29;
+        --btn-shadow: #e8630a4d;
+        --grid-line: #0000000b;
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       html { overflow-x: hidden; }
       body {
         background: var(--ink-900);
         color: var(--paper);
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: var(--body);
         min-height: 100vh;
         line-height: 1.5;
         transition: background 0.25s, color 0.25s;
         overflow-x: hidden;
       }
+      h1, h2, h3, .btn, .nav-pill, .brand h1 { font-family: var(--display); }
       a { color: inherit; }
       .theme-toggle {
         border: 1px solid var(--line);
@@ -111,6 +168,12 @@ const sections = sectionsFor(session);
         color: var(--paper);
         border-radius: 8px;
         padding: 10px 12px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: var(--amber);
+        box-shadow: 0 0 0 3px var(--glow-1);
       }
       textarea { resize: vertical; min-height: 70px; }
       .btn {
@@ -121,8 +184,12 @@ const sections = sectionsFor(session);
         border-radius: 999px;
         padding: 11px 20px;
         font-weight: 600;
+        box-shadow: 0 4px 14px var(--btn-shadow);
+        transition: transform 0.15s, box-shadow 0.15s;
       }
-      .btn:disabled { opacity: 0.6; cursor: default; }
+      .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px var(--btn-shadow); }
+      .btn:active:not(:disabled) { transform: translateY(0); }
+      .btn:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
       .btn-ghost {
         background: none;
         border: 1px solid var(--line);
@@ -164,23 +231,67 @@ const sections = sectionsFor(session);
       .brand h1 span { color: var(--slate); font-weight: 400; }
       .user-chip { color: var(--slate); font-size: 12px; }
       .top-nav { display: flex; gap: 6px; flex-wrap: wrap; }
-      .top-nav a {
+      .nav-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         border: 1px solid var(--line);
         color: var(--paper-dim);
         border-radius: 999px;
         padding: 7px 14px;
         font-size: 13px;
         text-decoration: none;
+        background: none;
+        cursor: pointer;
+        transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
       }
-      .top-nav a.active { background: var(--amber); color: #1a0f00; border-color: var(--amber); font-weight: 600; }
+      .nav-pill svg { width: 15px; height: 15px; flex-shrink: 0; }
+      .nav-pill:hover { border-color: var(--amber-dim); color: var(--paper); }
+      .nav-pill.active { background: var(--amber); color: #1a0f00; border-color: var(--amber); font-weight: 600; box-shadow: 0 3px 10px var(--btn-shadow); }
+      .nav-chevron { width: 11px !important; height: 11px !important; transition: transform 0.15s; }
+      .nav-group { position: relative; }
+      .nav-group.open .nav-chevron { transform: rotate(180deg); }
+      .nav-dropdown {
+        display: none;
+        flex-direction: column;
+        gap: 3px;
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        background: var(--ink-800);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px;
+        min-width: 220px;
+        max-width: calc(100vw - 32px);
+        box-shadow: 0 16px 34px var(--shadow-soft);
+        z-index: 40;
+      }
+      .nav-group.open .nav-dropdown { display: flex; }
+      .nav-dropdown a {
+        padding: 8px 10px;
+        border-radius: 8px;
+        color: var(--paper-dim);
+        text-decoration: none;
+        font-size: 13.5px;
+        transition: background 0.15s, color 0.15s;
+      }
+      .nav-dropdown a:hover { background: var(--ink-900); color: var(--paper); }
+      .nav-dropdown a.active { background: var(--glow-1); color: var(--amber); font-weight: 600; }
       .head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
       .panel-card {
         background: var(--ink-800);
         border: 1px solid var(--line);
-        border-radius: 14px;
+        border-radius: var(--radius);
         padding: 22px;
         margin-bottom: 24px;
+        box-shadow: 0 1px 2px var(--shadow-soft), 0 10px 26px -14px var(--shadow-soft);
+        animation: panel-enter 0.35s ease both;
+      }
+      @keyframes panel-enter {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
       }
       .panel-card h2 { font-size: 15px; margin-bottom: 16px; }
       .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -209,7 +320,7 @@ const sections = sectionsFor(session);
         padding: 8px 16px;
         font-size: 13.5px;
       }
-      .tab-btn.active { background: var(--amber); color: #1a0f00; border-color: var(--amber); font-weight: 600; }
+      .tab-btn.active { background: var(--amber); color: #1a0f00; border-color: var(--amber); font-weight: 600; box-shadow: 0 3px 10px var(--btn-shadow); }
 
       .reports-list, .list-col { display: flex; flex-direction: column; gap: 10px; }
       .report-item, .list-item {
@@ -217,7 +328,10 @@ const sections = sectionsFor(session);
         border: 1px solid var(--line);
         border-radius: 10px;
         padding: 14px 16px;
+        box-shadow: 0 1px 2px var(--shadow-soft);
+        transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
       }
+      .report-item:hover, .list-item:hover { border-color: var(--amber-dim); transform: translateY(-1px); box-shadow: 0 8px 18px var(--shadow-soft); }
       .list-item.pending, .list-item.overdue { border-color: var(--danger); background: #e0563f14; }
       .report-item .report-top, .list-item .item-top {
         display: flex;
@@ -229,7 +343,7 @@ const sections = sectionsFor(session);
       }
       .report-item .plate, .list-item .title { font-weight: 700; }
       .report-item .badge, .list-item .badge {
-        background: #ff7a1a29;
+        background: var(--glow-1);
         color: var(--teal-bright);
         border-radius: 999px;
         padding: 2px 10px;
@@ -259,6 +373,7 @@ const sections = sectionsFor(session);
       .stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
       .stat-box {
         background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 14px; text-align: center;
+        box-shadow: 0 1px 2px var(--shadow-soft);
       }
       .stat-box .n { font-size: 22px; font-weight: 700; color: var(--amber); display: block; }
       .stat-box .l { font-size: 10.5px; color: var(--slate); }
@@ -404,12 +519,33 @@ const sections = sectionsFor(session);
           </div>
         </div>
         <nav class="top-nav">
-          {sections.map((s) => (
-            <a href={SECTION_PATHS[s]} class={active === s ? 'active' : ''}>
-              {SECTION_LABELS[s]}
-              {s === 'chat' && <span class="nav-badge" id="chatNavBadge" style="display:none;"></span>}
-            </a>
-          ))}
+          {navGroups.map((g) => {
+            if (g.items.length === 1) {
+              const s = g.items[0];
+              return (
+                <a href={SECTION_PATHS[s]} class={`nav-pill ${active === s ? 'active' : ''}`}>
+                  <Fragment set:html={ICONS[g.icon]} />
+                  {SECTION_LABELS[s]}
+                  {s === 'chat' && <span class="nav-badge" id="chatNavBadge" style="display:none;"></span>}
+                </a>
+              );
+            }
+            const isActive = active !== null && g.items.includes(active);
+            return (
+              <div class="nav-group">
+                <button type="button" class={`nav-pill nav-group-btn ${isActive ? 'active' : ''}`} data-nav-group>
+                  <Fragment set:html={ICONS[g.icon]} />
+                  {g.label}
+                  <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                </button>
+                <div class="nav-dropdown">
+                  {g.items.map((s) => (
+                    <a href={SECTION_PATHS[s]} class={active === s ? 'active' : ''}>{SECTION_LABELS[s]}</a>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
         <div class="head-actions">
           <div class="bell-wrap">
