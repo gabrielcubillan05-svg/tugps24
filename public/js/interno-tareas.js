@@ -86,7 +86,9 @@ document.addEventListener('DOMContentLoaded', function () {
       .then((data) => {
         if (!data || !Array.isArray(data.users)) return;
         users = data.users.filter((u) => u.active);
-        assigneeSelect.innerHTML = users.map((u) => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.role)})</option>`).join('');
+        // Al administrador no se le pueden asignar tareas (nadie se las pone) — se queda fuera
+        // del selector de "asignar a", aunque sí puede aparecer para filtrar la vista.
+        assigneeSelect.innerHTML = users.filter((u) => u.role !== 'admin').map((u) => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.role)})</option>`).join('');
         assigneeFilter.innerHTML = '<option value="">Todos los empleados</option>' +
           users.map((u) => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
       });
@@ -137,6 +139,13 @@ document.addEventListener('DOMContentLoaded', function () {
             </select>
             <button class="btn-small btn-done" data-action="attach" data-id="${t.id}" type="button" title="También puedes cancelar el explorador y pegar una captura con Ctrl+V">Adjuntar foto</button>
             ${t.status !== 'Completada' ? `<button class="btn-small btn-done" data-action="complete" data-id="${t.id}" type="button">Marcar completada</button>` : ''}
+          </div>
+        ` : ''}
+        ${canAssign ? `
+          <div class="task-controls">
+            <select data-action="reassign" data-id="${t.id}">
+              ${users.filter((u) => u.role !== 'admin').map((u) => `<option value="${u.id}" ${u.id === t.assigneeId ? 'selected' : ''}>Reasignar a: ${escapeHtml(u.name)}</option>`).join('')}
+            </select>
           </div>
         ` : ''}
         ${isAdmin ? `<div class="task-controls"><button class="btn-small btn-delete" data-action="delete" data-id="${t.id}">Eliminar</button></div>` : ''}
@@ -432,12 +441,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   tasksList.addEventListener('change', function (e) {
     const el = e.target;
-    if (el.getAttribute('data-action') !== 'status') return;
+    const fieldAction = el.getAttribute('data-action');
+    if (fieldAction !== 'status' && fieldAction !== 'reassign') return;
     const id = el.getAttribute('data-id');
+    const body = fieldAction === 'status' ? { id, status: el.value } : { id, assigneeId: el.value };
     fetch('/api/tasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status: el.value }),
+      body: JSON.stringify(body),
     })
       .then(async (res) => {
         if (!res.ok) {

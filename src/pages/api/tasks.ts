@@ -197,6 +197,11 @@ export async function createTask(
   if (!assignee || !assignee.active) {
     return { error: 'empleado no encontrado o inactivo' };
   }
+  // El administrador reparte tareas, pero nadie le asigna tareas a él (ni él mismo) — las que
+  // terminaban ahí eran siempre por error.
+  if (assignee.role === 'admin') {
+    return { error: 'no se le pueden asignar tareas al administrador' };
+  }
   const recurrence = params.recurrence && RECURRENCES.includes(params.recurrence) ? (params.recurrence as Task['recurrence']) : null;
 
   const now = new Date().toISOString();
@@ -317,7 +322,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; status?: string; addNote?: string };
+  let body: { id?: string; status?: string; addNote?: string; assigneeId?: string };
   try {
     body = await request.json();
   } catch {
@@ -354,6 +359,20 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.addNote) {
     task.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString(), by: session.username }, ...task.notes];
+  }
+  if (body.assigneeId !== undefined) {
+    if (!isManager) {
+      return new Response(JSON.stringify({ error: 'solo quien puede asignar tareas puede reasignarla' }), { status: 401 });
+    }
+    const newAssignee = await findUserById(redis, body.assigneeId);
+    if (!newAssignee || !newAssignee.active) {
+      return new Response(JSON.stringify({ error: 'empleado no encontrado o inactivo' }), { status: 400 });
+    }
+    if (newAssignee.role === 'admin') {
+      return new Response(JSON.stringify({ error: 'no se le pueden asignar tareas al administrador' }), { status: 400 });
+    }
+    task.assigneeId = newAssignee.id;
+    task.assigneeName = newAssignee.name;
   }
   task.updatedAt = new Date().toISOString();
 
