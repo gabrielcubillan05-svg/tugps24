@@ -362,6 +362,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           </button>
           ` : ''}
           <button class="btn-small" data-action="quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
+          ${l.aiStage === 'entregado' && !l.managerAckAt ? `<button class="btn-small" data-action="confirm-venta" data-id="${l.id}" type="button">Confirmar que ya sé de esta venta</button>` : ''}
           ${isAdmin && (l.aiStage === 'entregado' || l.aiStage === 'escalado') ? `<button class="btn-small" data-action="reset-ai" data-id="${l.id}" type="button" title="Hace que el agente IA vuelva a responderle a este lead">Reiniciar conversación IA</button>` : ''}
           <button class="btn-small btn-delete" data-action="delete" data-id="${l.id}">Eliminar</button>
         </div>
@@ -394,7 +395,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       case 'en_conversacion':
         return '<span class="badge badge-ai">🤖 IA conversando</span>';
       case 'entregado':
-        return `<span class="badge badge-ai-done">🤖 Entregado${l.aiHandoffAt ? ' ' + fmtAgo(l.aiHandoffAt) : ''}</span>`;
+        return `<span class="badge badge-ai-done">🤖 Entregado${l.aiHandoffAt ? ' ' + fmtAgo(l.aiHandoffAt) : ''}</span>` +
+          (l.managerAckAt ? `<span class="badge">✓ Confirmado por ${escapeHtml(l.managerAckBy || '')}</span>` : '');
       case 'escalado':
         return `<span class="badge badge-ai-escalated">🤖 Escalado${l.aiHandoffAt ? ' ' + fmtAgo(l.aiHandoffAt) : ''}</span>`;
       default:
@@ -745,6 +747,20 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       }).then(loadLeads);
     } else if (action === 'quote') {
       generateQuoteForLead(id, btn);
+    } else if (action === 'confirm-venta') {
+      fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, confirmVenta: true }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'No se pudo confirmar.');
+          }
+          loadLeads();
+        })
+        .catch((err) => alert(err.message || 'No se pudo confirmar.'));
     } else if (action === 'reset-ai') {
       if (!confirm('¿Reiniciar la conversación con el agente IA para este lead? Volverá a responderle automáticamente.')) return;
       fetch('/api/leads', {

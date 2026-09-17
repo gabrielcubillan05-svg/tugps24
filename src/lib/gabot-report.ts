@@ -1,5 +1,5 @@
 import type { User } from './auth';
-import { KELLY_USERNAME, WILMAR_USERNAME } from './auth';
+import { KELLY_USERNAME, WILMAR_USERNAME, branchesOf } from './auth';
 import { OPEN_STATUSES, type Suspension } from '../pages/api/suspensiones';
 import type { Solicitud } from '../pages/api/solicitudes-administrativas';
 import type { PagoInterno } from '../pages/api/pagos-internos';
@@ -98,6 +98,17 @@ export function collectPendingLines(user: User, data: GabotData): string[] {
   if (misLeads.length) {
     lines.push(`📇 CRM — seguimientos vencidos (${misLeads.length}):`);
     for (const l of misLeads) lines.push(`  · ${l.name} (${l.city}) — seguimiento: ${fmtDateOnly(l.nextFollowUp)}`);
+  }
+
+  if (user.role === 'gerente') {
+    const misSucursales = branchesOf(user);
+    const ventasSinConfirmar = data.leads.filter(
+      (l) => l.aiStage === 'entregado' && !l.managerAckAt && misSucursales.includes(l.convertedBranch || l.city)
+    );
+    if (ventasSinConfirmar.length) {
+      lines.push(`🚨 Ventas concretadas por Andrés sin confirmar (${ventasSinConfirmar.length}) — confirma en el CRM que ya sabes de estos casos:`);
+      for (const l of ventasSinConfirmar) lines.push(`  · ${l.name} (${l.city})`);
+    }
   }
 
   const misClientes = data.clientesMasivos.filter((c) => {

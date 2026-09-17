@@ -244,6 +244,8 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
     } else if (call.name === 'marcar_calificado') {
       lead.aiStage = 'entregado';
       lead.aiHandoffAt = now;
+      lead.managerAckAt = null;
+      lead.managerAckBy = null;
       if (lead.status !== 'Instalado') lead.status = 'Concretado por el agente';
       if (call.input?.fecha_preferida) lead.scheduledInstallDate = String(call.input.fecha_preferida);
       const summary = String(call.input?.resumen || 'Lead calificado por el agente IA.');

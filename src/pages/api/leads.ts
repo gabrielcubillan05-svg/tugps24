@@ -56,6 +56,10 @@ export interface Lead {
   // --- Recordatorio frío por plantilla (leads que llevan días sin escribir) ---
   coldFollowUpCount?: number;
   lastColdFollowUpAt?: string | null;
+  // --- Confirmación del gerente de que ya sabe de una venta concretada por el agente IA ---
+  // (GaBot lo sigue recordando en cada corrida hasta que quede marcado) ---
+  managerAckAt?: string | null;
+  managerAckBy?: string | null;
 }
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', 'Máquina Amarilla', ''];
@@ -94,7 +98,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -261,6 +265,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     installed?: boolean;
     scheduledInstallDate?: string | null;
     resetAiStage?: boolean;
+    confirmVenta?: boolean;
   };
   try {
     body = await request.json();
@@ -297,6 +302,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     mediaSentAt: null,
     coldFollowUpCount: 0,
     lastColdFollowUpAt: null,
+    managerAckAt: null,
+    managerAckBy: null,
     ...(typeof raw === 'string' ? JSON.parse(raw) : raw),
   };
 
@@ -385,6 +392,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     lead.aiStage = 'en_conversacion';
     lead.aiHandoffAt = null;
     lead.notes = [{ text: `${session.username} reinició la conversación con el agente IA.`, date: new Date().toISOString() }, ...lead.notes];
+  }
+  if (body.confirmVenta) {
+    lead.managerAckAt = new Date().toISOString();
+    lead.managerAckBy = session.name;
   }
   if (body.addNote) {
     lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];
