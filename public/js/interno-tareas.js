@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ${t.status !== 'Completada' ? `<button class="btn-small btn-done" data-action="complete" data-id="${t.id}" type="button">Marcar completada</button>` : ''}
           </div>
         ` : ''}
-        ${canAssign ? `
+        ${isAdmin ? `
           <div class="task-controls">
             <select data-action="reassign" data-id="${t.id}">
               ${users.filter((u) => u.role !== 'admin').map((u) => `<option value="${u.id}" ${u.id === t.assigneeId ? 'selected' : ''}>Reasignar a: ${escapeHtml(u.name)}</option>`).join('')}

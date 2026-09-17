@@ -361,8 +361,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     task.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString(), by: session.username }, ...task.notes];
   }
   if (body.assigneeId !== undefined) {
-    if (!isManager) {
-      return new Response(JSON.stringify({ error: 'solo quien puede asignar tareas puede reasignarla' }), { status: 401 });
+    if (session.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'solo el administrador puede reasignar una tarea existente' }), { status: 401 });
     }
     const newAssignee = await findUserById(redis, body.assigneeId);
     if (!newAssignee || !newAssignee.active) {
