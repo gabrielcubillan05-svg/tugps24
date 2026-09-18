@@ -37,6 +37,11 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
         <select id="rrhhCargoFilter">
           <option value="">Todos los cargos</option>
         </select>
+        <select id="rrhhActiveFilter">
+          <option value="">Activos e inactivos</option>
+          <option value="activos">Solo activos</option>
+          <option value="inactivos">Solo inactivos</option>
+        </select>
       </div>
       <div class="records-grid" id="employeeGrid" style="margin-top:14px;">
         <div class="empty">Cargando...</div>
@@ -72,6 +77,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <div class="form-grid cols-4">
         <div class="field"><label>Fecha de ingreso</label><input id="f-hireDate" type="date" /></div>
         <div class="field"><label>Antigüedad</label><div id="f-antiguedad" class="ficha-readonly"></div></div>
+        <div class="field"><label>Fecha de retiro (si renunció)</label><input id="f-fechaRetiro" type="date" /></div>
         <div class="field"><label>Ajuste manual de vacaciones (+/-)</label><input id="f-vacacionesAjuste" type="number" step="1" placeholder="0" /></div>
         <div class="field field-full"><label>Contratos registrados</label><div id="f-contratos" class="ficha-readonly"></div></div>
       </div>

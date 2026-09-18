@@ -32,6 +32,7 @@ export interface EmployeeProfile {
   cargo: string;
   jefeDirecto: string;
   hireDate: string | null;
+  fechaRetiro: string | null;
   eps: string;
   cajaCompensacion: boolean;
   cuentaNomina: boolean;
@@ -52,6 +53,7 @@ export const EMPTY_PROFILE: EmployeeProfile = {
   cargo: '',
   jefeDirecto: '',
   hireDate: null,
+  fechaRetiro: null,
   eps: '',
   cajaCompensacion: false,
   cuentaNomina: false,
@@ -192,6 +194,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       updated.vacacionesAjuste = Number(fields.vacacionesAjuste) || 0;
     } else if (key === 'hireDate') {
       updated.hireDate = fields.hireDate ? String(fields.hireDate) : null;
+    } else if (key === 'fechaRetiro') {
+      updated.fechaRetiro = fields.fechaRetiro ? String(fields.fechaRetiro) : null;
     } else {
       (updated as any)[key] = String(fields[key]);
     }

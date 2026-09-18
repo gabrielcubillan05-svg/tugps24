@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const searchInput = document.getElementById('rrhhSearch');
   const branchFilter = document.getElementById('rrhhBranchFilter');
   const cargoFilter = document.getElementById('rrhhCargoFilter');
+  const activeFilter = document.getElementById('rrhhActiveFilter');
   const fichaPanel = document.getElementById('fichaPanel');
   const fichaNombre = document.getElementById('fichaNombre');
   const fichaMsg = document.getElementById('fichaMsg');
@@ -51,10 +52,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const q = (searchInput.value || '').trim().toLowerCase();
     const branch = branchFilter.value;
     const cargo = cargoFilter.value;
+    const activeState = activeFilter ? activeFilter.value : '';
     const filtered = employees.filter((e) => {
       if (q && !e.name.toLowerCase().includes(q)) return false;
       if (branch && !e.branches.includes(branch)) return false;
       if (cargo && e.profile.cargo !== cargo) return false;
+      if (activeState === 'activos' && !e.active) return false;
+      if (activeState === 'inactivos' && e.active) return false;
       return true;
     });
     if (!filtered.length) {
@@ -97,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   branchFilter.addEventListener('change', render);
   cargoFilter.addEventListener('change', render);
+  if (activeFilter) activeFilter.addEventListener('change', render);
 
   function renderVacaciones(balance) {
     const el = document.getElementById('f-vacaciones');
@@ -221,6 +226,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('f-jefeDirecto').value = p.jefeDirecto || '';
     document.getElementById('f-sucursales').textContent = employee.branches.join(', ') || 'Sin sucursal';
     document.getElementById('f-hireDate').value = p.hireDate ? p.hireDate.slice(0, 10) : '';
+    document.getElementById('f-fechaRetiro').value = p.fechaRetiro ? p.fechaRetiro.slice(0, 10) : '';
     document.getElementById('f-vacacionesAjuste').value = p.vacacionesAjuste || 0;
     document.getElementById('f-eps').value = p.eps || '';
     document.getElementById('f-cajaCompensacion').checked = !!p.cajaCompensacion;
@@ -277,6 +283,7 @@ document.addEventListener('DOMContentLoaded', function () {
       cargo: document.getElementById('f-cargo').value.trim(),
       jefeDirecto: document.getElementById('f-jefeDirecto').value.trim(),
       hireDate: document.getElementById('f-hireDate').value || null,
+      fechaRetiro: document.getElementById('f-fechaRetiro').value || null,
       vacacionesAjuste: Number(document.getElementById('f-vacacionesAjuste').value) || 0,
       eps: document.getElementById('f-eps').value.trim(),
       cajaCompensacion: document.getElementById('f-cajaCompensacion').checked,
