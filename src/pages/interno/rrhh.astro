@@ -22,6 +22,7 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
     <button class="rrhh-tab" data-tab="compensatorios" type="button">Compensatorios</button>
     <button class="rrhh-tab" data-tab="contratos" type="button">Contratos y vacaciones</button>
     <button class="rrhh-tab" data-tab="solicitudes" type="button">Solicitudes de vacaciones</button>
+    <button class="rrhh-tab" data-tab="cumpleanos" type="button">Cumpleaños</button>
   </div>
 
   <div class="rrhh-panel" data-panel="directorio">
@@ -295,6 +296,16 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <h2>Solicitudes de vacaciones</h2>
       <p class="hint">Cada empleado puede solicitar sus vacaciones desde "Mi ficha". Apruébalas o recházalas aquí — al aprobar una, se registra automáticamente en Contratos y descuenta del balance.</p>
       <div class="records-grid" id="vacRequestsList">
+        <div class="empty">Cargando...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rrhh-panel" data-panel="cumpleanos" hidden>
+    <div class="panel-card">
+      <h2>Cumpleaños</h2>
+      <p class="hint">Empleados activos con fecha de nacimiento registrada, ordenados por el próximo cumpleaños.</p>
+      <div class="list-col" id="birthdaysList">
         <div class="empty">Cargando...</div>
       </div>
     </div>

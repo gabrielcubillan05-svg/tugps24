@@ -73,6 +73,42 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
+  const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+  function renderBirthdays() {
+    const el = document.getElementById('birthdaysList');
+    if (!el) return;
+    const today = new Date();
+    const todayMD = today.getMonth() * 31 + today.getDate();
+    const withDates = employees
+      .filter((e) => e.active && e.profile.fechaNacimiento)
+      .map((e) => {
+        const [y, m, d] = e.profile.fechaNacimiento.slice(0, 10).split('-').map(Number);
+        const md = (m - 1) * 31 + d;
+        // Días hasta el próximo cumpleaños (si ya pasó este año, cuenta para el año que viene).
+        const daysUntil = md >= todayMD
+          ? Math.round((new Date(today.getFullYear(), m - 1, d) - today) / 86400000)
+          : Math.round((new Date(today.getFullYear() + 1, m - 1, d) - today) / 86400000);
+        return { ...e, birthMonth: m, birthDay: d, birthYear: y, daysUntil };
+      })
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
+    if (!withDates.length) {
+      el.innerHTML = '<div class="empty">Ningún empleado activo tiene fecha de nacimiento registrada todavía.</div>';
+      return;
+    }
+    el.innerHTML = withDates.map((e) => `
+      <div class="list-item">
+        <div class="item-top">
+          <span class="title">${escapeHtml(e.name)}</span>
+          <span class="badge">${String(e.birthDay).padStart(2, '0')} de ${MONTH_NAMES[e.birthMonth - 1]}</span>
+          ${e.daysUntil === 0 ? '<span class="badge status-indefinido">Hoy 🎉</span>' : ''}
+        </div>
+        <div class="meta">${escapeHtml(e.branches.join(', ') || 'Sin sucursal')} · ${escapeHtml(e.profile.cargo || 'Sin cargo registrado')}</div>
+      </div>
+    `).join('');
+  }
+
   function loadEmployees() {
     fetch('/api/employees')
       .then((res) => res.json())
@@ -84,6 +120,7 @@ document.addEventListener('DOMContentLoaded', function () {
         employees = data.employees;
         populateCargoFilter();
         render();
+        renderBirthdays();
         // La lista de Compensatorios también filtra por cargo — si ya cargó antes que los
         // empleados, se refresca aquí para que el filtro y los nombres queden completos.
         if (typeof refreshCompDaysCargoUI === 'function') refreshCompDaysCargoUI();
