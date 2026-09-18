@@ -864,6 +864,7 @@ document.addEventListener('DOMContentLoaded', function () {
     vigente: 'Vigente',
     indefinido: 'Indefinido',
     programada: 'Programada',
+    disfrutada: 'Disfrutada',
   };
 
   const ctTypeFilter = document.getElementById('ctTypeFilter');
@@ -969,13 +970,40 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
 
+    let editingCtId = null;
+
     function renderContracts() {
       const entries = getFilteredContracts();
       if (!entries.length) {
         contractsList.innerHTML = '<div class="empty">No hay registros con esos filtros.</div>';
         return;
       }
-      contractsList.innerHTML = entries.map((e) => `
+      contractsList.innerHTML = entries.map((e) => {
+        if (e.id === editingCtId) {
+          return `
+            <div class="list-item">
+              <div class="item-top">
+                <span class="title">${escapeHtml(e.employee)}</span>
+                <span class="badge">${escapeHtml(e.type)}</span>
+              </div>
+              <div class="form-grid cols-4">
+                <div class="field"><label>Fecha inicio</label><input type="date" data-edit-field="startDate" value="${e.startDate || ''}" /></div>
+                <div class="field">
+                  <label>Fecha fin</label>
+                  <input type="date" data-edit-field="endDate" value="${e.endDate || ''}" ${e.indefinite ? 'disabled' : ''} />
+                  ${e.type === 'Contrato' ? `<label class="day-check" style="margin-top:6px;"><input type="checkbox" data-edit-field="indefinite" ${e.indefinite ? 'checked' : ''} /> Indefinido</label>` : ''}
+                </div>
+                ${e.type === 'Vacaciones' ? `<div class="field"><label class="day-check"><input type="checkbox" data-edit-field="pagada" ${e.pagada ? 'checked' : ''} /> Pagada en dinero</label></div>` : ''}
+                <div class="field field-note"><label>Nota</label><input type="text" data-edit-field="note" value="${escapeHtml(e.note || '')}" /></div>
+              </div>
+              <div class="item-actions">
+                <button class="btn-small btn-done" data-action="save-edit-ct" data-id="${e.id}" type="button">Guardar</button>
+                <button class="btn-small btn-ghost" data-action="cancel-edit-ct" type="button">Cancelar</button>
+              </div>
+            </div>
+          `;
+        }
+        return `
         <div class="list-item">
           <div class="item-top">
             <span class="title">${escapeHtml(e.employee)}</span>
@@ -987,10 +1015,12 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
           <div class="item-actions">
+            <button class="btn-small" data-action="edit-ct" data-id="${e.id}" type="button">Editar</button>
             <button class="btn-small btn-delete" data-action="delete-ct" data-id="${e.id}">Eliminar</button>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     [ctTypeFilter, ctBranchFilter, ctEmployeeFilter, ctCargoFilter].forEach((el) => {
@@ -1050,15 +1080,59 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     contractsList.addEventListener('click', function (e) {
-      const btn = e.target.closest('button[data-action="delete-ct"]');
-      if (!btn) return;
-      if (!confirm('¿Eliminar este registro?')) return;
-      const id = btn.getAttribute('data-id');
-      fetch('/api/contracts', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      }).then(loadContracts);
+      const deleteBtn = e.target.closest('button[data-action="delete-ct"]');
+      if (deleteBtn) {
+        if (!confirm('¿Eliminar este registro?')) return;
+        const id = deleteBtn.getAttribute('data-id');
+        fetch('/api/contracts', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        }).then(loadContracts);
+        return;
+      }
+      const editBtn = e.target.closest('button[data-action="edit-ct"]');
+      if (editBtn) {
+        editingCtId = editBtn.getAttribute('data-id');
+        renderContracts();
+        return;
+      }
+      const cancelBtn = e.target.closest('button[data-action="cancel-edit-ct"]');
+      if (cancelBtn) {
+        editingCtId = null;
+        renderContracts();
+        return;
+      }
+      const saveBtn = e.target.closest('button[data-action="save-edit-ct"]');
+      if (saveBtn) {
+        const id = saveBtn.getAttribute('data-id');
+        const row = saveBtn.closest('.list-item');
+        const fieldValue = (name) => row.querySelector(`[data-edit-field="${name}"]`);
+        const startDate = fieldValue('startDate') ? fieldValue('startDate').value : '';
+        const indefiniteEl = fieldValue('indefinite');
+        const endDateEl = fieldValue('endDate');
+        const pagadaEl = fieldValue('pagada');
+        const noteEl = fieldValue('note');
+        fetch('/api/contracts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id,
+            startDate,
+            endDate: indefiniteEl && indefiniteEl.checked ? null : (endDateEl ? endDateEl.value : null),
+            indefinite: indefiniteEl ? indefiniteEl.checked : false,
+            pagada: pagadaEl ? pagadaEl.checked : false,
+            note: noteEl ? noteEl.value.trim() : '',
+          }),
+        })
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
+            editingCtId = null;
+            loadContracts();
+          })
+          .catch((err) => alert(err.message || 'No se pudo guardar.'));
+      }
     });
 
     loadContracts();

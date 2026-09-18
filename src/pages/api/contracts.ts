@@ -46,7 +46,11 @@ export function withStatus(e: ContractEntry) {
     if (end - now <= UPCOMING_WINDOW_MS) return { ...e, status: 'proximo' as const };
     return { ...e, status: 'vigente' as const };
   }
-  // Vacaciones
+  // Vacaciones: si ya pasó, queda "disfrutada" (aunque haya sido pagada en dinero); si el
+  // inicio está por venir dentro de la ventana, "próxima"; si no, "programada".
+  if (e.endDate && new Date(e.endDate).getTime() < now) {
+    return { ...e, status: 'disfrutada' as const };
+  }
   if (e.startDate) {
     const start = new Date(e.startDate).getTime();
     if (start >= now && start - now <= UPCOMING_WINDOW_MS) {
@@ -253,6 +257,73 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     'contract_create',
     employee,
     `${type}: ${startDate}${indefinite ? ' (indefinido)' : endDate ? ' – ' + endDate : ''}`
+  );
+
+  return new Response(JSON.stringify({ entry: withStatus(entry) }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+export const PATCH: APIRoute = async ({ request, cookies }) => {
+  if (!verifySameOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
+  }
+  const session = await requireContracts(cookies);
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+  }
+  const redis = getRedis();
+  if (!redis) {
+    return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  }
+
+  let body: {
+    id?: string;
+    startDate?: string;
+    endDate?: string | null;
+    indefinite?: boolean;
+    pagada?: boolean;
+    note?: string;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
+  }
+
+  const id = String(body.id || '');
+  const raw = await redis.hget<string>(REDIS_KEY, id);
+  if (!raw) {
+    return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+  }
+  const entry: ContractEntry = { indefinite: false, pagada: false, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+
+  const startDate = String(body.startDate || entry.startDate).trim();
+  const indefinite = entry.type === 'Contrato' && Boolean(body.indefinite);
+  const endDate = indefinite ? null : body.endDate !== undefined ? (body.endDate ? String(body.endDate) : null) : entry.endDate;
+  const pagada = entry.type === 'Vacaciones' && Boolean(body.pagada);
+  const note = body.note !== undefined ? String(body.note).trim() : entry.note;
+
+  if (!startDate) {
+    return new Response(JSON.stringify({ error: 'falta la fecha de inicio' }), { status: 400 });
+  }
+  if (entry.type === 'Vacaciones' && !endDate) {
+    return new Response(JSON.stringify({ error: 'las vacaciones necesitan fecha de fin' }), { status: 400 });
+  }
+
+  entry.startDate = startDate;
+  entry.endDate = endDate;
+  entry.indefinite = indefinite;
+  entry.pagada = pagada;
+  entry.note = note;
+
+  await redis.hset(REDIS_KEY, { [id]: JSON.stringify(entry) });
+  await logAudit(
+    redis,
+    session,
+    'contract_update',
+    entry.employee,
+    `${entry.type}: ${startDate}${indefinite ? ' (indefinido)' : endDate ? ' – ' + endDate : ''}`
   );
 
   return new Response(JSON.stringify({ entry: withStatus(entry) }), {
