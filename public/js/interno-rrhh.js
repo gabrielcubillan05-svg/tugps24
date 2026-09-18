@@ -87,6 +87,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // La lista de Compensatorios también filtra por cargo — si ya cargó antes que los
         // empleados, se refresca aquí para que el filtro y los nombres queden completos.
         if (typeof refreshCompDaysCargoUI === 'function') refreshCompDaysCargoUI();
+        if (typeof refreshSchCargoUI === 'function') refreshSchCargoUI();
+        if (typeof refreshVbCargoUI === 'function') refreshVbCargoUI();
       })
       .catch(() => {
         grid.innerHTML = '<div class="empty">No se pudo cargar.</div>';
@@ -429,9 +431,53 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   if (scheduleList) {
+    const schSearch = document.getElementById('schSearch');
+    const schBranchFilter = document.getElementById('schBranchFilter');
+    const schCargoFilter = document.getElementById('schCargoFilter');
+    let allSchedule = [];
+
+    function populateSchCargoFilter() {
+      if (!schCargoFilter) return;
+      const cargos = [...new Set(employees.map((e) => e.profile.cargo).filter(Boolean))].sort();
+      const current = schCargoFilter.value;
+      schCargoFilter.innerHTML = '<option value="">Todos los cargos</option>' +
+        cargos.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      schCargoFilter.value = current;
+    }
+
+    function getFilteredSchedule() {
+      const q = (schSearch ? schSearch.value : '').trim().toLowerCase();
+      const branch = schBranchFilter ? schBranchFilter.value : '';
+      const cargo = schCargoFilter ? schCargoFilter.value : '';
+      return allSchedule.filter((s) => {
+        if (q && !s.operator.toLowerCase().includes(q)) return false;
+        const info = employees.find((e) => e.name === s.operator);
+        if (branch && (!info || !info.branches.includes(branch))) return false;
+        if (cargo && (!info || info.profile.cargo !== cargo)) return false;
+        return true;
+      });
+    }
+
+    function renderScheduleFiltered() {
+      renderSchedule(getFilteredSchedule());
+    }
+
+    if (schSearch) schSearch.addEventListener('input', renderScheduleFiltered);
+    if (schBranchFilter) schBranchFilter.addEventListener('change', renderScheduleFiltered);
+    if (schCargoFilter) schCargoFilter.addEventListener('change', renderScheduleFiltered);
+
+    // Igual que refreshCompDaysCargoUI: si los empleados cargan después que los horarios, se
+    // refresca el filtro de cargo y el renderizado ya con la info de sucursal/cargo completa.
+    window.refreshSchCargoUI = function () {
+      populateSchCargoFilter();
+      renderScheduleFiltered();
+    };
+
     function renderSchedule(schedule) {
       if (!schedule.length) {
-        scheduleList.innerHTML = '<div class="empty">No hay horarios registrados todavía.</div>';
+        scheduleList.innerHTML = allSchedule.length
+          ? '<div class="empty">No hay horarios con esos filtros.</div>'
+          : '<div class="empty">No hay horarios registrados todavía.</div>';
         return;
       }
       const byOperator = new Map();
@@ -482,8 +528,12 @@ document.addEventListener('DOMContentLoaded', function () {
       fetch('/api/schedule')
         .then((res) => res.json())
         .then((data) => {
-          if (data && Array.isArray(data.schedule)) renderSchedule(data.schedule);
-          else scheduleList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+          if (data && Array.isArray(data.schedule)) {
+            allSchedule = data.schedule;
+            renderScheduleFiltered();
+          } else {
+            scheduleList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+          }
         })
         .catch(() => {
           scheduleList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
@@ -546,6 +596,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const cdEmployeeFilter = document.getElementById('cdEmployeeFilter');
   const cdStatusFilter = document.getElementById('cdStatusFilter');
   const cdCargoFilter = document.getElementById('cdCargoFilter');
+  const cdBranchFilter = document.getElementById('cdBranchFilter');
+  const cdCargoFilter2 = document.getElementById('cdCargoFilter2');
   if (compDaysList) {
     let allCompDaysEntries = [];
 
@@ -555,12 +607,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function populateCdCargoFilter() {
-      if (!cdCargoFilter) return;
       const cargos = [...new Set(employees.map((e) => e.profile.cargo).filter(Boolean))].sort();
-      const current = cdCargoFilter.value;
-      cdCargoFilter.innerHTML = '<option value="">Todos los cargos</option>' +
+      const options = '<option value="">Todos los cargos</option>' +
         cargos.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-      cdCargoFilter.value = current;
+      if (cdCargoFilter) {
+        const current = cdCargoFilter.value;
+        cdCargoFilter.innerHTML = options;
+        cdCargoFilter.value = current;
+      }
+      if (cdCargoFilter2) {
+        const current2 = cdCargoFilter2.value;
+        cdCargoFilter2.innerHTML = options;
+        cdCargoFilter2.value = current2;
+      }
     }
 
     function renderCompDaysTotals(totals, grantedTotals) {
@@ -607,10 +666,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function getFilteredCompDays() {
       const employee = cdEmployeeFilter ? cdEmployeeFilter.value : '';
       const status = cdStatusFilter ? cdStatusFilter.value : '';
+      const branch = cdBranchFilter ? cdBranchFilter.value : '';
+      const cargo = cdCargoFilter2 ? cdCargoFilter2.value : '';
       return allCompDaysEntries.filter((e) => {
         if (employee && e.operator !== employee) return false;
         if (status === 'pendiente' && e.scheduledDate) return false;
         if (status === 'asignado' && !e.scheduledDate) return false;
+        if (branch || cargo) {
+          const info = employees.find((emp) => emp.name === e.operator);
+          if (branch && (!info || !info.branches.includes(branch))) return false;
+          if (cargo && (!info || info.profile.cargo !== cargo)) return false;
+        }
         return true;
       });
     }
@@ -658,10 +724,13 @@ document.addEventListener('DOMContentLoaded', function () {
     window.refreshCompDaysCargoUI = function () {
       populateCdCargoFilter();
       renderCompDaysTotals(latestTotals, latestGranted);
+      renderCompDaysList();
     };
 
     if (cdEmployeeFilter) cdEmployeeFilter.addEventListener('change', renderCompDaysList);
     if (cdStatusFilter) cdStatusFilter.addEventListener('change', renderCompDaysList);
+    if (cdBranchFilter) cdBranchFilter.addEventListener('change', renderCompDaysList);
+    if (cdCargoFilter2) cdCargoFilter2.addEventListener('change', renderCompDaysList);
     if (cdCargoFilter) cdCargoFilter.addEventListener('change', () => renderCompDaysTotals(latestTotals, latestGranted));
 
     function loadCompDays() {
@@ -802,17 +871,56 @@ document.addEventListener('DOMContentLoaded', function () {
   const ctEmployeeFilter = document.getElementById('ctEmployeeFilter');
   const ctCargoFilter = document.getElementById('ctCargoFilter');
 
+  const vbBranchFilter = document.getElementById('vbBranchFilter');
+  const vbCargoFilter = document.getElementById('vbCargoFilter');
+
   if (contractsList) {
     let allContractEntries = [];
+    let allVacationBalances = [];
 
     function employeeInfo(name) {
       return employees.find((e) => e.name === name);
     }
 
+    function populateVbCargoFilter() {
+      if (!vbCargoFilter) return;
+      const cargos = [...new Set(employees.map((e) => e.profile.cargo).filter(Boolean))].sort();
+      const current = vbCargoFilter.value;
+      vbCargoFilter.innerHTML = '<option value="">Todos los cargos</option>' +
+        cargos.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      vbCargoFilter.value = current;
+    }
+
+    function getFilteredVacationBalances() {
+      const branch = vbBranchFilter ? vbBranchFilter.value : '';
+      const cargo = vbCargoFilter ? vbCargoFilter.value : '';
+      if (!branch && !cargo) return allVacationBalances;
+      return allVacationBalances.filter((b) => {
+        const info = employeeInfo(b.employee);
+        if (branch && (!info || !info.branches.includes(branch))) return false;
+        if (cargo && (!info || info.profile.cargo !== cargo)) return false;
+        return true;
+      });
+    }
+
+    function renderVacationBalancesFiltered() {
+      renderVacationBalances(getFilteredVacationBalances());
+    }
+
+    if (vbBranchFilter) vbBranchFilter.addEventListener('change', renderVacationBalancesFiltered);
+    if (vbCargoFilter) vbCargoFilter.addEventListener('change', renderVacationBalancesFiltered);
+
+    window.refreshVbCargoUI = function () {
+      populateVbCargoFilter();
+      renderVacationBalancesFiltered();
+    };
+
     function renderVacationBalances(balances) {
       if (!vacationBalancesEl) return;
       if (!balances.length) {
-        vacationBalancesEl.innerHTML = '<div class="empty">Sin datos todavía (registra al menos un contrato por empleado).</div>';
+        vacationBalancesEl.innerHTML = allVacationBalances.length
+          ? '<div class="empty">No hay empleados que coincidan.</div>'
+          : '<div class="empty">Sin datos todavía (registra al menos un contrato por empleado).</div>';
         return;
       }
       vacationBalancesEl.innerHTML = balances.map((b) => `
@@ -895,9 +1003,11 @@ document.addEventListener('DOMContentLoaded', function () {
         .then((data) => {
           if (data && Array.isArray(data.entries)) {
             allContractEntries = data.entries;
+            allVacationBalances = data.vacationBalances || [];
             populateContractFilters();
+            populateVbCargoFilter();
             renderContracts();
-            renderVacationBalances(data.vacationBalances || []);
+            renderVacationBalancesFiltered();
           } else {
             contractsList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
           }

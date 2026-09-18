@@ -147,6 +147,14 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
     </div>
     <div class="panel-card">
       <h2>Horarios actuales</h2>
+      <div class="filters">
+        <input id="schSearch" type="text" placeholder="Buscar por nombre..." autocomplete="off" />
+        <select id="schBranchFilter">
+          <option value="">Todas las sucursales</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+        <select id="schCargoFilter"><option value="">Todos los cargos</option></select>
+      </div>
       <div class="records-grid" id="scheduleList">
         <div class="empty">Cargando...</div>
       </div>
@@ -191,6 +199,11 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
       <div class="list-col" id="compDaysTotals" style="margin-bottom:20px;"></div>
       <div class="filters">
         <select id="cdEmployeeFilter"><option value="">Todos los empleados</option></select>
+        <select id="cdBranchFilter">
+          <option value="">Todas las sucursales</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+        <select id="cdCargoFilter2"><option value="">Todos los cargos</option></select>
         <select id="cdStatusFilter">
           <option value="">Todos los estados</option>
           <option value="pendiente">Pendientes</option>
@@ -250,7 +263,14 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
         <button class="btn" type="submit">Registrar</button>
       </form>
       <h3 class="ficha-section-title">Balance de vacaciones por empleado</h3>
-      <div class="records-grid" id="vacationBalances" style="margin-bottom:20px;"></div>
+      <div class="filters">
+        <select id="vbBranchFilter">
+          <option value="">Todas las sucursales</option>
+          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+        </select>
+        <select id="vbCargoFilter"><option value="">Todos los cargos</option></select>
+      </div>
+      <div class="list-col" id="vacationBalances" style="margin-bottom:20px;"></div>
       <div class="filters">
         <select id="ctTypeFilter">
           <option value="">Todos los tipos</option>
