@@ -260,19 +260,11 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
         const assignee = await findBranchAssignee(redis, servicingBranch);
         if (assignee) {
           lead.secretary = assignee.name;
-          try {
-            await pushNotification(redis, assignee.id, {
-              type: 'crm-urgent',
-              message: `🚨 Lead concretado por el agente IA: ${lead.name} (${lead.city}) — ${summary}`,
-              link: '/interno/crm',
-            });
-          } catch {
-            // no debe tumbar el procesamiento del mensaje
-          }
 
-          // Aviso inmediato por el chat de GPSITO — a la secretaria Y al gerente de esa
-          // sucursal (no solo a quien haya quedado como responsable del lead), para que se
-          // enteren al instante de que Andrés concretó la venta.
+          // Aviso inmediato a la secretaria Y al gerente de esa sucursal (no solo a quien haya
+          // quedado como responsable del lead) — antes la campanita/sonido/push solo le llegaba
+          // a uno de los dos (el que devolviera findBranchAssignee), y el otro solo se enteraba
+          // por el chat de GPSITO si llegaba a leerlo.
           try {
             const branchStaff = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(servicingBranch));
             const secretaria = branchStaff.find((u) => u.role === 'secretaria');
@@ -284,6 +276,11 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
               if (person && !notified.has(person.id)) {
                 notified.add(person.id);
                 await sendGabotMessage(redis, person.id, gpsitoMessage);
+                await pushNotification(redis, person.id, {
+                  type: 'crm-urgent',
+                  message: `🚨 Lead concretado por el agente IA: ${lead.name} (${lead.city}) — ${summary}`,
+                  link: '/interno/crm',
+                });
               }
             }
           } catch {
