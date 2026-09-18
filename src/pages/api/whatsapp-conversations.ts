@@ -37,7 +37,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const aiStage = url.searchParams.get('aiStage') || '';
   const agentFilter = url.searchParams.get('agent') || '';
 
-  const allLeads = await readLeads(redis);
+  const [allLeads, allCobros] = await Promise.all([readLeads(redis), readCobros(redis)]);
   const leadItems = allLeads
     .filter((l) => l.source === 'whatsapp-ads')
     .map((l) => ({
@@ -57,7 +57,6 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       deuda: null as number | null,
     }));
 
-  const allCobros = await readCobros(redis);
   const cobroItems = allCobros.map((c) => ({
     key: `valentina:${c.id}`,
     id: c.id,
