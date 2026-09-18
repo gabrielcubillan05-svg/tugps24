@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
         msg.textContent = 'Guardado.';
+        loadProfile();
       })
       .catch((err) => {
         msg.textContent = err.message || 'No se pudo guardar.';
