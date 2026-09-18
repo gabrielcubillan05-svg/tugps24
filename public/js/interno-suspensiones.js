@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   const OPEN_STATUSES = ['Nuevo', 'En revisión', 'Escalado a Josué'];
+  const CLOSED_STATUSES = ['Resuelto', 'Suspendido', 'Desinstalación (se reinstalará)', 'Recompra'];
 
   let anyUsers = [];
 
@@ -92,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function actionsFor(c) {
     const isAssignee = c.assignedToId === currentUserId;
     const canJosueReassign = (isJosue || isOverrideRole) && OPEN_STATUSES.includes(c.status);
-    const canFinalize = (isTesoreria || isOverrideRole) && !c.finalized && (c.status === 'Resuelto' || c.status === 'Suspendido');
+    const canFinalize = (isTesoreria || isOverrideRole) && !c.finalized && CLOSED_STATUSES.includes(c.status);
 
     const parts = [];
 
