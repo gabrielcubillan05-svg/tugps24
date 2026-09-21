@@ -14,6 +14,9 @@ export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atl
 export const STATUSES = ['Abierto', 'En seguimiento', 'Finalizado'];
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// Cristian Zambrano ve los casos de todas las sucursales, no solo la(s) suya(s) — pedido puntual
+// de Gabriel, igual de patrón que Josué/Wilmar en otros módulos (suspensiones.ts, etc.).
+const SEES_ALL_BRANCHES_USERNAMES = ['cristianzambrano1'];
 
 interface Note {
   text: string;
@@ -76,8 +79,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   let casos = await readCasos(redis);
 
-  // Cada gerente/supervisor ve solo los casos de su(s) propia(s) sucursal(es); admin ve todo.
-  if (session.role === 'gerente' || session.role === 'supervisor') {
+  // Cada gerente/supervisor ve solo los casos de su(s) propia(s) sucursal(es); admin y las
+  // excepciones puntuales (SEES_ALL_BRANCHES_USERNAMES) ven todo.
+  if ((session.role === 'gerente' || session.role === 'supervisor') && !SEES_ALL_BRANCHES_USERNAMES.includes(session.username)) {
     const viewer = await findUserById(redis, session.userId);
     const viewerBranches = branchesOf(viewer);
     casos = viewerBranches.length ? casos.filter((c) => viewerBranches.includes(c.branch)) : [];
