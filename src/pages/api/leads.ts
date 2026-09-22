@@ -383,6 +383,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     lead.scheduledInstallDate = body.scheduledInstallDate || null;
     if (lead.scheduledInstallDate && ['Nuevo', 'Contactado', 'Cotizado', 'Concretado por el agente'].includes(lead.status)) {
       lead.status = 'Agendado';
+    } else if (!lead.scheduledInstallDate && lead.status === 'Agendado') {
+      // Si se borra la fecha (ej. el cliente dejó de contestar), el lead deja de estar
+      // "Agendado" — vuelve a "Contactado" para que se note que hay que volver a gestionarlo.
+      lead.status = 'Contactado';
     }
   }
   if (body.resetAiStage) {
