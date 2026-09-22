@@ -6,6 +6,7 @@ import {
   getExtraInstructions,
   setExtraInstructions,
   getAgentUsage,
+  getAgentUsageRange,
   resetAgentUsage,
   getCostConfig,
   setCostConfig,
@@ -22,7 +23,7 @@ async function requireAccess(cookies: any) {
   return session;
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
+export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await requireAccess(cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -31,6 +32,10 @@ export const GET: APIRoute = async ({ cookies }) => {
   if (!redis) {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
+
+  const from = url.searchParams.get('from') || '';
+  const to = url.searchParams.get('to') || '';
+  const wantsRange = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to);
 
   const costConfig = await getCostConfig(redis);
   const [allLeads, allCobros] = await Promise.all([readLeads(redis), readCobros(redis)]);
@@ -41,11 +46,20 @@ export const GET: APIRoute = async ({ cookies }) => {
 
   const agents = await Promise.all(
     AGENTS.map(async (a) => {
-      const [extraInstructions, usage] = await Promise.all([
+      const [extraInstructions, usage, rangeUsage] = await Promise.all([
         getExtraInstructions(redis, a.key),
         getAgentUsage(redis, a.key),
+        wantsRange ? getAgentUsageRange(redis, a.key, from, to) : Promise.resolve(null),
       ]);
-      return { ...a, extraInstructions, usage, cost: computeCost(usage, costConfig), results: resultsByAgent[a.key] || null };
+      return {
+        ...a,
+        extraInstructions,
+        usage,
+        cost: computeCost(usage, costConfig),
+        results: resultsByAgent[a.key] || null,
+        rangeUsage,
+        rangeCost: rangeUsage ? computeCost(rangeUsage, costConfig) : null,
+      };
     })
   );
 

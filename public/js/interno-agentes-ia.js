@@ -12,6 +12,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let agents = [];
 
+  const periodButtons = document.querySelectorAll('.period-buttons [data-period]');
+  const periodCustomRange = document.getElementById('periodCustomRange');
+  const periodFrom = document.getElementById('periodFrom');
+  const periodTo = document.getElementById('periodTo');
+  const periodCustomBtn = document.getElementById('periodCustomBtn');
+  const periodResult = document.getElementById('periodResult');
+
   function escapeHtml(str) {
     return String(str || '')
       .replace(/&/g, '&amp;')
@@ -84,6 +91,72 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
     `).join('');
   }
+
+  function fmtDateOnly(d) {
+    return d.toISOString().slice(0, 10);
+  }
+
+  function renderPeriodResult(agentsData) {
+    if (!agentsData.length || !agentsData[0].rangeUsage) {
+      periodResult.innerHTML = '';
+      return;
+    }
+    periodResult.innerHTML = agentsData.map((a) => `
+      <div class="period-agent-row">
+        <span class="title">${escapeHtml(a.label)}</span>
+        <div class="agent-usage-row">
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.inputTokens)}</span><span class="l">Tokens de entrada</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.outputTokens)}</span><span class="l">Tokens de salida</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.calls)}</span><span class="l">Respuestas generadas</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtUsd(a.rangeCost.usd)}</span><span class="l">Costo (USD)</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtCop(a.rangeCost.cop)}</span><span class="l">Costo (COP)</span></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function loadPeriod(from, to) {
+    periodResult.innerHTML = '<div class="empty">Consultando...</div>';
+    fetch(`/api/ai-agents?from=${from}&to=${to}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !Array.isArray(data.agents)) {
+          periodResult.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+          return;
+        }
+        renderPeriodResult(data.agents);
+      })
+      .catch(() => {
+        periodResult.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
+      });
+  }
+
+  periodButtons.forEach((btn) => {
+    btn.addEventListener('click', function () {
+      periodButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const period = btn.getAttribute('data-period');
+      if (period === 'custom') {
+        periodCustomRange.hidden = false;
+        return;
+      }
+      periodCustomRange.hidden = true;
+      const today = new Date();
+      let from = today;
+      if (period === 'semana') {
+        from = new Date(today);
+        from.setDate(from.getDate() - 6);
+      } else if (period === 'mes') {
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+      }
+      loadPeriod(fmtDateOnly(from), fmtDateOnly(today));
+    });
+  });
+
+  if (periodCustomBtn) periodCustomBtn.addEventListener('click', function () {
+    if (!periodFrom.value || !periodTo.value) return;
+    loadPeriod(periodFrom.value, periodTo.value);
+  });
 
   function loadAll() {
     fetch('/api/ai-agents')

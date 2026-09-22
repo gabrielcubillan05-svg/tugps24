@@ -33,6 +33,23 @@ if (!canManageAiAgents(session)) {
     <p id="retryTodayResult" style="display:none; margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></p>
   </div>
 
+  <div class="panel-card">
+    <h2>Consumo por período</h2>
+    <p class="hint">Tokens y costo de cada agente en un rango de fechas — separado del contador acumulado de arriba (ese solo se reinicia a mano).</p>
+    <div class="period-buttons">
+      <button class="btn-small" data-period="hoy" type="button">Hoy</button>
+      <button class="btn-small" data-period="semana" type="button">Esta semana</button>
+      <button class="btn-small" data-period="mes" type="button">Este mes</button>
+      <button class="btn-small" data-period="custom" type="button">Personalizado</button>
+    </div>
+    <div class="period-custom-range" id="periodCustomRange" hidden>
+      <label>Desde <input id="periodFrom" type="date" /></label>
+      <label>Hasta <input id="periodTo" type="date" /></label>
+      <button class="btn-small" id="periodCustomBtn" type="button">Consultar</button>
+    </div>
+    <div id="periodResult" class="period-result"></div>
+  </div>
+
   <div id="agentsList"></div>
 </InternoLayout>
 
@@ -48,6 +65,14 @@ if (!canManageAiAgents(session)) {
   .agent-usage-stat .l { color: var(--slate); font-size: 11.5px; }
   .agent-instructions textarea { width: 100%; min-height: 110px; }
   .agent-instructions-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .period-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .period-buttons .btn-small.active { background: var(--amber); border-color: var(--amber); color: var(--ink-900); }
+  .period-custom-range { display: flex; gap: 14px; align-items: end; flex-wrap: wrap; margin-top: 12px; }
+  .period-custom-range label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--slate); }
+  .period-result { margin-top: 14px; }
+  .period-agent-row { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .period-agent-row:last-child { border-bottom: none; }
+  .period-agent-row .title { font-weight: 700; margin-bottom: 6px; display: block; }
 </style>
 
 <script src="/js/interno-agentes-ia.js" defer></script>

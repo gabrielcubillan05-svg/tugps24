@@ -2,6 +2,8 @@
 // los que se agreguen después) — instrucciones extra por agente, contador de tokens
 // consumidos y los parámetros para convertir ese consumo a un costo en pesos.
 
+import { todayInColombia } from './colombia-time';
+
 export interface AgentDefinition {
   key: string;
   label: string;
@@ -15,7 +17,11 @@ export const AGENTS: AgentDefinition[] = [
 
 const EXTRA_INSTRUCTIONS_KEY = 'internal:agent-extra-instructions';
 const USAGE_KEY_PREFIX = 'internal:agent-usage:';
+const DAILY_USAGE_KEY_PREFIX = 'internal:agent-usage-daily:';
 const COST_CONFIG_KEY = 'internal:agent-cost-config';
+// Tope defensivo para una consulta "personalizada" — evita pedirle a Redis miles de llaves
+// de un rango absurdo por un typo en las fechas.
+const MAX_RANGE_DAYS = 366;
 
 export interface CostConfig {
   usdToCop: number;
@@ -53,9 +59,15 @@ export async function recordAgentUsage(
 ): Promise<void> {
   if (!usage.inputTokens && !usage.outputTokens) return;
   const key = USAGE_KEY_PREFIX + agentKey;
-  await redis.hincrby(key, 'inputTokens', usage.inputTokens);
-  await redis.hincrby(key, 'outputTokens', usage.outputTokens);
-  await redis.hincrby(key, 'calls', 1);
+  const dailyKey = DAILY_USAGE_KEY_PREFIX + agentKey + ':' + todayInColombia();
+  await Promise.all([
+    redis.hincrby(key, 'inputTokens', usage.inputTokens),
+    redis.hincrby(key, 'outputTokens', usage.outputTokens),
+    redis.hincrby(key, 'calls', 1),
+    redis.hincrby(dailyKey, 'inputTokens', usage.inputTokens),
+    redis.hincrby(dailyKey, 'outputTokens', usage.outputTokens),
+    redis.hincrby(dailyKey, 'calls', 1),
+  ]);
 }
 
 export async function getAgentUsage(redis: any, agentKey: string): Promise<AgentUsage> {
@@ -69,6 +81,34 @@ export async function getAgentUsage(redis: any, agentKey: string): Promise<Agent
 
 export async function resetAgentUsage(redis: any, agentKey: string): Promise<void> {
   await redis.del(USAGE_KEY_PREFIX + agentKey);
+}
+
+// Consumo entre dos fechas (inclusive, "YYYY-MM-DD" hora Colombia) para el reporte de
+// día/semana/mes/personalizado — suma los baldes diarios que se llevan aparte en
+// recordAgentUsage(). Días sin datos simplemente no aportan nada (nunca se creó esa llave).
+export async function getAgentUsageRange(redis: any, agentKey: string, fromDate: string, toDate: string): Promise<AgentUsage> {
+  const start = new Date(`${fromDate}T00:00:00Z`);
+  const end = new Date(`${toDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return { inputTokens: 0, outputTokens: 0, calls: 0 };
+  }
+  const dates: string[] = [];
+  for (let t = start.getTime(); t <= end.getTime() && dates.length <= MAX_RANGE_DAYS; t += 24 * 60 * 60 * 1000) {
+    dates.push(new Date(t).toISOString().slice(0, 10));
+  }
+  const perDay = await Promise.all(
+    dates.map((d) => redis.hgetall<Record<string, string | number>>(DAILY_USAGE_KEY_PREFIX + agentKey + ':' + d))
+  );
+  return perDay.reduce(
+    (acc, raw) => {
+      const r = raw || {};
+      acc.inputTokens += Number(r.inputTokens) || 0;
+      acc.outputTokens += Number(r.outputTokens) || 0;
+      acc.calls += Number(r.calls) || 0;
+      return acc;
+    },
+    { inputTokens: 0, outputTokens: 0, calls: 0 }
+  );
 }
 
 export async function getCostConfig(redis: any): Promise<CostConfig> {
