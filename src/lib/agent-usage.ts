@@ -18,6 +18,7 @@ export const AGENTS: AgentDefinition[] = [
 const EXTRA_INSTRUCTIONS_KEY = 'internal:agent-extra-instructions';
 const USAGE_KEY_PREFIX = 'internal:agent-usage:';
 const DAILY_USAGE_KEY_PREFIX = 'internal:agent-usage-daily:';
+const TRACKING_SINCE_KEY = 'internal:agent-usage-tracking-since';
 const COST_CONFIG_KEY = 'internal:agent-cost-config';
 // Tope defensivo para una consulta "personalizada" — evita pedirle a Redis miles de llaves
 // de un rango absurdo por un typo en las fechas.
@@ -59,7 +60,8 @@ export async function recordAgentUsage(
 ): Promise<void> {
   if (!usage.inputTokens && !usage.outputTokens) return;
   const key = USAGE_KEY_PREFIX + agentKey;
-  const dailyKey = DAILY_USAGE_KEY_PREFIX + agentKey + ':' + todayInColombia();
+  const today = todayInColombia();
+  const dailyKey = DAILY_USAGE_KEY_PREFIX + agentKey + ':' + today;
   await Promise.all([
     redis.hincrby(key, 'inputTokens', usage.inputTokens),
     redis.hincrby(key, 'outputTokens', usage.outputTokens),
@@ -67,7 +69,16 @@ export async function recordAgentUsage(
     redis.hincrby(dailyKey, 'inputTokens', usage.inputTokens),
     redis.hincrby(dailyKey, 'outputTokens', usage.outputTokens),
     redis.hincrby(dailyKey, 'calls', 1),
+    // Se guarda una sola vez (nx) — marca desde cuándo existe el desglose por día, para poder
+    // avisar en el reporte que un rango de antes de esa fecha va a salir incompleto (no es que
+    // esté mal calculado, es que ese balde diario todavía no existía).
+    redis.set(TRACKING_SINCE_KEY, today, { nx: true }),
   ]);
+}
+
+export async function getUsageTrackingSince(redis: any): Promise<string | null> {
+  const raw = await redis.get<string>(TRACKING_SINCE_KEY);
+  return typeof raw === 'string' ? raw : null;
 }
 
 export async function getAgentUsage(redis: any, agentKey: string): Promise<AgentUsage> {

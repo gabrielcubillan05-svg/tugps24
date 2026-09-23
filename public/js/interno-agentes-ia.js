@@ -96,12 +96,15 @@ document.addEventListener('DOMContentLoaded', function () {
     return d.toISOString().slice(0, 10);
   }
 
-  function renderPeriodResult(agentsData) {
+  function renderPeriodResult(agentsData, trackingSince, from) {
     if (!agentsData.length || !agentsData[0].rangeUsage) {
       periodResult.innerHTML = '';
       return;
     }
-    periodResult.innerHTML = agentsData.map((a) => `
+    const warning = trackingSince && from < trackingSince
+      ? `<p class="hint" style="color:var(--amber);">⚠️ El desglose por día solo existe desde el ${trackingSince.split('-').reverse().join('/')} — los días antes de esa fecha no están contados aquí, así que este total sale incompleto.</p>`
+      : '';
+    periodResult.innerHTML = warning + agentsData.map((a) => `
       <div class="period-agent-row">
         <span class="title">${escapeHtml(a.label)}</span>
         <div class="agent-usage-row">
@@ -124,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function () {
           periodResult.innerHTML = '<div class="empty">No se pudo cargar.</div>';
           return;
         }
-        renderPeriodResult(data.agents);
+        renderPeriodResult(data.agents, data.trackingSince, from);
       })
       .catch(() => {
         periodResult.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';

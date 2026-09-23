@@ -7,6 +7,7 @@ import {
   setExtraInstructions,
   getAgentUsage,
   getAgentUsageRange,
+  getUsageTrackingSince,
   resetAgentUsage,
   getCostConfig,
   setCostConfig,
@@ -63,7 +64,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     })
   );
 
-  return new Response(JSON.stringify({ agents, costConfig }), {
+  const trackingSince = wantsRange ? await getUsageTrackingSince(redis) : null;
+
+  return new Response(JSON.stringify({ agents, costConfig, trackingSince }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
