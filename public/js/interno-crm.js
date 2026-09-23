@@ -735,6 +735,14 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       const scheduledChanged = scheduledValue !== (lead && lead.scheduledInstallDate ? lead.scheduledInstallDate.slice(0, 10) : '');
       if (!text && !followupChanged && !scheduledChanged) return;
 
+      // Si el seguimiento estaba vencido y solo se guarda una nota (sin poner una fecha nueva),
+      // el lead se sigue viendo como pendiente y GaBot lo va a seguir recordando aunque ya se
+      // haya gestionado — así que primero hay que actualizar la próxima llamada.
+      if (lead && lead.overdue && !followupChanged) {
+        alert('Este seguimiento está vencido — antes de guardar, ponle una fecha nueva a "Próxima llamada" (si no, va a seguir apareciendo como pendiente).');
+        return;
+      }
+
       const body = { id };
       if (text) body.addNote = text;
       if (followupChanged) body.nextFollowUp = followupValue || null;
