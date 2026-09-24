@@ -264,6 +264,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('f-cargo').value = p.cargo || '';
     document.getElementById('f-jefeDirecto').value = p.jefeDirecto || '';
     document.getElementById('f-sucursales').textContent = employee.branches.join(', ') || 'Sin sucursal';
+    document.getElementById('f-esOperadorGarantias').checked = !!p.esOperadorGarantias;
     document.getElementById('f-hireDate').value = p.hireDate ? p.hireDate.slice(0, 10) : '';
     document.getElementById('f-fechaRetiro').value = p.fechaRetiro ? p.fechaRetiro.slice(0, 10) : '';
     document.getElementById('f-vacacionesAjuste').value = p.vacacionesAjuste || 0;
@@ -321,6 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
       area: document.getElementById('f-area').value.trim(),
       cargo: document.getElementById('f-cargo').value.trim(),
       jefeDirecto: document.getElementById('f-jefeDirecto').value.trim(),
+      esOperadorGarantias: document.getElementById('f-esOperadorGarantias').checked,
       hireDate: document.getElementById('f-hireDate').value || null,
       fechaRetiro: document.getElementById('f-fechaRetiro').value || null,
       vacacionesAjuste: Number(document.getElementById('f-vacacionesAjuste').value) || 0,
