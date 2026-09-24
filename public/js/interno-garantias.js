@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ` : ''}
         <div class="garantia-actions">
           <select data-role="category-input" data-id="${g.id}">
-            ${window.__garantiaCategories.map((c) => `<option value="${c}" ${c === g.category ? 'selected' : ''}>${c}</option>`).join('')}
+            ${window.__garantiaCategories.filter((c) => c !== 'Pendiente').map((c) => `<option value="${c}" ${c === (g.category === 'Pendiente' ? 'Guardado' : g.category) ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
           <input type="text" placeholder="Nota (obligatoria)..." data-note-input data-id="${g.id}" style="flex:1; min-width:160px;" />
           <button class="btn-small" data-action="save-note" data-id="${g.id}" type="button">Guardar nota</button>
@@ -124,9 +124,8 @@ document.addEventListener('DOMContentLoaded', function () {
   function loadGarantias() {
     const params = new URLSearchParams();
     if (gSearchInput && gSearchInput.value.trim()) params.set('q', gSearchInput.value.trim());
-    if (activeTab === 'pendientes') {
-      params.set('category', 'Pendiente');
-    } else if (gCategoryFilter && gCategoryFilter.value) {
+    params.set('tab', activeTab);
+    if (activeTab === 'llamadas' && gCategoryFilter && gCategoryFilter.value) {
       params.set('category', gCategoryFilter.value);
     }
     if (isManager) {
@@ -140,15 +139,7 @@ document.addEventListener('DOMContentLoaded', function () {
           garantiasList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
           return;
         }
-        // Para operadores (sin filtro de categoría propio en el backend) la pestaña
-        // "Llamadas" filtra del lado del cliente sobre lo que ya les llegó (son pocas).
-        let list = data.garantias;
-        if (!isManager && activeTab === 'llamadas') {
-          list = list.filter((g) => g.category !== 'Pendiente');
-        } else if (!isManager && activeTab === 'pendientes') {
-          list = list.filter((g) => g.category === 'Pendiente');
-        }
-        allGarantias = list;
+        allGarantias = data.garantias;
         window.__garantiaCategories = data.categories || [];
         if (isManager) {
           populateOperatorFilter(data.garantias);

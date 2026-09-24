@@ -13,7 +13,7 @@ import { colombiaDayAndMinutes } from '../../lib/shift';
 export const prerender = false;
 
 const REDIS_KEY = 'internal:garantias';
-export const CATEGORIES = ['Pendiente', 'Guardado', 'Taller', 'Revision', 'Baja Señal'];
+export const CATEGORIES = ['Pendiente', 'Guardado', 'Taller', 'Revision', 'Baja Señal', 'En línea'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -224,11 +224,21 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     garantias = garantias.filter((g) => g.assignedToId === session.userId);
   } else {
     const branch = url.searchParams.get('branch') || '';
-    const category = url.searchParams.get('category') || '';
     const operator = url.searchParams.get('operator') || '';
     if (branch) garantias = garantias.filter((g) => g.branch === branch);
-    if (category) garantias = garantias.filter((g) => g.category === category);
     if (operator) garantias = garantias.filter((g) => g.assignedToId === operator);
+  }
+
+  // La categoría explícita manda; si no viene, la pestaña define la base (Pendiente vs. ya
+  // gestionadas) para que "Llamadas" nunca muestre Pendientes por defecto, en ningún rol.
+  const category = url.searchParams.get('category') || '';
+  const tab = url.searchParams.get('tab') || '';
+  if (category) {
+    garantias = garantias.filter((g) => g.category === category);
+  } else if (tab === 'pendientes') {
+    garantias = garantias.filter((g) => g.category === 'Pendiente');
+  } else if (tab === 'llamadas') {
+    garantias = garantias.filter((g) => g.category !== 'Pendiente');
   }
 
   garantias = sortByPriority(garantias);
