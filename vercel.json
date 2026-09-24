@@ -34,6 +34,10 @@
     {
       "path": "/api/gabot-venta-reminder-cron",
       "schedule": "20 * * * *"
+    },
+    {
+      "path": "/api/gabot-birthday-cron",
+      "schedule": "0 12 * * *"
     }
   ]
 }
