@@ -43,6 +43,9 @@ export interface EmployeeProfile {
   // Marca explícita (no depende del texto libre de "cargo") para el reparto automático del
   // módulo de Garantías — quién puede recibir garantías asignadas.
   esOperadorGarantias: boolean;
+  // Cubre a los operadores de garantías en sus días libres (según Horarios) — recibe
+  // automáticamente sus garantías pendientes esos días, ver garantias.ts.
+  esCubreGarantias: boolean;
 }
 
 export const EMPTY_PROFILE: EmployeeProfile = {
@@ -63,6 +66,7 @@ export const EMPTY_PROFILE: EmployeeProfile = {
   nesagaviria: false,
   vacacionesAjuste: 0,
   esOperadorGarantias: false,
+  esCubreGarantias: false,
 };
 
 async function requireRRHH(cookies: any) {
@@ -192,7 +196,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
             genero: String(h?.genero || '').trim(),
           }))
         : [];
-    } else if (key === 'cajaCompensacion' || key === 'cuentaNomina' || key === 'nesagaviria' || key === 'esOperadorGarantias') {
+    } else if (key === 'cajaCompensacion' || key === 'cuentaNomina' || key === 'nesagaviria' || key === 'esOperadorGarantias' || key === 'esCubreGarantias') {
       (updated as any)[key] = Boolean(fields[key]);
     } else if (key === 'vacacionesAjuste') {
       updated.vacacionesAjuste = Number(fields.vacacionesAjuste) || 0;

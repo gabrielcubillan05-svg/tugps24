@@ -6,6 +6,9 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessGarantias, canUploadGarantias, getUsers, verifySameOrigin } from '../../lib/auth';
 import { normalizePhone } from './leads';
+import { readProfiles } from './employees';
+import { readSchedule } from './schedule';
+import { colombiaDayAndMinutes } from '../../lib/shift';
 
 export const prerender = false;
 
@@ -31,6 +34,11 @@ export interface Garantia {
   images: string[];
   assignedToId: string;
   assignedToName: string;
+  // El "titular" original (a quién le tocó por el reparto parejo) — se conserva aparte de
+  // assignedToId porque en un día libre del titular esta garantía se reasigna temporalmente
+  // al que cubre, y necesitamos saber a quién devolvérsela cuando el titular vuelva.
+  homeAssignedToId: string;
+  homeAssignedToName: string;
   batchUploadedAt: string;
   createdByName: string;
   createdById: string;
@@ -89,6 +97,86 @@ function headerIndex(headerRow: any[], candidates: string[]): number {
     if (idx !== -1) return idx;
   }
   return -1;
+}
+
+const DAY_ORDER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+// Todos los días que un operador NO tiene ninguna franja cargada en Horarios (puede ser uno o
+// varios) — a diferencia del cálculo de vacaciones (contracts.ts), aquí no hace falta que sea
+// ambiguo con exactamente un día: un operador de garantías puede perfectamente librar 2 días.
+// Si no tiene ninguna franja cargada, se asume que no libra ningún día (evita reasignar de más
+// por falta de datos).
+function getFreeDays(schedule: { operator: string; days: string[] }[], operatorName: string): Set<string> {
+  const entries = schedule.filter((e) => e.operator === operatorName);
+  if (!entries.length) return new Set();
+  const covered = new Set(entries.flatMap((e) => e.days || []));
+  return new Set(DAY_ORDER.filter((d) => !covered.has(d)));
+}
+
+// A quién le debería quedar asignada HOY una garantía de este titular: si hoy es uno de sus
+// días libres y hay alguien marcado como "cubre garantías", al que cubre (round-robin si hay
+// varios); si no, al titular. Se usa tanto al subir el Excel como en el cron diario.
+function resolveTodayAssignee(
+  homeOperator: { id: string; name: string },
+  freeDays: Set<string>,
+  todayDayName: string,
+  coveringOperators: { id: string; name: string }[],
+  cursor: number
+): { id: string; name: string } {
+  if (freeDays.has(todayDayName) && coveringOperators.length) {
+    return coveringOperators[cursor % coveringOperators.length];
+  }
+  return homeOperator;
+}
+
+// Revisa TODAS las garantías pendientes y las mueve entre el titular y quien cubre según el día
+// libre de hoy (Horarios) — llamado desde el cron diario y también se puede llamar a mano.
+export async function reassignForToday(redis: any): Promise<{ moved: number }> {
+  const [garantias, users, profiles, schedule] = await Promise.all([
+    readGarantias(redis),
+    getUsers(redis),
+    readProfiles(redis),
+    readSchedule(redis),
+  ]);
+
+  const coveringOperators = users
+    .filter((u) => u.active && profiles[u.id]?.esCubreGarantias)
+    .map((u) => ({ id: u.id, name: u.name }));
+
+  const { day: todayDayName } = colombiaDayAndMinutes(new Date());
+  const freeDaysCache = new Map<string, Set<string>>();
+  function freeDaysFor(name: string): Set<string> {
+    if (!freeDaysCache.has(name)) freeDaysCache.set(name, getFreeDays(schedule, name));
+    return freeDaysCache.get(name)!;
+  }
+
+  let cursor = 0;
+  let moved = 0;
+  const toSave: Record<string, string> = {};
+
+  for (const g of garantias) {
+    if (g.category !== 'Pendiente') continue;
+    if (!g.homeAssignedToId) continue; // registros de antes de este campo — no se tocan
+    const freeDays = freeDaysFor(g.homeAssignedToName);
+    const target = resolveTodayAssignee(
+      { id: g.homeAssignedToId, name: g.homeAssignedToName },
+      freeDays,
+      todayDayName,
+      coveringOperators,
+      cursor
+    );
+    if (freeDays.has(todayDayName)) cursor++;
+    if (target.id !== g.assignedToId) {
+      g.assignedToId = target.id;
+      g.assignedToName = target.name;
+      g.updatedAt = new Date().toISOString();
+      toSave[g.id] = JSON.stringify(g);
+      moved++;
+    }
+  }
+
+  if (moved) await redis.hset(REDIS_KEY, toSave);
+  return { moved };
 }
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -163,24 +251,25 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'falta el archivo Excel' }), { status: 400 });
   }
 
-  const operators = (await getUsers(redis)).filter((u) => u.active && u.role === 'operador');
-  // El perfil vive en internal:employee-profiles — se lee aparte porque auth.ts (getUsers) no
-  // conoce el perfil de RR.HH., solo el usuario base.
-  const profilesRaw = (await redis.hgetall<Record<string, string>>('internal:employee-profiles')) || {};
-  const garantiaOperators = operators.filter((u) => {
-    try {
-      const raw = profilesRaw[u.id];
-      const profile = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      return Boolean(profile?.esOperadorGarantias);
-    } catch {
-      return false;
-    }
-  });
+  const [allUsers, profiles, schedule] = await Promise.all([getUsers(redis), readProfiles(redis), readSchedule(redis)]);
+  const activeUsers = allUsers.filter((u) => u.active);
+  const garantiaOperators = activeUsers
+    .filter((u) => profiles[u.id]?.esOperadorGarantias)
+    .map((u) => ({ id: u.id, name: u.name }));
   if (!garantiaOperators.length) {
     return new Response(
       JSON.stringify({ error: 'no hay ningún empleado marcado como "Operador de Garantías" — márcalo en su ficha (RR.HH. → Directorio) antes de subir el Excel' }),
       { status: 400 }
     );
+  }
+  const coveringOperators = activeUsers
+    .filter((u) => profiles[u.id]?.esCubreGarantias)
+    .map((u) => ({ id: u.id, name: u.name }));
+  const { day: todayDayName } = colombiaDayAndMinutes(new Date());
+  const freeDaysCache = new Map<string, Set<string>>();
+  function freeDaysFor(name: string): Set<string> {
+    if (!freeDaysCache.has(name)) freeDaysCache.set(name, getFreeDays(schedule, name));
+    return freeDaysCache.get(name)!;
   }
 
   let rows: any[][];
@@ -235,9 +324,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // se guardan en la nota para que el operador las vea de una vez.
     const annotation = rawPhone.replace(/[\d\s]/g, '').trim();
 
-    const operator = garantiaOperators[operatorCursor % garantiaOperators.length];
+    const homeOperator = garantiaOperators[operatorCursor % garantiaOperators.length];
     operatorCursor++;
-    perOperator[operator.name] = (perOperator[operator.name] || 0) + 1;
+    perOperator[homeOperator.name] = (perOperator[homeOperator.name] || 0) + 1;
+    // Si justo hoy es el día libre del titular que le tocó por el reparto parejo, esta
+    // garantía nace ya asignada a quien cubre, en vez de esperar al cron de mañana.
+    const currentAssignee = resolveTodayAssignee(homeOperator, freeDaysFor(homeOperator.name), todayDayName, coveringOperators, 0);
 
     const ultTransmisionRaw = idxUltTransmision !== -1 ? row[idxUltTransmision] : null;
     const id = randomUUID();
@@ -255,8 +347,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       category: 'Pendiente',
       note: annotation ? `⚠️ Anotación junto al teléfono en el Excel: ${annotation}` : '',
       images: [],
-      assignedToId: operator.id,
-      assignedToName: operator.name,
+      assignedToId: currentAssignee.id,
+      assignedToName: currentAssignee.name,
+      homeAssignedToId: homeOperator.id,
+      homeAssignedToName: homeOperator.name,
       batchUploadedAt: now,
       createdByName: session.name,
       createdById: session.userId,

@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="title">${escapeHtml(g.cliente)}</span>
           <span class="badge status-${g.category.replace(' ', '-')}">${escapeHtml(g.category)}</span>
           ${isManager ? `<span class="badge">${escapeHtml(g.assignedToName)}</span>` : ''}
+          ${g.homeAssignedToName && g.homeAssignedToName !== g.assignedToName ? `<span class="badge" title="Titular original, reasignada por día libre">Titular: ${escapeHtml(g.homeAssignedToName)}</span>` : ''}
         </div>
         <div class="garantia-meta">
           <a href="${waLink(g.telefono)}" target="_blank" rel="noopener">WhatsApp (${escapeHtml(g.telefono)})</a>

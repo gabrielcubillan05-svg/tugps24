@@ -48,7 +48,7 @@ export function shiftBucketFor(schedule: ScheduleEntry[], userName: string): Shi
 }
 
 // Colombia es UTC-5 fijo (sin horario de verano) — igual que isQuietHoursColombia en whatsapp.ts.
-function colombiaDayAndMinutes(date: Date): { day: string; minutes: number } {
+export function colombiaDayAndMinutes(date: Date): { day: string; minutes: number } {
   const shifted = new Date(date.getTime() - 5 * 60 * 60 * 1000);
   return {
     day: DAY_NAMES_ES[shifted.getUTCDay()],

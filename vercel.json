@@ -38,6 +38,10 @@
     {
       "path": "/api/gabot-birthday-cron",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/gabot-garantias-reassign-cron",
+      "schedule": "0 10 * * *"
     }
   ]
 }
