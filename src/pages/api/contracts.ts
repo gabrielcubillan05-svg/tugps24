@@ -105,44 +105,53 @@ export async function computeVacationBalances(redis: any, entries: ContractEntry
     ...users.filter((u) => profiles[u.id]?.hireDate).map((u) => u.name),
   ])];
 
-  return Promise.all(employees.map(async (employee) => {
-    // La fecha de ingreso vive en el perfil de RR.HH. del empleado (fuente única); si todavía
-    // no se ha registrado ahí, se usa el contrato más antiguo como antes (datos viejos).
-    const user = users.find((u) => u.name === employee);
-    let hireDate = user ? await getHireDate(redis, user.id) : null;
-    if (!hireDate) {
-      const contracts = entries.filter((e) => e.employee === employee && e.type === 'Contrato' && e.startDate);
-      hireDate = contracts.length ? contracts.map((e) => e.startDate).sort()[0] : null;
+  const results = await Promise.all(employees.map(async (employee) => {
+    // Si un empleado puntual tiene un dato viejo con forma inesperada, que falle solo el suyo
+    // y no tumbe el balance de TODOS (antes un solo Promise.all sin aislar hacía que toda la
+    // respuesta de /api/contracts fallara — ficha sin antigüedad y pestaña de Contratos vacía).
+    try {
+      // La fecha de ingreso vive en el perfil de RR.HH. del empleado (fuente única); si todavía
+      // no se ha registrado ahí, se usa el contrato más antiguo como antes (datos viejos).
+      const user = users.find((u) => u.name === employee);
+      let hireDate = user ? await getHireDate(redis, user.id) : null;
+      if (!hireDate) {
+        const contracts = entries.filter((e) => e.employee === employee && e.type === 'Contrato' && e.startDate);
+        hireDate = contracts.length ? contracts.map((e) => e.startDate).sort()[0] : null;
+      }
+
+      const { yearsOfService, accruedDays } = computeSeniority(hireDate);
+
+      // A los operadores no se les cuenta su día libre semanal dentro de los días de vacaciones
+      // tomados (además del domingo, que nunca cuenta).
+      const freeDayIndex = user && user.role === 'operador' ? operatorFreeDayIndex(schedule, employee) : null;
+      const vacationEntries = entries.filter((e) => e.employee === employee && e.type === 'Vacaciones' && e.startDate && e.endDate);
+      const takenDays = vacationEntries.reduce((sum, e) => sum + businessDaysBetween(e.startDate, e.endDate as string, freeDayIndex), 0);
+      const paidDays = vacationEntries
+        .filter((e) => e.pagada)
+        .reduce((sum, e) => sum + businessDaysBetween(e.startDate, e.endDate as string, freeDayIndex), 0);
+
+      // Ajuste manual (positivo o negativo) para el historial de ~4 años sin fechas exactas: se
+      // indica cuántos días ya se sabe que se disfrutaron/pagaron, sin inventar entradas con
+      // fechas que no se tienen.
+      const profile = user ? await getProfile(redis, user.id) : null;
+      const ajusteInicial = profile?.vacacionesAjuste || 0;
+
+      return {
+        employee,
+        hireDate,
+        yearsOfService,
+        accruedDays,
+        takenDays,
+        paidDays,
+        ajusteInicial,
+        remainingDays: accruedDays - takenDays + ajusteInicial,
+      };
+    } catch (err) {
+      console.error('computeVacationBalances: fallo calculando el balance de', employee, err instanceof Error ? err.message : String(err));
+      return null;
     }
-
-    const { yearsOfService, accruedDays } = computeSeniority(hireDate);
-
-    // A los operadores no se les cuenta su día libre semanal dentro de los días de vacaciones
-    // tomados (además del domingo, que nunca cuenta).
-    const freeDayIndex = user && user.role === 'operador' ? operatorFreeDayIndex(schedule, employee) : null;
-    const vacationEntries = entries.filter((e) => e.employee === employee && e.type === 'Vacaciones' && e.startDate && e.endDate);
-    const takenDays = vacationEntries.reduce((sum, e) => sum + businessDaysBetween(e.startDate, e.endDate as string, freeDayIndex), 0);
-    const paidDays = vacationEntries
-      .filter((e) => e.pagada)
-      .reduce((sum, e) => sum + businessDaysBetween(e.startDate, e.endDate as string, freeDayIndex), 0);
-
-    // Ajuste manual (positivo o negativo) para el historial de ~4 años sin fechas exactas: se
-    // indica cuántos días ya se sabe que se disfrutaron/pagaron, sin inventar entradas con
-    // fechas que no se tienen.
-    const profile = user ? await getProfile(redis, user.id) : null;
-    const ajusteInicial = profile?.vacacionesAjuste || 0;
-
-    return {
-      employee,
-      hireDate,
-      yearsOfService,
-      accruedDays,
-      takenDays,
-      paidDays,
-      ajusteInicial,
-      remainingDays: accruedDays - takenDays + ajusteInicial,
-    };
   }));
+  return results.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
 // Se usa al aprobar una solicitud de vacaciones (vacation-requests.ts) para que quede reflejada

@@ -278,7 +278,11 @@ document.addEventListener('DOMContentLoaded', function () {
     fichaMsg.classList.remove('error');
 
     fetch('/api/contracts')
-      .then((res) => res.json())
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((data && data.error) || 'No se pudo cargar.');
+        return data;
+      })
       .then((data) => {
         const entries = ((data && data.entries) || []).filter((e) => e.employee === employee.name);
         renderContratos(entries.filter((e) => e.type === 'Contrato'));
@@ -289,6 +293,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {
         renderContratos([]);
         renderVacaciones(null);
+        document.getElementById('f-antiguedad').textContent = 'No se pudo cargar.';
       });
 
     loadIncapacidades(employee.id);
