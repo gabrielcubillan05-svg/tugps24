@@ -13,29 +13,19 @@ if (session.mustChangePassword) {
 }
 ---
 
-<InternoLayout title="Inicio" active={null} session={session}>
-  <div class="home-hero">
-    <img src="/img/img01.png" alt="TuGPS24" />
-    <p>Elige una sección en el menú de arriba para comenzar.</p>
+<InternoLayout title="Inicio" active="inicio" session={session}>
+  <div class="panel-card">
+    <h2>GPSITO</h2>
+    <div id="homeGabotSlot"></div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Tus pendientes</h2>
+    <div id="homePendientes" class="list-col">
+      <div class="empty">Cargando...</div>
+    </div>
   </div>
 </InternoLayout>
 
-<style>
-  .home-hero {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 18px;
-    padding: 90px 20px;
-    text-align: center;
-  }
-  .home-hero img {
-    max-width: 320px;
-    width: 100%;
-  }
-  .home-hero p {
-    color: var(--slate);
-    font-size: 14.5px;
-  }
-</style>
+<script src="/js/interno-home.js" defer></script>
+

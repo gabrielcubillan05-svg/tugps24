@@ -514,9 +514,22 @@ if (sections.includes('rrhh')) {
         width: 32px; flex-shrink: 0; cursor: pointer; font-size: 14px; line-height: 1;
       }
       .gabot-mic.recording { background: var(--danger); color: #fff; animation: gabot-pulse 1s ease-in-out infinite; }
+
+      /* En Inicio, el chat de GPSITO se ve grande y embebido en vez de burbuja flotante chica —
+         mismo widget/JS, solo más grande y reposicionado (ver home-widget.js). */
+      body.home-active .gabot-widget.home-embedded {
+        position: static; width: 100%; align-items: stretch;
+      }
+      body.home-active .gabot-widget.home-embedded .gabot-bubble { display: none; }
+      body.home-active .gabot-widget.home-embedded .gabot-panel {
+        width: 100%; height: min(65vh, 620px); max-width: none;
+      }
+      @media (max-width: 700px) {
+        body.home-active .gabot-widget.home-embedded .gabot-panel { height: min(60vh, 480px); }
+      }
     </style>
   </head>
-  <body data-user-id={session.userId}>
+  <body data-user-id={session.userId} class={(active === 'inicio' || active === null) ? 'home-active' : ''}>
     <div class="wrap">
       <header class="panel-head">
         <div class="brand">
