@@ -16,6 +16,7 @@ import { readTasks, createTask, markTaskStatus, addTaskNote } from './tasks';
 import { readLeads } from './leads';
 import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
+import { readGarantias } from './garantias';
 import { readScheduledReports, withStatus } from './scheduled-reports';
 import { readSchedule } from './schedule';
 import { SHIFT_SUPERVISORS, shiftBucketFor } from '../../lib/shift';
@@ -176,7 +177,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         .slice(0, -1)
         .map((m) => ({ role: m.senderId === GABOT_ID ? 'assistant' : 'user', content: m.text }));
 
-      const [suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, extraInstructions, allUsers] = await Promise.all([
+      const [suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, garantias, extraInstructions, allUsers] = await Promise.all([
         readSuspensiones(redis),
         readSolicitudes(redis),
         readPagos(redis),
@@ -185,10 +186,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         readClientes(redis),
         readCasos(redis),
         readScheduledReports(redis),
+        readGarantias(redis),
         getExtraInstructions(redis, 'gabot'),
         getUsers(redis),
       ]);
-      const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports };
+      const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, garantias };
       const pendingLines = collectPendingLines(sender, data);
 
       // Solo admin, Josué y Wilmar pueden preguntarle a GPSITO por los pendientes de OTRO

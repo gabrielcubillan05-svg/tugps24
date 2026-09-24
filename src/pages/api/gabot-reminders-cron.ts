@@ -15,6 +15,7 @@ import { readClientes } from './seguimiento-masivos';
 import { readCasos } from './casos-importantes';
 import { readScheduledReports } from './scheduled-reports';
 import { readSchedule } from './schedule';
+import { readGarantias } from './garantias';
 
 export const prerender = false;
 
@@ -52,7 +53,7 @@ export const GET: APIRoute = async ({ request }) => {
   const colombiaHour = (new Date().getUTCHours() - 5 + 24) % 24;
   const isMorningBriefing = colombiaHour === 7;
 
-  const [users, suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, schedule] = await Promise.all([
+  const [users, suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, schedule, garantias] = await Promise.all([
     getUsers(redis),
     readSuspensiones(redis),
     readSolicitudes(redis),
@@ -63,9 +64,10 @@ export const GET: APIRoute = async ({ request }) => {
     readCasos(redis),
     readScheduledReports(redis),
     readSchedule(redis),
+    readGarantias(redis),
   ]);
 
-  const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports };
+  const data: GabotData = { suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, garantias };
 
   // Solo se revisa rendimiento una vez al día, junto con la minuta — para no repetir la
   // misma alerta cuatro veces en el mismo día.

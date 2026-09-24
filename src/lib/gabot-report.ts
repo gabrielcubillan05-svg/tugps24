@@ -9,6 +9,7 @@ import type { Lead } from '../pages/api/leads';
 import { computeOverdue as computeLeadOverdue } from '../pages/api/leads';
 import type { ClienteMasivo } from '../pages/api/seguimiento-masivos';
 import type { Caso } from '../pages/api/casos-importantes';
+import type { Garantia } from '../pages/api/garantias';
 
 // Forma que deja withStatus() en scheduled-reports.ts (ScheduledReport + bucket calculado) —
 // se referencia como "any" ahí, así que aquí solo pedimos los campos que realmente usamos.
@@ -28,6 +29,7 @@ export interface GabotData {
   clientesMasivos: ClienteMasivo[];
   casos: Caso[];
   scheduledReports: ScheduledReportWithStatus[];
+  garantias: Garantia[];
 }
 
 // Un cliente masivo sin ninguna nota de seguimiento en 14+ días se considera "se está enfriando".
@@ -92,6 +94,12 @@ export function collectPendingLines(user: User, data: GabotData): string[] {
   if (misTareas.length) {
     lines.push(`✅ Tareas pendientes (${misTareas.length}):`);
     for (const t of misTareas) lines.push(`  · ${t.title}${computeTaskOverdue(t) ? ' — ⚠️ atrasada' : ''}`);
+  }
+
+  const misGarantiasPendientes = data.garantias.filter((g) => g.assignedToId === user.id && g.category === 'Pendiente');
+  if (misGarantiasPendientes.length) {
+    lines.push(`🔧 Garantías pendientes de llamar (${misGarantiasPendientes.length}):`);
+    for (const g of misGarantiasPendientes) lines.push(`  · ${g.cliente} (${g.placa || 'sin placa'})`);
   }
 
   const misLeads = data.leads.filter((l) => computeLeadOverdue(l) && matchesAssigneeName(l.secretary, user));

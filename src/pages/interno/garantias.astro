@@ -1,0 +1,74 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessGarantias, canUploadGarantias, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { CATEGORIES } from '../api/garantias';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessGarantias(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const isManager = canUploadGarantias(session);
+---
+
+<InternoLayout title="Garantías" active="garantias" session={session}>
+  <div id="garantiasData" data-is-manager={isManager ? '1' : ''} style="display:none;"></div>
+
+  {isManager && (
+  <div class="panel-card">
+    <h2>Subir Excel de garantías</h2>
+    <p class="hint">Columnas esperadas: Cliente, Teléfono, Placa, Sucursal (y opcionalmente Modelo GPS, Imei, Tarjeta SIM, Ult Transmisión). Se reparte parejo entre los empleados activos marcados como "Operador de Garantías" en su ficha (RR.HH. → Directorio).</p>
+    <div class="upload-row">
+      <input id="garantiasFile" type="file" accept=".xlsx,.xls" />
+      <button class="btn" id="uploadBtn" type="button">Subir y repartir</button>
+    </div>
+    <p id="uploadResult" style="display:none; margin-top:12px; font-size:13.5px;"></p>
+  </div>
+
+  <div class="panel-card">
+    <h2>Estadísticas por operador</h2>
+    <div class="list-col" id="garantiasStats"></div>
+  </div>
+  )}
+
+  <div class="panel-card">
+    <h2>Garantías</h2>
+    <p class="hint">Las más viejas primero — resuelve esas antes que las de una carga más reciente.</p>
+    {isManager && (
+    <div class="filters">
+      <select id="gBranchFilter"><option value="">Todas las sucursales</option></select>
+      <select id="gCategoryFilter">
+        <option value="">Todas las categorías</option>
+        {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
+      </select>
+      <select id="gOperatorFilter"><option value="">Todos los operadores</option></select>
+    </div>
+    )}
+    <div class="records-grid" id="garantiasList">
+      <div class="empty">Cargando...</div>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .upload-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .garantia-item { background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .garantia-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; align-items: center; }
+  .garantia-meta { color: var(--slate); font-size: 12.5px; margin-bottom: 8px; }
+  .garantia-note { font-size: 13px; margin-bottom: 8px; white-space: pre-wrap; }
+  .garantia-photo { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .garantia-photo img { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; }
+  .garantia-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge.status-Pendiente { background: var(--glow-1); color: var(--amber); }
+  .badge.status-Guardado { background: #2f8a4f33; color: var(--ok); }
+  .badge.status-Taller { background: #4a90d922; color: #7ab8ec; }
+  .badge.status-Revision { background: #4a90d922; color: #7ab8ec; }
+  .badge.status-Baja-Señal { background: #e0563f22; color: var(--danger); }
+</style>
+
+<script src="/js/interno-garantias.js" defer></script>

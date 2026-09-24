@@ -45,6 +45,7 @@ export type Section =
   | 'pagos-internos'
   | 'planillas-vehiculo'
   | 'esquemas-apagado'
+  | 'garantias'
   | 'rrhh';
 
 export const SECTION_LABELS: Record<Section, string> = {
@@ -68,6 +69,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'pagos-internos': 'Pagos programados',
   'planillas-vehiculo': 'Planilla de vehículo',
   'esquemas-apagado': 'Esquemas de apagado',
+  garantias: 'Garantías',
   rrhh: 'Recursos Humanos',
 };
 
@@ -92,16 +94,17 @@ export const SECTION_PATHS: Record<Section, string> = {
   'pagos-internos': '/interno/pagos-internos',
   'planillas-vehiculo': '/interno/planillas-vehiculo',
   'esquemas-apagado': '/interno/esquemas-apagado',
+  garantias: '/interno/garantias',
   rrhh: '/interno/rrhh',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
-  operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones'],
+  operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
   supervisor: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
   gerente: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
-  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'rrhh'],
+  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -196,6 +199,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Sectio
   if (!base.includes('estadisticas') && canAccessEstadisticas(session)) extra.push('estadisticas');
   if (!base.includes('usuarios') && canSetUserBranches(session)) extra.push('usuarios');
   if (!base.includes('rrhh') && canAccessRRHH(session)) extra.push('rrhh');
+  if (!base.includes('garantias') && canUploadGarantias(session)) extra.push('garantias');
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
   if (canManageAiAgents(session)) extra.push('agentes-ia');
   return extra.length ? [...base, ...extra] : base;
@@ -223,6 +227,18 @@ export function canUploadCobros(session: Pick<Session, 'role' | 'username'>): bo
 
 export function canManageUsers(role: Role): boolean {
   return role === 'admin';
+}
+
+// Solo Wilmar y admin pueden subir el Excel de garantías y repartirlas — pedido puntual de
+// Gabriel (no supervisor/gerente en general, a diferencia de Cobros).
+export function canUploadGarantias(session: Pick<Session, 'role' | 'username'>): boolean {
+  return session.role === 'admin' || session.username === WILMAR_USERNAME;
+}
+
+// Los operadores ven la sección para trabajar sus garantías asignadas; Wilmar necesita entrar
+// aunque su rol no sea admin, para poder subir el Excel.
+export function canAccessGarantias(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'garantias') || canUploadGarantias(session);
 }
 
 export interface User {
