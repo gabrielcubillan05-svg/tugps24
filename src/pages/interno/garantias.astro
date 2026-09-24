@@ -38,17 +38,20 @@ const isManager = canUploadGarantias(session);
 
   <div class="panel-card">
     <h2>Garantías</h2>
-    <p class="hint">Las más viejas primero — resuelve esas antes que las de una carga más reciente.</p>
-    {isManager && (
-    <div class="filters">
-      <select id="gBranchFilter"><option value="">Todas las sucursales</option></select>
-      <select id="gCategoryFilter">
-        <option value="">Todas las categorías</option>
-        {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
-      </select>
-      <select id="gOperatorFilter"><option value="">Todos los operadores</option></select>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="pendientes" type="button">Pendientes por llamar</button>
+      <button class="tab-btn" data-tab="llamadas" type="button">Llamadas</button>
     </div>
-    )}
+    <p class="hint" id="tabHint">Las más viejas primero — resuelve esas antes que las de una carga más reciente.</p>
+    <div class="filters">
+      <input id="gSearchInput" type="text" placeholder="Buscar por placa o cliente..." />
+      {isManager && <select id="gBranchFilter"><option value="">Todas las sucursales</option></select>}
+      <select id="gCategoryFilter" hidden>
+        <option value="">Todas las categorías</option>
+        {CATEGORIES.filter((c) => c !== 'Pendiente').map((c) => <option value={c}>{c}</option>)}
+      </select>
+      {isManager && <select id="gOperatorFilter"><option value="">Todos los operadores</option></select>}
+    </div>
     <div class="records-grid" id="garantiasList">
       <div class="empty">Cargando...</div>
     </div>
@@ -60,7 +63,9 @@ const isManager = canUploadGarantias(session);
   .garantia-item { background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
   .garantia-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; align-items: center; }
   .garantia-meta { color: var(--slate); font-size: 12.5px; margin-bottom: 8px; }
-  .garantia-note { font-size: 13px; margin-bottom: 8px; white-space: pre-wrap; }
+  .garantia-history { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .garantia-history-item { font-size: 12.5px; background: var(--ink-900, #0e0d0b); border-radius: 6px; padding: 6px 10px; }
+  .garantia-history-item .garantia-history-meta { color: var(--slate); font-size: 11px; margin-right: 8px; }
   .garantia-photo { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
   .garantia-photo img { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; }
   .garantia-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

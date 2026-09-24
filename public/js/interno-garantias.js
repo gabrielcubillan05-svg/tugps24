@@ -9,12 +9,15 @@ document.addEventListener('DOMContentLoaded', function () {
   const uploadBtn = document.getElementById('uploadBtn');
   const uploadResult = document.getElementById('uploadResult');
   const garantiasStats = document.getElementById('garantiasStats');
+  const gSearchInput = document.getElementById('gSearchInput');
   const gBranchFilter = document.getElementById('gBranchFilter');
   const gCategoryFilter = document.getElementById('gCategoryFilter');
   const gOperatorFilter = document.getElementById('gOperatorFilter');
+  const tabButtons = document.querySelectorAll('.tab-btn[data-tab]');
+  const tabHint = document.getElementById('tabHint');
 
   let allGarantias = [];
-  let categories = [];
+  let activeTab = 'pendientes';
 
   function escapeHtml(str) {
     return String(str || '')
@@ -42,7 +45,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     garantiasStats.innerHTML = Object.values(stats.byOperator).map((op) => `
       <div class="list-item">
-        <div class="item-top"><span class="title">${escapeHtml(op.name)}</span><span class="badge">${op.total} en total</span></div>
+        <div class="item-top">
+          <span class="title">${escapeHtml(op.name)}</span>
+          <span class="badge">${op.total} en total</span>
+          <span class="badge status-Pendiente">${op.pendientes} pendiente(s)</span>
+          <span class="badge status-Guardado">${op.llamadas} llamada(s)</span>
+        </div>
         <div class="meta">${Object.entries(op.byCategory).map(([cat, n]) => `${escapeHtml(cat)}: ${n}`).join(' · ')}</div>
       </div>
     `).join('');
@@ -73,34 +81,26 @@ document.addEventListener('DOMContentLoaded', function () {
             ${g.modeloGps ? `GPS: ${escapeHtml(g.modeloGps)}` : ''}${g.imei ? ` · IMEI: ${escapeHtml(g.imei)}` : ''}${g.tarjetaSim ? ` · SIM: ${escapeHtml(g.tarjetaSim)}` : ''}
           </div>
         ` : ''}
-        ${g.note ? `<p class="garantia-note">${escapeHtml(g.note)}</p>` : ''}
+        ${g.history && g.history.length ? `
+          <div class="garantia-history">
+            ${g.history.map((h) => `<div class="garantia-history-item"><span class="garantia-history-meta">${fmtDate(h.date)} · ${escapeHtml(h.by)} · ${escapeHtml(h.category)}</span>${escapeHtml(h.note)}</div>`).join('')}
+          </div>
+        ` : ''}
         ${g.images && g.images.length ? `
           <div class="garantia-photo">
             ${g.images.map((p) => `<a href="/api/blob-file?path=${encodeURIComponent(p)}" target="_blank" rel="noopener"><img src="/api/blob-file?path=${encodeURIComponent(p)}" alt="Evidencia" loading="lazy" /></a>`).join('')}
           </div>
         ` : ''}
         <div class="garantia-actions">
-          <select data-action="category" data-id="${g.id}">
-            ${categories.map((c) => `<option value="${c}" ${c === g.category ? 'selected' : ''}>${c}</option>`).join('')}
+          <select data-role="category-input" data-id="${g.id}">
+            ${window.__garantiaCategories.map((c) => `<option value="${c}" ${c === g.category ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
-          <input type="text" placeholder="Nota..." data-note-input data-id="${g.id}" value="${escapeHtml(g.note)}" style="flex:1; min-width:160px;" />
+          <input type="text" placeholder="Nota (obligatoria)..." data-note-input data-id="${g.id}" style="flex:1; min-width:160px;" />
           <button class="btn-small" data-action="save-note" data-id="${g.id}" type="button">Guardar nota</button>
           <input type="file" accept="image/*" data-photo-input data-id="${g.id}" style="width:auto;" />
         </div>
       </div>
     `).join('');
-  }
-
-  function getFilteredGarantias(raw) {
-    if (!isManager) return raw;
-    const branch = gBranchFilter ? gBranchFilter.value : '';
-    const category = gCategoryFilter ? gCategoryFilter.value : '';
-    const operator = gOperatorFilter ? gOperatorFilter.value : '';
-    const params = new URLSearchParams();
-    if (branch) params.set('branch', branch);
-    if (category) params.set('category', category);
-    if (operator) params.set('operator', operator);
-    return params;
   }
 
   function populateOperatorFilter(garantias) {
@@ -123,9 +123,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function loadGarantias() {
     const params = new URLSearchParams();
+    if (gSearchInput && gSearchInput.value.trim()) params.set('q', gSearchInput.value.trim());
+    if (activeTab === 'pendientes') {
+      params.set('category', 'Pendiente');
+    } else if (gCategoryFilter && gCategoryFilter.value) {
+      params.set('category', gCategoryFilter.value);
+    }
     if (isManager) {
       if (gBranchFilter && gBranchFilter.value) params.set('branch', gBranchFilter.value);
-      if (gCategoryFilter && gCategoryFilter.value) params.set('category', gCategoryFilter.value);
       if (gOperatorFilter && gOperatorFilter.value) params.set('operator', gOperatorFilter.value);
     }
     fetch('/api/garantias?' + params.toString())
@@ -135,10 +140,18 @@ document.addEventListener('DOMContentLoaded', function () {
           garantiasList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
           return;
         }
-        allGarantias = data.garantias;
-        categories = data.categories || [];
+        // Para operadores (sin filtro de categoría propio en el backend) la pestaña
+        // "Llamadas" filtra del lado del cliente sobre lo que ya les llegó (son pocas).
+        let list = data.garantias;
+        if (!isManager && activeTab === 'llamadas') {
+          list = list.filter((g) => g.category !== 'Pendiente');
+        } else if (!isManager && activeTab === 'pendientes') {
+          list = list.filter((g) => g.category === 'Pendiente');
+        }
+        allGarantias = list;
+        window.__garantiaCategories = data.categories || [];
         if (isManager) {
-          populateOperatorFilter(allGarantias);
+          populateOperatorFilter(data.garantias);
           populateBranchFilter(data.branches || []);
           renderStats(data.stats);
         }
@@ -149,6 +162,26 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', function () {
+      tabButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeTab = btn.getAttribute('data-tab');
+      if (gCategoryFilter) gCategoryFilter.hidden = activeTab !== 'llamadas';
+      if (tabHint) {
+        tabHint.textContent = activeTab === 'pendientes'
+          ? 'Las más viejas primero — resuelve esas antes que las de una carga más reciente.'
+          : 'Busca por placa o cliente para ver la información de una llamada ya hecha.';
+      }
+      loadGarantias();
+    });
+  });
+
+  let searchDebounce;
+  if (gSearchInput) gSearchInput.addEventListener('input', function () {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(loadGarantias, 300);
+  });
   if (gBranchFilter) gBranchFilter.addEventListener('change', loadGarantias);
   if (gCategoryFilter) gCategoryFilter.addEventListener('change', loadGarantias);
   if (gOperatorFilter) gOperatorFilter.addEventListener('change', loadGarantias);
@@ -169,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'No se pudo subir el archivo.');
         const perOp = Object.entries(data.perOperator || {}).map(([n, c]) => `${n}: ${c}`).join(' · ');
-        uploadResult.textContent = `Creadas: ${data.created} · Omitidas: ${data.skipped}. Repartidas — ${perOp}`;
+        uploadResult.textContent = `Nuevas: ${data.created} · Reingresadas: ${data.reactivated} · Omitidas: ${data.skipped}. Repartidas — ${perOp}`;
         garantiasFile.value = '';
         loadGarantias();
       })
@@ -179,36 +212,25 @@ document.addEventListener('DOMContentLoaded', function () {
       .finally(() => { uploadBtn.disabled = false; });
   });
 
-  garantiasList.addEventListener('change', function (e) {
-    const select = e.target.closest('select[data-action="category"]');
-    if (!select) return;
-    const id = select.getAttribute('data-id');
-    fetch('/api/garantias', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, category: select.value }),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'No se pudo actualizar.');
-        }
-        loadGarantias();
-      })
-      .catch((err) => alert(err.message || 'No se pudo actualizar.'));
-  });
-
   garantiasList.addEventListener('click', function (e) {
     const saveBtn = e.target.closest('button[data-action="save-note"]');
     if (!saveBtn) return;
     const id = saveBtn.getAttribute('data-id');
+    const categorySelect = garantiasList.querySelector(`select[data-role="category-input"][data-id="${id}"]`);
     const noteInput = garantiasList.querySelector(`input[data-note-input][data-id="${id}"]`);
     const photoInput = garantiasList.querySelector(`input[data-photo-input][data-id="${id}"]`);
     const file = photoInput && photoInput.files[0];
+    const noteValue = noteInput ? noteInput.value.trim() : '';
+
+    if (!noteValue) {
+      alert('La nota es obligatoria para guardar — cuenta qué pasó en la llamada.');
+      return;
+    }
 
     const formData = new FormData();
     formData.append('id', id);
-    formData.append('note', noteInput ? noteInput.value : '');
+    formData.append('category', categorySelect ? categorySelect.value : '');
+    formData.append('note', noteValue);
     if (file) formData.append('images', file);
 
     saveBtn.disabled = true;

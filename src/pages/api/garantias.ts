@@ -18,6 +18,13 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+export interface GarantiaHistoryEntry {
+  category: string;
+  note: string;
+  date: string;
+  by: string;
+}
+
 export interface Garantia {
   id: string;
   cliente: string;
@@ -30,7 +37,9 @@ export interface Garantia {
   tarjetaSim: string;
   ultTransmision: string | null;
   category: string;
-  note: string;
+  // Cada llamada queda como una entrada — al re-subir un Excel con la misma placa, este
+  // historial se conserva aunque el estado vuelva a "Pendiente" (más nuevo primero).
+  history: GarantiaHistoryEntry[];
   images: string[];
   assignedToId: string;
   assignedToName: string;
@@ -52,12 +61,26 @@ async function requireAccess(cookies: any) {
   return session;
 }
 
+// Los registros de antes de agregar "history" traían una sola nota en texto plano (campo
+// "note") — se migran a una entrada de historial en la lectura, sin tocar lo guardado.
+function normalizeGarantia(parsed: any): Garantia {
+  if (!Array.isArray(parsed.history)) {
+    const legacyNote = typeof parsed.note === 'string' ? parsed.note.trim() : '';
+    parsed.history = legacyNote
+      ? [{ category: parsed.category || '', note: legacyNote, date: parsed.updatedAt || parsed.createdAt || '', by: parsed.createdByName || '' }]
+      : [];
+  }
+  delete parsed.note;
+  if (!Array.isArray(parsed.images)) parsed.images = [];
+  return parsed as Garantia;
+}
+
 export async function readGarantias(redis: any): Promise<Garantia[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {
       try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
+        return normalizeGarantia(typeof v === 'string' ? JSON.parse(v) : v);
       } catch {
         return null;
       }
@@ -192,6 +215,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const isManager = canUploadGarantias(session);
   let garantias = await readGarantias(redis);
 
+  const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+  if (q) {
+    garantias = garantias.filter((g) => g.placa.toLowerCase().includes(q) || g.cliente.toLowerCase().includes(q));
+  }
+
   if (!isManager) {
     garantias = garantias.filter((g) => g.assignedToId === session.userId);
   } else {
@@ -208,12 +236,14 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   let stats: Record<string, unknown> | null = null;
   if (isManager) {
     const all = sortByPriority(await readGarantias(redis));
-    const byOperator = new Map<string, { name: string; total: number; byCategory: Record<string, number> }>();
+    const byOperator = new Map<string, { name: string; total: number; pendientes: number; llamadas: number; byCategory: Record<string, number> }>();
     for (const g of all) {
       if (!g.assignedToId) continue;
-      if (!byOperator.has(g.assignedToId)) byOperator.set(g.assignedToId, { name: g.assignedToName, total: 0, byCategory: {} });
+      if (!byOperator.has(g.assignedToId)) byOperator.set(g.assignedToId, { name: g.assignedToName, total: 0, pendientes: 0, llamadas: 0, byCategory: {} });
       const entry = byOperator.get(g.assignedToId)!;
       entry.total++;
+      if (g.category === 'Pendiente') entry.pendientes++;
+      else entry.llamadas++;
       entry.byCategory[g.category] = (entry.byCategory[g.category] || 0) + 1;
     }
     stats = { total: all.length, byOperator: Object.fromEntries(byOperator) };
@@ -304,9 +334,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     );
   }
 
+  const existing = await readGarantias(redis);
+  const existingByPlaca = new Map<string, Garantia>();
+  for (const g of existing) {
+    if (g.placa) existingByPlaca.set(g.placa.toUpperCase(), g);
+  }
+
   const now = new Date().toISOString();
   const toSave: Record<string, string> = {};
   let created = 0;
+  let reactivated = 0;
   let skipped = 0;
   let operatorCursor = 0;
   const perOperator: Record<string, number> = {};
@@ -321,8 +358,49 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       continue;
     }
     // Anotaciones tipo "no llamar"/"NL" pegadas al mismo texto del teléfono no se pierden —
-    // se guardan en la nota para que el operador las vea de una vez.
+    // se guardan como una entrada de historial para que el operador las vea de una vez.
     const annotation = rawPhone.replace(/[\d\s]/g, '').trim();
+    const placa = idxPlaca !== -1 ? String(row[idxPlaca] ?? '').trim().toUpperCase() : '';
+    const ultTransmisionRaw = idxUltTransmision !== -1 ? row[idxUltTransmision] : null;
+    const branch = idxSucursal !== -1 ? matchBranch(String(row[idxSucursal] ?? '')) : '';
+    const vehicleType = idxTipoVehiculo !== -1 ? String(row[idxTipoVehiculo] ?? '').trim() : '';
+    const modeloGps = idxModeloGps !== -1 ? String(row[idxModeloGps] ?? '').trim() : '';
+    const imei = idxImei !== -1 ? String(row[idxImei] ?? '').trim() : '';
+    const tarjetaSim = idxTarjetaSim !== -1 ? String(row[idxTarjetaSim] ?? '').trim() : '';
+    const ultTransmision = typeof ultTransmisionRaw === 'number' ? excelSerialToISO(ultTransmisionRaw) : null;
+
+    const already = placa ? existingByPlaca.get(placa) : undefined;
+    if (already) {
+      // Ya existía esa placa — vuelve a "Pendiente" y conserva el historial de llamadas
+      // anteriores, en vez de crear un duplicado. Se queda con el mismo titular de antes
+      // (por continuidad), solo se recalcula si hoy le toca cubrir por día libre.
+      already.cliente = cliente;
+      already.telefono = normalizePhone(digits);
+      already.branch = branch || already.branch;
+      already.vehicleType = vehicleType || already.vehicleType;
+      already.modeloGps = modeloGps || already.modeloGps;
+      already.imei = imei || already.imei;
+      already.tarjetaSim = tarjetaSim || already.tarjetaSim;
+      already.ultTransmision = ultTransmision || already.ultTransmision;
+      already.category = 'Pendiente';
+      already.history = [
+        { category: 'Pendiente', note: 'Vehículo reingresado en una nueva carga de garantías.', date: now, by: session.name },
+        ...already.history,
+      ];
+      if (annotation) {
+        already.history.unshift({ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: session.name });
+      }
+      const homeOp = { id: already.homeAssignedToId, name: already.homeAssignedToName };
+      const reassigned = resolveTodayAssignee(homeOp, freeDaysFor(homeOp.name), todayDayName, coveringOperators, 0);
+      already.assignedToId = reassigned.id;
+      already.assignedToName = reassigned.name;
+      already.batchUploadedAt = now;
+      already.updatedAt = now;
+      perOperator[already.homeAssignedToName] = (perOperator[already.homeAssignedToName] || 0) + 1;
+      toSave[already.id] = JSON.stringify(already);
+      reactivated++;
+      continue;
+    }
 
     const homeOperator = garantiaOperators[operatorCursor % garantiaOperators.length];
     operatorCursor++;
@@ -331,21 +409,20 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // garantía nace ya asignada a quien cubre, en vez de esperar al cron de mañana.
     const currentAssignee = resolveTodayAssignee(homeOperator, freeDaysFor(homeOperator.name), todayDayName, coveringOperators, 0);
 
-    const ultTransmisionRaw = idxUltTransmision !== -1 ? row[idxUltTransmision] : null;
     const id = randomUUID();
     const garantia: Garantia = {
       id,
       cliente,
       telefono: normalizePhone(digits),
-      placa: idxPlaca !== -1 ? String(row[idxPlaca] ?? '').trim().toUpperCase() : '',
-      branch: idxSucursal !== -1 ? matchBranch(String(row[idxSucursal] ?? '')) : '',
-      vehicleType: idxTipoVehiculo !== -1 ? String(row[idxTipoVehiculo] ?? '').trim() : '',
-      modeloGps: idxModeloGps !== -1 ? String(row[idxModeloGps] ?? '').trim() : '',
-      imei: idxImei !== -1 ? String(row[idxImei] ?? '').trim() : '',
-      tarjetaSim: idxTarjetaSim !== -1 ? String(row[idxTarjetaSim] ?? '').trim() : '',
-      ultTransmision: typeof ultTransmisionRaw === 'number' ? excelSerialToISO(ultTransmisionRaw) : null,
+      placa,
+      branch,
+      vehicleType,
+      modeloGps,
+      imei,
+      tarjetaSim,
+      ultTransmision,
       category: 'Pendiente',
-      note: annotation ? `⚠️ Anotación junto al teléfono en el Excel: ${annotation}` : '',
+      history: annotation ? [{ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: session.name }] : [],
       images: [],
       assignedToId: currentAssignee.id,
       assignedToName: currentAssignee.name,
@@ -361,14 +438,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     created++;
   }
 
-  if (!created) {
+  if (!created && !reactivated) {
     return new Response(JSON.stringify({ error: 'ninguna fila tenía cliente y teléfono válidos' }), { status: 400 });
   }
 
   await redis.hset(REDIS_KEY, toSave);
-  await logAudit(redis, session, 'garantias_upload', `${created} garantía(s)`, `omitidas: ${skipped}`);
+  await logAudit(redis, session, 'garantias_upload', `${created} nueva(s), ${reactivated} reingresada(s)`, `omitidas: ${skipped}`);
 
-  return new Response(JSON.stringify({ created, skipped, perOperator }), {
+  return new Response(JSON.stringify({ created, reactivated, skipped, perOperator }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };
@@ -409,20 +486,26 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!raw) {
     return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
   }
-  const garantia: Garantia = { images: [], ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
+  const garantia = normalizeGarantia(typeof raw === 'string' ? JSON.parse(raw) : raw);
 
   const isManager = canUploadGarantias(session);
   if (!isManager && garantia.assignedToId !== session.userId) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
-  if (category !== undefined) {
-    if (!CATEGORIES.includes(category)) {
+  // El estado solo cambia junto con una nota — evita que quede en un estado nuevo sin que
+  // quede registrado qué pasó en la llamada.
+  if (category !== undefined || note !== undefined) {
+    if (!category || !CATEGORIES.includes(category)) {
       return new Response(JSON.stringify({ error: 'categoría inválida' }), { status: 400 });
     }
+    const trimmedNote = (note || '').trim();
+    if (!trimmedNote) {
+      return new Response(JSON.stringify({ error: 'la nota es obligatoria para guardar' }), { status: 400 });
+    }
     garantia.category = category;
+    garantia.history = [{ category, note: trimmedNote, date: new Date().toISOString(), by: session.name }, ...garantia.history];
   }
-  if (note !== undefined) garantia.note = note.trim();
 
   if (imageFiles.length) {
     const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
