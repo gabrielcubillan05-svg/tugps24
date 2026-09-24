@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="title">${fmtDateOnly(e.startDate)} – ${fmtDateOnly(e.endDate)}</span>
           <span class="badge ${STATUS_CLASS[e.status] || ''}">${STATUS_LABELS[e.status] || e.status}</span>
         </div>
+        ${e.resolvedByName ? `<div class="meta">Resuelta por: ${escapeHtml(e.resolvedByName)}</div>` : ''}
         ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
         ${e.status === 'pendiente' ? `<div class="item-actions"><button class="btn-small btn-delete" data-action="cancel-vac" data-id="${e.id}">Cancelar</button></div>` : ''}
         ${e.resolutionNote ? `<p class="note">Respuesta: ${escapeHtml(e.resolutionNote)}</p>` : ''}

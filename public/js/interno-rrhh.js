@@ -1205,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', function () {
               <input type="date" data-vac-start value="${e.startDate.slice(0, 10)}" style="width:auto;" />
               <input type="date" data-vac-end value="${e.endDate.slice(0, 10)}" style="width:auto;" />
             </div>
-          ` : `<div class="meta">${fmtDateOnly(e.startDate)} – ${fmtDateOnly(e.endDate)}</div>`}
+          ` : `<div class="meta">${fmtDateOnly(e.startDate)} – ${fmtDateOnly(e.endDate)}${e.resolvedByName ? ' · Resuelta por: ' + escapeHtml(e.resolvedByName) : ''}</div>`}
           ${e.note ? `<p class="note">${escapeHtml(e.note)}</p>` : ''}
           ${e.status === 'pendiente' ? `
             <div class="item-actions">
