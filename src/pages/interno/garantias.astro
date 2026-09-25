@@ -48,7 +48,7 @@ const isManager = canUploadGarantias(session);
       {isManager && <select id="gBranchFilter"><option value="">Todas las sucursales</option></select>}
       <select id="gCategoryFilter" hidden>
         <option value="">Todas las categorías</option>
-        {CATEGORIES.filter((c) => c !== 'Pendiente').map((c) => <option value={c}>{c}</option>)}
+        {CATEGORIES.map((c) => <option value={c}>{c}</option>)}
       </select>
       {isManager && <select id="gOperatorFilter"><option value="">Todos los operadores</option></select>}
     </div>

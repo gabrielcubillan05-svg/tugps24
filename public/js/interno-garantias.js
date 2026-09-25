@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ` : ''}
         <div class="garantia-actions">
           <select data-role="category-input" data-id="${g.id}">
-            ${window.__garantiaCategories.filter((c) => c !== 'Pendiente').map((c) => `<option value="${c}" ${c === (g.category === 'Pendiente' ? 'Guardado' : g.category) ? 'selected' : ''}>${c}</option>`).join('')}
+            ${window.__garantiaCategories.map((c) => `<option value="${c}" ${c === g.category ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
           <input type="text" placeholder="Nota (obligatoria)..." data-note-input data-id="${g.id}" style="flex:1; min-width:160px;" />
           <button class="btn-small" data-action="save-note" data-id="${g.id}" type="button">Guardar nota</button>
