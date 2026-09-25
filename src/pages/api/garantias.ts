@@ -60,10 +60,16 @@ export interface Garantia {
   updatedAt: string;
 }
 
+// El objeto Session (src/lib/auth.ts) no trae "name" — solo userId/username/role — así que
+// "session.name" siempre fue undefined (y por tanto se perdía al guardar con JSON.stringify).
+// Se resuelve el nombre real contra la lista de usuarios para poder registrar quién llamó.
 async function requireAccess(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canAccessGarantias(session)) return null;
-  return session;
+  const redis = getRedis();
+  const users = redis ? await getUsers(redis) : [];
+  const name = users.find((u) => u.id === session.userId)?.name || session.username;
+  return { ...session, name };
 }
 
 // Los registros de antes de agregar "history" traían una sola nota en texto plano (campo
@@ -353,6 +359,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   const [allUsers, profiles, schedule] = await Promise.all([getUsers(redis), readProfiles(redis), readSchedule(redis)]);
+  // session (de getSession) no trae "name" — se resuelve aquí para dejarlo bien registrado
+  // en el historial en vez de perderlo (JSON.stringify descarta claves undefined).
+  const actorName = allUsers.find((u) => u.id === session.userId)?.name || session.username;
   const activeUsers = allUsers.filter((u) => u.active);
   const garantiaOperators = activeUsers
     .filter((u) => profiles[u.id]?.esOperadorGarantias)
@@ -456,11 +465,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       already.category = 'Pendiente';
       already.called = false;
       already.history = [
-        { category: 'Pendiente', note: 'Vehículo reingresado en una nueva carga de garantías.', date: now, by: session.name },
+        { category: 'Pendiente', note: 'Vehículo reingresado en una nueva carga de garantías.', date: now, by: actorName },
         ...already.history,
       ];
       if (annotation) {
-        already.history.unshift({ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: session.name });
+        already.history.unshift({ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: actorName });
       }
       const homeOp = { id: already.homeAssignedToId, name: already.homeAssignedToName };
       const reassigned = resolveTodayAssignee(homeOp, freeDaysFor(homeOp.name), todayDayName, coveringOperators, 0);
@@ -495,14 +504,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       ultTransmision,
       category: 'Pendiente',
       called: false,
-      history: annotation ? [{ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: session.name }] : [],
+      history: annotation ? [{ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: actorName }] : [],
       images: [],
       assignedToId: currentAssignee.id,
       assignedToName: currentAssignee.name,
       homeAssignedToId: homeOperator.id,
       homeAssignedToName: homeOperator.name,
       batchUploadedAt: now,
-      createdByName: session.name,
+      createdByName: actorName,
       createdById: session.userId,
       createdAt: now,
       updatedAt: now,
