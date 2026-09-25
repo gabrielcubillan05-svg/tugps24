@@ -37,6 +37,10 @@ export interface Garantia {
   tarjetaSim: string;
   ultTransmision: string | null;
   category: string;
+  // "category" es el motivo/resultado (Pendiente, Guardado, Taller...) y es independiente de
+  // si ya se intentó llamar: un caso puede estar "llamado" y seguir en categoría "Pendiente"
+  // (no contestó, hay que reintentar) — called decide la pestaña, category es solo la etiqueta.
+  called: boolean;
   // Cada llamada queda como una entrada — al re-subir un Excel con la misma placa, este
   // historial se conserva aunque el estado vuelva a "Pendiente" (más nuevo primero).
   history: GarantiaHistoryEntry[];
@@ -72,6 +76,9 @@ function normalizeGarantia(parsed: any): Garantia {
   }
   delete parsed.note;
   if (!Array.isArray(parsed.images)) parsed.images = [];
+  if (typeof parsed.called !== 'boolean') {
+    parsed.called = parsed.category !== 'Pendiente' || parsed.history.length > 0;
+  }
   return parsed as Garantia;
 }
 
@@ -229,16 +236,20 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     if (operator) garantias = garantias.filter((g) => g.assignedToId === operator);
   }
 
-  // La categoría explícita manda; si no viene, la pestaña define la base (Pendiente vs. ya
-  // gestionadas) para que "Llamadas" nunca muestre Pendientes por defecto, en ningún rol.
+  // La pestaña filtra por si ya se llamó o no (called) — independiente de "category", que es
+  // solo el motivo/resultado. Así una garantía puede estar "llamada" y seguir en categoría
+  // "Pendiente" (no contestó, hay que reintentar) sin volver a la pestaña de por llamar.
+  // El filtro de categoría se aplica además, no en vez de, para poder ver p. ej. "llamadas
+  // pendientes" (ya llamadas, resultado aún sin resolver).
   const category = url.searchParams.get('category') || '';
   const tab = url.searchParams.get('tab') || '';
+  if (tab === 'pendientes') {
+    garantias = garantias.filter((g) => !g.called);
+  } else if (tab === 'llamadas') {
+    garantias = garantias.filter((g) => g.called);
+  }
   if (category) {
     garantias = garantias.filter((g) => g.category === category);
-  } else if (tab === 'pendientes') {
-    garantias = garantias.filter((g) => g.category === 'Pendiente');
-  } else if (tab === 'llamadas') {
-    garantias = garantias.filter((g) => g.category !== 'Pendiente');
   }
 
   garantias = sortByPriority(garantias);
@@ -252,8 +263,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       if (!byOperator.has(g.assignedToId)) byOperator.set(g.assignedToId, { name: g.assignedToName, total: 0, pendientes: 0, llamadas: 0, byCategory: {} });
       const entry = byOperator.get(g.assignedToId)!;
       entry.total++;
-      if (g.category === 'Pendiente') entry.pendientes++;
-      else entry.llamadas++;
+      if (g.called) entry.llamadas++;
+      else entry.pendientes++;
       entry.byCategory[g.category] = (entry.byCategory[g.category] || 0) + 1;
     }
     stats = { total: all.length, byOperator: Object.fromEntries(byOperator) };
@@ -393,6 +404,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       already.tarjetaSim = tarjetaSim || already.tarjetaSim;
       already.ultTransmision = ultTransmision || already.ultTransmision;
       already.category = 'Pendiente';
+      already.called = false;
       already.history = [
         { category: 'Pendiente', note: 'Vehículo reingresado en una nueva carga de garantías.', date: now, by: session.name },
         ...already.history,
@@ -432,6 +444,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       tarjetaSim,
       ultTransmision,
       category: 'Pendiente',
+      called: false,
       history: annotation ? [{ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: session.name }] : [],
       images: [],
       assignedToId: currentAssignee.id,
@@ -514,6 +527,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'la nota es obligatoria para guardar' }), { status: 400 });
     }
     garantia.category = category;
+    garantia.called = true;
     garantia.history = [{ category, note: trimmedNote, date: new Date().toISOString(), by: session.name }, ...garantia.history];
   }
 

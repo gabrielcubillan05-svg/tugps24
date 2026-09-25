@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="garantia-item" data-id="${g.id}">
         <div class="garantia-top">
           <span class="title">${escapeHtml(g.cliente)}</span>
+          <span class="badge ${g.called ? 'status-Guardado' : 'status-Pendiente'}">${g.called ? 'Llamada hecha' : 'Sin llamar'}</span>
           <span class="badge status-${g.category.replace(' ', '-')}">${escapeHtml(g.category)}</span>
           ${isManager ? `<span class="badge">${escapeHtml(g.assignedToName)}</span>` : ''}
           ${g.homeAssignedToName && g.homeAssignedToName !== g.assignedToName ? `<span class="badge" title="Titular original, reasignada por día libre">Titular: ${escapeHtml(g.homeAssignedToName)}</span>` : ''}

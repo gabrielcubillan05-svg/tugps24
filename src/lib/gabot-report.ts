@@ -96,7 +96,7 @@ export function collectPendingLines(user: User, data: GabotData): string[] {
     for (const t of misTareas) lines.push(`  · ${t.title}${computeTaskOverdue(t) ? ' — ⚠️ atrasada' : ''}`);
   }
 
-  const misGarantiasPendientes = data.garantias.filter((g) => g.assignedToId === user.id && g.category === 'Pendiente');
+  const misGarantiasPendientes = data.garantias.filter((g) => g.assignedToId === user.id && !g.called);
   if (misGarantiasPendientes.length) {
     lines.push(`🔧 Garantías pendientes de llamar (${misGarantiasPendientes.length}):`);
     for (const g of misGarantiasPendientes) lines.push(`  · ${g.cliente} (${g.placa || 'sin placa'})`);
