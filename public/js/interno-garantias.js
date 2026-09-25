@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const gOperatorFilter = document.getElementById('gOperatorFilter');
   const tabButtons = document.querySelectorAll('.tab-btn[data-tab]');
   const tabHint = document.getElementById('tabHint');
+  const statsPeriod = document.getElementById('statsPeriod');
+  const statsFrom = document.getElementById('statsFrom');
+  const statsTo = document.getElementById('statsTo');
 
   let allGarantias = [];
   let activeTab = 'pendientes';
@@ -37,21 +40,24 @@ document.addEventListener('DOMContentLoaded', function () {
     return 'https://wa.me/' + withCountry;
   }
 
+  const PERIOD_LABELS = { hoy: 'hoy', ayer: 'ayer', semana: 'últimos 7 días', mes: 'últimos 30 días', personalizado: 'rango elegido' };
+
   function renderStats(stats) {
     if (!garantiasStats) return;
     if (!stats || !stats.byOperator || !Object.keys(stats.byOperator).length) {
       garantiasStats.innerHTML = '<div class="empty">Sin datos todavía.</div>';
       return;
     }
+    const periodLabel = PERIOD_LABELS[stats.period] || 'hoy';
     garantiasStats.innerHTML = Object.values(stats.byOperator).map((op) => `
       <div class="list-item">
         <div class="item-top">
           <span class="title">${escapeHtml(op.name)}</span>
           <span class="badge">${op.total} en total</span>
           <span class="badge status-Pendiente">${op.pendientes} pendiente(s)</span>
-          <span class="badge status-Guardado">${op.llamadas} llamada(s)</span>
+          <span class="badge status-Guardado">${op.llamadas} llamada(s) (${periodLabel})</span>
         </div>
-        <div class="meta">${Object.entries(op.byCategory).map(([cat, n]) => `${escapeHtml(cat)}: ${n}`).join(' · ')}</div>
+        <div class="meta">${Object.entries(op.byCategory).map(([cat, n]) => `${escapeHtml(cat)}: ${n}`).join(' · ') || 'Sin llamadas en ese periodo.'}</div>
       </div>
     `).join('');
   }
@@ -132,6 +138,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isManager) {
       if (gBranchFilter && gBranchFilter.value) params.set('branch', gBranchFilter.value);
       if (gOperatorFilter && gOperatorFilter.value) params.set('operator', gOperatorFilter.value);
+      if (statsPeriod) {
+        params.set('period', statsPeriod.value);
+        if (statsPeriod.value === 'personalizado') {
+          if (statsFrom && statsFrom.value) params.set('from', statsFrom.value);
+          if (statsTo && statsTo.value) params.set('to', statsTo.value);
+        }
+      }
     }
     fetch('/api/garantias?' + params.toString())
       .then((res) => res.json())
@@ -177,6 +190,15 @@ document.addEventListener('DOMContentLoaded', function () {
   if (gBranchFilter) gBranchFilter.addEventListener('change', loadGarantias);
   if (gCategoryFilter) gCategoryFilter.addEventListener('change', loadGarantias);
   if (gOperatorFilter) gOperatorFilter.addEventListener('change', loadGarantias);
+
+  if (statsPeriod) statsPeriod.addEventListener('change', function () {
+    const isCustom = statsPeriod.value === 'personalizado';
+    if (statsFrom) statsFrom.hidden = !isCustom;
+    if (statsTo) statsTo.hidden = !isCustom;
+    if (!isCustom || (statsFrom && statsFrom.value && statsTo && statsTo.value)) loadGarantias();
+  });
+  if (statsFrom) statsFrom.addEventListener('change', loadGarantias);
+  if (statsTo) statsTo.addEventListener('change', loadGarantias);
 
   if (uploadBtn) uploadBtn.addEventListener('click', function () {
     const file = garantiasFile.files[0];

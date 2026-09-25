@@ -9,6 +9,7 @@ import { normalizePhone } from './leads';
 import { readProfiles } from './employees';
 import { readSchedule } from './schedule';
 import { colombiaDayAndMinutes } from '../../lib/shift';
+import { todayInColombia, dateInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
 
@@ -97,6 +98,30 @@ export async function readGarantias(redis: any): Promise<Garantia[]> {
 
 function sortByPriority(list: Garantia[]): Garantia[] {
   return [...list].sort((a, b) => a.batchUploadedAt.localeCompare(b.batchUploadedAt) || a.createdAt.localeCompare(b.createdAt));
+}
+
+function daysAgoInColombia(days: number): string {
+  return dateInColombia(new Date(Date.now() - days * 86400000).toISOString());
+}
+
+// Rango (inclusivo, fechas "YYYY-MM-DD" hora Colombia) para las estadísticas de llamadas por
+// operador. "hoy" es el default; "personalizado" toma from/to tal cual vengan del cliente.
+function periodRange(period: string, from: string, to: string): { start: string; end: string } {
+  const today = todayInColombia();
+  switch (period) {
+    case 'ayer': {
+      const yesterday = daysAgoInColombia(1);
+      return { start: yesterday, end: yesterday };
+    }
+    case 'semana':
+      return { start: daysAgoInColombia(6), end: today };
+    case 'mes':
+      return { start: daysAgoInColombia(29), end: today };
+    case 'personalizado':
+      return { start: from || today, end: to || today };
+    default:
+      return { start: today, end: today };
+  }
 }
 
 function normalizeForMatch(str: string): string {
@@ -257,17 +282,42 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   let stats: Record<string, unknown> | null = null;
   if (isManager) {
     const all = sortByPriority(await readGarantias(redis));
+    const period = url.searchParams.get('period') || 'hoy';
+    const { start, end } = periodRange(period, url.searchParams.get('from') || '', url.searchParams.get('to') || '');
+
+    // "total"/"pendientes" son la carga actual (foto de ahora mismo, no depende del periodo);
+    // "llamadas"/"byCategory" sí son del periodo elegido — se cuentan por quién hizo cada
+    // entrada del historial (la persona que llamó), no por quién tiene la garantía hoy.
     const byOperator = new Map<string, { name: string; total: number; pendientes: number; llamadas: number; byCategory: Record<string, number> }>();
     for (const g of all) {
       if (!g.assignedToId) continue;
       if (!byOperator.has(g.assignedToId)) byOperator.set(g.assignedToId, { name: g.assignedToName, total: 0, pendientes: 0, llamadas: 0, byCategory: {} });
       const entry = byOperator.get(g.assignedToId)!;
       entry.total++;
-      if (g.called) entry.llamadas++;
-      else entry.pendientes++;
-      entry.byCategory[g.category] = (entry.byCategory[g.category] || 0) + 1;
+      if (!g.called) entry.pendientes++;
     }
-    stats = { total: all.length, byOperator: Object.fromEntries(byOperator) };
+
+    function entryFor(name: string) {
+      let entry = [...byOperator.values()].find((e) => e.name === name);
+      if (!entry) {
+        entry = { name, total: 0, pendientes: 0, llamadas: 0, byCategory: {} };
+        byOperator.set(`name:${name}`, entry);
+      }
+      return entry;
+    }
+
+    for (const g of all) {
+      for (const h of g.history) {
+        if (!h.by || !h.date) continue;
+        const day = dateInColombia(h.date);
+        if (day < start || day > end) continue;
+        const entry = entryFor(h.by);
+        entry.llamadas++;
+        entry.byCategory[h.category] = (entry.byCategory[h.category] || 0) + 1;
+      }
+    }
+
+    stats = { total: all.length, period, start, end, byOperator: Object.fromEntries(byOperator) };
   }
 
   return new Response(

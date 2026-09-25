@@ -32,6 +32,17 @@ const isManager = canUploadGarantias(session);
 
   <div class="panel-card">
     <h2>Estadísticas por operador</h2>
+    <div class="filters">
+      <select id="statsPeriod">
+        <option value="hoy">Hoy</option>
+        <option value="ayer">Ayer</option>
+        <option value="semana">Última semana</option>
+        <option value="mes">Último mes</option>
+        <option value="personalizado">Personalizado</option>
+      </select>
+      <input id="statsFrom" type="date" hidden />
+      <input id="statsTo" type="date" hidden />
+    </div>
     <div class="list-col" id="garantiasStats"></div>
   </div>
   )}
