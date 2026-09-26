@@ -24,6 +24,10 @@ export interface GarantiaHistoryEntry {
   note: string;
   date: string;
   by: string;
+  // true en las entradas que deja el propio sistema al subir el Excel (reingreso, anotación
+  // del teléfono) — no son una llamada real, así que no deben contar en las estadísticas de
+  // "cuántas llamó" de quien sube el archivo.
+  system?: boolean;
 }
 
 export interface Garantia {
@@ -312,9 +316,15 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       return entry;
     }
 
+    // Los registros de antes de este fix no tienen el flag "system" — se reconocen igual por
+    // el texto fijo de esas dos entradas automáticas, para que la corrección aplique también
+    // a lo que ya está guardado y no solo a las cargas nuevas.
+    const isSystemEntry = (h: GarantiaHistoryEntry) =>
+      h.system === true || h.note.startsWith('Vehículo reingresado') || h.note.startsWith('⚠️ Anotación junto al teléfono en el Excel');
+
     for (const g of all) {
       for (const h of g.history) {
-        if (!h.by || !h.date) continue;
+        if (!h.by || !h.date || isSystemEntry(h)) continue;
         const day = dateInColombia(h.date);
         if (day < start || day > end) continue;
         const entry = entryFor(h.by);
@@ -465,11 +475,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       already.category = 'Pendiente';
       already.called = false;
       already.history = [
-        { category: 'Pendiente', note: 'Vehículo reingresado en una nueva carga de garantías.', date: now, by: actorName },
+        { category: 'Pendiente', note: 'Vehículo reingresado en una nueva carga de garantías.', date: now, by: actorName, system: true },
         ...already.history,
       ];
       if (annotation) {
-        already.history.unshift({ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: actorName });
+        already.history.unshift({ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: actorName, system: true });
       }
       const homeOp = { id: already.homeAssignedToId, name: already.homeAssignedToName };
       const reassigned = resolveTodayAssignee(homeOp, freeDaysFor(homeOp.name), todayDayName, coveringOperators, 0);
@@ -504,7 +514,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       ultTransmision,
       category: 'Pendiente',
       called: false,
-      history: annotation ? [{ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: actorName }] : [],
+      history: annotation ? [{ category: 'Pendiente', note: `⚠️ Anotación junto al teléfono en el Excel: ${annotation}`, date: now, by: actorName, system: true }] : [],
       images: [],
       assignedToId: currentAssignee.id,
       assignedToName: currentAssignee.name,
