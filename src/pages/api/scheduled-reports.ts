@@ -29,6 +29,12 @@ export interface ScheduledReport {
   lastDoneAt: string | null;
   dueDateOverride: string | null;
   createdAt: string;
+  // Pausa temporal (cliente suspendido/cortado): mientras esté pausado no vence ni genera
+  // avisos; al reanudar el ciclo cuenta desde resumedAt para no aparecer vencido por el
+  // tiempo que estuvo pausado.
+  paused?: boolean;
+  pausedReason?: string;
+  resumedAt?: string | null;
 }
 
 const SOON_WINDOW_MS = 2 * 24 * 60 * 60 * 1000; // "por realizar": vence en los próximos 2 días
@@ -40,6 +46,9 @@ function startOfDay(d: Date): Date {
 }
 
 export function withStatus(r: ScheduledReport) {
+  if (r.paused) {
+    return { ...r, nextDue: r.createdAt, pending: false, bucket: 'pausado' as const };
+  }
   let nextDue: Date;
   if (r.dueDateOverride) {
     // Fecha de entrega fijada a mano: manda sobre el cálculo automático por frecuencia,
@@ -49,7 +58,8 @@ export function withStatus(r: ScheduledReport) {
     const intervalDays = FREQUENCIES[r.frequency] || 7;
     // Se trunca a inicio del día para que el vencimiento sea por día calendario, no por hora exacta:
     // un "Diario" marcado como hecho a cualquier hora vuelve a quedar pendiente justo al empezar el día siguiente.
-    const base = startOfDay(new Date(r.lastDoneAt || r.createdAt));
+    const baseIso = [r.lastDoneAt, r.resumedAt].filter((d): d is string => !!d).sort().pop() || r.createdAt;
+    const base = startOfDay(new Date(baseIso));
     nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
   }
   const pending = nextDue.getTime() <= Date.now();
@@ -74,7 +84,7 @@ export async function readScheduledReports(redis: any) {
     .filter((r): r is ScheduledReport => r !== null)
     .map(withStatus)
     .sort((a, b) => {
-      const order = { pendiente: 0, 'por-realizar': 1, 'al-dia': 2 };
+      const order = { pendiente: 0, 'por-realizar': 1, 'al-dia': 2, pausado: 3 };
       return order[a.bucket] - order[b.bucket];
     });
 }
@@ -156,7 +166,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; dueDate?: string | null };
+  let body: { id?: string; dueDate?: string | null; paused?: boolean; reason?: string };
   try {
     body = await request.json();
   } catch {
@@ -170,7 +180,21 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   const existing: ScheduledReport = { dueDateOverride: null, ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
 
-  if (body.dueDate !== undefined) {
+  if (body.paused !== undefined) {
+    if (body.paused) {
+      existing.paused = true;
+      existing.pausedReason = String(body.reason || '').trim().slice(0, 200);
+      await redis.hset(REDIS_KEY, { [id]: JSON.stringify(existing) });
+      await logAudit(redis, session, 'scheduled_report_pause', `${existing.client} · ${existing.reportType}`, existing.pausedReason);
+    } else {
+      existing.paused = false;
+      existing.pausedReason = '';
+      existing.resumedAt = new Date().toISOString();
+      existing.dueDateOverride = null;
+      await redis.hset(REDIS_KEY, { [id]: JSON.stringify(existing) });
+      await logAudit(redis, session, 'scheduled_report_resume', `${existing.client} · ${existing.reportType}`);
+    }
+  } else if (body.dueDate !== undefined) {
     existing.dueDateOverride = body.dueDate || null;
     await redis.hset(REDIS_KEY, { [id]: JSON.stringify(existing) });
     await logAudit(redis, session, 'scheduled_report_due_date_set', `${existing.client} · ${existing.reportType}`, String(body.dueDate));

@@ -377,10 +377,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         const withBuckets = scheduledReports.map((r) => withStatus(r));
         const filtered = q
           ? withBuckets.filter((r) => [r.client, r.reportType, r.operator].some((f) => normalizeNameForMatch(f).includes(q)))
-          : withBuckets.filter((r) => r.bucket !== 'al-dia');
+          : withBuckets.filter((r) => r.bucket !== 'al-dia' && r.bucket !== 'pausado');
         const top = filtered.slice(0, 8);
         if (!top.length) return `No encontré ningún reporte programado${busqueda ? ` que coincida con "${busqueda}"` : ' pendiente o por realizar — todos están al día'}.`;
-        const bucketLabels: Record<string, string> = { pendiente: 'vencido', 'por-realizar': 'por realizar', 'al-dia': 'al día' };
+        const bucketLabels: Record<string, string> = { pendiente: 'vencido', 'por-realizar': 'por realizar', 'al-dia': 'al día', pausado: 'pausado' };
         return `Reportes programados${busqueda ? ` que coinciden con "${busqueda}"` : ' pendientes o por realizar'}:\n${top
           .map((r) => `  · ${r.client} — ${r.reportType} — operador: ${r.operator} — ${bucketLabels[r.bucket]}`)
           .join('\n')}`;

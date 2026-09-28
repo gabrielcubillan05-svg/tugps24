@@ -17,7 +17,7 @@ interface ScheduledReportWithStatus {
   client: string;
   reportType: string;
   operator: string;
-  bucket: 'pendiente' | 'por-realizar' | 'al-dia';
+  bucket: 'pendiente' | 'por-realizar' | 'al-dia' | 'pausado';
 }
 
 export interface GabotData {

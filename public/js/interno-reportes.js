@@ -32,8 +32,8 @@ document.addEventListener('DOMContentLoaded', function () {
   let currentBucket = '';
   let allReports = [];
 
-  const BUCKET_LABELS = { pendiente: 'Pendiente', 'por-realizar': 'Por realizar', 'al-dia': 'Al día' };
-  const BUCKET_CLASS = { pendiente: 'danger', 'por-realizar': '', 'al-dia': 'ok' };
+  const BUCKET_LABELS = { pendiente: 'Pendiente', 'por-realizar': 'Por realizar', 'al-dia': 'Al día', pausado: 'Pausado' };
+  const BUCKET_CLASS = { pendiente: 'danger', 'por-realizar': '', 'al-dia': 'ok', pausado: '' };
 
   function renderScheduled() {
     const reports = currentBucket ? allReports.filter((r) => r.bucket === currentBucket) : allReports;
@@ -48,16 +48,19 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="badge status ${BUCKET_CLASS[r.bucket]}">${BUCKET_LABELS[r.bucket]}</span>
         </div>
         <div class="meta">
-          Operador: ${escapeHtml(r.operator)} · Frecuencia: ${escapeHtml(r.frequency)} ·
-          ${r.pending ? 'Debía hacerse el ' : 'Próximo: '}${fmtDateOnly(r.nextDue)}
-          ${r.dueDateOverride ? ' (fecha fijada a mano)' : ''}
+          Operador: ${escapeHtml(r.operator)} · Frecuencia: ${escapeHtml(r.frequency)}
+          ${r.paused
+            ? ` · En pausa${r.pausedReason ? ': ' + escapeHtml(r.pausedReason) : ''}`
+            : ` · ${r.pending ? 'Debía hacerse el ' : 'Próximo: '}${fmtDateOnly(r.nextDue)}${r.dueDateOverride ? ' (fecha fijada a mano)' : ''}`}
         </div>
         <div class="item-actions">
+          ${r.paused ? '' : `
           <label class="date-field" title="Fijar fecha de entrega para este ciclo">
             <span>Fecha de entrega</span>
             <input type="date" data-action="set-due" data-id="${r.id}" value="${r.dueDateOverride ? r.dueDateOverride.slice(0, 10) : ''}" />
           </label>
-          <button class="btn-small btn-done" data-action="done" data-id="${r.id}">Marcar hecho</button>
+          <button class="btn-small btn-done" data-action="done" data-id="${r.id}">Marcar hecho</button>`}
+          <button class="btn-small" data-action="${r.paused ? 'resume-sr' : 'pause-sr'}" data-id="${r.id}">${r.paused ? 'Reanudar' : 'Pausar'}</button>
           <button class="btn-small btn-delete" data-action="delete-sr" data-id="${r.id}">Eliminar</button>
         </div>
       </div>
@@ -133,6 +136,20 @@ document.addEventListener('DOMContentLoaded', function () {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
+      }).then(loadScheduled);
+    } else if (action === 'pause-sr') {
+      const reason = prompt('Motivo de la pausa (ej: cliente suspendido, servicio cortado):');
+      if (reason === null) return;
+      fetch('/api/scheduled-reports', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, paused: true, reason }),
+      }).then(loadScheduled);
+    } else if (action === 'resume-sr') {
+      fetch('/api/scheduled-reports', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, paused: false }),
       }).then(loadScheduled);
     } else if (action === 'delete-sr') {
       if (!confirm('¿Eliminar este reporte programado?')) return;
