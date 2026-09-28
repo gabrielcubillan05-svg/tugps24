@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const motos = parseInt(document.getElementById('motos').value, 10) || 0;
     const carros = parseInt(document.getElementById('carros').value, 10) || 0;
     const maquinasAmarillas = parseInt(document.getElementById('maquinasAmarillas').value, 10) || 0;
+    const viaticos = Math.max(0, parseInt(document.getElementById('viaticos').value, 10) || 0);
 
     if (motos + carros + maquinasAmarillas <= 0) {
       errorEl.textContent = 'Indica al menos un vehículo o máquina amarilla.';
@@ -37,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch('/api/generate-quote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client, document: document_, email, branch, motos, carros, maquinasAmarillas }),
+      body: JSON.stringify({ client, document: document_, email, branch, motos, carros, maquinasAmarillas, viaticos }),
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -60,7 +61,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const total = motos + carros;
         const flota = total > 5;
         summaryEl.innerHTML = `Cotización generada${client ? ' para <b>' + escapeHtml(client) + '</b>' : ''}: ${motos} moto(s) + ${carros} carro(s)${maquinasAmarillas ? ' + ' + maquinasAmarillas + ' máquina(s) amarilla(s)' : ''}` +
-          (flota ? ' · tarifa de flota aplicada ($39.000/mes c/u)' : '') + '.';
+          (flota ? ' · tarifa de flota aplicada ($39.000/mes c/u)' : '') +
+          (viaticos ? ` · viáticos: $${viaticos.toLocaleString('es-CO')}` : '') + '.';
         summaryEl.style.display = 'block';
       })
       .catch((err) => {

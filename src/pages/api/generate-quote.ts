@@ -51,7 +51,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
 
-  let body: { client?: string; document?: string; email?: string; branch?: string; motos?: number; carros?: number; maquinasAmarillas?: number; leadId?: string };
+  let body: { client?: string; document?: string; email?: string; branch?: string; motos?: number; carros?: number; maquinasAmarillas?: number; viaticos?: number; leadId?: string };
   try {
     body = await request.json();
   } catch {
@@ -66,6 +66,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const motos = Math.max(0, Number(body.motos) || 0);
   const carros = Math.max(0, Number(body.carros) || 0);
   const maquinasAmarillas = Math.max(0, Number(body.maquinasAmarillas) || 0);
+  const viaticos = Math.max(0, Number(body.viaticos) || 0);
   const leadId = String(body.leadId || '').trim();
   const totalVehiculos = motos + carros;
 
@@ -355,6 +356,19 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       y -= 116;
     }
 
+    if (viaticos > 0) {
+      page.drawText('Viáticos:', { x: 40, y, size: 12, font: fontRegular, color: C.black });
+      page.drawText(money(viaticos), { x: 320, y, size: 12, font: fontBold, color: C.ink900 });
+      y -= 26;
+
+      const granTotal = totalInstalacion + totalMaquinaAmarillaPrimerPago + viaticos;
+      page.drawRectangle({ x: 40, y: y - 4, width: PAGE_W - 80, height: 1, color: C.slate });
+      y -= 24;
+      page.drawText('Total a pagar (primer pago):', { x: 40, y, size: 13, font: fontBold, color: C.black });
+      page.drawText(money(granTotal), { x: 320, y, size: 15, font: fontBold, color: C.amber });
+      y -= 30;
+    }
+
     drawContainImage(page, priceImg, PAGE_W - 220, 60, 180, 220, C.paper);
     page.drawRectangle({ x: PAGE_W - 220, y: 60, width: 180, height: 220, borderColor: C.amber, borderWidth: 1.5 });
 
@@ -411,7 +425,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       session,
       'quote_generate',
       clientLabel,
-      `${branch} · ${motos} moto(s) + ${carros} carro(s)${maquinasAmarillas ? ` + ${maquinasAmarillas} máquina(s) amarilla(s)` : ''}`
+      `${branch} · ${motos} moto(s) + ${carros} carro(s)${maquinasAmarillas ? ` + ${maquinasAmarillas} máquina(s) amarilla(s)` : ''}${viaticos ? ` · viáticos: ${money(viaticos)}` : ''}`
     );
 
     if (leadId) {
