@@ -5,6 +5,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { SESSION_COOKIE, getSession, canAccessSection, getUsers, findUserById, branchesOf, verifySameOrigin } from '../../lib/auth';
+import { isShiftSupervisorUsername } from '../../lib/shift';
 
 export const prerender = false;
 
@@ -81,7 +82,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   // Cada gerente/supervisor ve solo los casos de su(s) propia(s) sucursal(es); admin y las
   // excepciones puntuales (SEES_ALL_BRANCHES_USERNAMES) ven todo.
-  if ((session.role === 'gerente' || session.role === 'supervisor') && !SEES_ALL_BRANCHES_USERNAMES.includes(session.username)) {
+  if (
+    (session.role === 'gerente' || session.role === 'supervisor') &&
+    !SEES_ALL_BRANCHES_USERNAMES.includes(session.username) &&
+    !isShiftSupervisorUsername(session.username)
+  ) {
     const viewer = await findUserById(redis, session.userId);
     const viewerBranches = branchesOf(viewer);
     casos = viewerBranches.length ? casos.filter((c) => viewerBranches.includes(c.branch)) : [];

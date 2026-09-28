@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, findUserById, branchesOf, verifySameOrigin } from '../../lib/auth';
+import { isShiftSupervisorUsername } from '../../lib/shift';
 
 export const prerender = false;
 
@@ -75,7 +76,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // Cada gerente/supervisor ve solo los clientes de su(s) propia(s) sucursal(es) (los que no
   // tienen sucursal asignada se muestran igual, para no ocultar datos por un campo vacío);
   // admin ve todo.
-  if (session.role === 'gerente' || session.role === 'supervisor') {
+  if ((session.role === 'gerente' || session.role === 'supervisor') && !isShiftSupervisorUsername(session.username)) {
     const viewer = await findUserById(redis, session.userId);
     const viewerBranches = branchesOf(viewer);
     items = viewerBranches.length ? items.filter((c) => !c.branch || viewerBranches.includes(c.branch)) : items.filter((c) => !c.branch);

@@ -4,6 +4,7 @@ import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
+import { isShiftSupervisorUsername } from '../../lib/shift';
 import {
   SESSION_COOKIE,
   getSession,
@@ -186,7 +187,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // acciones de escalar/finalizar más abajo) — antes este filtro solo miraba el rol, así que
   // si cualquiera de los dos tuviera rol "operador" o "secretaria" le llegaría una lista
   // incompleta pese a tener permiso total sobre los casos.
-  const seesAllOverride = isJosueSession(session) || isTesoreriaSession(session);
+  const seesAllOverride = isJosueSession(session) || isTesoreriaSession(session) || isShiftSupervisorUsername(session.username);
   if (!seesAllOverride && session.role === 'operador') {
     casos = casos.filter((c) => c.createdById === session.userId);
   } else if (!seesAllOverride && (session.role === 'secretaria' || session.role === 'gerente' || session.role === 'supervisor')) {

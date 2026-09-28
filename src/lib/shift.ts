@@ -25,6 +25,14 @@ export const SHIFT_SUPERVISORS: Array<{ username: string; buckets: ShiftBucket[]
   { username: 'juniorcardenas', buckets: ['tarde', 'noche'] }, // Hisnaldis Junior Cardenas Almanza
 ];
 
+// Entre los dos cubren todos los turnos de TODAS las sucursales (supervisión centralizada, no
+// por sucursal) — así que no deben quedar acotados por sucursal en los módulos que sí acotan
+// a "gerente"/"supervisor" (casos importantes, seguimiento masivo, suspensiones): a diferencia
+// de un gerente de sucursal, su rol "supervisor" no está ligado a una sola sede.
+export function isShiftSupervisorUsername(username: string): boolean {
+  return SHIFT_SUPERVISORS.some((s) => s.username === username);
+}
+
 // Clasifica el turno de un operador por su hora de inicio, con margen de tolerancia (±90 min)
 // para no depender de que el horario esté cargado con el minuto exacto — temprano ≈ 6am-2pm,
 // tarde ≈ 2pm-10pm, noche ≈ 10pm-6am.
