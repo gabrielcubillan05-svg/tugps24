@@ -3,6 +3,7 @@ export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
 import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { PLAN_ANUAL_MESES } from '../api/generate-quote';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
@@ -20,6 +21,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
     <h2>Generador de cotizaciones</h2>
     <p style="color:var(--slate); font-size:13.5px; margin-bottom:18px;">
       Ingresa los datos del cliente y la cantidad de vehículos — se genera un PDF listo para enviar.
+      La cotización incluye el plan anual de la sucursal (10x12 en el Caribe, 8x12 en Bucaramanga, Medellín y Montería) salvo para flotas.
     </p>
     <form id="quoteForm">
       <div class="field">
@@ -39,7 +41,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
       <div class="field">
         <label for="branch">Sucursal</label>
         <select id="branch" required>
-          {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+          {BRANCHES.map((b) => <option value={b} data-plan-meses={PLAN_ANUAL_MESES[b]}>{b}</option>)}
         </select>
       </div>
       <div class="form-grid cols-2">

@@ -33,6 +33,21 @@ const BRANCHES: Record<string, string> = {
   Montería: 'Cra 5 #39-69, Local 3 · WhatsApp 320 250 7432',
 };
 
+// Plan anual: el cliente paga de una vez N meses de monitoreo y queda cubierto el año completo.
+// Los meses cambian por sucursal: Caribe 10x12, interior (Bucaramanga, Medellín, Montería) 8x12,
+// donde además el equipo queda en comodato y no se cobra la instalación.
+export const PLAN_ANUAL_MESES: Record<string, number> = {
+  Riohacha: 10,
+  Valledupar: 10,
+  'Santa Marta': 10,
+  Maicao: 10,
+  Atlántico: 10,
+  Bucaramanga: 8,
+  Medellín: 8,
+  Montería: 8,
+};
+export const PLAN_ANUAL_COMODATO_MESES = 8;
+
 async function fetchImageBytes(origin: string, path: string): Promise<ArrayBuffer> {
   const res = await fetch(new URL(path, origin));
   return res.arrayBuffer();
@@ -81,6 +96,12 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
 
   const totalInstalacion = totalVehiculos * INSTALACION_UNIT;
   const totalMensual = motos * mensualidadMoto + carros * mensualidadCarro;
+
+  // El plan anual no aplica a flota (ya tiene tarifa especial) ni a máquina amarilla.
+  const planAnualMeses = !flota && totalVehiculos > 0 ? PLAN_ANUAL_MESES[branch] || 0 : 0;
+  const planAnualComodato = planAnualMeses > 0 && planAnualMeses <= PLAN_ANUAL_COMODATO_MESES;
+  const totalPlanAnual = totalMensual * planAnualMeses;
+  const ahorroPlanAnual = totalMensual * 12 - totalPlanAnual + (planAnualComodato ? totalInstalacion : 0);
 
   // Máquina amarilla (equipo pesado/construcción): producto aparte, incluye certificado y
   // plaqueta, y se factura por semestre (no mensual como motos/carros).
@@ -338,22 +359,51 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       }
     }
 
+    if (planAnualMeses > 0) {
+      const lines: [string, number, any, any][] = [];
+      if (motos > 0) lines.push([`Motos (${motos}): ${planAnualMeses} × ${money(mensualidadMoto)} = ${money(motos * mensualidadMoto * planAnualMeses)}/año`, 10.5, fontRegular, C.paper]);
+      if (carros > 0) lines.push([`Carros (${carros}): ${planAnualMeses} × ${money(mensualidadCarro)} = ${money(carros * mensualidadCarro * planAnualMeses)}/año`, 10.5, fontRegular, C.paper]);
+      lines.push([`Total plan anual: ${money(totalPlanAnual)}/año  ·  ahorras ${money(ahorroPlanAnual)} frente al pago mensual`, 11.5, fontBold, C.amber]);
+      if (planAnualComodato) {
+        lines.push(['Instalación gratis: el equipo GPS queda en comodato, no pagas los ' + money(INSTALACION_UNIT) + ' por vehículo.', 10, fontRegular, C.paperDim]);
+      }
+
+      const boxH = 44 + lines.length * 18;
+      const top = y;
+      page.drawRectangle({ x: 40, y: top - boxH, width: PAGE_W - 80, height: boxH, color: C.ink900 });
+      page.drawRectangle({ x: 40, y: top - boxH, width: 4, height: boxH, color: C.amber });
+      page.drawText(`Plan anual (opcional): paga ${planAnualMeses} meses y queda cubierto el año completo`, {
+        x: 54, y: top - 18, size: 11.5, font: fontBold, color: C.amber,
+      });
+      lines.forEach(([text, size, font, color], i) => {
+        page.drawText(text, { x: 54, y: top - 40 - i * 18, size, font, color });
+      });
+      y = top - boxH - 24;
+    }
+
     if (maquinasAmarillas > 0) {
-      page.drawRectangle({ x: 40, y: y - 8, width: PAGE_W - 260, height: 100, color: C.ink800 });
+      // El recuadro se dibuja hacia abajo desde la posición actual: antes se dibujaba hacia
+      // arriba y quedaba montado sobre los totales de motos/carros.
+      const boxH = 118;
+      const top = y;
+      page.drawRectangle({ x: 40, y: top - boxH, width: PAGE_W - 260, height: boxH, color: C.ink800 });
       page.drawText('Máquina amarilla (GPS con certificado y plaqueta)', {
-        x: 52, y: y + 74, size: 11.5, font: fontBold, color: C.amber,
+        x: 52, y: top - 18, size: 11.5, font: fontBold, color: C.amber,
       });
-      page.drawText(`Cantidad: ${maquinasAmarillas}`, { x: 52, y: y + 54, size: 10.5, font: fontRegular, color: C.paper });
+      page.drawText(`Cantidad: ${maquinasAmarillas}`, { x: 52, y: top - 38, size: 10.5, font: fontRegular, color: C.paper });
       page.drawText(`Instalación + GPS (pago único): ${money(MAQUINA_AMARILLA_INSTALACION_UNIT)} c/u = ${money(totalMaquinaAmarillaInstalacion)}`, {
-        x: 52, y: y + 36, size: 10.5, font: fontRegular, color: C.paper,
+        x: 52, y: top - 56, size: 10.5, font: fontRegular, color: C.paper,
       });
-      page.drawText(`Semestre de monitoreo: ${money(MAQUINA_AMARILLA_SEMESTRE_UNIT)} c/u (equivale a ${money(69000)}/mes) = ${money(totalMaquinaAmarillaSemestre)}`, {
-        x: 52, y: y + 18, size: 10.5, font: fontRegular, color: C.paper,
+      page.drawText(`Semestre de monitoreo: ${money(MAQUINA_AMARILLA_SEMESTRE_UNIT)} c/u = ${money(totalMaquinaAmarillaSemestre)}`, {
+        x: 52, y: top - 74, size: 10.5, font: fontRegular, color: C.paper,
+      });
+      page.drawText(`(equivale a ${money(69000)}/mes por máquina)`, {
+        x: 52, y: top - 88, size: 9.5, font: fontRegular, color: C.paperDim,
       });
       page.drawText(`Total primer pago: ${money(totalMaquinaAmarillaPrimerPago)}`, {
-        x: 52, y: y, size: 12, font: fontBold, color: C.amber,
+        x: 52, y: top - 108, size: 12, font: fontBold, color: C.amber,
       });
-      y -= 116;
+      y = top - boxH - 24;
     }
 
     if (viaticos > 0) {
@@ -369,8 +419,13 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       y -= 30;
     }
 
-    drawContainImage(page, priceImg, PAGE_W - 220, 60, 180, 220, C.paper);
-    page.drawRectangle({ x: PAGE_W - 220, y: 60, width: 180, height: 220, borderColor: C.amber, borderWidth: 1.5 });
+    // La foto se acomoda al espacio que quede debajo del contenido: con plan anual + máquina
+    // amarilla + viáticos, un recuadro fijo de 220 pt se montaba sobre la cifra del total.
+    const priceImgH = Math.min(220, y - 16 - 60);
+    if (priceImgH >= 90) {
+      drawContainImage(page, priceImg, PAGE_W - 220, 60, 180, priceImgH, C.paper);
+      page.drawRectangle({ x: PAGE_W - 220, y: 60, width: 180, height: priceImgH, borderColor: C.amber, borderWidth: 1.5 });
+    }
 
     page.drawText('Cotización válida por 15 días.', { x: 40, y: 70, size: 9, font: fontRegular, color: C.slate });
     page.drawText('Precios en pesos colombianos (COP), no incluyen IVA si aplica.', {
@@ -425,7 +480,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       session,
       'quote_generate',
       clientLabel,
-      `${branch} · ${motos} moto(s) + ${carros} carro(s)${maquinasAmarillas ? ` + ${maquinasAmarillas} máquina(s) amarilla(s)` : ''}${viaticos ? ` · viáticos: ${money(viaticos)}` : ''}`
+      `${branch} · ${motos} moto(s) + ${carros} carro(s)${maquinasAmarillas ? ` + ${maquinasAmarillas} máquina(s) amarilla(s)` : ''}${viaticos ? ` · viáticos: ${money(viaticos)}` : ''}${planAnualMeses ? ` · plan anual ${planAnualMeses}x12` : ''}`
     );
 
     if (leadId) {

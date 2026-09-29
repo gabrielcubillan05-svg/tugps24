@@ -20,7 +20,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const client = document.getElementById('client').value.trim();
     const document_ = document.getElementById('document').value.trim();
     const email = document.getElementById('email').value.trim();
-    const branch = document.getElementById('branch').value;
+    const branchEl = document.getElementById('branch');
+    const branch = branchEl.value;
+    const planMeses = parseInt(branchEl.selectedOptions[0]?.dataset.planMeses, 10) || 0;
     const motos = parseInt(document.getElementById('motos').value, 10) || 0;
     const carros = parseInt(document.getElementById('carros').value, 10) || 0;
     const maquinasAmarillas = parseInt(document.getElementById('maquinasAmarillas').value, 10) || 0;
@@ -62,6 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const flota = total > 5;
         summaryEl.innerHTML = `Cotización generada${client ? ' para <b>' + escapeHtml(client) + '</b>' : ''}: ${motos} moto(s) + ${carros} carro(s)${maquinasAmarillas ? ' + ' + maquinasAmarillas + ' máquina(s) amarilla(s)' : ''}` +
           (flota ? ' · tarifa de flota aplicada ($39.000/mes c/u)' : '') +
+          (!flota && total > 0 && planMeses ? ` · plan anual ${planMeses}x12 incluido` : '') +
           (viaticos ? ` · viáticos: $${viaticos.toLocaleString('es-CO')}` : '') + '.';
         summaryEl.style.display = 'block';
       })
