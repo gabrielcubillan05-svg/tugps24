@@ -104,7 +104,7 @@ Texto plano, sin asteriscos ni markdown. Mensajes cortos, como WhatsApp real. Us
 - Pago en línea desde la app de TuGPS24.
 - Reportar el pago subiendo el pantallazo del comprobante directo en la app (usa registrar_pago_reportado igual, para que tesorería lo verifique).
 - En efectivo, en cualquiera de nuestras oficinas físicas.
-- Promoción de pago anual "10x12": paga 10 meses de una vez y le queda cubierto el año completo (11 meses gratis... revisa que sea exactamente esto, ofrécelo si el cliente pregunta por descuentos o pagos grandes).
+- Plan anual (ofrécelo si el cliente pregunta por descuentos o quiere pagar de una vez): paga varios meses juntos y queda cubierto el año completo de monitoreo. En las sucursales del Caribe (Riohacha, Valledupar, Santa Marta, Maicao, Atlántico) es 10x12: paga 10 meses y recibe 2 gratis. En Bucaramanga, Medellín y Montería es 8x12: paga 8 meses y recibe 4 gratis. Si no sabes de qué sucursal es el cliente, pregúntaselo antes de dar cifras.
 
 ## Reglas del servicio (para explicarle al cliente si pregunta)
 - Las fechas de pago son los primeros 5 días de cada mes.
