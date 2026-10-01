@@ -287,6 +287,69 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     `;
   }
 
+  // Formulario de cotización en línea: los mismos datos que pide el cotizador, prellenados
+  // con lo que ya se sabe del lead. Antes el botón generaba el PDF de una, sin documento,
+  // correo, máquinas amarillas ni viáticos.
+  let quotingId = null;
+  let quoteError = '';
+
+  function branchForLead(l) {
+    return BRANCHES.find((b) => l.city && b.toLowerCase().includes(l.city.toLowerCase()))
+      || l.convertedBranch
+      || BRANCHES[0];
+  }
+
+  function renderQuoteForm(l) {
+    const branch = branchForLead(l);
+    const maquinas = l.vehicleType === 'Máquina Amarilla' ? 1 : 0;
+    return `
+      <div class="lead-item" data-id="${l.id}">
+        <div class="lead-top"><span class="lead-name">Cotización para ${escapeHtml(l.name)}</span></div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Nombre del cliente</label>
+            <input type="text" data-quote="client" value="${escapeHtml(l.name)}" />
+          </div>
+          <div class="field">
+            <label>Documento (opcional)</label>
+            <input type="text" data-quote="document" placeholder="Ej: 1097123456" />
+          </div>
+          <div class="field">
+            <label>Correo electrónico (opcional)</label>
+            <input type="email" data-quote="email" placeholder="cliente@correo.com" />
+          </div>
+          <div class="field">
+            <label>Sucursal</label>
+            <select data-quote="branch">
+              ${BRANCHES.map((b) => `<option value="${b}" ${b === branch ? 'selected' : ''}>${b}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Cantidad de motos</label>
+            <input type="number" min="0" data-quote="motos" value="${l.motosCount || 0}" />
+          </div>
+          <div class="field">
+            <label>Cantidad de carros</label>
+            <input type="number" min="0" data-quote="carros" value="${l.carrosCount || 0}" />
+          </div>
+          <div class="field">
+            <label>Cantidad de máquinas amarillas</label>
+            <input type="number" min="0" data-quote="maquinasAmarillas" value="${maquinas}" />
+          </div>
+          <div class="field">
+            <label>Viáticos (opcional, pesos)</label>
+            <input type="number" min="0" step="1000" data-quote="viaticos" placeholder="Ej: 50000" />
+          </div>
+        </div>
+        ${quoteError ? `<p class="error-msg">${escapeHtml(quoteError)}</p>` : ''}
+        <div class="lead-controls">
+          <button class="btn-small btn-done" data-action="submit-quote" data-id="${l.id}" type="button">Generar cotización PDF</button>
+          <button class="btn-small" data-action="cancel-quote" data-id="${l.id}" type="button">Cancelar</button>
+        </div>
+      </div>
+    `;
+  }
+
   // Buscar por números (ej. "300") coincide con el teléfono de muchísimos leads a la vez —
   // sin este tope, terminaría construyendo miles de tarjetas de golpe en cada tecla. Se
   // avisa cuando se recorta, para que la persona afine la búsqueda si de verdad necesita ver
@@ -307,6 +370,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
 
     leadsList.innerHTML = notice + toRender.map((l) => {
       if (l.id === editingId) return renderEditForm(l);
+      if (l.id === quotingId) return renderQuoteForm(l);
       return `
       <div class="lead-item ${l.overdue ? 'overdue' : ''}" data-id="${l.id}">
         <div class="lead-top">
@@ -754,7 +818,32 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         body: JSON.stringify(body),
       }).then(loadLeads);
     } else if (action === 'quote') {
-      generateQuoteForLead(id, btn);
+      quotingId = id;
+      quoteError = '';
+      renderLeads(getFilteredLeads());
+    } else if (action === 'cancel-quote') {
+      quotingId = null;
+      quoteError = '';
+      renderLeads(getFilteredLeads());
+    } else if (action === 'submit-quote') {
+      const card = leadsList.querySelector(`.lead-item[data-id="${id}"]`);
+      const read = (k) => card.querySelector(`[data-quote="${k}"]`).value;
+      const data = {
+        client: read('client').trim(),
+        document: read('document').trim(),
+        email: read('email').trim(),
+        branch: read('branch'),
+        motos: parseInt(read('motos'), 10) || 0,
+        carros: parseInt(read('carros'), 10) || 0,
+        maquinasAmarillas: parseInt(read('maquinasAmarillas'), 10) || 0,
+        viaticos: Math.max(0, parseInt(read('viaticos'), 10) || 0),
+      };
+      if (data.motos + data.carros + data.maquinasAmarillas <= 0) {
+        quoteError = 'Indica al menos un vehículo o máquina amarilla.';
+        renderLeads(getFilteredLeads());
+        return;
+      }
+      generateQuoteForLead(id, btn, data);
     } else if (action === 'confirm-venta') {
       fetch('/api/leads', {
         method: 'PATCH',
@@ -848,12 +937,9 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     }
   });
 
-  function generateQuoteForLead(id, btn) {
+  function generateQuoteForLead(id, btn, data) {
     const lead = allLeads.find((l) => l.id === id);
     if (!lead) return;
-    const branch = BRANCHES.find((b) => lead.city && b.toLowerCase().includes(lead.city.toLowerCase()))
-      || lead.convertedBranch
-      || BRANCHES[0];
 
     const originalText = btn.textContent;
     btn.disabled = true;
@@ -862,13 +948,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     fetch('/api/generate-quote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client: lead.name,
-        branch,
-        motos: lead.motosCount || 0,
-        carros: lead.carrosCount || 0,
-        leadId: lead.id,
-      }),
+      body: JSON.stringify({ ...data, client: data.client || lead.name, leadId: lead.id }),
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -878,7 +958,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         return res.blob();
       })
       .then((blob) => {
-        const safeName = (lead.name || 'cliente').replace(/[^a-zA-Z0-9]/g, '_');
+        const safeName = (data.client || lead.name || 'cliente').replace(/[^a-zA-Z0-9]/g, '_');
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -887,9 +967,14 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+        quotingId = null;
+        quoteError = '';
         loadLeads();
       })
-      .catch((err) => alert(err.message || 'No se pudo generar la cotización.'))
+      .catch((err) => {
+        quoteError = err.message || 'No se pudo generar la cotización.';
+        renderLeads(getFilteredLeads());
+      })
       .finally(() => {
         btn.disabled = false;
         btn.textContent = originalText;
