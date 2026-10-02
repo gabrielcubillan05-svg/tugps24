@@ -47,7 +47,8 @@ export type Section =
   | 'esquemas-apagado'
   | 'garantias'
   | 'rrhh'
-  | 'almacenamiento';
+  | 'almacenamiento'
+  | 'inventario';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -73,6 +74,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   garantias: 'Garantías',
   rrhh: 'Recursos Humanos',
   almacenamiento: 'Almacenamiento',
+  inventario: 'Inventario de sucursal',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -99,6 +101,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   garantias: '/interno/garantias',
   rrhh: '/interno/rrhh',
   almacenamiento: '/interno/almacenamiento',
+  inventario: '/interno/inventario',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -107,7 +110,7 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
   supervisor: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
   gerente: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
-  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento'],
+  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -192,7 +195,7 @@ export function canAccessRRHH(session: Pick<Session, 'role' | 'username'>): bool
   return session.role === 'admin' || RRHH_EXTRA_USERNAMES.includes(session.username);
 }
 
-export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Section[] {
+export function sectionsFor(session: Pick<Session, 'role' | 'username'>, user?: Pick<User, 'inventoryBranches'> | null): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
   if (!base.includes('cobros') && canAccessCobros(session)) extra.push('cobros');
@@ -205,7 +208,22 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>): Sectio
   if (!base.includes('garantias') && canUploadGarantias(session)) extra.push('garantias');
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
   if (canManageAiAgents(session)) extra.push('agentes-ia');
+  // Inventario de sucursal: lo ve el admin (todas las sucursales) y los encargados de
+  // inventario, que se marcan por usuario en Usuarios. Como eso vive en el registro del
+  // usuario y no en la sesión, el layout pasa el usuario cuando lo tiene a la mano.
+  if (!base.includes('inventario') && user && inventoryBranchesOf(user).length) extra.push('inventario');
   return extra.length ? [...base, ...extra] : base;
+}
+
+// Sucursales en las que el usuario es el encargado de llevar el inventario físico.
+export function inventoryBranchesOf(user: Pick<User, 'inventoryBranches'> | null | undefined): string[] {
+  return user?.inventoryBranches && user.inventoryBranches.length ? user.inventoryBranches : [];
+}
+
+// Sucursales de inventario que puede ver y editar: el admin todas, el encargado las suyas.
+export function inventoryScopeFor(session: Pick<Session, 'role'>, user: Pick<User, 'inventoryBranches'> | null | undefined): string[] {
+  if (session.role === 'admin') return BRANCHES.filter((b) => b !== 'Central de Monitoreo');
+  return inventoryBranchesOf(user);
 }
 
 export function canAssignTasks(role: Role): boolean {
@@ -257,6 +275,8 @@ export interface User {
   /** @deprecated usar `branches` — se conserva solo por compatibilidad con datos viejos */
   branch?: string | null;
   branches?: string[];
+  // Sucursales donde este usuario es el encargado del inventario físico (ver Inventario).
+  inventoryBranches?: string[];
 }
 
 export const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería', 'Central de Monitoreo'];

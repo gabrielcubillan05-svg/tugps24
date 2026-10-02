@@ -44,13 +44,17 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="user-name">${escapeHtml(u.name)}</span>
           <span class="badge">${u.active ? 'Activo' : 'Inactivo'}</span>
         </div>
-        <div class="user-meta">Usuario: ${escapeHtml(u.username)}${(u.branches || []).length ? ` · Sucursales: ${escapeHtml(u.branches.join(', '))}` : ''}</div>
+        <div class="user-meta">Usuario: ${escapeHtml(u.username)}${(u.branches || []).length ? ` · Sucursales: ${escapeHtml(u.branches.join(', '))}` : ''}${(u.inventoryBranches || []).length ? ` · Inventario: ${escapeHtml(u.inventoryBranches.join(', '))}` : ''}</div>
         <div class="user-controls">
           <select data-action="role" data-id="${u.id}">
             ${roles.map((r) => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
           </select>
           <select data-action="branch" data-id="${u.id}" multiple size="4" title="Ctrl/Cmd + clic para elegir varias">
             ${BRANCHES.map((b) => `<option value="${b}" ${(u.branches || []).includes(b) ? 'selected' : ''}>${b}</option>`).join('')}
+          </select>
+          <select data-action="inventory" data-id="${u.id}" multiple size="4" title="Encargado del inventario físico en estas sucursales (Ctrl/Cmd + clic para varias)">
+            <option value="" disabled>Inventario en:</option>
+            ${BRANCHES.filter((b) => b !== 'Central de Monitoreo').map((b) => `<option value="${b}" ${(u.inventoryBranches || []).includes(b) ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
           <button class="btn-small" data-action="reset-password" data-id="${u.id}" type="button">Restablecer clave</button>
           <button class="btn-small ${u.active ? 'btn-delete' : 'btn-done'}" data-action="toggle-active" data-id="${u.id}" type="button">
@@ -89,6 +93,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const role = document.getElementById('u-role').value;
     const password = document.getElementById('u-password').value;
     const branches = Array.from(document.getElementById('u-branch').selectedOptions).map((o) => o.value);
+    const inventoryEl = document.getElementById('u-inventory');
+    const inventoryBranches = inventoryEl ? Array.from(inventoryEl.selectedOptions).map((o) => o.value) : [];
     if (!username || !name || !role || !password) return;
 
     const submitBtn = userForm.querySelector('button[type="submit"]');
@@ -96,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, name, role, password, branches }),
+      body: JSON.stringify({ username, name, role, password, branches, inventoryBranches }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
@@ -162,11 +168,14 @@ document.addEventListener('DOMContentLoaded', function () {
   usersList.addEventListener('change', function (e) {
     const el = e.target;
     const fieldAction = el.getAttribute('data-action');
-    if (fieldAction !== 'role' && fieldAction !== 'branch') return;
+    if (fieldAction !== 'role' && fieldAction !== 'branch' && fieldAction !== 'inventory') return;
     const id = el.getAttribute('data-id');
+    const selected = () => Array.from(el.selectedOptions).map((o) => o.value).filter(Boolean);
     const patch = fieldAction === 'role'
       ? { id, role: el.value }
-      : { id, branches: Array.from(el.selectedOptions).map((o) => o.value) };
+      : fieldAction === 'inventory'
+        ? { id, inventoryBranches: selected() }
+        : { id, branches: selected() };
     fetch('/api/users', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

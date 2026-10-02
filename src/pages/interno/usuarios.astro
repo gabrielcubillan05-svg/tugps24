@@ -44,6 +44,12 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
             {BRANCHES.map((b) => <option value={b}>{b}</option>)}
           </select>
         </div>
+        <div class="field">
+          <label for="u-inventory">Encargado del inventario físico en (opcional, varias con Ctrl/Cmd)</label>
+          <select id="u-inventory" multiple size="4">
+            {BRANCHES.filter((b) => b !== 'Central de Monitoreo').map((b) => <option value={b}>{b}</option>)}
+          </select>
+        </div>
       </div>
       <button class="btn" type="submit">Crear usuario</button>
       <p id="userFormError" class="error-msg" style="display:none; margin-top:12px;"></p>

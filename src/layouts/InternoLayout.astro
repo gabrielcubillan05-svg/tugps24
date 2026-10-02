@@ -1,6 +1,7 @@
 ---
 import type { Session, Section } from '../lib/auth';
-import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor } from '../lib/auth';
+import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor, findUserById } from '../lib/auth';
+import { getRedis } from '../lib/redis';
 
 export interface Props {
   title: string;
@@ -9,7 +10,11 @@ export interface Props {
 }
 
 const { title, active, session } = Astro.props;
-const sections = sectionsFor(session);
+// Una lectura por página vista: algunos accesos (encargado de inventario) dependen del
+// registro del usuario y no del rol.
+const layoutRedis = getRedis();
+const layoutUser = layoutRedis ? await findUserById(layoutRedis, session.userId).catch(() => null) : null;
+const sections = sectionsFor(session, layoutUser);
 
 // Agrupación puramente visual del nav (no cambia permisos: sectionsFor ya decide qué ve cada
 // quien; aquí solo se organiza la presentación en menús por categoría, estilo Hotelia).
@@ -24,7 +29,7 @@ const ICONS: Record<string, string> = {
 };
 
 const NAV_GROUPS: { label: string; icon: keyof typeof ICONS; sections: Section[] }[] = [
-  { label: 'Operación', icon: 'wrench', sections: ['novedades', 'reportes', 'estadisticas', 'tareas', 'planillas-vehiculo', 'esquemas-apagado', 'casos-importantes', 'garantias'] },
+  { label: 'Operación', icon: 'wrench', sections: ['novedades', 'reportes', 'estadisticas', 'tareas', 'planillas-vehiculo', 'esquemas-apagado', 'casos-importantes', 'garantias', 'inventario'] },
   { label: 'Seguridad', icon: 'shield', sections: ['cuadrantes'] },
   { label: 'Comercial', icon: 'briefcase', sections: ['crm', 'cotizaciones', 'seguimiento-masivos', 'conversaciones-whatsapp', 'cobros', 'suspensiones', 'solicitudes-administrativas'] },
   { label: 'Administración', icon: 'settings', sections: ['auditoria', 'usuarios', 'pagos-internos', 'agentes-ia', 'almacenamiento'] },

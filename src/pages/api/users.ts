@@ -37,7 +37,7 @@ export const prerender = false;
 
 function publicUser(u: User) {
   const { passwordHash, ...rest } = u;
-  return { ...rest, branches: branchesOf(u) };
+  return { ...rest, branches: branchesOf(u), inventoryBranches: u.inventoryBranches || [] };
 }
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -116,7 +116,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { username?: string; name?: string; password?: string; role?: string; branch?: string; branches?: string[] };
+  let body: { username?: string; name?: string; password?: string; role?: string; branch?: string; branches?: string[]; inventoryBranches?: string[] };
   try {
     body = await request.json();
   } catch {
@@ -139,6 +139,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (branches === null) {
     return new Response(JSON.stringify({ error: 'sucursal inválida' }), { status: 400 });
   }
+  const inventoryBranches = body.inventoryBranches !== undefined ? parseBranches(body.inventoryBranches) : [];
+  if (inventoryBranches === null) {
+    return new Response(JSON.stringify({ error: 'sucursal de inventario inválida' }), { status: 400 });
+  }
   if (await findUserByUsername(redis, username)) {
     return new Response(JSON.stringify({ error: 'ese usuario ya existe' }), { status: 409 });
   }
@@ -151,6 +155,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     passwordHash: hashPassword(password),
     role,
     branches,
+    inventoryBranches,
     active: true,
     createdAt: now,
     updatedAt: now,
@@ -182,6 +187,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     currentPassword?: string;
     branch?: string;
     branches?: string[];
+    inventoryBranches?: string[];
   };
   try {
     body = await request.json();
@@ -218,8 +224,17 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (body.name !== undefined || body.currentPassword !== undefined) {
       return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal, el rol, la contraseña o el estado activo de este usuario' }), { status: 403 });
     }
-    if (body.branch === undefined && body.branches === undefined && body.password === undefined && body.role === undefined && body.active === undefined) {
+    if (body.branch === undefined && body.branches === undefined && body.inventoryBranches === undefined && body.password === undefined && body.role === undefined && body.active === undefined) {
       return new Response(JSON.stringify({ error: 'falta la sucursal, el rol, la nueva contraseña o el estado activo' }), { status: 400 });
+    }
+
+    if (body.inventoryBranches !== undefined) {
+      const inventoryBranches = parseBranches(body.inventoryBranches);
+      if (inventoryBranches === null) {
+        return new Response(JSON.stringify({ error: 'sucursal de inventario inválida' }), { status: 400 });
+      }
+      user.inventoryBranches = inventoryBranches;
+      await logAudit(redis, session, 'user_inventory_branches_update', user.username, inventoryBranches.join(', ') || '(ninguna)');
     }
 
     if (body.role !== undefined) {
@@ -272,7 +287,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
 
   const onlyTouchesPasswordFields =
-    body.name === undefined && body.role === undefined && body.active === undefined && body.branch === undefined && body.branches === undefined;
+    body.name === undefined && body.role === undefined && body.active === undefined && body.branch === undefined && body.branches === undefined && body.inventoryBranches === undefined;
 
   // Autoservicio de contraseña: isSelf sin campos de admin de por medio pasa por aquí — igual
   // para un admin cambiando SU PROPIA clave (si no, un admin cae en el bloque de abajo, que
@@ -327,6 +342,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     user.branches = branch ? [branch] : [];
     user.branch = branch || null;
+  }
+  if (body.inventoryBranches !== undefined) {
+    const inventoryBranches = parseBranches(body.inventoryBranches);
+    if (inventoryBranches === null) {
+      return new Response(JSON.stringify({ error: 'sucursal de inventario inválida' }), { status: 400 });
+    }
+    user.inventoryBranches = inventoryBranches;
+    await logAudit(redis, session, 'user_inventory_branches_update', user.username, inventoryBranches.join(', ') || '(ninguna)');
   }
   if (body.password !== undefined && body.password !== '') {
     if (String(body.password).length < 8) {
