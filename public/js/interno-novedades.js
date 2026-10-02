@@ -95,9 +95,19 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   let debounceTimer;
+  let lastSignature = '';
+
+  function hasActiveFilters() {
+    return Boolean(searchInput.value.trim() || branchFilter.value || categoryFilter.value || employeeFilter.value || loadAll);
+  }
+
   function loadReports() {
     const params = new URLSearchParams();
-    if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
+    const q = searchInput.value.trim();
+    // Con una o dos letras la búsqueda recorre miles de novedades para devolver casi todo:
+    // se espera a tener al menos tres (una placa tiene seis).
+    if (q.length > 0 && q.length < 3) return;
+    if (q) params.set('q', q);
     if (branchFilter.value) params.set('branch', branchFilter.value);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (employeeFilter.value) params.set('employee', employeeFilter.value);
@@ -108,7 +118,12 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.reports)) {
-          renderReports(data.reports);
+          // El auto-refresco no redibuja (ni recarga las fotos) si no llegó nada nuevo.
+          const signature = params.toString() + '|' + data.reports.map((r) => r.id).join(',');
+          if (signature !== lastSignature) {
+            lastSignature = signature;
+            renderReports(data.reports);
+          }
           if (data.truncated) {
             truncatedNotice.style.display = '';
             truncatedNotice.innerHTML = `Mostrando las ${data.reports.length} novedades más recientes de ${data.total}. Usa los filtros para buscar más atrás, o <button type="button" class="btn-small" id="loadAllBtn">revisa más historial</button>.`;
@@ -141,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function debouncedLoad() {
     resetScanLimit();
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(loadReports, 250);
+    debounceTimer = setTimeout(loadReports, 500);
   }
 
   function loadWithResetScan() {
@@ -249,5 +264,11 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   loadReports();
-  setInterval(loadReports, 120000);
+  // El refresco automático solo aplica a la vista normal (las más recientes) y con la pestaña
+  // visible: con un filtro o búsqueda activa el operador ya está mirando algo puntual, y cada
+  // refresco repetiría un recorrido de miles de novedades sin que nadie lo pidiera.
+  setInterval(function () {
+    if (document.hidden || hasActiveFilters()) return;
+    loadReports();
+  }, 120000);
 });

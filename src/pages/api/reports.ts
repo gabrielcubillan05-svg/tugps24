@@ -51,6 +51,10 @@ export async function readRecentReports(redis: any, limit: number = 30): Promise
 const DEFAULT_LIMIT = 200;
 const SEARCH_CHUNK_SIZE = 1000;
 const SEARCH_MAX_SCAN = 10000;
+// Filtrar por sucursal, categoría o empleado es para ver lo reciente (hoy, ayer): con ~1.300
+// novedades al día, 2.000 entradas cubren día y medio y se traen 5 veces más rápido que las
+// 10.000 de una búsqueda por texto. El botón "seguir buscando más atrás" amplía el tope.
+const FILTER_MAX_SCAN = 2000;
 const SEARCH_MAX_SCAN_CEILING = 100000; // tope duro para que no se pida algo descontrolado
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -71,7 +75,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const requestedScanLimit = parseInt(url.searchParams.get('scanLimit') || '', 10);
   const scanLimit = Number.isFinite(requestedScanLimit) && requestedScanLimit > 0
     ? Math.min(requestedScanLimit, SEARCH_MAX_SCAN_CEILING)
-    : SEARCH_MAX_SCAN;
+    : q || all ? SEARCH_MAX_SCAN : FILTER_MAX_SCAN;
 
   // Este registro crece todos los días desde hace meses (ya son ~30.000) — traer todo
   // en cada carga (y cada 2 minutos por el auto-refresco) es lo que lo hacía lento, y
@@ -198,14 +202,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'almacenamiento de imágenes no configurado' }), { status: 503 });
     }
     try {
-      for (const file of imageFiles.slice(0, MAX_IMAGES)) {
-        const blob = await put(`reports/${id}-${randomUUID()}`, file, {
-          access: 'private',
-          token,
-          addRandomSuffix: false,
-        });
-        images.push(blob.pathname);
-      }
+      // Las fotos suben a la vez, no una tras otra: con 3 o 4 fotos eso recorta varios segundos.
+      const uploaded = await Promise.all(
+        imageFiles.slice(0, MAX_IMAGES).map((file) =>
+          put(`reports/${id}-${randomUUID()}`, file, { access: 'private', token, addRandomSuffix: false })
+        )
+      );
+      uploaded.forEach((blob) => images.push(blob.pathname));
     } catch (err) {
       console.error('reports: fallo al subir imagen', err instanceof Error ? err.message : String(err));
       return new Response(JSON.stringify({ error: 'fallo al subir imagen' }), { status: 500 });
@@ -229,20 +232,22 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   await redis.lpush(REDIS_KEY, JSON.stringify(report));
   await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category);
 
+  // Los avisos a supervisores y gerentes van en paralelo. Antes iban uno por uno, y cada uno
+  // incluye un push real al navegador del destinatario (una llamada externa de varios cientos
+  // de ms): con una docena de destinatarios, el operador esperaba varios segundos por novedad.
+  // Si alguno falla no tumba el guardado.
   const managers = (await getUsers(redis)).filter(
     (u) => u.active && u.id !== session.userId && (u.role === 'supervisor' || u.role === 'gerente')
   );
-  for (const manager of managers) {
-    try {
-      await pushNotification(redis, manager.id, {
+  await Promise.allSettled(
+    managers.map((manager) =>
+      pushNotification(redis, manager.id, {
         type: 'novedad',
         message: `Nueva novedad: ${report.plate} · ${report.branch} (${report.category})`,
         link: '/interno/novedades',
-      });
-    } catch {
-      // no debe tumbar el guardado del reporte si falla notificar a un gerente puntual
-    }
-  }
+      })
+    )
+  );
 
   return new Response(JSON.stringify({ report }), {
     headers: { 'Content-Type': 'application/json' },
