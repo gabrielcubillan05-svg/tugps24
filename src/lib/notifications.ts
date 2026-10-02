@@ -9,6 +9,7 @@ export const MAX_NOTIFICATIONS = 200;
 // Margen antes de recortar al escribir: así no se relee el hash completo en cada aviso, solo
 // cuando ya se pasó un poco del tope.
 const TRIM_SLACK = 50;
+const WRITE_TRIM_MAX = 2000;
 
 export interface NotificationEntry {
   id: string;
@@ -45,7 +46,9 @@ export async function pushNotification(
   // miles de avisos (84.000 entre 49 usuarios cuando se detectó). Ahora se recorta al escribir.
   try {
     const size = Number(await redis.hlen(keyFor(userId))) || 0;
-    if (size > MAX_NOTIFICATIONS + TRIM_SLACK) await trimNotifications(redis, userId);
+    // Los hashes gigantes heredados (miles de avisos) los recorta la limpieza diaria, que corre
+    // sin prisa; aquí solo se mantiene a raya el día a día.
+    if (size > MAX_NOTIFICATIONS + TRIM_SLACK && size <= WRITE_TRIM_MAX) await trimNotifications(redis, userId);
   } catch {
     // recortar nunca debe tumbar el aviso
   }
@@ -59,17 +62,26 @@ export async function pushNotification(
   }
 }
 
+// Se lee por páginas (hscan) y no con hgetall: a los usuarios con decenas de miles de avisos
+// acumulados un hgetall les superaba el tope de 10 MB por petición de Upstash y fallaba.
 async function readRawNotifications(redis: Redis, userId: string): Promise<NotificationEntry[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(keyFor(userId))) || {};
-  return Object.values(raw)
-    .map((v) => {
+  const entries: NotificationEntry[] = [];
+  let cursor: string | number = 0;
+  do {
+    const [next, flat] = await redis.hscan(keyFor(userId), cursor, { count: 500 });
+    cursor = next;
+    const pairs = Array.isArray(flat) ? flat : [];
+    for (let i = 0; i + 1 < pairs.length; i += 2) {
+      const v = pairs[i + 1];
       try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
+        const parsed = typeof v === 'string' ? JSON.parse(v) : v;
+        if (parsed && typeof parsed === 'object') entries.push(parsed as NotificationEntry);
       } catch {
-        return null;
+        // entrada corrupta, se ignora
       }
-    })
-    .filter((e): e is NotificationEntry => e !== null);
+    }
+  } while (String(cursor) !== '0');
+  return entries;
 }
 
 // --- Lectura mínima autocontenida de tareas/leads/reportes ---

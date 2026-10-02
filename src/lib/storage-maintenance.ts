@@ -326,7 +326,9 @@ export interface StorageReport {
 }
 
 const MAX_KEYS = 5000;
-const HASH_FULL_READ_MAX = 3000;
+// Por encima de esto se estima por muestra: un hgetall de un hash grande puede pasar el tope
+// de 10 MB por petición de Upstash.
+const HASH_FULL_READ_MAX = 1000;
 const SAMPLE = 200;
 const MAX_BLOB_PAGES = 40;
 
