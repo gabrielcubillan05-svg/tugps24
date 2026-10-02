@@ -119,7 +119,18 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   function computeStats(leads) {
     const byStatus = {};
     STATUSES.forEach((s) => { byStatus[s] = 0; });
-    leads.forEach((l) => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+    const { month, dateFrom, dateTo } = currentPeriod();
+    const hasPeriod = !!(month || dateFrom || dateTo);
+    leads.forEach((l) => {
+      // Con un periodo elegido, "Instalado" se cuenta por la fecha en que se marcó instalado,
+      // no por la fecha en que se creó el lead; los demás estados siguen por creación.
+      if (hasPeriod && l.status === 'Instalado') {
+        if (inPeriod(installedDateOf(l), month, dateFrom, dateTo)) byStatus.Instalado += 1;
+        return;
+      }
+      if (hasPeriod && !inPeriod(l.createdAt, month, dateFrom, dateTo)) return;
+      byStatus[l.status] = (byStatus[l.status] || 0) + 1;
+    });
     return {
       total: leads.length,
       byStatus,
@@ -157,7 +168,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   function populateDynamicFilters(leads) {
     const cities = [...new Set(leads.map((l) => l.city).filter(Boolean))].sort();
     const secretaries = [...new Set(leads.map((l) => l.secretary).filter(Boolean))].sort();
-    const months = [...new Set(leads.map((l) => (l.createdAt || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+    const months = [...new Set(leads.flatMap((l) => [(l.createdAt || '').slice(0, 7), (installedDateOf(l) || '').slice(0, 7)]).filter(Boolean))].sort().reverse();
 
     const currentCity = cityFilter.value;
     cityFilter.innerHTML = '<option value="">Todas las ciudades</option>' +
@@ -220,16 +231,37 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       if (status && l.status !== status) return false;
       if (vehicleType && l.vehicleType !== vehicleType) return false;
       if (campaign && l.campaign !== campaign) return false;
-      if (month && (l.createdAt || '').slice(0, 7) !== month) return false;
       if (onlyOverdue && !l.overdue) return false;
-      if (dateFrom || dateTo) {
-        const created = l.createdAt ? l.createdAt.slice(0, 10) : '';
-        if (!created) return false;
-        if (dateFrom && created < dateFrom) return false;
-        if (dateTo && created > dateTo) return false;
+      // Un lead entra en el periodo si se creó en él o si se instaló en él: una venta que
+      // entró en agosto y se instaló en septiembre debe aparecerle a la secretaria en
+      // septiembre, que es cuando la cerró, no solo en el mes en que se registró.
+      if (month || dateFrom || dateTo) {
+        if (!inPeriod(l.createdAt, month, dateFrom, dateTo) && !inPeriod(installedDateOf(l), month, dateFrom, dateTo)) return false;
       }
       return true;
     });
+  }
+
+  // Fecha real de instalación; los leads marcados antes de que existiera installedAt se
+  // aproximan con la última edición, igual que hace la página de Estadísticas.
+  function installedDateOf(l) {
+    if (!l.installed) return null;
+    return l.installedAt || l.updatedAt || null;
+  }
+
+  function inPeriod(iso, month, dateFrom, dateTo) {
+    if (!iso) return false;
+    if (month && iso.slice(0, 7) !== month) return false;
+    if (dateFrom || dateTo) {
+      const day = iso.slice(0, 10);
+      if (dateFrom && day < dateFrom) return false;
+      if (dateTo && day > dateTo) return false;
+    }
+    return true;
+  }
+
+  function currentPeriod() {
+    return { month: monthFilter.value, dateFrom: dateFromFilter.value, dateTo: dateToFilter.value };
   }
 
   let editingId = null;
