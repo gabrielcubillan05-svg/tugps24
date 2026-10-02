@@ -34,6 +34,22 @@ if (!canManageAiAgents(session)) {
   </div>
 
   <div class="panel-card">
+    <h2>Aviso de promoción por sucursal</h2>
+    <p class="hint">
+      Cuando entra una promoción de instalación después de que Andrés ya atendió clientes con el precio anterior,
+      él les escribe para corregirles el precio. Solo puede mandar texto libre a quien le haya escrito en las últimas
+      24 horas (regla de WhatsApp); los demás salen en una lista para que la sucursal los contacte a mano.
+      Aplica a los leads de WhatsApp de las sucursales con promoción vigente, sin instalar y sin marcar como perdidos.
+    </p>
+    <div class="period-custom-range">
+      <label>Que escribieron desde <input id="promoNoticeSince" type="date" /></label>
+      <button class="btn-small" id="promoNoticeSimulateBtn" type="button">Simular (no envía)</button>
+      <button class="btn-ghost" id="promoNoticeSendBtn" type="button">Enviar aviso</button>
+    </div>
+    <div id="promoNoticeResult" style="margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></div>
+  </div>
+
+  <div class="panel-card">
     <h2>Consumo por período</h2>
     <p class="hint">Tokens y costo de cada agente en un rango de fechas — separado del contador acumulado de arriba (ese solo se reinicia a mano).</p>
     <div class="period-buttons">

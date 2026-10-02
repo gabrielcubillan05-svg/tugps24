@@ -1,7 +1,7 @@
 import { callAnthropicMessages } from './anthropic-client';
+import { INSTALACION_UNIT, activeInstallPromos, promoDaysLeft, promoUntilLabel, spokenBranchName } from './pricing';
 
 const MODEL = 'claude-sonnet-5';
-const PROMO_DEADLINE = '2026-09-30T23:59:59-05:00';
 
 // Direcciones reales de sucursales (mismas usadas en la generación de cotizaciones en PDF),
 // para que el agente pueda dar la dirección exacta apenas confirme la ciudad del cliente.
@@ -116,9 +116,14 @@ const TOOLS = [
 
 function buildSystemPrompt(extraInstructions?: string, channel: 'whatsapp' | 'web' = 'whatsapp'): string {
   const now = new Date();
-  const deadline = new Date(PROMO_DEADLINE);
-  const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / 86400000));
-  const promoActive = now.getTime() <= deadline.getTime();
+  const money = (n: number) => '$' + n.toLocaleString('es-CO');
+  // Promociones de instalación por sucursal vigentes hoy (lib/pricing.ts). Se apagan solas.
+  const installPromoLines = activeInstallPromos(now)
+    .map((p) => {
+      const where = p.branches.map((b) => (spokenBranchName(b) === b ? b : `${b} (${spokenBranchName(b)})`)).join(' y ');
+      return `- 🔥 ${p.label.toUpperCase()} — SOLO para la sucursal ${where}: equipo + instalación a ${money(p.price)} en vez de ${money(INSTALACION_UNIT)}, válida hasta el ${promoUntilLabel(p)} (quedan ${promoDaysLeft(p, now)} día(s); úsalo para generar urgencia real, sin inventar plazos). Aplica según la sucursal que atiende al cliente (la que registraste en set_ciudad): si es una de estas, el precio que das es ${money(p.price)} directamente, nunca ${money(INSTALACION_UNIT)}. En cualquier otra ciudad esta promoción NO existe: no la menciones ni la concedas aunque te la pidan.`;
+    })
+    .join('\n');
 
   const branchList = Object.entries(BRANCH_ADDRESSES).map(([city, addr]) => `${city}: ${addr}`).join('\n- ');
 
@@ -159,7 +164,8 @@ Mantén siempre un registro serio pero cálido, propio de un asesor de una empre
 5. Cierra pidiendo una fecha o preferencia de fecha para instalar. Cuando el cliente diga explícitamente que SÍ quiere instalar Y dé una fecha o preferencia, llama a marcar_calificado con un resumen claro. Nunca confirmes la fecha como agendada en firme — dile que la sucursal le confirma disponibilidad.
 
 ## Precios (COP)
-- Equipo + instalación: $150.000${promoActive ? ` — promoción "Amor y Amistad" vigente, termina el 30 de septiembre (quedan ${daysLeft} día(s), puedes usar esto para generar urgencia real, sin inventar plazos)` : ' (la promoción "Amor y Amistad" ya terminó, no la menciones)'}.
+- Equipo + instalación: ${money(INSTALACION_UNIT)} en todas las sucursales (es el precio de promoción vigente; no digas que terminó ni le pongas fecha de cierre).
+${installPromoLines}
 - Mensualidad de monitoreo: Moto $44.000/mes · Carro $49.000/mes · Flota (5 o más vehículos en total, sumando motos y carros) $39.000/mes por vehículo.
 - NO ofrezcas el primer mes gratis — esa promoción no está vigente actualmente.
 
@@ -178,9 +184,9 @@ Mantén siempre un registro serio pero cálido, propio de un asesor de una empre
 - Carro 🚘: 8 × $49.000 = $392.000 pesos por todo el año, sin pagar instalación.
 
 ### Sucursales del Caribe — Riohacha, Valledupar, Santa Marta, Maicao y Atlántico: plan 10x12
-- Paga 10 meses y se le regalan 2 meses gratis. Aquí la instalación NO es gratis: se paga normal ($150.000 por vehículo), el plan solo cubre el monitoreo.
-- Moto 🏍️: 10 × $44.000 = $440.000 pesos por todo el año de monitoreo + $150.000 de instalación.
-- Carro 🚘: 10 × $49.000 = $490.000 pesos por todo el año de monitoreo + $150.000 de instalación.
+- Paga 10 meses y se le regalan 2 meses gratis. Aquí la instalación NO es gratis: se paga aparte al precio de instalación que corresponda a su sucursal (ver Precios: ${money(INSTALACION_UNIT)}, o el de la promoción vigente si su sucursal la tiene), el plan solo cubre el monitoreo.
+- Moto 🏍️: 10 × $44.000 = $440.000 pesos por todo el año de monitoreo + la instalación.
+- Carro 🚘: 10 × $49.000 = $490.000 pesos por todo el año de monitoreo + la instalación.
 - NUNCA le ofrezcas a un cliente del Caribe el 8x12 ni la instalación gratis en comodato — eso es solo del interior.
 
 ## Máquina amarilla (equipo pesado/construcción) — precio aparte, no es como moto/carro

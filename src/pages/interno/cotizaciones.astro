@@ -3,7 +3,7 @@ export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
 import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
-import { PLAN_ANUAL_MESES } from '../api/generate-quote';
+import { PLAN_ANUAL_MESES } from '../../lib/pricing';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);

@@ -60,6 +60,8 @@ export interface Lead {
   // (GaBot lo sigue recordando en cada corrida hasta que quede marcado) ---
   managerAckAt?: string | null;
   managerAckBy?: string | null;
+  // --- Aviso de promoción de instalación ya enviado (whatsapp-promo-notice) ---
+  promoNoticeSentAt?: string | null;
 }
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', 'Máquina Amarilla', ''];
@@ -98,7 +100,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, ...l }))
+    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, ...l }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 

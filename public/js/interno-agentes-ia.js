@@ -232,6 +232,65 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   });
 
+  // --- Aviso de promoción por sucursal ---
+  const promoNoticeSince = document.getElementById('promoNoticeSince');
+  const promoNoticeSimulateBtn = document.getElementById('promoNoticeSimulateBtn');
+  const promoNoticeSendBtn = document.getElementById('promoNoticeSendBtn');
+  const promoNoticeResult = document.getElementById('promoNoticeResult');
+  if (promoNoticeSince && !promoNoticeSince.value) {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    promoNoticeSince.value = fmtDateOnly(y);
+  }
+
+  function renderPromoNotice(d) {
+    if (d.reason === 'quiet-hours') {
+      promoNoticeResult.textContent = 'No se envió nada: son horas de silencio (11pm–6am Colombia). Intenta de nuevo en el día.';
+      return;
+    }
+    const promos = (d.promos || []).map((p) => `${escapeHtml(p.label)}: ${fmtCop(p.price)} en ${p.branches.map(escapeHtml).join(' y ')} hasta el ${escapeHtml(p.until)}`).join('<br />');
+    const outList = (d.outOfWindow || []).map((o) => `<li>${escapeHtml(o.name)} · ${escapeHtml(o.phone)} · ${escapeHtml(o.branch)}${o.secretary ? ' · ' + escapeHtml(o.secretary) : ''}</li>`).join('');
+    promoNoticeResult.innerHTML = `
+      <div>${promos}</div>
+      <p style="margin:10px 0 4px;"><b>${d.dryRun ? 'Simulación' : 'Envío'}:</b>
+        ${d.dryRun ? `${d.eligible} lead(s) recibirían el aviso ahora` : `${d.sent} enviado(s), ${d.failed} fallido(s)`}
+        · ${d.alreadyNotified} ya avisado(s) antes
+        · ${(d.outOfWindow || []).length} fuera de la ventana de 24 h.</p>
+      ${d.dryRun && d.eligibleNames && d.eligibleNames.length ? `<p class="hint">Recibirían: ${d.eligibleNames.map(escapeHtml).join(', ')}</p>` : ''}
+      ${d.sampleMessage ? `<p class="hint">Mensaje: “${escapeHtml(d.sampleMessage)}”</p>` : ''}
+      ${d.failures && d.failures.length ? `<p class="hint" style="color:var(--danger);">Fallidos: ${d.failures.map(escapeHtml).join(' · ')}</p>` : ''}
+      ${outList ? `<p style="margin:10px 0 4px;">Para contactar a mano (no escribieron en las últimas 24 h):</p><ul class="hint" style="margin:0; padding-left:18px;">${outList}</ul>` : ''}
+    `;
+  }
+
+  function runPromoNotice(dryRun) {
+    if (!promoNoticeSince.value) return;
+    if (!dryRun && !confirm('¿Enviar el aviso de promoción por WhatsApp a todos los leads que aplican? Esto manda mensajes reales de Andrés.')) return;
+    promoNoticeSimulateBtn.disabled = true;
+    promoNoticeSendBtn.disabled = true;
+    promoNoticeResult.textContent = dryRun ? 'Calculando...' : 'Enviando...';
+    fetch('/api/whatsapp-promo-notice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun, since: promoNoticeSince.value }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo ejecutar.');
+        renderPromoNotice(data);
+      })
+      .catch((err) => {
+        promoNoticeResult.textContent = err.message || 'No se pudo ejecutar.';
+      })
+      .finally(() => {
+        promoNoticeSimulateBtn.disabled = false;
+        promoNoticeSendBtn.disabled = false;
+      });
+  }
+
+  if (promoNoticeSimulateBtn) promoNoticeSimulateBtn.addEventListener('click', () => runPromoNotice(true));
+  if (promoNoticeSendBtn) promoNoticeSendBtn.addEventListener('click', () => runPromoNotice(false));
+
   if (retryTodayBtn) retryTodayBtn.addEventListener('click', function () {
     if (!confirm('¿Enviar un mensaje real de Andrés a todos los leads de hoy que siguen esperando respuesta? Esto envía WhatsApp de verdad.')) return;
     retryTodayBtn.disabled = true;

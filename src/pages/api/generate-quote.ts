@@ -4,6 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
 import { REDIS_KEY as LEADS_REDIS_KEY, type Lead } from './leads';
+import { PLAN_ANUAL_MESES, PLAN_ANUAL_COMODATO_MESES, installPriceFor, installPromoFor, promoUntilLabel } from '../../lib/pricing';
 
 export const prerender = false;
 
@@ -32,21 +33,6 @@ const BRANCHES: Record<string, string> = {
   Medellín: 'Cra. 70 #30A-138, Belén, Antioquia · 311 610 5725',
   Montería: 'Cra 5 #39-69, Local 3 · WhatsApp 320 250 7432',
 };
-
-// Plan anual: el cliente paga de una vez N meses de monitoreo y queda cubierto el año completo.
-// Los meses cambian por sucursal: Caribe 10x12, interior (Bucaramanga, Medellín, Montería) 8x12,
-// donde además el equipo queda en comodato y no se cobra la instalación.
-export const PLAN_ANUAL_MESES: Record<string, number> = {
-  Riohacha: 10,
-  Valledupar: 10,
-  'Santa Marta': 10,
-  Maicao: 10,
-  Atlántico: 10,
-  Bucaramanga: 8,
-  Medellín: 8,
-  Montería: 8,
-};
-export const PLAN_ANUAL_COMODATO_MESES = 8;
 
 async function fetchImageBytes(origin: string, path: string): Promise<ArrayBuffer> {
   const res = await fetch(new URL(path, origin));
@@ -89,7 +75,9 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     return new Response(JSON.stringify({ error: 'debe indicar al menos un vehículo o máquina amarilla' }), { status: 400 });
   }
 
-  const INSTALACION_UNIT = 150000;
+  // El precio de instalación depende de la sucursal y la fecha (promociones en lib/pricing.ts).
+  const installPromo = installPromoFor(branch);
+  const INSTALACION_UNIT = installPriceFor(branch);
   const flota = totalVehiculos > 5;
   const mensualidadMoto = flota ? 39000 : 44000;
   const mensualidadCarro = flota ? 39000 : 49000;
@@ -354,6 +342,14 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
         page.drawText(
           `Tarifa especial de flota aplicada: al superar 5 vehículos, todos pasan a ${money(39000)}/mes cada uno.`,
           { x: 40, y, size: 10, font: fontRegular, color: C.slate }
+        );
+        y -= 30;
+      }
+
+      if (installPromo) {
+        page.drawText(
+          `${installPromo.label}: instalación a ${money(installPromo.price)} por vehículo en ${branch}, válida hasta el ${promoUntilLabel(installPromo)}.`,
+          { x: 40, y, size: 10, font: fontBold, color: C.amber }
         );
         y -= 30;
       }
