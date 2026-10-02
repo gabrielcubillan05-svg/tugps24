@@ -21,11 +21,12 @@ const RESPONSABLES = [
   'Pierangela Sanchez',
   'Kelly Lara',
   'Alejandra Molina',
+  'Isnaldi',
 ];
 
-// Cristian está en Bucaramanga pero lleva el inventario de todas las sucursales a nivel
-// nacional: se le marcan todas, no solo la de su perfil.
-const RESPONSABLES_NACIONALES = ['Cristian Zambrano'];
+// Cristian (Bucaramanga) e Isnaldi llevan el inventario de todas las sucursales a nivel
+// nacional: se les marcan todas, no solo la de su perfil.
+const RESPONSABLES_NACIONALES = ['Cristian Zambrano', 'Isnaldi'];
 const TODAS_LAS_SUCURSALES = BRANCHES.filter((b) => b !== 'Central de Monitoreo');
 
 function tokens(name: string): string[] {
