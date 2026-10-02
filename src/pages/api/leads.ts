@@ -89,6 +89,12 @@ export function computeOverdue(lead: Lead): boolean {
   return isOverdueInColombia(lead.nextFollowUp.slice(0, 10));
 }
 
+// Rellena los campos que se fueron agregando con el tiempo, para que un lead viejo leído
+// suelto (hget) se comporte igual que uno de la lista completa.
+export function normalizeLead(l: any): Lead {
+  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, ...l };
+}
+
 export async function readLeads(redis: any): Promise<Lead[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
@@ -100,7 +106,7 @@ export async function readLeads(redis: any): Promise<Lead[]> {
       }
     })
     .filter((l): l is Lead => l !== null)
-    .map((l) => ({ notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, ...l }))
+    .map(normalizeLead)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 

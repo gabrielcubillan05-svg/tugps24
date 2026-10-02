@@ -197,6 +197,19 @@ function excelSerialToISO(serial: number): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+export function normalizeCobro(c: any): Cobro {
+  return { aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, paymentImageSentAt: null, derivedToSales: false, ...c };
+}
+
+// Índice teléfono → lead/cobro que usa el webhook de WhatsApp (ver whatsapp-webhook.ts). Un
+// número que entra o cambia en cobranza se saca del índice para que el próximo mensaje lo
+// resuelva de nuevo y no se vaya a Andrés cuando debía ir a Valentina.
+const PHONE_INDEX_KEY = 'internal:whatsapp-phone-index';
+async function forgetPhones(redis: any, cobros: Cobro[]): Promise<void> {
+  const phones = [...new Set(cobros.map((c) => normalizePhone(c.telefono)).filter((p) => p.length >= 10))];
+  for (let i = 0; i < phones.length; i += 500) await redis.hdel(PHONE_INDEX_KEY, ...phones.slice(i, i + 500));
+}
+
 export async function readCobros(redis: any): Promise<Cobro[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
@@ -208,7 +221,7 @@ export async function readCobros(redis: any): Promise<Cobro[]> {
       }
     })
     .filter((c): c is Cobro => c !== null)
-    .map((c) => ({ aiStage: 'sin_iniciar', templateSentAt: null, lastInboundAt: null, lastOutboundAt: null, paymentImageSentAt: null, derivedToSales: false, ...c }))
+    .map(normalizeCobro)
     .sort((a, b) => b.deuda - a.deuda);
 }
 
@@ -393,6 +406,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   // Se agrega/actualiza sobre la lista existente sin borrar nada — para eso está el botón
   // "Borrar todo" aparte.
   await redis.hset(REDIS_KEY, changedCobros);
+  await forgetPhones(redis, Object.values(changedCobros).map((v) => (typeof v === 'string' ? JSON.parse(v) : v)));
 
   await logAudit(
     redis,
@@ -420,14 +434,15 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const existingIds = Object.keys((await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {});
-  if (existingIds.length) {
-    await redis.hdel(REDIS_KEY, ...existingIds);
-  }
+  // Se borra la llave completa (no campo por campo) y con ella el historial de WhatsApp de
+  // cada cobro y el índice teléfono → cobro del webhook: si quedaran, un acuse de entrega
+  // tardío resucitaría la conversación de un cobro que ya no existe.
+  const existing = (await redis.hlen(REDIS_KEY)) || 0;
+  await redis.del(REDIS_KEY, COBRO_CONVERSATIONS_KEY, 'internal:whatsapp-phone-index');
 
-  await logAudit(redis, session, 'cobros_delete_all', `${existingIds.length} cobros`);
+  await logAudit(redis, session, 'cobros_delete_all', `${existing} cobros`, 'con su historial de WhatsApp');
 
-  return new Response(JSON.stringify({ deleted: existingIds.length }), {
+  return new Response(JSON.stringify({ deleted: existing }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };

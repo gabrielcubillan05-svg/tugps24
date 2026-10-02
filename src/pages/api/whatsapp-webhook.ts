@@ -8,8 +8,8 @@ import { sendWhatsappText, sendWhatsappMedia, verifyMetaSignature } from '../../
 import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { runCollectionsAgent } from '../../lib/collections-agent';
-import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
-import { readCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
+import { readLeads, normalizeLead, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { readCobros, normalizeCobro, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { readAgentMedia } from './whatsapp-agent-media';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { sendGabotMessage } from '../../lib/gabot';
@@ -138,6 +138,40 @@ async function resolvePhoneTarget(redis: any, phone: string): Promise<PhoneTarge
   return parsePhoneTarget(index[phone]);
 }
 
+// Búsqueda por teléfono para los mensajes entrantes: con el índice resuelve el lead o el cobro
+// con dos lecturas chicas; solo si el número no está (o cambió de dueño) se recorre la lista
+// completa, y de paso se indexa. Antes CADA mensaje entrante leía los dos hashes enteros.
+async function findLeadByPhone(redis: any, phone: string): Promise<Lead | null> {
+  const cached = parsePhoneTarget(await redis.hget(PHONE_INDEX_KEY, phone));
+  if (cached && cached.kind === 'lead') {
+    const raw = await redis.hget(LEADS_KEY, cached.id);
+    if (raw) {
+      const lead = normalizeLead(typeof raw === 'string' ? JSON.parse(raw) : raw);
+      if (normalizePhone(lead.phone) === phone) return lead;
+    }
+  }
+  const found = (await readLeads(redis)).find((l) => normalizePhone(l.phone) === phone) || null;
+  if (found) await indexPhoneTarget(redis, phone, { kind: 'lead', id: found.id });
+  return found;
+}
+
+async function findCobroByPhone(redis: any, phone: string): Promise<Cobro | null> {
+  const cached = parsePhoneTarget(await redis.hget(PHONE_INDEX_KEY, phone));
+  if (cached && cached.kind === 'cobro') {
+    const raw = await redis.hget(COBROS_KEY, cached.id);
+    if (raw) {
+      const cobro = normalizeCobro(typeof raw === 'string' ? JSON.parse(raw) : raw);
+      if (normalizePhone(cobro.telefono) === phone) return cobro;
+    }
+  }
+  // Un número ya indexado como lead no está en cobranza: cobros.ts saca del índice cualquier
+  // teléfono que entre o cambie en cobranza, así que este atajo es seguro.
+  if (cached && cached.kind === 'lead') return null;
+  const found = (await readCobros(redis)).find((c) => normalizePhone(c.telefono) === phone) || null;
+  if (found) await indexPhoneTarget(redis, phone, { kind: 'cobro', id: found.id });
+  return found;
+}
+
 export async function findBranchAssignee(redis: any, branch: string) {
   const users = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(branch));
   return users.find((u) => u.role === 'secretaria') || users.find((u) => u.role === 'gerente') || null;
@@ -196,8 +230,7 @@ const UNSUPPORTED_TYPE_LABELS: Record<string, string> = {
 };
 
 async function handleUnsupportedMessage(redis: any, fromPhone: string, msgType: string): Promise<void> {
-  const allLeads = await readLeads(redis);
-  const lead = allLeads.find((l) => normalizePhone(l.phone) === fromPhone);
+  const lead = await findLeadByPhone(redis, fromPhone);
 
   // Si ya lo tiene un humano, solo le avisamos a esa persona — no le respondemos nosotros.
   if (lead && (lead.aiStage === 'entregado' || lead.aiStage === 'escalado')) {
@@ -225,8 +258,7 @@ async function handleUnsupportedMessage(redis: any, fromPhone: string, msgType: 
 
 async function handleInboundMessage(redis: any, fromPhone: string, text: string, contactName: string): Promise<void> {
   const now = new Date().toISOString();
-  const allLeads = await readLeads(redis);
-  let lead = allLeads.find((l) => normalizePhone(l.phone) === fromPhone);
+  let lead = await findLeadByPhone(redis, fromPhone);
   const isNewLead = !lead;
   if (!lead) {
     lead = newLeadFromWhatsapp(fromPhone, contactName, now);
@@ -480,6 +512,7 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
       let leadMatch = allLeads.find((l) => normalizePhone(l.phone) === fromPhone);
       if (!leadMatch) {
         leadMatch = newLeadFromWhatsapp(fromPhone, cobro.nombre, leadNow);
+        await indexPhoneTarget(redis, fromPhone, { kind: 'lead', id: leadMatch.id });
       }
       leadMatch.notes = [{ text: `[Valentina, cobranza] Cliente actual pide instalación nueva: ${resumen}`, date: leadNow }, ...leadMatch.notes];
       await redis.hset(LEADS_KEY, { [leadMatch.id]: JSON.stringify(leadMatch) });
@@ -613,8 +646,7 @@ export const POST: APIRoute = async ({ request }) => {
           // Si el número corresponde a un cobro cargado en Cobranza Masiva, lo maneja la
           // agente de cobranza (Valentina) — salvo que ya se haya derivado a ventas (el
           // cliente pidió instalar un vehículo nuevo), en cuyo caso sigue con Andrés.
-          const allCobros = await readCobros(redis);
-          const cobro = allCobros.find((c) => normalizePhone(c.telefono) === fromPhone);
+          const cobro = await findCobroByPhone(redis, fromPhone);
           const routeToCollections = !!cobro && !cobro.derivedToSales;
 
           let text = '';
