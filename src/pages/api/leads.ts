@@ -137,7 +137,9 @@ export function computeSalesAgentStats(leads: Lead[]): SalesAgentStats {
   return stats;
 }
 
-export const GET: APIRoute = async ({ cookies }) => {
+const MAX_PAGE_SIZE = 1000;
+
+export const GET: APIRoute = async ({ cookies, url }) => {
   if (!(await requireCrm(cookies))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
@@ -156,7 +158,15 @@ export const GET: APIRoute = async ({ cookies }) => {
     if (l.overdue) stats.overdueCount += 1;
   });
 
-  return new Response(JSON.stringify({ leads: withOverdue, stats, statuses: STATUSES }), {
+  // Paginación opcional (offset/limit sobre la lista ya ordenada por última actividad): el
+  // CRM pinta la primera página de inmediato y trae el resto en segundo plano. Sin
+  // parámetros se devuelve todo, como antes.
+  const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0);
+  const limitParam = parseInt(url.searchParams.get('limit') || '', 10);
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_PAGE_SIZE) : null;
+  const page = limit === null ? withOverdue : withOverdue.slice(offset, offset + limit);
+
+  return new Response(JSON.stringify({ leads: page, total: withOverdue.length, offset, limit, stats, statuses: STATUSES }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };

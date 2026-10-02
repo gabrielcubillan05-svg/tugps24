@@ -581,11 +581,15 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     `;
   }
 
+  function loadingSuffix() {
+    return loadingRest ? ` Cargando el resto (${allLeads.length} hasta ahora)...` : '';
+  }
+
   function renderFilteredCount(count) {
     const hasDateRange = dateFromFilter.value || dateToFilter.value;
-    filteredCount.textContent = hasDateRange
+    filteredCount.textContent = (hasDateRange
       ? `${count} lead(s) en el rango de fechas seleccionado.`
-      : `${count} lead(s) con estos filtros.`;
+      : `${count} lead(s) con estos filtros.`) + loadingSuffix();
   }
 
   function hasActiveQuery() {
@@ -605,8 +609,8 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
 
   function renderListAndCount(filtered) {
     if (!hasActiveQuery()) {
-      leadsList.innerHTML = `<div class="empty">Hay ${allLeads.length} lead(s) en total. Busca por nombre/teléfono o usa un filtro (ciudad, estado, mes, etc.) para verlos en la lista.</div>`;
-      filteredCount.textContent = '';
+      leadsList.innerHTML = `<div class="empty">Hay ${allLeads.length} lead(s) ${loadingRest ? 'cargados hasta ahora' : 'en total'}. Busca por nombre/teléfono o usa un filtro (ciudad, estado, mes, etc.) para verlos en la lista.</div>`;
+      filteredCount.textContent = loadingSuffix();
       return;
     }
     renderLeads(filtered);
@@ -673,22 +677,75 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     });
   }
 
+  // La lista completa (~3.500 leads con notas) pesa varios MB: se pinta de inmediato la
+  // primera página (los de actividad más reciente, que es lo que la secretaria necesita ya) y
+  // el resto llega en segundo plano. Hasta que termina, filtros y estadísticas pueden salir
+  // incompletos, por eso se muestra "cargando el resto".
+  const FIRST_PAGE_SIZE = 300;
+  const PAGE_SIZE = 1000;
+  let loadingRest = false;
+  let loadToken = 0;
+
   function loadLeads() {
-    fetch('/api/leads')
+    const token = ++loadToken;
+    fetch(`/api/leads?offset=0&limit=${FIRST_PAGE_SIZE}`)
       .then((res) => res.json())
       .then((data) => {
+        if (token !== loadToken) return;
         if (!data || !Array.isArray(data.leads)) {
           leadsList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
           return;
         }
         allLeads = data.leads;
         allLeads.forEach((l) => { l._searchText = searchTextFor(l); });
+        loadingRest = (data.total || 0) > allLeads.length;
         populateDynamicFilters(allLeads);
         renderCurrentView();
+        if (loadingRest) loadRemaining(allLeads.length, token);
       })
       .catch(() => {
         leadsList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
       });
+  }
+
+  function loadRemaining(offset, token) {
+    fetch(`/api/leads?offset=${offset}&limit=${PAGE_SIZE}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (token !== loadToken) return;
+        if (!data || !Array.isArray(data.leads)) throw new Error('sin datos');
+        // Se mezcla por id: un lead ya actualizado en pantalla mientras cargaba no se pisa.
+        const known = new Set(allLeads.map((l) => l.id));
+        data.leads.forEach((l) => {
+          if (known.has(l.id)) return;
+          l._searchText = searchTextFor(l);
+          allLeads.push(l);
+        });
+        const next = offset + data.leads.length;
+        if (data.leads.length && next < (data.total || 0)) {
+          renderFilteredCount(getFilteredLeads().length);
+          loadRemaining(next, token);
+          return;
+        }
+        loadingRest = false;
+        safeRender();
+      })
+      .catch(() => {
+        loadingRest = false;
+        renderFilteredCount(getFilteredLeads().length);
+      });
+  }
+
+  // Redibuja sin pisarle el trabajo a quien está escribiendo una nota o editando: si hay un
+  // campo con foco dentro de la lista, espera a que lo suelte.
+  function safeRender() {
+    const typing = leadsList.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (typing || editingId || quotingId) {
+      leadsList.addEventListener('focusout', () => setTimeout(safeRender, 50), { once: true });
+      return;
+    }
+    populateDynamicFilters(allLeads);
+    renderCurrentView();
   }
 
   let debounceTimer;
