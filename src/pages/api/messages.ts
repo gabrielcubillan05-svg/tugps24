@@ -457,7 +457,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         permissions,
         actions
       );
-      await recordAgentUsage(redis, 'gabot', result.usage);
+      await recordAgentUsage(redis, 'gabot', result.usage, { id: sender.id, channel: 'panel' });
 
       // Si falla la llamada a Anthropic (créditos agotados, rate limit, etc.) igual se le
       // avisa al usuario en vez de dejarlo esperando una respuesta que nunca llega.

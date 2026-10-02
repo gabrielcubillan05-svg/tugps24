@@ -19,6 +19,12 @@ const EXTRA_INSTRUCTIONS_KEY = 'internal:agent-extra-instructions';
 const USAGE_KEY_PREFIX = 'internal:agent-usage:';
 const DAILY_USAGE_KEY_PREFIX = 'internal:agent-usage-daily:';
 const TRACKING_SINCE_KEY = 'internal:agent-usage-tracking-since';
+// Conjuntos (sets) de conversaciones distintas atendidas: uno acumulado por agente y uno por
+// agente y día. Cada miembro es "canal:idConversacion", así una misma conversación con 20
+// respuestas cuenta una sola vez y se puede separar WhatsApp del chat web o del panel.
+const CONVERSATIONS_KEY_PREFIX = 'internal:agent-conversations:';
+const DAILY_CONVERSATIONS_KEY_PREFIX = 'internal:agent-conversations-daily:';
+const CONVERSATIONS_TRACKING_SINCE_KEY = 'internal:agent-conversations-tracking-since';
 const COST_CONFIG_KEY = 'internal:agent-cost-config';
 // Tope defensivo para una consulta "personalizada" — evita pedirle a Redis miles de llaves
 // de un rango absurdo por un typo en las fechas.
@@ -38,10 +44,30 @@ const DEFAULT_COST_CONFIG: CostConfig = {
   outputPricePerMTokUsd: 15,
 };
 
+export type ConversationChannel = 'whatsapp' | 'web' | 'panel';
+
+export interface ConversationCounts {
+  whatsapp: number;
+  web: number;
+  panel: number;
+}
+
 export interface AgentUsage {
   inputTokens: number;
   outputTokens: number;
   calls: number;
+  conversations: ConversationCounts;
+}
+
+const EMPTY_USAGE = (): AgentUsage => ({ inputTokens: 0, outputTokens: 0, calls: 0, conversations: { whatsapp: 0, web: 0, panel: 0 } });
+
+function countByChannel(members: unknown): ConversationCounts {
+  const counts: ConversationCounts = { whatsapp: 0, web: 0, panel: 0 };
+  for (const m of Array.isArray(members) ? members : []) {
+    const channel = String(m).split(':')[0] as ConversationChannel;
+    if (channel in counts) counts[channel] += 1;
+  }
+  return counts;
 }
 
 export async function getExtraInstructions(redis: any, agentKey: string): Promise<string> {
@@ -56,13 +82,22 @@ export async function setExtraInstructions(redis: any, agentKey: string, text: s
 export async function recordAgentUsage(
   redis: any,
   agentKey: string,
-  usage: { inputTokens: number; outputTokens: number }
+  usage: { inputTokens: number; outputTokens: number },
+  conversation?: { id: string; channel: ConversationChannel }
 ): Promise<void> {
   if (!usage.inputTokens && !usage.outputTokens) return;
   const key = USAGE_KEY_PREFIX + agentKey;
   const today = todayInColombia();
   const dailyKey = DAILY_USAGE_KEY_PREFIX + agentKey + ':' + today;
+  const member = conversation ? `${conversation.channel}:${conversation.id}` : null;
   await Promise.all([
+    ...(member
+      ? [
+          redis.sadd(CONVERSATIONS_KEY_PREFIX + agentKey, member),
+          redis.sadd(DAILY_CONVERSATIONS_KEY_PREFIX + agentKey + ':' + today, member),
+          redis.set(CONVERSATIONS_TRACKING_SINCE_KEY, today, { nx: true }),
+        ]
+      : []),
     redis.hincrby(key, 'inputTokens', usage.inputTokens),
     redis.hincrby(key, 'outputTokens', usage.outputTokens),
     redis.hincrby(key, 'calls', 1),
@@ -81,17 +116,27 @@ export async function getUsageTrackingSince(redis: any): Promise<string | null> 
   return typeof raw === 'string' ? raw : null;
 }
 
+export async function getConversationsTrackingSince(redis: any): Promise<string | null> {
+  const raw = await redis.get<string>(CONVERSATIONS_TRACKING_SINCE_KEY);
+  return typeof raw === 'string' ? raw : null;
+}
+
 export async function getAgentUsage(redis: any, agentKey: string): Promise<AgentUsage> {
-  const raw = (await redis.hgetall<Record<string, string | number>>(USAGE_KEY_PREFIX + agentKey)) || {};
+  const [raw, members] = await Promise.all([
+    redis.hgetall<Record<string, string | number>>(USAGE_KEY_PREFIX + agentKey),
+    redis.smembers(CONVERSATIONS_KEY_PREFIX + agentKey),
+  ]);
+  const r = raw || {};
   return {
-    inputTokens: Number(raw.inputTokens) || 0,
-    outputTokens: Number(raw.outputTokens) || 0,
-    calls: Number(raw.calls) || 0,
+    inputTokens: Number(r.inputTokens) || 0,
+    outputTokens: Number(r.outputTokens) || 0,
+    calls: Number(r.calls) || 0,
+    conversations: countByChannel(members),
   };
 }
 
 export async function resetAgentUsage(redis: any, agentKey: string): Promise<void> {
-  await redis.del(USAGE_KEY_PREFIX + agentKey);
+  await Promise.all([redis.del(USAGE_KEY_PREFIX + agentKey), redis.del(CONVERSATIONS_KEY_PREFIX + agentKey)]);
 }
 
 // Consumo entre dos fechas (inclusive, "YYYY-MM-DD" hora Colombia) para el reporte de
@@ -101,16 +146,19 @@ export async function getAgentUsageRange(redis: any, agentKey: string, fromDate:
   const start = new Date(`${fromDate}T00:00:00Z`);
   const end = new Date(`${toDate}T00:00:00Z`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-    return { inputTokens: 0, outputTokens: 0, calls: 0 };
+    return EMPTY_USAGE();
   }
   const dates: string[] = [];
   for (let t = start.getTime(); t <= end.getTime() && dates.length <= MAX_RANGE_DAYS; t += 24 * 60 * 60 * 1000) {
     dates.push(new Date(t).toISOString().slice(0, 10));
   }
-  const perDay = await Promise.all(
-    dates.map((d) => redis.hgetall<Record<string, string | number>>(DAILY_USAGE_KEY_PREFIX + agentKey + ':' + d))
-  );
-  return perDay.reduce(
+  const [perDay, members] = await Promise.all([
+    Promise.all(dates.map((d) => redis.hgetall<Record<string, string | number>>(DAILY_USAGE_KEY_PREFIX + agentKey + ':' + d))),
+    // La unión de los conjuntos diarios deja cada conversación una sola vez aunque haya
+    // durado varios días del rango.
+    redis.sunion(...dates.map((d) => DAILY_CONVERSATIONS_KEY_PREFIX + agentKey + ':' + d)),
+  ]);
+  const totals = perDay.reduce(
     (acc, raw) => {
       const r = raw || {};
       acc.inputTokens += Number(r.inputTokens) || 0;
@@ -118,8 +166,10 @@ export async function getAgentUsageRange(redis: any, agentKey: string, fromDate:
       acc.calls += Number(r.calls) || 0;
       return acc;
     },
-    { inputTokens: 0, outputTokens: 0, calls: 0 }
+    EMPTY_USAGE()
   );
+  totals.conversations = countByChannel(members);
+  return totals;
 }
 
 export async function getCostConfig(redis: any): Promise<CostConfig> {

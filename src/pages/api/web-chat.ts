@@ -134,7 +134,7 @@ export const POST: APIRoute = async ({ request }) => {
   const history = await readHistory(redis, lead.id);
   const extraInstructions = await getExtraInstructions(redis, 'andres');
   const agentResult = await runSalesAgent(history, text, extraInstructions, 'web');
-  await recordAgentUsage(redis, 'andres', agentResult.usage);
+  await recordAgentUsage(redis, 'andres', agentResult.usage, { id: lead.id, channel: 'web' });
 
   const fallbackByTool: Record<string, string> = {
     escalar_urgente: 'Dame un momento, ya te conecto con alguien de nuestro equipo para ayudarte mejor con esto.',

@@ -212,7 +212,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   const history = await readHistory(redis, lead.id);
   const extraInstructions = await getExtraInstructions(redis, 'andres');
   const agentResult = await runSalesAgent(history, text, extraInstructions);
-  await recordAgentUsage(redis, 'andres', agentResult.usage);
+  await recordAgentUsage(redis, 'andres', agentResult.usage, { id: lead.id, channel: 'whatsapp' });
 
   const fallbackByTool: Record<string, string> = {
     escalar_urgente: 'Dame un momento, ya te conecto con alguien de nuestro equipo para ayudarte mejor con esto.',
@@ -392,7 +392,7 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
     { nombre: cobro.nombre, deuda: cobro.deuda, facturasImpagas: cobro.facturasImpagas },
     extraInstructions
   );
-  await recordAgentUsage(redis, 'valentina', agentResult.usage);
+  await recordAgentUsage(redis, 'valentina', agentResult.usage, { id: cobro.id, channel: 'whatsapp' });
 
   const fallbackByTool: Record<string, string> = {
     escalar_urgente: 'Dame un momento, ya te comunico con alguien de nuestro equipo para revisar esto.',

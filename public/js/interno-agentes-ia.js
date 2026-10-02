@@ -65,6 +65,26 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
   }
 
+  let conversationsSince = null;
+
+  function fmtDayMonth(iso) {
+    return iso ? iso.split('-').reverse().join('/') : '';
+  }
+
+  // Cada agente atiende por canales distintos: Andrés por WhatsApp y chat web, Valentina
+  // solo por WhatsApp, GPSITO por el chat del panel. Se muestra lo que aplica a cada uno.
+  function renderConversationStats(usage, agentKey) {
+    const c = (usage && usage.conversations) || { whatsapp: 0, web: 0, panel: 0 };
+    const stats = [];
+    if (agentKey === 'gabot') {
+      stats.push([c.panel, 'Conversaciones atendidas']);
+    } else {
+      stats.push([c.whatsapp, 'Conversaciones de WhatsApp']);
+      if (agentKey === 'andres') stats.push([c.web, 'Conversaciones por chat web']);
+    }
+    return stats.map(([n, label]) => `<div class="agent-usage-stat"><span class="n">${fmtTokens(n)}</span><span class="l">${label}</span></div>`).join('');
+  }
+
   function renderAgents() {
     agentsList.innerHTML = agents.map((a) => `
       <div class="panel-card agent-card" data-key="${a.key}">
@@ -76,9 +96,11 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.inputTokens)}</span><span class="l">Tokens de entrada</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.outputTokens)}</span><span class="l">Tokens de salida</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.calls)}</span><span class="l">Respuestas generadas</span></div>
+          ${renderConversationStats(a.usage, a.key)}
           <div class="agent-usage-stat"><span class="n">${fmtUsd(a.cost.usd)}</span><span class="l">Costo (USD)</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtCop(a.cost.cop)}</span><span class="l">Costo (COP)</span></div>
         </div>
+        ${conversationsSince ? `<p class="hint">Las conversaciones se cuentan desde el ${fmtDayMonth(conversationsSince)}; los tokens y respuestas vienen de antes.</p>` : ''}
         <div class="agent-instructions">
           <label>Instrucciones adicionales para ${escapeHtml(a.label)}</label>
           <textarea data-role="instructions" placeholder="Ej: menciona también que ahora aceptamos pago con tarjeta...">${escapeHtml(a.extraInstructions)}</textarea>
@@ -101,9 +123,11 @@ document.addEventListener('DOMContentLoaded', function () {
       periodResult.innerHTML = '';
       return;
     }
-    const warning = trackingSince && from < trackingSince
-      ? `<p class="hint" style="color:var(--amber);">⚠️ El desglose por día solo existe desde el ${trackingSince.split('-').reverse().join('/')} — los días antes de esa fecha no están contados aquí, así que este total sale incompleto.</p>`
-      : '';
+    const warning = (trackingSince && from < trackingSince
+      ? `<p class="hint" style="color:var(--amber);">⚠️ El desglose por día solo existe desde el ${fmtDayMonth(trackingSince)} — los días antes de esa fecha no están contados aquí, así que este total sale incompleto.</p>`
+      : '') + (conversationsSince && from < conversationsSince
+      ? `<p class="hint" style="color:var(--amber);">⚠️ Las conversaciones se cuentan desde el ${fmtDayMonth(conversationsSince)} — los días anteriores salen en cero en esa cifra.</p>`
+      : '');
     periodResult.innerHTML = warning + agentsData.map((a) => `
       <div class="period-agent-row">
         <span class="title">${escapeHtml(a.label)}</span>
@@ -111,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.inputTokens)}</span><span class="l">Tokens de entrada</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.outputTokens)}</span><span class="l">Tokens de salida</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.calls)}</span><span class="l">Respuestas generadas</span></div>
+          ${renderConversationStats(a.rangeUsage, a.key)}
           <div class="agent-usage-stat"><span class="n">${fmtUsd(a.rangeCost.usd)}</span><span class="l">Costo (USD)</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtCop(a.rangeCost.cop)}</span><span class="l">Costo (COP)</span></div>
         </div>
@@ -127,6 +152,7 @@ document.addEventListener('DOMContentLoaded', function () {
           periodResult.innerHTML = '<div class="empty">No se pudo cargar.</div>';
           return;
         }
+        if (data.conversationsSince) conversationsSince = data.conversationsSince;
         renderPeriodResult(data.agents, data.trackingSince, from);
       })
       .catch(() => {
@@ -170,6 +196,7 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
         agents = data.agents;
+        conversationsSince = data.conversationsSince || null;
         if (data.costConfig) {
           usdToCopInput.value = data.costConfig.usdToCop;
           inputPriceInput.value = data.costConfig.inputPricePerMTokUsd;

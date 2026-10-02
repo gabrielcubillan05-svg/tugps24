@@ -8,6 +8,7 @@ import {
   getAgentUsage,
   getAgentUsageRange,
   getUsageTrackingSince,
+  getConversationsTrackingSince,
   resetAgentUsage,
   getCostConfig,
   setCostConfig,
@@ -64,9 +65,12 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     })
   );
 
-  const trackingSince = wantsRange ? await getUsageTrackingSince(redis) : null;
+  const [trackingSince, conversationsSince] = await Promise.all([
+    wantsRange ? getUsageTrackingSince(redis) : Promise.resolve(null),
+    getConversationsTrackingSince(redis),
+  ]);
 
-  return new Response(JSON.stringify({ agents, costConfig, trackingSince }), {
+  return new Response(JSON.stringify({ agents, costConfig, trackingSince, conversationsSince }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
