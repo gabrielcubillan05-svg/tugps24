@@ -70,6 +70,19 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
 
   {isFullAdmin && (
   <div class="panel-card">
+    <h2>Encargados de inventario</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Marca como encargados del inventario físico a los responsables de la lista de gerencia (Cristian Zambrano, Josué González, Gabriel Cubillán,
+      Juan Plata, Arle Moguea, Mónica Cubillán, José Miguel Reales, Junior Cárdenas, Pierangela Sánchez, Kelly Lara y Alejandra Molina),
+      usando la sucursal que cada uno tiene en su perfil. Quien no tenga sucursal queda listado para asignarlo a mano con el selector "Inventario en".
+    </p>
+    <button class="btn-ghost" id="inventoryManagersBtn" type="button">Asignar encargados de inventario</button>
+    <p id="inventoryManagersResult" style="display:none; margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></p>
+  </div>
+  )}
+
+  {isFullAdmin && (
+  <div class="panel-card">
     <h2>Sucursal de los operadores</h2>
     <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
       Asigna la sucursal <b>Central de Monitoreo</b> a todos los usuarios con rol Operador (reemplaza la(s) sucursal(es) que tengan hoy).

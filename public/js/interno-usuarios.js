@@ -117,6 +117,31 @@ document.addEventListener('DOMContentLoaded', function () {
       .finally(() => { submitBtn.disabled = false; });
   });
 
+  const inventoryManagersBtn = document.getElementById('inventoryManagersBtn');
+  const inventoryManagersResult = document.getElementById('inventoryManagersResult');
+  if (inventoryManagersBtn) inventoryManagersBtn.addEventListener('click', function () {
+    if (!confirm('¿Marcar como encargados de inventario a los responsables de la lista, con la sucursal de su perfil?')) return;
+    inventoryManagersBtn.disabled = true;
+    inventoryManagersResult.style.display = 'block';
+    inventoryManagersResult.textContent = 'Asignando...';
+    fetch('/api/inventario-encargados', { method: 'POST' })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo asignar.');
+        const parts = [];
+        parts.push(`<b>${data.assigned.length} asignado(s)</b>${data.assigned.length ? ': ' + data.assigned.map(escapeHtml).join(' · ') : ''}.`);
+        if (data.alreadySet.length) parts.push(`Ya estaban: ${data.alreadySet.map(escapeHtml).join(' · ')}.`);
+        if (data.withoutBranch.length) parts.push(`<span style="color:var(--amber);">Sin sucursal en el perfil (asígnala y vuelve a correr, o marca "Inventario en" a mano): ${data.withoutBranch.map(escapeHtml).join(' · ')}.</span>`);
+        if (data.notFound.length) parts.push(`<span style="color:var(--danger);">No existe un usuario activo con ese nombre: ${data.notFound.map(escapeHtml).join(' · ')}.</span>`);
+        inventoryManagersResult.innerHTML = parts.join('<br />');
+        loadUsers();
+      })
+      .catch((err) => {
+        inventoryManagersResult.textContent = err.message || 'No se pudo asignar.';
+      })
+      .finally(() => { inventoryManagersBtn.disabled = false; });
+  });
+
   if (seedBtn) seedBtn.addEventListener('click', function () {
     if (!confirm('¿Cargar los empleados del archivo? Se crearán los que falten con clave 1234.')) return;
     seedBtn.disabled = true;
