@@ -7,7 +7,8 @@ import { runCleanup, describeCleanup } from '../../lib/storage-maintenance';
 
 export const prerender = false;
 
-// Limpieza mensual de almacenamiento (programada en vercel.json). Las reglas de retención
+// Limpieza diaria de almacenamiento (programada en vercel.json, 3 a. m. Colombia). Cada corrida
+// está acotada, por eso conviene diaria: lotes pequeños en vez de uno enorme al mes. Las reglas de retención
 // están en lib/storage-maintenance.ts; desde la sección Almacenamiento se puede simular o
 // correr a mano con las mismas reglas.
 export const GET: APIRoute = async ({ request }) => {

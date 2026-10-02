@@ -33,15 +33,17 @@ if (!canAccessSection(session.role, 'almacenamiento')) {
   </div>
 
   <div class="panel-card">
-    <h2>Limpieza mensual</h2>
+    <h2>Limpieza automática</h2>
     <p style="color:var(--slate); font-size:13px; margin-bottom:10px;">
-      Corre sola el día 1 de cada mes a las 3 a. m. Reglas vigentes:
+      Corre sola todos los días a las 3 a. m., en lotes pequeños. Reglas vigentes:
     </p>
     <ul class="storage-rules">
       <li>Auditoría: se conservan los últimos <b>{RETENTION.auditKeepDays} días</b>.</li>
-      <li>Novedades con más de <b>{RETENTION.reportsArchiveAfterDays} días</b>: se guardan en un archivo JSON descargable y se borran sus fotos.</li>
+      <li>Fotos de novedades con más de <b>{RETENTION.reportsPhotosKeepDays} días</b>: se borran; el texto de la novedad se conserva.</li>
+      <li>Novedades con más de <b>{RETENTION.reportsArchiveAfterDays} días</b>: el texto se guarda en un archivo JSON descargable y sale de la lista.</li>
       <li>Leads en estado {RETENTION.leadsArchivableStatuses.join(', ')} sin movimiento en <b>{RETENTION.leadsArchiveAfterDays} días</b>: pasan al archivo junto con su conversación de WhatsApp.</li>
       <li>Tareas completadas o canceladas hace más de <b>{RETENTION.tasksArchiveAfterDays} días</b>: pasan al archivo y se borra la foto de evidencia.</li>
+      <li>Notificaciones: cada usuario conserva las últimas 200.</li>
       <li>Sesiones vencidas se eliminan.</li>
     </ul>
     <div class="filters" style="margin-top:12px;">

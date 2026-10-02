@@ -7,14 +7,17 @@ import { readLeads, REDIS_KEY as LEADS_KEY, type Lead } from '../pages/api/leads
 import { readTasks, REDIS_KEY as TASKS_KEY, type Task } from '../pages/api/tasks';
 import { CONVERSATIONS_KEY as LEAD_CONVERSATIONS_KEY } from '../pages/api/whatsapp-webhook';
 import { purgeExpiredSessions } from './auth';
+import { NOTIF_KEY_PREFIX, trimNotifications } from './notifications';
 import { todayInColombia } from './colombia-time';
 
 // ---------------------------------------------------------------- Reglas de retención
 export const RETENTION = {
   // Auditoría: la pantalla solo muestra las últimas 500 entradas; lo demás solo ocupa.
-  auditKeepDays: 180,
-  // Novedades: se archivan a un JSON en Blob (carpeta archive/) y se borran sus fotos. El
-  // texto queda consultable descargando el archivo desde Almacenamiento.
+  auditKeepDays: 90,
+  // Novedades: el texto es barato (27 MB por 77.000 registros) y se conserva un año; las fotos
+  // son casi todo el Blob (1,8 GB en dos meses) y se borran antes, dejando el registro sin
+  // imágenes. Pasado el año, el texto se archiva a un JSON en Blob (carpeta archive/).
+  reportsPhotosKeepDays: 90,
   reportsArchiveAfterDays: 365,
   // Leads sin cerrar (Nuevo/Contactado) o perdidos, sin movimiento en este tiempo: pasan a
   // internal:leads-archive y se borra su historial de WhatsApp. Si el cliente vuelve a
@@ -30,6 +33,10 @@ export const RETENTION = {
 // Si queda más por limpiar, lo toma la corrida del mes siguiente.
 const MAX_AUDIT_SCAN = 20000;
 const MAX_REPORTS_PER_RUN = 5000;
+// Novedades a las que se les borran las fotos por corrida: entran unas 1.300 al día, así que
+// con la corrida diaria esto deja margen para ponerse al día si alguna falla.
+const MAX_PHOTO_REPORTS_PER_RUN = 3000;
+const MAX_NOTIFICATION_USERS = 500;
 const MAX_LEADS_PER_RUN = 2000;
 const MAX_TASKS_PER_RUN = 2000;
 const LIST_CHUNK = 500;
@@ -37,6 +44,10 @@ const BLOB_DEL_BATCH = 100;
 
 const AUDIT_KEY = 'internal:audit';
 const REPORTS_KEY = 'internal:reports';
+// Cuántas entradas del final de la lista de novedades ya quedaron sin fotos. Permite que cada
+// corrida empiece a revisar justo donde terminó la anterior en vez de recorrer decenas de
+// miles de entradas ya procesadas (los índices negativos no se mueven con los lpush del frente).
+const REPORTS_PHOTOS_PURGED_COUNT_KEY = 'internal:reports-photos-purged-count';
 const LEADS_ARCHIVE_KEY = 'internal:leads-archive';
 const TASKS_ARCHIVE_KEY = 'internal:tasks-archive';
 
@@ -45,9 +56,10 @@ export interface CleanupSummary {
   startedAt: string;
   finishedAt: string;
   audit: { removed: number };
-  reports: { archived: number; imagesDeleted: number; archiveFile: string | null; moreLeft: boolean };
+  reports: { archived: number; imagesDeleted: number; archiveFile: string | null; moreLeft: boolean; photosPurged: number; reportsWithoutPhotos: number };
   leads: { archived: number; conversationsDeleted: number };
   tasks: { archived: number; proofsDeleted: number };
+  notifications: { removed: number; usersTrimmed: number };
   sessions: { removed: number };
   errors: string[];
 }
@@ -67,12 +79,20 @@ function daysAgoIso(days: number): string {
 }
 
 // Las listas de auditoría y novedades se llenan con lpush (lo nuevo al frente), así que lo
-// viejo está contiguo al final. Se recorre desde la cola hacia atrás y se para en la primera
-// entrada que ya no sea vieja. Devuelve las entradas viejas, de la más antigua a la más nueva.
-async function collectOldTail(redis: any, key: string, isOld: (entry: any) => boolean, maxScan: number): Promise<any[]> {
-  const old: any[] = [];
-  let scanned = 0;
-  while (scanned < maxScan) {
+// viejo está contiguo al final. Se recorre desde la cola hacia atrás, saltando `skip` entradas
+// ya procesadas, y se para en la primera entrada que ya no sea vieja. Devuelve las entradas
+// viejas de la más antigua a la más nueva, cada una con su índice negativo (estable aunque
+// entren entradas nuevas al frente mientras tanto).
+async function collectOldTail(
+  redis: any,
+  key: string,
+  isOld: (entry: any) => boolean,
+  maxScan: number,
+  skip = 0
+): Promise<{ entry: any; index: number }[]> {
+  const old: { entry: any; index: number }[] = [];
+  let scanned = skip;
+  while (scanned - skip < maxScan) {
     const end = -1 - scanned;
     const start = end - LIST_CHUNK + 1;
     const chunk: unknown[] = (await redis.lrange(key, start, end)) || [];
@@ -80,7 +100,8 @@ async function collectOldTail(redis: any, key: string, isOld: (entry: any) => bo
     let stop = false;
     for (let i = chunk.length - 1; i >= 0; i--) {
       const entry = parseEntry(chunk[i]);
-      if (entry && isOld(entry)) old.push(entry);
+      const index = end - (chunk.length - 1 - i);
+      if (entry && isOld(entry)) old.push({ entry, index });
       else {
         stop = true;
         break;
@@ -114,9 +135,10 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
     startedAt: new Date().toISOString(),
     finishedAt: '',
     audit: { removed: 0 },
-    reports: { archived: 0, imagesDeleted: 0, archiveFile: null, moreLeft: false },
+    reports: { archived: 0, imagesDeleted: 0, archiveFile: null, moreLeft: false, photosPurged: 0, reportsWithoutPhotos: 0 },
     leads: { archived: 0, conversationsDeleted: 0 },
     tasks: { archived: 0, proofsDeleted: 0 },
+    notifications: { removed: 0, usersTrimmed: 0 },
     sessions: { removed: 0 },
     errors: [],
   };
@@ -124,7 +146,7 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
   // ---- Auditoría: recortar lo más viejo que el plazo
   try {
     const cutoff = daysAgoIso(RETENTION.auditKeepDays);
-    const old = await collectOldTail(redis, AUDIT_KEY, (e) => typeof e.at === 'string' && e.at < cutoff, MAX_AUDIT_SCAN);
+    const old = (await collectOldTail(redis, AUDIT_KEY, (e) => typeof e.at === 'string' && e.at < cutoff, MAX_AUDIT_SCAN)).map((o) => o.entry);
     summary.audit.removed = old.length;
     // ltrim con índices negativos recorta desde la cola, así no importa que entren entradas
     // nuevas al frente mientras corre.
@@ -136,7 +158,7 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
   // ---- Novedades: archivar a Blob, recortar la lista, borrar fotos
   try {
     const cutoff = daysAgoIso(RETENTION.reportsArchiveAfterDays);
-    const old = await collectOldTail(redis, REPORTS_KEY, (e) => typeof e.createdAt === 'string' && e.createdAt < cutoff, MAX_REPORTS_PER_RUN + LIST_CHUNK);
+    const old = (await collectOldTail(redis, REPORTS_KEY, (e) => typeof e.createdAt === 'string' && e.createdAt < cutoff, MAX_REPORTS_PER_RUN + LIST_CHUNK)).map((o) => o.entry);
     const batch = old.slice(0, MAX_REPORTS_PER_RUN);
     summary.reports.moreLeft = old.length > batch.length;
     summary.reports.archived = batch.length;
@@ -154,12 +176,73 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
       });
       summary.reports.archiveFile = file.pathname;
       await redis.ltrim(REPORTS_KEY, 0, -(batch.length + 1));
+      // Las archivadas salieron de la cola: el contador de "ya sin fotos" baja en esa cantidad.
+      const purgedCount = Number(await redis.get(REPORTS_PHOTOS_PURGED_COUNT_KEY)) || 0;
+      await redis.set(REPORTS_PHOTOS_PURGED_COUNT_KEY, Math.max(0, purgedCount - batch.length));
       summary.reports.imagesDeleted = await deleteBlobs(images, token, summary.errors);
     } else if (dryRun) {
       summary.reports.imagesDeleted = images.length;
     }
   } catch (err) {
     summary.errors.push(`Novedades: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ---- Fotos de novedades: se borran antes que el texto, dejando el registro sin imágenes
+  try {
+    const cutoff = daysAgoIso(RETENTION.reportsPhotosKeepDays);
+    // Si el contador quedara por encima del largo real (borrados manuales), se corrige al largo
+    // de la lista para no quedarse ciego revisando índices que no existen.
+    const listLength = Number(await redis.llen(REPORTS_KEY)) || 0;
+    const alreadyPurged = Math.min(Number(await redis.get(REPORTS_PHOTOS_PURGED_COUNT_KEY)) || 0, listLength);
+    const old = await collectOldTail(
+      redis,
+      REPORTS_KEY,
+      (e) => typeof e.createdAt === 'string' && e.createdAt < cutoff,
+      MAX_PHOTO_REPORTS_PER_RUN,
+      alreadyPurged
+    );
+    const batch = old.slice(0, MAX_PHOTO_REPORTS_PER_RUN);
+    const withPhotos = batch.filter((o) => Array.isArray(o.entry.images) && o.entry.images.length > 0);
+    const photos = withPhotos.flatMap((o) => o.entry.images.filter((p: unknown) => typeof p === 'string'));
+    summary.reports.reportsWithoutPhotos = batch.length;
+    if (dryRun) {
+      summary.reports.photosPurged = photos.length;
+    } else if (batch.length) {
+      if (!token && photos.length) throw new Error('falta BLOB_READ_WRITE_TOKEN para borrar fotos');
+      // Primero se limpia la referencia en Redis y luego el archivo: si algo falla a mitad,
+      // queda a lo sumo una foto huérfana en Blob, nunca una novedad apuntando a una foto borrada.
+      for (let i = 0; i < withPhotos.length; i += 200) {
+        const pipeline = redis.pipeline();
+        for (const o of withPhotos.slice(i, i + 200)) {
+          pipeline.lset(REPORTS_KEY, o.index, JSON.stringify({ ...o.entry, images: [], photosPurgedAt: new Date().toISOString() }));
+        }
+        await pipeline.exec();
+      }
+      summary.reports.photosPurged = token ? await deleteBlobs(photos, token, summary.errors) : 0;
+      await redis.set(REPORTS_PHOTOS_PURGED_COUNT_KEY, alreadyPurged + batch.length);
+    }
+  } catch (err) {
+    summary.errors.push(`Fotos de novedades: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ---- Notificaciones: tope de 200 por usuario también para quien nunca abre la campanita
+  try {
+    let cursor: string | number = 0;
+    const keys: string[] = [];
+    do {
+      const [next, batch] = await redis.scan(cursor, { match: NOTIF_KEY_PREFIX + '*', count: 200 });
+      cursor = next;
+      keys.push(...(batch as string[]));
+    } while (String(cursor) !== '0' && keys.length < MAX_NOTIFICATION_USERS);
+    for (const key of keys) {
+      const userId = key.slice(NOTIF_KEY_PREFIX.length);
+      const size = Number(await redis.hlen(key)) || 0;
+      if (size <= 200) continue;
+      summary.notifications.usersTrimmed += 1;
+      summary.notifications.removed += dryRun ? size - 200 : await trimNotifications(redis, userId);
+    }
+  } catch (err) {
+    summary.errors.push(`Notificaciones: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // ---- Leads fríos o perdidos: mover al archivo y soltar su conversación
@@ -382,11 +465,13 @@ export async function computeStorageReport(redis: any): Promise<StorageReport> {
 export function describeCleanup(s: CleanupSummary): string {
   const parts = [
     `${s.audit.removed} entradas de auditoría`,
-    `${s.reports.archived} novedades archivadas (${s.reports.imagesDeleted} fotos)`,
+    `${s.reports.photosPurged} fotos de novedades`,
+    `${s.reports.archived} novedades archivadas`,
     `${s.leads.archived} leads archivados`,
     `${s.tasks.archived} tareas archivadas (${s.tasks.proofsDeleted} evidencias)`,
+    `${s.notifications.removed} notificaciones viejas`,
     `${s.sessions.removed} sesiones vencidas`,
   ];
-  const head = s.dryRun ? `Simulación de limpieza (${todayInColombia()})` : `Limpieza mensual (${todayInColombia()})`;
+  const head = s.dryRun ? `Simulación de limpieza (${todayInColombia()})` : `Limpieza automática (${todayInColombia()})`;
   return `${head}: ${parts.join(' · ')}${s.errors.length ? ` · ${s.errors.length} error(es)` : ''}`;
 }

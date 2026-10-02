@@ -4,8 +4,11 @@ import { getUsers, type Session } from './auth';
 import { sendPushToUser } from './push';
 import { isOverdueInColombia } from './colombia-time';
 
-const NOTIF_KEY_PREFIX = 'internal:notifications:';
-const MAX_NOTIFICATIONS = 200;
+export const NOTIF_KEY_PREFIX = 'internal:notifications:';
+export const MAX_NOTIFICATIONS = 200;
+// Margen antes de recortar al escribir: así no se relee el hash completo en cada aviso, solo
+// cuando ya se pasó un poco del tope.
+const TRIM_SLACK = 50;
 
 export interface NotificationEntry {
   id: string;
@@ -37,6 +40,15 @@ export async function pushNotification(
     createdAt: new Date().toISOString(),
   };
   await redis.hset(keyFor(userId), { [id]: JSON.stringify(entry) });
+
+  // El tope solo se aplicaba al abrir la campanita: a quien no la abría se le acumulaban
+  // miles de avisos (84.000 entre 49 usuarios cuando se detectó). Ahora se recorta al escribir.
+  try {
+    const size = Number(await redis.hlen(keyFor(userId))) || 0;
+    if (size > MAX_NOTIFICATIONS + TRIM_SLACK) await trimNotifications(redis, userId);
+  } catch {
+    // recortar nunca debe tumbar el aviso
+  }
 
   // Además del aviso dentro de la campanita, manda push real (llega aunque tenga la app
   // cerrada) — no bloquea ni rompe nada si el usuario no se ha suscrito todavía.
@@ -171,6 +183,18 @@ export async function syncComputedNotifications(redis: Redis, session: Session):
   }
 }
 
+// Deja solo las MAX_NOTIFICATIONS más recientes del usuario. Devuelve cuántas borró.
+export async function trimNotifications(redis: Redis, userId: string): Promise<number> {
+  const entries = await readRawNotifications(redis, userId);
+  if (entries.length <= MAX_NOTIFICATIONS) return 0;
+  entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const toDelete = entries.slice(MAX_NOTIFICATIONS).map((e) => e.id);
+  for (let i = 0; i < toDelete.length; i += 500) {
+    await redis.hdel(keyFor(userId), ...toDelete.slice(i, i + 500));
+  }
+  return toDelete.length;
+}
+
 export async function readNotifications(
   redis: Redis,
   userId: string
@@ -178,8 +202,7 @@ export async function readNotifications(
   let entries = await readRawNotifications(redis, userId);
   entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   if (entries.length > MAX_NOTIFICATIONS) {
-    const toDelete = entries.slice(MAX_NOTIFICATIONS).map((e) => e.id);
-    await redis.hdel(keyFor(userId), ...toDelete);
+    await trimNotifications(redis, userId);
     entries = entries.slice(0, MAX_NOTIFICATIONS);
   }
   const unreadCount = entries.filter((e) => !e.read).length;

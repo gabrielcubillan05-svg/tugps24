@@ -119,9 +119,11 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="cleanup-summary">
         <b>${escapeHtml(text)}</b><br />
         Auditoría: ${fmtNum(s.audit.removed)} entradas ·
-        Novedades: ${fmtNum(s.reports.archived)} archivadas, ${fmtNum(s.reports.imagesDeleted)} fotos${s.reports.moreLeft ? ' (quedan más para la próxima corrida)' : ''} ·
+        Fotos de novedades: ${fmtNum(s.reports.photosPurged)} en ${fmtNum(s.reports.reportsWithoutPhotos)} novedades ·
+        Novedades archivadas: ${fmtNum(s.reports.archived)}${s.reports.moreLeft ? ' (quedan más para la próxima corrida)' : ''} ·
         Leads: ${fmtNum(s.leads.archived)} ·
         Tareas: ${fmtNum(s.tasks.archived)} (${fmtNum(s.tasks.proofsDeleted)} evidencias) ·
+        Notificaciones: ${fmtNum(s.notifications.removed)} en ${fmtNum(s.notifications.usersTrimmed)} usuarios ·
         Sesiones: ${fmtNum(s.sessions.removed)}
         ${s.reports.archiveFile ? `<br />Respaldo creado: <code>${escapeHtml(s.reports.archiveFile)}</code>` : ''}
         ${s.errors.length ? `<br /><span class="err">Errores: ${s.errors.map(escapeHtml).join(' · ')}</span>` : ''}
@@ -155,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function () {
   refreshBtn.addEventListener('click', loadReport);
   simulateBtn.addEventListener('click', () => runCleanup('simulate'));
   runBtn.addEventListener('click', () => {
-    if (!confirm('¿Ejecutar la limpieza ahora con las reglas vigentes? Las novedades viejas quedan en un archivo de respaldo, pero sus fotos y las evidencias de tareas viejas se borran definitivamente.')) return;
+    if (!confirm('¿Ejecutar la limpieza ahora con las reglas vigentes? Las fotos de novedades viejas y las evidencias de tareas viejas se borran definitivamente; el texto se conserva o queda en un archivo de respaldo.')) return;
     runCleanup('run');
   });
 
