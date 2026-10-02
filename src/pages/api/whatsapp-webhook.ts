@@ -89,6 +89,55 @@ async function appendCobroHistory(redis: any, cobroId: string, entries: AgentMes
   await redis.hset(COBRO_CONVERSATIONS_KEY, { [cobroId]: JSON.stringify(updated) });
 }
 
+// Índice teléfono → lead/cobro para los acuses de entrega de Meta. Antes cada acuse (y llegan
+// dos o tres por cada mensaje enviado) leía completos los hashes de leads y cobros: en la
+// cobranza masiva de cada hora eran cientos de lecturas de varios MB en un minuto, y eso
+// dejaba lento todo el panel justo a la hora en punto. El índice se reconstruye como máximo
+// una vez cada dos minutos cuando aparece un número que no está; si está en espera, el acuse
+// simplemente no se registra (es información de diagnóstico, no un mensaje).
+const PHONE_INDEX_KEY = 'internal:whatsapp-phone-index';
+const PHONE_INDEX_REBUILD_LOCK = 'internal:whatsapp-phone-index:rebuilt';
+const PHONE_INDEX_REBUILD_SECONDS = 120;
+
+type PhoneTarget = { kind: 'lead' | 'cobro'; id: string };
+
+function parsePhoneTarget(raw: unknown): PhoneTarget | null {
+  const [kind, id] = String(raw || '').split(':');
+  return (kind === 'lead' || kind === 'cobro') && id ? { kind, id } : null;
+}
+
+export async function indexPhoneTarget(redis: any, phone: string, target: PhoneTarget): Promise<void> {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return;
+  await redis.hset(PHONE_INDEX_KEY, { [normalized]: `${target.kind}:${target.id}` });
+}
+
+async function rebuildPhoneIndex(redis: any): Promise<Record<string, string>> {
+  const [allCobros, allLeads] = await Promise.all([readCobros(redis), readLeads(redis)]);
+  const index: Record<string, string> = {};
+  // Los leads van primero y los cobros encima: si un número está en ambos, gana cobranza,
+  // igual que antes.
+  for (const l of allLeads) {
+    const phone = normalizePhone(l.phone);
+    if (phone) index[phone] = `lead:${l.id}`;
+  }
+  for (const c of allCobros) {
+    const phone = normalizePhone(c.telefono);
+    if (phone) index[phone] = `cobro:${c.id}`;
+  }
+  if (Object.keys(index).length) await redis.hset(PHONE_INDEX_KEY, index);
+  return index;
+}
+
+async function resolvePhoneTarget(redis: any, phone: string): Promise<PhoneTarget | null> {
+  const cached = parsePhoneTarget(await redis.hget(PHONE_INDEX_KEY, phone));
+  if (cached) return cached;
+  const canRebuild = await redis.set(PHONE_INDEX_REBUILD_LOCK, '1', { nx: true, ex: PHONE_INDEX_REBUILD_SECONDS });
+  if (!canRebuild) return null;
+  const index = await rebuildPhoneIndex(redis);
+  return parsePhoneTarget(index[phone]);
+}
+
 export async function findBranchAssignee(redis: any, branch: string) {
   const users = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(branch));
   return users.find((u) => u.role === 'secretaria') || users.find((u) => u.role === 'gerente') || null;
@@ -181,6 +230,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   const isNewLead = !lead;
   if (!lead) {
     lead = newLeadFromWhatsapp(fromPhone, contactName, now);
+    await indexPhoneTarget(redis, fromPhone, { kind: 'lead', id: lead.id });
   }
 
   lead.lastInboundAt = now;
@@ -529,25 +579,21 @@ export const POST: APIRoute = async ({ request }) => {
         // enviamos (enviado/entregado/leído/fallido) — se registra en el historial del
         // cliente para poder diagnosticar de verdad si algo se está demorando o fallando
         // en vez de adivinar. "sent" no se registra: ya sabíamos que se mandó.
-        const statuses = Array.isArray(value.statuses) ? value.statuses : [];
-        if (statuses.length) {
-          const [cobrosForStatus, leadsForStatus] = await Promise.all([readCobros(redis), readLeads(redis)]);
-          for (const st of statuses) {
-            const statusLabel = String(st?.status || '');
-            if (!statusLabel || statusLabel === 'sent') continue;
-            const phone = normalizePhone(String(st?.recipient_id || ''));
-            if (!phone) continue;
-            const errorInfo = Array.isArray(st.errors) && st.errors[0] ? ` — ${st.errors[0].title || st.errors[0].code || ''}` : '';
-            const note = `[Estado WhatsApp] ${statusLabel}${errorInfo}`;
-            const cobroMatch = cobrosForStatus.find((c) => normalizePhone(c.telefono) === phone);
-            if (cobroMatch) {
-              await appendCobroHistory(redis, cobroMatch.id, [{ role: 'assistant', content: note }]);
-              continue;
-            }
-            const leadMatch = leadsForStatus.find((l) => normalizePhone(l.phone) === phone);
-            if (leadMatch) {
-              await appendHistory(redis, leadMatch.id, [{ role: 'assistant', content: note }]);
-            }
+        const statuses = (Array.isArray(value.statuses) ? value.statuses : []).filter((st: any) => {
+          const label = String(st?.status || '');
+          return label && label !== 'sent' && normalizePhone(String(st?.recipient_id || ''));
+        });
+        for (const st of statuses) {
+          const statusLabel = String(st.status);
+          const phone = normalizePhone(String(st.recipient_id));
+          const errorInfo = Array.isArray(st.errors) && st.errors[0] ? ` — ${st.errors[0].title || st.errors[0].code || ''}` : '';
+          const note = `[Estado WhatsApp] ${statusLabel}${errorInfo}`;
+          const target = await resolvePhoneTarget(redis, phone);
+          if (!target) continue;
+          if (target.kind === 'cobro') {
+            await appendCobroHistory(redis, target.id, [{ role: 'assistant', content: note }]);
+          } else {
+            await appendHistory(redis, target.id, [{ role: 'assistant', content: note }]);
           }
         }
 

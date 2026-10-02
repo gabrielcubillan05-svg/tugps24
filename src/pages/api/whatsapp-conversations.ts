@@ -7,13 +7,25 @@ import { getRedis } from '../../lib/redis';
 
 export const prerender = false;
 
+const MAX_PAGE_SIZE = 500;
+
 async function requireAccess(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canViewWhatsappConversations(session)) return null;
   return session;
 }
 
-export const GET: APIRoute = async ({ cookies, url }) => {
+export const GET: APIRoute = async (ctx) => {
+  try {
+    return await handleGet(ctx);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('whatsapp-conversations: fallo al listar', message);
+    return new Response(JSON.stringify({ error: `error al cargar conversaciones: ${message}` }), { status: 500 });
+  }
+};
+
+async function handleGet({ cookies, url }: Parameters<APIRoute>[0]): Promise<Response> {
   const session = await requireAccess(cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -74,15 +86,28 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     deuda: c.deuda,
   }));
 
-  let items = [...leadItems, ...cobroItems];
+  // Un solo registro sin nombre, teléfono o fechas (cargas masivas viejas, datos a medio
+  // guardar) no debe tumbar la lista completa: se normaliza todo a texto antes de filtrar
+  // y ordenar.
+  let items = [...leadItems, ...cobroItems].map((i) => ({
+    ...i,
+    name: String(i.name || i.phone || 'Sin nombre'),
+    phone: String(i.phone || ''),
+    lastActivity: String(i.lastInboundAt || i.updatedAt || i.createdAt || ''),
+  }));
   if (agentFilter) items = items.filter((i) => i.agent === agentFilter);
   if (q) items = items.filter((i) => i.name.toLowerCase().includes(q) || i.phone.toLowerCase().includes(q));
   if (aiStage) items = items.filter((i) => i.aiStage === aiStage);
-  items.sort((a, b) =>
-    (b.lastInboundAt || b.updatedAt || b.createdAt).localeCompare(a.lastInboundAt || a.updatedAt || a.createdAt)
-  );
+  items.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
-  return new Response(JSON.stringify({ conversations: items }), {
+  // Paginación (offset/limit sobre la lista ya ordenada): mandar todas las conversaciones de
+  // golpe superaba lo que Vercel deja responder y la página quedaba en "No se pudo cargar".
+  const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0);
+  const limitParam = parseInt(url.searchParams.get('limit') || '', 10);
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_PAGE_SIZE) : MAX_PAGE_SIZE;
+  const page = items.slice(offset, offset + limit);
+
+  return new Response(JSON.stringify({ conversations: page, total: items.length, offset, limit }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
-};
+}
