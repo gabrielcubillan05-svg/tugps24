@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canManageUsers, getUsers, saveUser, branchesOf, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canManageUsers, getUsers, saveUser, branchesOf, verifySameOrigin, BRANCHES } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -22,6 +22,11 @@ const RESPONSABLES = [
   'Kelly Lara',
   'Alejandra Molina',
 ];
+
+// Cristian está en Bucaramanga pero lleva el inventario de todas las sucursales a nivel
+// nacional: se le marcan todas, no solo la de su perfil.
+const RESPONSABLES_NACIONALES = ['Cristian Zambrano'];
+const TODAS_LAS_SUCURSALES = BRANCHES.filter((b) => b !== 'Central de Monitoreo');
 
 function tokens(name: string): string[] {
   return String(name || '')
@@ -66,7 +71,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       continue;
     }
     for (const user of candidates) {
-      const branches = branchesOf(user).filter((b) => b !== 'Central de Monitoreo');
+      const branches = RESPONSABLES_NACIONALES.includes(listName)
+        ? TODAS_LAS_SUCURSALES
+        : branchesOf(user).filter((b) => b !== 'Central de Monitoreo');
       if (!branches.length) {
         withoutBranch.push(user.name);
         continue;
