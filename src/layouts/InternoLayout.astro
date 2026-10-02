@@ -2,6 +2,7 @@
 import type { Session, Section } from '../lib/auth';
 import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor, findUserById, shouldRingShutdownAlarms } from '../lib/auth';
 import { getRedis } from '../lib/redis';
+import { BUILD_ID } from '../lib/build-id';
 
 export interface Props {
   title: string;
@@ -535,7 +536,7 @@ if (sections.includes('rrhh')) {
       }
     </style>
   </head>
-  <body data-user-id={session.userId} class={(active === 'inicio' || active === null) ? 'home-active' : ''}>
+  <body data-user-id={session.userId} data-build={BUILD_ID} class={(active === 'inicio' || active === null) ? 'home-active' : ''}>
     <div class="wrap">
       <header class="panel-head">
         <div class="brand">

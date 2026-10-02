@@ -60,7 +60,32 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
+  // Si hay un despliegue nuevo, la pestaña se recarga sola cuando está en segundo plano (no
+  // se pierde nada escrito) y, si está al frente, muestra un aviso con botón para recargar.
+  const currentBuild = document.body.getAttribute('data-build') || '';
+  let updateBanner = null;
+  function checkVersion() {
+    if (!currentBuild || currentBuild === 'dev') return;
+    fetch('/api/version')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data || !data.build || data.build === currentBuild) return;
+        if (document.hidden) {
+          location.reload();
+          return;
+        }
+        if (updateBanner) return;
+        updateBanner = document.createElement('div');
+        updateBanner.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9000;background:#1f2937;color:#fff;padding:10px 16px;border-radius:10px;box-shadow:0 6px 24px #0006;font-size:13.5px;display:flex;gap:12px;align-items:center;';
+        updateBanner.innerHTML = 'Hay una versión nueva del panel. <button type="button" style="background:#f59e0b;color:#111;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;">Recargar</button>';
+        updateBanner.querySelector('button').addEventListener('click', () => location.reload());
+        document.body.appendChild(updateBanner);
+      })
+      .catch(() => {});
+  }
+
   function loadNotifications() {
+    checkVersion();
     fetch('/api/notifications')
       .then((res) => res.json())
       .then((data) => {
