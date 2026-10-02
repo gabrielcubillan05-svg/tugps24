@@ -46,7 +46,8 @@ export type Section =
   | 'planillas-vehiculo'
   | 'esquemas-apagado'
   | 'garantias'
-  | 'rrhh';
+  | 'rrhh'
+  | 'almacenamiento';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -71,6 +72,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   'esquemas-apagado': 'Esquemas de apagado',
   garantias: 'Garantías',
   rrhh: 'Recursos Humanos',
+  almacenamiento: 'Almacenamiento',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -96,6 +98,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   'esquemas-apagado': '/interno/esquemas-apagado',
   garantias: '/interno/garantias',
   rrhh: '/interno/rrhh',
+  almacenamiento: '/interno/almacenamiento',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
@@ -104,7 +107,7 @@ export const ROLE_SECTIONS: Record<Role, Section[]> = {
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
   supervisor: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
   gerente: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
-  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh'],
+  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -382,6 +385,27 @@ export async function destroySession(cookieValue: string | undefined): Promise<v
   const redis = getRedis();
   if (!redis) return;
   await redis.hdel(SESSIONS_KEY, sessionId);
+}
+
+// Las sesiones vencidas solo se borran cuando alguien intenta usarlas (getSession). Las que
+// nunca vuelven a tocarse (celular cambiado, usuario que no regresa) quedarían para siempre en
+// el hash, por eso la limpieza mensual las barre aparte.
+export async function purgeExpiredSessions(redis: Redis, dryRun = false): Promise<number> {
+  const raw = (await redis.hgetall<Record<string, string>>(SESSIONS_KEY)) || {};
+  const now = Date.now();
+  const toDelete: string[] = [];
+  for (const [sessionId, v] of Object.entries(raw)) {
+    try {
+      const session: Session = typeof v === 'string' ? JSON.parse(v) : (v as any);
+      const expired = new Date(session.expiresAt).getTime() < now;
+      const inactive = session.lastActivityAt && now - new Date(session.lastActivityAt).getTime() > INACTIVITY_TIMEOUT_MS;
+      if (expired || inactive) toDelete.push(sessionId);
+    } catch {
+      toDelete.push(sessionId);
+    }
+  }
+  if (toDelete.length && !dryRun) await redis.hdel(SESSIONS_KEY, ...toDelete);
+  return toDelete.length;
 }
 
 export async function destroyAllSessionsForUser(redis: Redis, userId: string): Promise<void> {

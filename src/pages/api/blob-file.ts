@@ -19,7 +19,11 @@ export const GET: APIRoute = async ({ url, cookies }) => {
     return new Response('missing path', { status: 400 });
   }
 
-  if (path.startsWith('reports/')) {
+  if (path.startsWith('archive/')) {
+    if (!canAccessSection(session.role, 'almacenamiento')) {
+      return new Response('forbidden', { status: 403 });
+    }
+  } else if (path.startsWith('reports/')) {
     if (!canAccessSection(session.role, 'novedades')) {
       return new Response('forbidden', { status: 403 });
     }

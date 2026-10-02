@@ -1,0 +1,68 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { RETENTION } from '../../lib/storage-maintenance';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'almacenamiento')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Almacenamiento" active="almacenamiento" session={session}>
+  <div class="panel-card">
+    <h2>Uso del almacenamiento</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Cuánto ocupa cada módulo en la base de datos (Redis) y en el archivo de fotos y documentos (Blob).
+      Los tamaños de Redis son aproximados: se calculan sobre el contenido guardado.
+    </p>
+    <div class="filters" style="margin-bottom:12px;">
+      <button class="btn-small" id="refreshBtn" type="button">Actualizar</button>
+      <span class="hint" id="generatedAt" style="margin:0;"></span>
+    </div>
+    <div id="totals" class="agent-usage-row"></div>
+    <h3 class="agent-section-label">Base de datos (Redis)</h3>
+    <div id="redisTable"><div class="empty">Cargando...</div></div>
+    <h3 class="agent-section-label">Archivos (Blob)</h3>
+    <div id="blobTable"><div class="empty">Cargando...</div></div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Limpieza mensual</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:10px;">
+      Corre sola el día 1 de cada mes a las 3 a. m. Reglas vigentes:
+    </p>
+    <ul class="storage-rules">
+      <li>Auditoría: se conservan los últimos <b>{RETENTION.auditKeepDays} días</b>.</li>
+      <li>Novedades con más de <b>{RETENTION.reportsArchiveAfterDays} días</b>: se guardan en un archivo JSON descargable y se borran sus fotos.</li>
+      <li>Leads en estado {RETENTION.leadsArchivableStatuses.join(', ')} sin movimiento en <b>{RETENTION.leadsArchiveAfterDays} días</b>: pasan al archivo junto con su conversación de WhatsApp.</li>
+      <li>Tareas completadas o canceladas hace más de <b>{RETENTION.tasksArchiveAfterDays} días</b>: pasan al archivo y se borra la foto de evidencia.</li>
+      <li>Sesiones vencidas se eliminan.</li>
+    </ul>
+    <div class="filters" style="margin-top:12px;">
+      <button class="btn-small" id="simulateBtn" type="button">Simular limpieza (no borra nada)</button>
+      <button class="btn-small btn-delete" id="runBtn" type="button">Ejecutar limpieza ahora</button>
+    </div>
+    <div id="cleanupResult" style="margin-top:12px;"></div>
+    <h3 class="agent-section-label">Archivos de respaldo</h3>
+    <div id="archivesList"><div class="empty">Cargando...</div></div>
+  </div>
+</InternoLayout>
+
+<style>
+  .storage-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .storage-table th, .storage-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+  .storage-table th { color: var(--slate); font-weight: 600; font-size: 12px; }
+  .storage-table td.num, .storage-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .storage-table .bar { height: 6px; background: var(--amber); border-radius: 3px; min-width: 2px; }
+  .storage-rules { padding-left: 18px; color: var(--paper-dim); font-size: 13px; line-height: 1.7; }
+  .cleanup-summary { font-size: 13.5px; line-height: 1.7; }
+  .cleanup-summary .err { color: var(--danger); }
+</style>
+
+<script src="/js/interno-almacenamiento.js" defer></script>

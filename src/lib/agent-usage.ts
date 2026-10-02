@@ -29,6 +29,9 @@ const COST_CONFIG_KEY = 'internal:agent-cost-config';
 // Tope defensivo para una consulta "personalizada" — evita pedirle a Redis miles de llaves
 // de un rango absurdo por un typo en las fechas.
 const MAX_RANGE_DAYS = 366;
+// Los baldes diarios caducan solos pasado un año largo: el reporte por periodo nunca mira más
+// atrás de MAX_RANGE_DAYS, así que guardarlos más tiempo solo acumula llaves.
+const DAILY_TTL_SECONDS = 400 * 24 * 60 * 60;
 
 export interface CostConfig {
   usdToCop: number;
@@ -95,6 +98,7 @@ export async function recordAgentUsage(
       ? [
           redis.sadd(CONVERSATIONS_KEY_PREFIX + agentKey, member),
           redis.sadd(DAILY_CONVERSATIONS_KEY_PREFIX + agentKey + ':' + today, member),
+          redis.expire(DAILY_CONVERSATIONS_KEY_PREFIX + agentKey + ':' + today, DAILY_TTL_SECONDS),
           redis.set(CONVERSATIONS_TRACKING_SINCE_KEY, today, { nx: true }),
         ]
       : []),
@@ -104,6 +108,7 @@ export async function recordAgentUsage(
     redis.hincrby(dailyKey, 'inputTokens', usage.inputTokens),
     redis.hincrby(dailyKey, 'outputTokens', usage.outputTokens),
     redis.hincrby(dailyKey, 'calls', 1),
+    redis.expire(dailyKey, DAILY_TTL_SECONDS),
     // Se guarda una sola vez (nx) — marca desde cuándo existe el desglose por día, para poder
     // avisar en el reporte que un rango de antes de esa fecha va a salir incompleto (no es que
     // esté mal calculado, es que ese balde diario todavía no existía).

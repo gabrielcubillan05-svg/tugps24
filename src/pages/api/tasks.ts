@@ -19,7 +19,7 @@ import {
 
 export const prerender = false;
 
-const REDIS_KEY = 'internal:tasks';
+export const REDIS_KEY = 'internal:tasks';
 export const STATUSES = ['Pendiente', 'En progreso', 'Completada', 'Cancelada'];
 
 interface Note {

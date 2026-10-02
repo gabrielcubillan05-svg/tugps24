@@ -245,10 +245,16 @@ document.addEventListener('DOMContentLoaded', function () {
     formData.append('id', id);
     formData.append('category', categorySelect ? categorySelect.value : '');
     formData.append('note', noteValue);
-    if (file) formData.append('images', file);
 
     saveBtn.disabled = true;
-    fetch('/api/garantias', { method: 'PATCH', body: formData })
+    // La foto se comprime en el navegador: era el adjunto más pesado de todo el panel
+    // (hasta 8 MB por imagen, sin reducir).
+    const prepared = file && window.compressImageFile ? window.compressImageFile(file) : Promise.resolve(file);
+    prepared
+      .then((image) => {
+        if (image) formData.append('images', image, 'foto.jpg');
+        return fetch('/api/garantias', { method: 'PATCH', body: formData });
+      })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');

@@ -3,14 +3,23 @@
     {
       "source": "/js/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
       ]
     },
     {
       "source": "/interno-sw.js",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache" },
-        { "key": "Service-Worker-Allowed", "value": "/interno/" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/interno/"
+        }
       ]
     }
   ],
@@ -42,6 +51,10 @@
     {
       "path": "/api/gabot-garantias-reassign-cron",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cleanup-cron",
+      "schedule": "0 8 1 * *"
     }
   ]
 }
