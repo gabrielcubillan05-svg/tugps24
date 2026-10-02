@@ -1,6 +1,6 @@
 ---
 import type { Session, Section } from '../lib/auth';
-import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor, findUserById } from '../lib/auth';
+import { SECTION_LABELS, SECTION_PATHS, ROLE_LABELS, sectionsFor, findUserById, shouldRingShutdownAlarms } from '../lib/auth';
 import { getRedis } from '../lib/redis';
 
 export interface Props {
@@ -15,6 +15,7 @@ const { title, active, session } = Astro.props;
 const layoutRedis = getRedis();
 const layoutUser = layoutRedis ? await findUserById(layoutRedis, session.userId).catch(() => null) : null;
 const sections = sectionsFor(session, layoutUser);
+const ringAlarms = shouldRingShutdownAlarms(session.role) && sections.includes('apagados-programados');
 
 // Agrupación puramente visual del nav (no cambia permisos: sectionsFor ya decide qué ve cada
 // quien; aquí solo se organiza la presentación en menús por categoría, estilo Hotelia).
@@ -29,7 +30,7 @@ const ICONS: Record<string, string> = {
 };
 
 const NAV_GROUPS: { label: string; icon: keyof typeof ICONS; sections: Section[] }[] = [
-  { label: 'Operación', icon: 'wrench', sections: ['novedades', 'reportes', 'estadisticas', 'tareas', 'planillas-vehiculo', 'esquemas-apagado', 'casos-importantes', 'garantias', 'inventario'] },
+  { label: 'Operación', icon: 'wrench', sections: ['novedades', 'reportes', 'estadisticas', 'tareas', 'planillas-vehiculo', 'apagados-programados', 'esquemas-apagado', 'casos-importantes', 'garantias', 'inventario'] },
   { label: 'Seguridad', icon: 'shield', sections: ['cuadrantes'] },
   { label: 'Comercial', icon: 'briefcase', sections: ['crm', 'cotizaciones', 'seguimiento-masivos', 'conversaciones-whatsapp', 'cobros', 'suspensiones', 'solicitudes-administrativas'] },
   { label: 'Administración', icon: 'settings', sections: ['auditoria', 'usuarios', 'pagos-internos', 'agentes-ia', 'almacenamiento'] },
@@ -671,5 +672,6 @@ if (sections.includes('rrhh')) {
     <script src="/js/interno-shell.js" defer></script>
     <script src="/js/interno-notifications.js" defer></script>
     <script src="/js/interno-gabot-widget.js" defer></script>
+    {ringAlarms && <script src="/js/interno-alarmas.js" defer></script>}
   </body>
 </html>

@@ -48,7 +48,8 @@ export type Section =
   | 'garantias'
   | 'rrhh'
   | 'almacenamiento'
-  | 'inventario';
+  | 'inventario'
+  | 'apagados-programados';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -75,6 +76,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   rrhh: 'Recursos Humanos',
   almacenamiento: 'Almacenamiento',
   inventario: 'Inventario de sucursal',
+  'apagados-programados': 'Apagados programados',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -102,15 +104,16 @@ export const SECTION_PATHS: Record<Section, string> = {
   rrhh: '/interno/rrhh',
   almacenamiento: '/interno/almacenamiento',
   inventario: '/interno/inventario',
+  'apagados-programados': '/interno/apagados-programados',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
-  operador: ['novedades', 'reportes', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
+  operador: ['novedades', 'reportes', 'apagados-programados', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
-  gerente: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
-  admin: ['novedades', 'reportes', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario'],
+  supervisor: ['novedades', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
+  gerente: ['novedades', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
+  admin: ['novedades', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -132,6 +135,23 @@ export function canAccessCobros(session: Pick<Session, 'role' | 'username'>): bo
 export const JOSUE_USERNAME = 'josuegonzalez';
 export const WILMAR_USERNAME = 'wilmar';
 const SUSPENSIONES_EXTRA_USERNAMES = [JOSUE_USERNAME, WILMAR_USERNAME];
+
+// Apagados y encendidos programados: los registran y confirman operadores y supervisores;
+// borrar queda para supervisor en adelante, para que una programación vigente no desaparezca
+// por un clic equivocado en la central.
+export function canAccessShutdownSchedules(session: Pick<Session, 'role'>): boolean {
+  return canAccessSection(session.role, 'apagados-programados');
+}
+
+export function canDeleteShutdownSchedules(role: Role): boolean {
+  return role === 'supervisor' || role === 'gerente' || role === 'admin';
+}
+
+// La alarma suena en la central: operadores y supervisores. Gerencia y admin ven el módulo
+// pero no les suena cada apagado.
+export function shouldRingShutdownAlarms(role: Role): boolean {
+  return role === 'operador' || role === 'supervisor';
+}
 
 export function canAccessSuspensiones(session: Pick<Session, 'role' | 'username'>): boolean {
   return canAccessSection(session.role, 'suspensiones') || SUSPENSIONES_EXTRA_USERNAMES.includes(session.username);

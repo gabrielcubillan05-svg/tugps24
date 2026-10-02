@@ -1,0 +1,154 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessShutdownSchedules, canDeleteShutdownSchedules, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessShutdownSchedules(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Apagados programados" active="apagados-programados" session={session}>
+  <div id="apagadosData" data-can-delete={canDeleteShutdownSchedules(session.role) ? '1' : ''} style="display:none;"></div>
+
+  <div class="panel-card">
+    <div class="apg-head">
+      <div>
+        <h2>Hoy</h2>
+        <p class="hint" style="margin:4px 0 0;">
+          Apagados y encendidos de hoy en orden de hora. A la hora exacta la pantalla de la central suena como alarma hasta que un operador marque <strong>Hecho</strong>; un minuto antes también llega la notificación al celular de quienes están en turno.
+        </p>
+      </div>
+      <button class="btn-small" id="testAlarmBtn" type="button" title="Suena 3 segundos para comprobar que el navegador deja sonar la alarma">Probar sonido</button>
+    </div>
+    <div class="stats-row apg-stats" id="apgStats"></div>
+    <div id="agendaList" class="agenda-list"><div class="empty">Cargando...</div></div>
+  </div>
+
+  <div class="panel-card">
+    <h2 id="formTitle">Nueva programación</h2>
+    <form id="apgForm" class="form-grid">
+      <div class="field">
+        <label for="fPlaca">Placa</label>
+        <input id="fPlaca" type="text" placeholder="ABC123" maxlength="20" required autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="fCliente">Cliente</label>
+        <input id="fCliente" type="text" placeholder="Nombre del cliente" maxlength="80" />
+      </div>
+      <div class="field">
+        <label for="fAccion">Acción</label>
+        <select id="fAccion">
+          <option value="apagar">Apagar</option>
+          <option value="encender">Encender</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fHora">Hora (Colombia)</label>
+        <input id="fHora" type="time" required />
+      </div>
+      <div class="field">
+        <label for="fRepeat">Se repite</label>
+        <select id="fRepeat">
+          <option value="diario">Todos los días</option>
+          <option value="lun_vie">Lunes a viernes</option>
+          <option value="dias">Días específicos</option>
+          <option value="una_vez">Solo una vez</option>
+        </select>
+      </div>
+      <div class="field" id="fFechaWrap" style="display:none;">
+        <label for="fFecha">Fecha</label>
+        <input id="fFecha" type="date" />
+      </div>
+      <div class="field apg-days" id="fDiasWrap" style="display:none;">
+        <label>Días</label>
+        <div class="day-picks">
+          <label><input type="checkbox" value="1" /> Lun</label>
+          <label><input type="checkbox" value="2" /> Mar</label>
+          <label><input type="checkbox" value="3" /> Mié</label>
+          <label><input type="checkbox" value="4" /> Jue</label>
+          <label><input type="checkbox" value="5" /> Vie</label>
+          <label><input type="checkbox" value="6" /> Sáb</label>
+          <label><input type="checkbox" value="0" /> Dom</label>
+        </div>
+      </div>
+      <div class="field" style="grid-column: 1 / -1;">
+        <label for="fNota">Nota (opcional)</label>
+        <input id="fNota" type="text" placeholder="Ej: avisar al cliente por WhatsApp antes de apagar" maxlength="200" />
+      </div>
+      <div class="field apg-actions" style="grid-column: 1 / -1;">
+        <button class="btn" id="saveBtn" type="submit">Guardar programación</button>
+        <button class="btn-small" id="cancelEditBtn" type="button" style="display:none;">Cancelar edición</button>
+        <span class="hint" id="formMsg" style="margin:0;"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <div class="apg-head">
+      <h2>Todas las programaciones <span class="count" id="itemsCount"></span></h2>
+      <div class="filters" style="margin:0;">
+        <input id="searchInput" type="text" placeholder="Buscar placa o cliente..." autocomplete="off" />
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table class="apg-table">
+        <thead>
+          <tr><th>Hora</th><th>Acción</th><th>Placa</th><th>Cliente</th><th>Se repite</th><th>Nota</th><th>Estado</th><th></th></tr>
+        </thead>
+        <tbody id="itemsBody"><tr><td colspan="8" class="empty">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <h2>Últimas confirmaciones</h2>
+    <p class="hint">Quién marcó cada apagado o encendido como hecho y con cuántos minutos de retraso.</p>
+    <div class="table-scroll">
+      <table class="apg-table">
+        <thead><tr><th>Programado</th><th>Acción</th><th>Placa</th><th>Cliente</th><th>Confirmado</th><th>Por</th><th>Retraso</th></tr></thead>
+        <tbody id="logBody"><tr><td colspan="7" class="empty">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .apg-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .apg-head h2 .count { color: var(--slate); font-size: 13px; font-weight: 400; margin-left: 6px; }
+  .apg-stats { grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+  .agenda-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .agenda-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--ink-800); flex-wrap: wrap; }
+  .agenda-row .time { font-size: 20px; font-weight: 700; min-width: 64px; font-variant-numeric: tabular-nums; }
+  .agenda-row .what { flex: 1; min-width: 180px; }
+  .agenda-row .what .placa { font-weight: 700; letter-spacing: 0.5px; }
+  .agenda-row .what .sub { color: var(--slate); font-size: 12.5px; }
+  .agenda-row.hecho { opacity: 0.65; }
+  .agenda-row.vencido { border-color: var(--danger); }
+  .agenda-row.pendiente.due { border-color: var(--danger); background: #c0392b1f; }
+  .action-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.4px; }
+  .action-tag.apagar { background: #c0392b26; color: #e74c3c; }
+  .action-tag.encender { background: #27ae6026; color: #2ecc71; }
+  .status-tag { font-size: 12px; color: var(--slate); }
+  .status-tag.vencido { color: var(--danger); font-weight: 600; }
+  .status-tag.hecho { color: var(--ok); }
+  .apg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .apg-table th, .apg-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+  .apg-table th { color: var(--slate); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .apg-table td.actions { white-space: nowrap; text-align: right; }
+  .apg-table tr.inactivo td { opacity: 0.55; }
+  .day-picks { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+  .day-picks label { display: inline-flex; align-items: center; gap: 4px; color: inherit; font-size: 13px; margin: 0; }
+  .apg-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 0; }
+  @media (max-width: 720px) {
+    .apg-stats { grid-template-columns: repeat(3, 1fr); }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script src="/js/interno-apagados-programados.js" defer></script>
