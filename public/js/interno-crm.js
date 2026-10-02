@@ -639,6 +639,40 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
     return getFilteredLeads(false);
   }
 
+  function searchTextFor(l) {
+    const notesText = (l.notes || []).map((n) => n.text).join(' ');
+    return [l.name, l.phone, l.campaign || '', notesText].join(' ').toLowerCase();
+  }
+
+  // Tras guardar, se actualiza solo ese lead en memoria. Antes cada guardado volvía a bajar
+  // los ~3.500 leads completos (varios MB) y redibujaba toda la pantalla, y eso era lo que
+  // hacía sentir lento el "Guardar" aunque el servidor respondiera rápido.
+  function applyLeadUpdate(lead) {
+    if (!lead || !lead.id) {
+      loadLeads();
+      return;
+    }
+    lead._searchText = searchTextFor(lead);
+    const idx = allLeads.findIndex((l) => l.id === lead.id);
+    if (idx >= 0) allLeads[idx] = lead;
+    else allLeads.unshift(lead);
+    populateDynamicFilters(allLeads);
+    renderCurrentView();
+  }
+
+  function removeLeadLocally(id) {
+    allLeads = allLeads.filter((l) => l.id !== id);
+    renderCurrentView();
+  }
+
+  // Para las llamadas que solo necesitan reflejar la respuesta del servidor.
+  function applyLeadResponse(res) {
+    return res.json().catch(() => ({})).then((data) => {
+      if (res.ok && data && data.lead) applyLeadUpdate(data.lead);
+      else loadLeads();
+    });
+  }
+
   function loadLeads() {
     fetch('/api/leads')
       .then((res) => res.json())
@@ -648,10 +682,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           return;
         }
         allLeads = data.leads;
-        allLeads.forEach((l) => {
-          const notesText = (l.notes || []).map((n) => n.text).join(' ');
-          l._searchText = [l.name, l.phone, l.campaign || '', notesText].join(' ').toLowerCase();
-        });
+        allLeads.forEach((l) => { l._searchText = searchTextFor(l); });
         populateDynamicFilters(allLeads);
         renderCurrentView();
       })
@@ -730,7 +761,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el lead.');
-          loadLeads();
+          applyLeadUpdate(data.lead);
         })
         .catch((err) => alert(err.message || 'No se pudo actualizar el lead.'));
     });
@@ -761,7 +792,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'No se pudo guardar el lead.');
         leadForm.reset();
-        loadLeads();
+        applyLeadUpdate(data.lead);
       })
       .catch((err) => alert(err.message || 'No se pudo guardar el lead.'))
       .finally(() => { submitBtn.disabled = false; });
@@ -801,7 +832,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then(loadLeads);
+    }).then(applyLeadResponse);
   });
 
   leadsList.addEventListener('click', function (e) {
@@ -816,7 +847,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
-      }).then(loadLeads);
+      }).then((res) => (res.ok ? removeLeadLocally(id) : loadLeads()));
     } else if (action === 'addnote') {
       // Junta nota + próxima llamada + instalación agendada en un solo PATCH, para que
       // "Guardar seguimiento" quede como una sola acción con todos los cambios juntos.
@@ -848,7 +879,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }).then(loadLeads);
+      }).then(applyLeadResponse);
     } else if (action === 'quote') {
       quotingId = id;
       quoteError = '';
@@ -883,11 +914,9 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         body: JSON.stringify({ id, confirmVenta: true }),
       })
         .then(async (res) => {
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.error || 'No se pudo confirmar.');
-          }
-          loadLeads();
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo confirmar.');
+          applyLeadUpdate(data.lead);
         })
         .catch((err) => alert(err.message || 'No se pudo confirmar.'));
     } else if (action === 'reset-ai') {
@@ -898,11 +927,9 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         body: JSON.stringify({ id, resetAiStage: true }),
       })
         .then(async (res) => {
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.error || 'No se pudo reiniciar la conversación.');
-          }
-          loadLeads();
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'No se pudo reiniciar la conversación.');
+          applyLeadUpdate(data.lead);
         })
         .catch((err) => alert(err.message || 'No se pudo reiniciar la conversación.'));
     } else if (action === 'toggle-installed') {
@@ -912,7 +939,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, installed }),
-      }).then(loadLeads);
+      }).then(applyLeadResponse);
     } else if (action === 'toggle-lost') {
       const lead = allLeads.find((l) => l.id === id);
       const status = lead && lead.status === 'Perdido' ? 'Contactado' : 'Perdido';
@@ -924,7 +951,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         .then(async (res) => {
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el lead.');
-          loadLeads();
+          applyLeadUpdate(data.lead);
         })
         .catch((err) => alert(err.message || 'No se pudo actualizar el lead.'));
     } else if (action === 'edit') {
@@ -960,7 +987,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
           editingId = null;
           editError = '';
-          loadLeads();
+          applyLeadUpdate(data.lead);
         })
         .catch((err) => {
           editError = err.message || 'No se pudo guardar.';

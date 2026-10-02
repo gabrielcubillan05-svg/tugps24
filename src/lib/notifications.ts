@@ -125,7 +125,15 @@ async function readHashList<T>(redis: Redis, key: string): Promise<T[]> {
     .filter((e): e is T => e !== null);
 }
 
+// La campanita consulta cada 45 s desde cada pestaña abierta, y este recálculo lee los hashes
+// completos de tareas, leads y reportes programados (varios MB) en cada consulta. Con decenas
+// de usuarios eso saturaba la base y hacía lentas las demás pantallas. Un aviso de "vencido"
+// no necesita precisión de segundos: se recalcula como mucho cada 5 minutos por usuario.
+const SYNC_THROTTLE_SECONDS = 300;
+
 export async function syncComputedNotifications(redis: Redis, session: Session): Promise<void> {
+  const claimed = await redis.set(`internal:notif-sync:${session.userId}`, '1', { nx: true, ex: SYNC_THROTTLE_SECONDS });
+  if (!claimed) return;
   const isManager = session.role === 'supervisor' || session.role === 'gerente' || session.role === 'admin';
   const users = await getUsers(redis);
   const me = users.find((u) => u.id === session.userId);
