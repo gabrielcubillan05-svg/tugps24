@@ -64,10 +64,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // se pierde nada escrito) y, si está al frente, muestra un aviso con botón para recargar.
   const currentBuild = document.body.getAttribute('data-build') || '';
   let updateBanner = null;
-  function checkVersion() {
+  function checkVersion(build) {
     if (!currentBuild || currentBuild === 'dev') return;
-    fetch('/api/version')
-      .then((res) => (res.ok ? res.json() : null))
+    Promise.resolve({ build })
       .then((data) => {
         if (!data || !data.build || data.build === currentBuild) return;
         if (document.hidden) {
@@ -80,16 +79,15 @@ document.addEventListener('DOMContentLoaded', function () {
         updateBanner.innerHTML = 'Hay una versión nueva del panel. <button type="button" style="background:#f59e0b;color:#111;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;">Recargar</button>';
         updateBanner.querySelector('button').addEventListener('click', () => location.reload());
         document.body.appendChild(updateBanner);
-      })
-      .catch(() => {});
+      });
   }
 
   function loadNotifications() {
-    checkVersion();
     fetch('/api/notifications')
       .then((res) => res.json())
       .then((data) => {
         if (!data || !Array.isArray(data.notifications)) return;
+        if (data.build) checkVersion(data.build);
         renderNotifications(data.notifications);
         if (data.unreadCount > 0) {
           bellBadge.textContent = data.unreadCount > 99 ? '99+' : String(data.unreadCount);
@@ -111,6 +109,8 @@ document.addEventListener('DOMContentLoaded', function () {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data || !Array.isArray(data.conversations)) return;
+        // El widget de GaBot usa esta misma respuesta en vez de pedirla otra vez cada 45 s.
+        document.dispatchEvent(new CustomEvent('panel:conversations', { detail: data }));
         const total = data.conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
         if (total > 0) {
           chatNavBadge.textContent = total > 99 ? '99+' : String(total);

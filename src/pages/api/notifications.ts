@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { BUILD_ID } from '../../lib/build-id';
 import { getRedis } from '../../lib/redis';
 import { SESSION_COOKIE, getSession, verifySameOrigin } from '../../lib/auth';
 import {
@@ -23,7 +24,7 @@ export const GET: APIRoute = async ({ cookies }) => {
   await syncComputedNotifications(redis, session);
   const { notifications, unreadCount } = await readNotifications(redis, session.userId);
 
-  return new Response(JSON.stringify({ notifications, unreadCount }), {
+  return new Response(JSON.stringify({ notifications, unreadCount, build: BUILD_ID }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };

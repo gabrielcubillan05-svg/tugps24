@@ -101,9 +101,15 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => null);
   }
 
-  function checkGabotConversation() {
-    fetch('/api/conversations')
-      .then((res) => (res.ok ? res.json() : null))
+  // La lista de conversaciones la trae la campanita (interno-notifications.js) y la comparte
+  // por evento: así el widget no repite la misma petición cada 45 s en cada pestaña. Solo pide
+  // por su cuenta si en unos segundos no llegó nada (por ejemplo, sin campanita en la página).
+  let receivedShared = false;
+  function checkGabotConversation(shared) {
+    const source = shared
+      ? Promise.resolve(shared)
+      : fetch('/api/conversations').then((res) => (res.ok ? res.json() : null));
+    source
       .then((data) => {
         widget.style.display = 'flex';
         const gabotConv = data && Array.isArray(data.conversations) ? data.conversations.find((c) => c.isGabot) : null;
@@ -276,7 +282,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  checkGabotConversation();
-  setInterval(checkGabotConversation, 45000);
+  document.addEventListener('panel:conversations', function (e) {
+    receivedShared = true;
+    checkGabotConversation(e.detail);
+  });
+  setTimeout(function () {
+    if (!receivedShared) {
+      checkGabotConversation();
+      setInterval(function () { if (!receivedShared) checkGabotConversation(); }, 45000);
+    }
+  }, 8000);
   if (getOpenPreference()) openPanel();
 });

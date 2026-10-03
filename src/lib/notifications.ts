@@ -269,6 +269,10 @@ export async function syncComputedNotifications(redis: Redis, _session?: Session
 
   for (const user of users.filter((u) => u.active)) {
     try {
+      // Los hashes heredados con miles de avisos se recortan aquí mismo (hlen es gratis): si no,
+      // cada campanita de ese usuario seguiría leyendo megas cada 45 s hasta la limpieza diaria.
+      const size = Number(await redis.hlen(keyFor(user.id))) || 0;
+      if (size > MAX_NOTIFICATIONS + TRIM_SLACK) await trimNotifications(redis, user.id);
       await applyComputed(redis, user.id, computedForUser(user, overdueTasks, overdueLeads, pendingReports));
     } catch (err) {
       console.error('notif-sync: fallo con usuario', user.id, err instanceof Error ? err.message : String(err));
