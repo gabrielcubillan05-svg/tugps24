@@ -1,23 +1,53 @@
 ---
+import { activeInstallPromos, INSTALACION_UNIT, spokenBranchName, promoRangeLabel } from '../lib/pricing';
+
+// La promoción sale de lib/pricing.ts, igual que para Andrés y el cotizador: cuando vence se
+// apaga sola aquí también y vuelve el precio normal.
+const promo = activeInstallPromos()[0] || null;
+const money = (n: number) => '$' + n.toLocaleString('es-CO');
+const where = promo ? promo.branches.map(spokenBranchName).join(' y ') : '';
+const whatsappText = promo
+  ? `Hola, quiero instalar el GPS con la ${promo.label.toLowerCase()} de ${money(promo.price)}`
+  : 'Hola, quiero cotizar la instalación de un GPS';
+const whatsappUrl = 'https://wa.me/573116105725?text=' + encodeURIComponent(whatsappText);
 ---
 
 <section class="section alt-bg" id="promocion">
   <div class="wrap">
     <div class="promo reveal">
       <div class="promo-left">
-        <span class="tag">10º ANIVERSARIO</span>
-        <h2>Diez años protegiendo vehículos en el Caribe — celebramos contigo.</h2>
-        <div class="promo-price">
-          <span class="amount">$150.000</span>
-          <span style="color:var(--paper-dim); font-size:14px;">instalación</span>
-          <p class="cond">
-            + primer mes de monitoreo gratis. Válido por tiempo limitado en todas nuestras
-            sucursales.
-          </p>
-        </div>
+        {promo ? (
+          <>
+            <span class="tag">{promo.label.toUpperCase()} · CUPOS LIMITADOS</span>
+            <h2>Protege tu vehículo, estés donde estés.</h2>
+            <div class="promo-price">
+              <span class="amount">{money(promo.price)}</span>
+              <span style="color:var(--paper-dim); font-size:14px;">instalación GPS 4G</span>
+              <p class="cond">
+                Válida {promoRangeLabel(promo)} en {where}. Incluye monitoreo 24 horas, ubicación en
+                tiempo real, apagado remoto, aplicación móvil, recorridos históricos y enlace con la Policía.
+                En las demás sucursales la instalación es {money(INSTALACION_UNIT)}.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <span class="tag">INSTALACIÓN GPS 4G</span>
+            <h2>Protege tu vehículo, estés donde estés.</h2>
+            <div class="promo-price">
+              <span class="amount">{money(INSTALACION_UNIT)}</span>
+              <span style="color:var(--paper-dim); font-size:14px;">instalación</span>
+              <p class="cond">
+                En todas nuestras sucursales. Incluye monitoreo 24 horas, ubicación en tiempo real,
+                apagado remoto, aplicación móvil, recorridos históricos y enlace con la Policía.
+              </p>
+            </div>
+          </>
+        )}
+        <a class="btn btn-primary" href={whatsappUrl} target="_blank" rel="noopener" style="margin-top:22px; display:inline-flex;">Quiero instalarlo</a>
       </div>
       <div class="promo-photo">
-        <img src="/img/img15.jpg" alt="Promoción 10º aniversario TuGPS24" />
+        <img src="/img/img15.jpg" alt={promo ? `${promo.label} TuGPS24: instalación GPS 4G a ${money(promo.price)}` : 'Instalación GPS 4G TuGPS24'} />
       </div>
     </div>
   </div>

@@ -325,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const calMonthLabel = document.getElementById('calMonthLabel');
     const DOW = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     let calMonth = null;
+    const calBranch = document.getElementById('calBranch');
 
     function shiftMonth(month, delta) {
       const [y, m] = month.split('-').map((v) => parseInt(v, 10));
@@ -334,7 +335,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function loadCalendar(month) {
       calGrid.innerHTML = '<div class="empty">Cargando...</div>';
-      fetch('/api/andres-calendario' + (month ? '?month=' + month : ''))
+      const params = new URLSearchParams();
+      if (month) params.set('month', month);
+      if (calBranch && calBranch.value) params.set('branch', calBranch.value);
+      const qs = params.toString();
+      fetch('/api/andres-calendario' + (qs ? '?' + qs : ''))
         .then((res) => res.json())
         .then((data) => {
           if (!data || !Array.isArray(data.days)) {
@@ -342,6 +347,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
           }
           calMonth = data.month;
+          // El gasto en Anthropic no se reparte por sucursal: con filtro no se muestra.
+          const filtered = !!data.branch;
           const [y, m] = data.month.split('-').map((v) => parseInt(v, 10));
           calMonthLabel.textContent = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'UTC' });
           // La semana empieza en lunes.
@@ -359,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   <div class="v"><span>Atend.</span><span class="a">${d.atendidos}</span></div>
                   <div class="v"><span>Nuevos</span><span class="n">${d.nuevos}</span></div>
                   <div class="v"><span>Concr.</span><span class="c">${d.concretados}</span></div>
-                  <div class="v cost"><span>Gasto</span><span>${d.cop ? '$' + Math.round(d.cop).toLocaleString('es-CO') : '—'}</span></div>`}
+                  ${filtered ? '' : `<div class="v cost"><span>Gasto</span><span>${d.cop ? '$' + Math.round(d.cop).toLocaleString('es-CO') : '—'}</span></div>`}`}
               </div>`;
           }).join('');
           calGrid.innerHTML = html;
@@ -371,11 +378,12 @@ document.addEventListener('DOMContentLoaded', function () {
             <span>Concretados: <b style="color:#22c55e">${fmtTokens(t.concretados || 0)}</b></span>
             <span>Escalados: <b>${fmtTokens(t.escalados || 0)}</b></span>
             <span>% concretado sobre nuevos: <b>${rate}%</b></span>
-            <span>Gasto del mes: <b>$${Math.round(t.cop || 0).toLocaleString('es-CO')} COP</b> · ${(t.usd || 0).toFixed(2)} USD</span>`;
+            ${filtered ? '<span style="color:var(--slate)">El gasto solo se muestra con todas las sucursales.</span>' : `<span>Gasto del mes: <b>$${Math.round(t.cop || 0).toLocaleString('es-CO')} COP</b> · ${(t.usd || 0).toFixed(2)} USD</span>`}`;
         })
         .catch(() => { calGrid.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>'; });
     }
 
+    if (calBranch) calBranch.addEventListener('change', () => loadCalendar(calMonth));
     document.getElementById('calPrevBtn').addEventListener('click', () => loadCalendar(shiftMonth(calMonth, -1)));
     document.getElementById('calNextBtn').addEventListener('click', () => loadCalendar(shiftMonth(calMonth, 1)));
     loadCalendar(null);

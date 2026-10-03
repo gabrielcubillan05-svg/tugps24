@@ -77,6 +77,20 @@ export function promoUntilLabel(promo: InstallPromo): string {
   return `${day} de ${MONTHS_ES[month]}`;
 }
 
+function dayMonthYearInColombia(iso: string): { day: number; month: number; year: number } {
+  const d = new Date(iso);
+  const parts = d.toLocaleString('en-US', { timeZone: 'America/Bogota', day: 'numeric', month: 'numeric', year: 'numeric' }).split('/');
+  return { month: Number(parts[0]) - 1, day: Number(parts[1]), year: Number(parts[2]) };
+}
+
+// "del 1 al 31 de octubre de 2026" para el sitio público.
+export function promoRangeLabel(promo: InstallPromo): string {
+  const a = dayMonthYearInColombia(promo.from);
+  const b = dayMonthYearInColombia(promo.until);
+  if (a.month === b.month && a.year === b.year) return `del ${a.day} al ${b.day} de ${MONTHS_ES[b.month]} de ${b.year}`;
+  return `del ${a.day} de ${MONTHS_ES[a.month]} al ${b.day} de ${MONTHS_ES[b.month]} de ${b.year}`;
+}
+
 // Sucursal que atiende una ciudad escrita a mano por el cliente o la secretaria ("barranquilla",
 // "Soledad", "Valle de Upar"). Devuelve null si no se reconoce.
 export function branchForCityName(city: string | null | undefined): string | null {

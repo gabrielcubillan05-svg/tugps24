@@ -2,7 +2,9 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { SESSION_COOKIE, getSession, canManageAiAgents } from '../../lib/auth';
 import { todayInColombia, dateInColombia } from '../../lib/colombia-time';
-import { readLeads } from './leads';
+import { readLeads, type Lead } from './leads';
+import { branchForCityName } from '../../lib/pricing';
+import { BRANCHES } from '../../lib/auth';
 import { getCostConfig, computeCost } from '../../lib/agent-usage';
 
 export const prerender = false;
@@ -20,8 +22,17 @@ export interface CalendarDay {
   cop: number;
 }
 
+export const NO_BRANCH = 'sin-sucursal';
+
+// Sucursal que atiende al lead: la que confirmó Andrés, o la que se deduce de la ciudad.
+export function leadBranch(l: Lead): string | null {
+  return l.convertedBranch || branchForCityName(l.city) || null;
+}
+
 // Calendario mensual de Andrés: por día, cuántas conversaciones atendió, cuántos leads nuevos
-// entraron y cuántos concretó (entregó a sucursal). Todo en fecha de Colombia.
+// entraron y cuántos concretó (entregó a sucursal). Todo en fecha de Colombia. Con ?branch=
+// se filtra por sucursal (o "sin-sucursal" para leads que aún no dijeron ciudad); el gasto en
+// Anthropic no se reparte por sucursal, así que con filtro no se muestra.
 export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session || !canManageAiAgents(session)) {
@@ -40,16 +51,34 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const dates: string[] = [];
   for (let d = 1; d <= daysInMonth; d++) dates.push(`${month}-${String(d).padStart(2, '0')}`);
 
-  const [leads, attended, usageRaw, costConfig] = await Promise.all([
+  const branchParam = url.searchParams.get('branch') || '';
+  const branch = branchParam === NO_BRANCH || BRANCHES.includes(branchParam) ? branchParam : '';
+  const matchesBranch = (l: Lead) => !branch || (branch === NO_BRANCH ? !leadBranch(l) : leadBranch(l) === branch);
+
+  const [allLeads, attendedRaw, usageRaw, costConfig] = await Promise.all([
     readLeads(redis),
-    Promise.all(dates.map((d) => redis.scard(DAILY_CONVERSATIONS_KEY_PREFIX + d))),
+    // Sin filtro basta el tamaño del conjunto; con filtro hay que ver qué leads son.
+    Promise.all(dates.map((d) => (branch ? redis.smembers(DAILY_CONVERSATIONS_KEY_PREFIX + d) : redis.scard(DAILY_CONVERSATIONS_KEY_PREFIX + d)))),
     Promise.all(dates.map((d) => redis.hgetall<Record<string, string | number>>(DAILY_USAGE_KEY_PREFIX + d))),
     getCostConfig(redis),
   ]);
 
+  const leadById = new Map(allLeads.map((l) => [l.id, l]));
+  const leads = allLeads.filter(matchesBranch);
+  // Cada miembro del conjunto diario es "canal:idLead".
+  const attended = attendedRaw.map((v) => {
+    if (!branch) return Number(v) || 0;
+    const members = Array.isArray(v) ? v : [];
+    return members.filter((m) => {
+      const id = String(m).slice(String(m).indexOf(':') + 1);
+      const l = leadById.get(id);
+      return !!l && matchesBranch(l);
+    }).length;
+  });
+
   const byDate = new Map<string, CalendarDay>();
   dates.forEach((date, i) => {
-    const u = usageRaw[i] || {};
+    const u = branch ? {} : usageRaw[i] || {};
     const cost = computeCost(
       {
         inputTokens: Number(u.inputTokens) || 0,
@@ -93,7 +122,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // Día de la semana del 1.º (0 = domingo) para alinear la cuadrícula.
   const firstWeekday = new Date(`${month}-01T12:00:00Z`).getUTCDay();
 
-  return new Response(JSON.stringify({ month, today, firstWeekday, days, totals }), {
+  return new Response(JSON.stringify({ month, today, firstWeekday, days, totals, branch, branches: BRANCHES.filter((b) => b !== 'Central de Monitoreo') }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
