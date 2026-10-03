@@ -29,7 +29,8 @@ if (!scope.length) {
           Equipos y SIM que hay físicamente en la sucursal. Debe quedar al día cada día: si no hubo cambios, confirma la revisión para que quede la fecha.
         </p>
       </div>
-      <div class="filters" style="margin:0;">
+      <div class="filters inv-filters" style="margin:0;">
+        <input id="invSearch" type="search" placeholder="Buscar IMEI, serial, SIM, modelo…" autocomplete="off" />
         <select id="branchSelect"></select>
         <button class="btn-small" id="exportBtn" type="button">Exportar CSV</button>
       </div>
@@ -43,6 +44,12 @@ if (!scope.length) {
 
 <style is:global>
   .inv-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .inv-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .inv-filters #invSearch { min-width: 260px; padding: 7px 10px; font-size: 13.5px; }
+  .inv-table mark { background: var(--amber); color: var(--ink-900, #111); border-radius: 3px; padding: 0 2px; }
+  .inv-search-note { color: var(--paper-dim); font-size: 13px; margin: 10px 0 0; }
+  .inv-search-note b { color: var(--paper); }
+  @media (max-width: 720px) { .inv-filters #invSearch { min-width: 0; width: 100%; } }
   .inv-status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 14px 0 10px; font-size: 13.5px; }
   .inv-status .stamp { color: var(--paper-dim); }
   .inv-status .stamp.stale { color: var(--danger); font-weight: 600; }

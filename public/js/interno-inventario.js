@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const exportBtn = document.getElementById('exportBtn');
   const invStatus = document.getElementById('invStatus');
   const invStats = document.getElementById('invStats');
+  const invSearch = document.getElementById('invSearch');
 
   const EQUIPO_FIELDS = [
     { key: 'imei', label: 'IMEI', required: true },
@@ -27,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function () {
   let categories = [];
   let labels = {};
   let editingId = null;
+  let query = '';
 
   function escapeHtml(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -34,6 +36,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function fmtDateTime(iso) {
     return iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  }
+
+  const SEARCH_FIELDS = ['imei', 'sim', 'modelo', 'observacion', 'serial', 'numeroSim'];
+
+  // Los seriales se dictan con espacios o guiones ("8957 1234-5678"): se comparan sin ellos y
+  // sin mayúsculas, así se encuentra escribiendo cualquier pedazo del número.
+  function normalizeForSearch(value) {
+    return String(value || '').toLowerCase().replace(/[\s\-_.]/g, '');
+  }
+
+  function matchesQuery(item) {
+    if (!query) return true;
+    return SEARCH_FIELDS.some((f) => normalizeForSearch(item[f]).includes(query));
+  }
+
+  function highlight(value) {
+    const safe = escapeHtml(value);
+    if (!query || !value) return safe;
+    const raw = String(value);
+    const idx = raw.toLowerCase().indexOf(invSearch.value.trim().toLowerCase());
+    if (idx < 0 || !invSearch.value.trim()) return `<mark>${safe}</mark>`;
+    const len = invSearch.value.trim().length;
+    return escapeHtml(raw.slice(0, idx)) + '<mark>' + escapeHtml(raw.slice(idx, idx + len)) + '</mark>' + escapeHtml(raw.slice(idx + len));
   }
 
   function fieldsFor(category) {
@@ -79,6 +104,10 @@ document.addEventListener('DOMContentLoaded', function () {
     return items.filter((i) => i.branch === currentBranch() && (!category || i.category === category));
   }
 
+  function visibleItems(category) {
+    return branchItems(category).filter(matchesQuery);
+  }
+
   function renderStats() {
     invStats.innerHTML = categories.map((c) => `
       <div class="stat-box"><span class="n">${branchItems(c).length}</span><span class="l">${escapeHtml(labels[c])}</span></div>
@@ -93,11 +122,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderSections() {
     sections.innerHTML = categories.map((c) => {
-      const rows = branchItems(c);
+      const rows = visibleItems(c);
       const fields = fieldsFor(c);
+      // Mientras se busca no se muestran tablas vacías ni la fila de agregar.
+      if (query && !rows.length) return '';
       return `
         <div class="panel-card inv-section" data-category="${c}">
-          <h3>${escapeHtml(labels[c])} <span class="count">${rows.length} registro(s)</span></h3>
+          <h3>${escapeHtml(labels[c])} <span class="count">${query ? `${rows.length} de ${branchItems(c).length} coincide(n)` : `${rows.length} registro(s)`}</span></h3>
           <div class="table-scroll">
             <table class="inv-table">
               <thead><tr>${fields.map((f) => `<th>${escapeHtml(f.label)}</th>`).join('')}<th class="who">Actualizado</th><th></th></tr></thead>
@@ -112,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </td>
                   </tr>` : `
                   <tr data-id="${i.id}">
-                    ${fields.map((f) => `<td>${escapeHtml(i[f.key]) || '<span class="hint" style="margin:0;">—</span>'}</td>`).join('')}
+                    ${fields.map((f) => `<td>${highlight(i[f.key]) || '<span class="hint" style="margin:0;">—</span>'}</td>`).join('')}
                     <td class="who">${fmtDateTime(i.updatedAt)}<br />${escapeHtml(i.updatedByName)}</td>
                     <td class="actions">
                       <select data-action="move" data-id="${i.id}" title="Pasar a otra tabla">
@@ -122,16 +153,31 @@ document.addEventListener('DOMContentLoaded', function () {
                       <button class="btn-small btn-delete" data-action="delete" data-id="${i.id}" type="button">Eliminar</button>
                     </td>
                   </tr>`).join('')}
-                <tr class="new-row" data-new="${c}">
+                ${query ? '' : `<tr class="new-row" data-new="${c}">
                   ${rowInputs(c, null)}
                   <td class="who"></td>
                   <td class="actions"><button class="btn-small btn-done" data-action="add" data-category="${c}" type="button">Agregar</button></td>
-                </tr>
+                </tr>`}
               </tbody>
             </table>
           </div>
         </div>`;
     }).join('');
+
+    if (query) {
+      const total = categories.reduce((n, c) => n + visibleItems(c).length, 0);
+      // Si está en otra de las sucursales que esta persona puede ver, se le dice cuál.
+      const elsewhere = items.filter((i) => i.branch !== currentBranch() && scope.includes(i.branch) && matchesQuery(i));
+      const byBranch = {};
+      elsewhere.forEach((i) => { byBranch[i.branch] = (byBranch[i.branch] || 0) + 1; });
+      const elsewhereText = Object.keys(byBranch).length
+        ? ` También hay ${elsewhere.length} coincidencia(s) en: ${Object.keys(byBranch).map((b) => `<b>${escapeHtml(b)}</b> (${byBranch[b]})`).join(', ')}.`
+        : '';
+      const note = total
+        ? `<p class="inv-search-note"><b>${total}</b> coincidencia(s) en ${escapeHtml(currentBranch())}.${elsewhereText}</p>`
+        : `<div class="empty">Nada en ${escapeHtml(currentBranch())} coincide con "${escapeHtml(invSearch.value.trim())}".${elsewhereText}</div>`;
+      sections.insertAdjacentHTML('afterbegin', note);
+    }
   }
 
   function renderAll() {
@@ -246,6 +292,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const tr = e.target.closest('tr');
     const btn = tr && tr.querySelector('button[data-action="add"], button[data-action="save"]');
     if (btn) btn.click();
+  });
+
+  let searchTimer;
+  invSearch.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      query = normalizeForSearch(invSearch.value);
+      editingId = null;
+      renderSections();
+    }, 150);
+  });
+  invSearch.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      invSearch.value = '';
+      query = '';
+      renderSections();
+    }
   });
 
   branchSelect.addEventListener('change', function () {
