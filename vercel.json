@@ -59,6 +59,10 @@
     {
       "path": "/api/apagados-cron",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/backup-cron",
+      "schedule": "30 7 * * *"
     }
   ]
 }

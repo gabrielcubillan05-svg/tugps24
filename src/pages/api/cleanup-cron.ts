@@ -4,6 +4,7 @@ import { getUsers } from '../../lib/auth';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { runCleanup, describeCleanup } from '../../lib/storage-maintenance';
+import { markCronOk, reportIncident } from '../../lib/incidents';
 
 export const prerender = false;
 
@@ -26,6 +27,8 @@ export const GET: APIRoute = async ({ request }) => {
   const text = describeCleanup(summary);
 
   await logAudit(redis, { userId: 'sistema', username: 'limpieza-automatica' }, 'storage_cleanup', text, summary.errors.join(' | ') || undefined);
+  if (summary.errors.length) await reportIncident(redis, 'cleanup_errors', summary.errors.slice(0, 3).join(' | '));
+  else await markCronOk(redis, 'cleanup');
 
   // Los administradores se enteran por la campanita de qué se archivó y si algo falló.
   try {

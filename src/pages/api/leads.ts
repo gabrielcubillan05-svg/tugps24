@@ -63,6 +63,9 @@ export interface Lead {
   managerAckBy?: string | null;
   // --- Aviso de promoción de instalación ya enviado (whatsapp-promo-notice) ---
   promoNoticeSentAt?: string | null;
+  // Andrés no pudo contestar de verdad (Anthropic caído, Meta rechazó el envío): el cron de
+  // seguimiento lo reintenta solo mientras siga abierta la ventana de 24 h.
+  needsRetry?: boolean;
 }
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', 'Máquina Amarilla', ''];
@@ -93,7 +96,7 @@ export function computeOverdue(lead: Lead): boolean {
 // Rellena los campos que se fueron agregando con el tiempo, para que un lead viejo leído
 // suelto (hget) se comporte igual que uno de la lista completa.
 export function normalizeLead(l: any): Lead {
-  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, ...l };
+  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, needsRetry: false, ...l };
 }
 
 // El hash de leads pesa ~3 MB y se lee en el CRM (varias veces por carga), en el inicio de
@@ -102,8 +105,11 @@ export function normalizeLead(l: any): Lead {
 // que sube en cada escritura (writeLeads/deleteLeads): si la versión no cambió, se devuelve
 // una copia de lo ya parseado con una sola lectura chica. El TTL acota cualquier escritura
 // que se salte el contador.
-const LEADS_CACHE_TTL_MS = 15_000;
+// Toda escritura pasa por writeLeads/deleteLeads (que suben la versión), así que el TTL es
+// solo una red de seguridad; a 15 s anulaba casi todo el ahorro.
+const LEADS_CACHE_TTL_MS = 5 * 60_000;
 let leadsCache: { version: string; at: number; leads: Lead[] } | null = null;
+let leadsInflight: Promise<Lead[]> | null = null;
 
 export async function writeLeads(redis: any, fields: Record<string, string>): Promise<void> {
   await redis.hset(REDIS_KEY, fields);
@@ -123,9 +129,18 @@ export async function readLeads(redis: any): Promise<Lead[]> {
   if (leadsCache && leadsCache.version === version && Date.now() - leadsCache.at < LEADS_CACHE_TTL_MS) {
     return structuredClone(leadsCache.leads);
   }
-  const leads = await readLeadsUncached(redis);
-  leadsCache = { version, at: Date.now(), leads };
-  return structuredClone(leads);
+  // Varias peticiones a la vez (el CRM pide 4 páginas en ráfaga) comparten una sola lectura.
+  if (!leadsInflight) {
+    leadsInflight = readLeadsUncached(redis)
+      .then((leads) => {
+        leadsCache = { version, at: Date.now(), leads };
+        return leads;
+      })
+      .finally(() => {
+        leadsInflight = null;
+      });
+  }
+  return structuredClone(await leadsInflight);
 }
 
 async function readLeadsUncached(redis: any): Promise<Lead[]> {

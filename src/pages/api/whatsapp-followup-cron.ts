@@ -2,7 +2,10 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, writeLeads } from './leads';
-import { appendHistory, sendReinforcementMedia } from './whatsapp-webhook';
+import { appendHistory, sendReinforcementMedia, readHistory, conversationOnly } from './whatsapp-webhook';
+import { runSalesAgent } from '../../lib/sales-agent';
+import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
+import { markCronOk, reportIncident } from '../../lib/incidents';
 
 export const prerender = false;
 
@@ -39,9 +42,47 @@ export const GET: APIRoute = async ({ request }) => {
     });
   }
 
+  const lock = await redis.set('internal:followup-lock', '1', { nx: true, ex: 600 });
+  if (!lock) {
+    return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'otra corrida en curso' }), { headers: { 'Content-Type': 'application/json' } });
+  }
+
   const now = Date.now();
   const leads = await readLeads(redis);
   let sent = 0;
+  let retried = 0;
+
+  // Reintento automático de los que quedaron sin respuesta real (Anthropic caído o Meta
+  // rechazó el envío): se vuelve a correr al agente con el último mensaje del cliente,
+  // mientras siga abierta la ventana de 24 h. Antes dependía de que alguien pulsara el botón.
+  const extraInstructions = await getExtraInstructions(redis, 'andres');
+  for (const lead of leads.filter((l) => l.needsRetry && l.aiStage === 'en_conversacion' && l.lastInboundAt).slice(0, 20)) {
+    const hoursSinceInbound = (now - new Date(lead.lastInboundAt!).getTime()) / 3600000;
+    if (hoursSinceInbound >= MAX_HOURS_SINCE_LAST_INBOUND) {
+      lead.needsRetry = false;
+      await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
+      continue;
+    }
+    const history = conversationOnly(await readHistory(redis, lead.id));
+    const lastUserIdx = history.map((m) => m.role).lastIndexOf('user');
+    if (lastUserIdx < 0) continue;
+    const lastUserText = history[lastUserIdx].content;
+    const agentResult = await runSalesAgent(history.slice(0, lastUserIdx), lastUserText, extraInstructions);
+    await recordAgentUsage(redis, 'andres', agentResult.usage, { id: lead.id, channel: 'whatsapp' });
+    if (!agentResult.reply) continue; // sigue caído; se intenta en la próxima hora
+    const result = await sendWhatsappText(lead.phone, agentResult.reply);
+    if (!result.ok) {
+      await reportIncident(redis, 'whatsapp_send_failed', `…${lead.phone.slice(-4)}: ${result.error || 'error'}`);
+      continue;
+    }
+    const nowIso = new Date().toISOString();
+    lead.needsRetry = false;
+    lead.lastOutboundAt = nowIso;
+    lead.updatedAt = nowIso;
+    await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
+    await appendHistory(redis, lead.id, [{ role: 'assistant', content: agentResult.reply }]);
+    retried++;
+  }
 
   for (const lead of leads) {
     if (lead.source !== 'whatsapp-ads') continue;
@@ -89,7 +130,9 @@ export const GET: APIRoute = async ({ request }) => {
     sent++;
   }
 
-  return new Response(JSON.stringify({ ok: true, sent }), {
+  await redis.del('internal:followup-lock').catch(() => {});
+  await markCronOk(redis, 'whatsapp-followup');
+  return new Response(JSON.stringify({ ok: true, sent, retried }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };

@@ -39,6 +39,11 @@ export const GET: APIRoute = async ({ request }) => {
     });
   }
 
+  const lock = await redis.set('internal:cold-followup-lock', '1', { nx: true, ex: 900 });
+  if (!lock) {
+    return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'otra corrida en curso' }), { headers: { 'Content-Type': 'application/json' } });
+  }
+
   const now = Date.now();
   const leads = await readLeads(redis);
   let sent = 0;
@@ -77,6 +82,7 @@ export const GET: APIRoute = async ({ request }) => {
     sent++;
   }
 
+  await redis.del('internal:cold-followup-lock').catch(() => {});
   return new Response(JSON.stringify({ ok: true, sent }), {
     headers: { 'Content-Type': 'application/json' },
   });

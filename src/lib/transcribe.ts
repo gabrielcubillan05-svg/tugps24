@@ -16,6 +16,7 @@ async function downloadWhatsappMedia(mediaId: string): Promise<DownloadedMedia |
   try {
     const metaRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${mediaId}`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
     });
     if (!metaRes.ok) {
       console.error('transcribe: no se pudo obtener el media', metaRes.status, await metaRes.text().catch(() => ''));
@@ -26,7 +27,7 @@ async function downloadWhatsappMedia(mediaId: string): Promise<DownloadedMedia |
     const mimeType = String(meta?.mime_type || 'audio/ogg');
     if (!url) return null;
 
-    const fileRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const fileRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
     if (!fileRes.ok) {
       console.error('transcribe: no se pudo descargar el archivo', fileRes.status);
       return null;
@@ -68,6 +69,7 @@ export async function transcribeAudioBuffer(buffer: ArrayBuffer, mimeType: strin
 
     const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
+      signal: AbortSignal.timeout(30_000),
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
     });

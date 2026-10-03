@@ -6,6 +6,7 @@ import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessCobros, canUploadCobros, findUserById, verifySameOrigin } from '../../lib/auth';
 import { sendWhatsappTemplate, isQuietHoursColombia } from '../../lib/whatsapp';
 import { normalizePhone } from './leads';
+import { bumpVersion, readVersion, COBROS_VERSION_KEY } from '../../lib/versions';
 
 export const prerender = false;
 
@@ -54,6 +55,20 @@ export interface BulkReminderResult {
 // aún). La reparte en tandas quien la llama: el botón manual (una tanda por click) y el cron
 // automático (una tanda cada hora, solo entre 8am y 6pm).
 export async function sendReminderBatch(redis: any, batchSize: number): Promise<BulkReminderResult> {
+  // El cron de cada hora y el botón "Enviar a todos" pueden coincidir: sin candado, ambos leían
+  // los mismos pendientes y hasta 300 clientes recibían la plantilla dos veces.
+  const lock = await redis.set('internal:cobros-bulk-lock', '1', { nx: true, ex: 600 });
+  if (!lock) {
+    return { sent: 0, failed: 0, remaining: 0, totalPending: 0, locked: true } as BulkReminderResult;
+  }
+  try {
+    return await sendReminderBatchUnlocked(redis, batchSize);
+  } finally {
+    await redis.del('internal:cobros-bulk-lock').catch(() => {});
+  }
+}
+
+async function sendReminderBatchUnlocked(redis: any, batchSize: number): Promise<BulkReminderResult> {
   const allCobros = await readCobros(redis);
   const pending = allCobros.filter((c) => !c.templateSentAt && normalizePhone(c.telefono).length >= 10);
   const batch = pending.slice(0, batchSize);
@@ -70,7 +85,7 @@ export async function sendReminderBatch(redis: any, batchSize: number): Promise<
       cobro.templateSentAt = new Date().toISOString();
       cobro.aiStage = 'en_conversacion';
       cobro.updatedAt = cobro.templateSentAt;
-      await redis.hset(REDIS_KEY, { [cobro.id]: JSON.stringify(cobro) });
+      await writeCobros(redis, { [cobro.id]: JSON.stringify(cobro) });
       await logCobroReminderSent(redis, cobro.id, cobro.nombre, cobro.deuda);
       sent++;
     } else {
@@ -210,7 +225,28 @@ async function forgetPhones(redis: any, cobros: Cobro[]): Promise<void> {
   for (let i = 0; i < phones.length; i += 500) await redis.hdel(PHONE_INDEX_KEY, ...phones.slice(i, i + 500));
 }
 
+// Mismo patrón que los leads: caché en memoria con contador de versión. Cada lectura completa
+// de cobros pesaba más de 1 MB y se hacía en cada mensaje de WhatsApp de un número nuevo.
+const COBROS_CACHE_TTL_MS = 5 * 60_000;
+let cobrosCache: { version: string; at: number; cobros: Cobro[] } | null = null;
+
+export async function writeCobros(redis: any, fields: Record<string, string>): Promise<void> {
+  await redis.hset(REDIS_KEY, fields);
+  await bumpVersion(redis, COBROS_VERSION_KEY);
+  cobrosCache = null;
+}
+
 export async function readCobros(redis: any): Promise<Cobro[]> {
+  const version = await readVersion(redis, COBROS_VERSION_KEY);
+  if (cobrosCache && cobrosCache.version === version && Date.now() - cobrosCache.at < COBROS_CACHE_TTL_MS) {
+    return structuredClone(cobrosCache.cobros);
+  }
+  const cobros = await readCobrosUncached(redis);
+  cobrosCache = { version, at: Date.now(), cobros };
+  return structuredClone(cobros);
+}
+
+async function readCobrosUncached(redis: any): Promise<Cobro[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {
@@ -402,7 +438,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   // Se agrega/actualiza sobre la lista existente sin borrar nada — para eso está el botón
   // "Borrar todo" aparte.
-  await redis.hset(REDIS_KEY, changedCobros);
+  await writeCobros(redis, changedCobros);
   await forgetPhones(redis, Object.values(changedCobros).map((v) => (typeof v === 'string' ? JSON.parse(v) : v)));
 
   await logAudit(
@@ -435,9 +471,23 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
   // cada cobro y el índice teléfono → cobro del webhook: si quedaran, un acuse de entrega
   // tardío resucitaría la conversación de un cobro que ya no existe.
   const existing = (await redis.hlen(REDIS_KEY)) || 0;
-  await redis.del(REDIS_KEY, COBRO_CONVERSATIONS_KEY, 'internal:whatsapp-phone-index');
+  // Papelera en vez de borrado: las llaves se renombran con fecha y caducan a los 30 días, así
+  // un clic equivocado se puede deshacer desde la consola de Redis (RENAME de vuelta).
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  for (const key of [REDIS_KEY, COBRO_CONVERSATIONS_KEY]) {
+    try {
+      const trash = `${key}-trash:${stamp}`;
+      await redis.rename(key, trash);
+      await redis.expire(trash, 30 * 24 * 3600);
+    } catch {
+      // la llave no existía (ya estaba vacía)
+    }
+  }
+  await redis.del('internal:whatsapp-phone-index');
+  await bumpVersion(redis, COBROS_VERSION_KEY);
+  cobrosCache = null;
 
-  await logAudit(redis, session, 'cobros_delete_all', `${existing} cobros`, 'con su historial de WhatsApp');
+  await logAudit(redis, session, 'cobros_delete_all', `${existing} cobros`, `a papelera 30 días (${stamp})`);
 
   return new Response(JSON.stringify({ deleted: existing }), {
     headers: { 'Content-Type': 'application/json' },
@@ -479,7 +529,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       changed[cobro.id] = JSON.stringify(cobro);
     }
     if (Object.keys(changed).length) {
-      await redis.hset(REDIS_KEY, changed);
+      await writeCobros(redis, changed);
     }
     await logAudit(redis, session, 'cobros_clear_assignments', `${toClear.length} cobros`);
     return new Response(JSON.stringify({ cleared: toClear.length }), {
@@ -546,7 +596,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     cobro.templateSentAt = new Date().toISOString();
     cobro.aiStage = 'en_conversacion';
     cobro.updatedAt = cobro.templateSentAt;
-    await redis.hset(REDIS_KEY, { [id]: JSON.stringify(cobro) });
+    await writeCobros(redis, { [id]: JSON.stringify(cobro) });
     await logCobroReminderSent(redis, cobro.id, cobro.nombre, cobro.deuda);
     await logAudit(redis, session, 'cobro_whatsapp_reminder', cobro.nombre, cobro.telefono);
     return new Response(JSON.stringify({ cobro }), { headers: { 'Content-Type': 'application/json' } });
@@ -564,7 +614,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     cobro.updatedAt = new Date().toISOString();
   }
 
-  await redis.hset(REDIS_KEY, { [id]: JSON.stringify(cobro) });
+  await writeCobros(redis, { [id]: JSON.stringify(cobro) });
 
   return new Response(JSON.stringify({ cobro }), {
     headers: { 'Content-Type': 'application/json' },

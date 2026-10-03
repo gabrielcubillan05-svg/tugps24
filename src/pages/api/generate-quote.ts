@@ -3,7 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
-import { REDIS_KEY as LEADS_REDIS_KEY, type Lead } from './leads';
+import { REDIS_KEY as LEADS_REDIS_KEY, writeLeads, type Lead } from './leads';
 import { PLAN_ANUAL_MESES, PLAN_ANUAL_COMODATO_MESES, installPriceFor, installPromoFor, promoUntilLabel } from '../../lib/pricing';
 
 export const prerender = false;
@@ -164,7 +164,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     page.drawImage(img, { x, y, width: drawW, height: drawH });
   }
 
-  const today = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+  const today = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota' });
 
   // ---------- PAGE 1: Cover ----------
   {
@@ -487,7 +487,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
           if (['Nuevo', 'Contactado'].includes(lead.status)) {
             lead.status = 'Cotizado';
             lead.updatedAt = new Date().toISOString();
-            await redis.hset(LEADS_REDIS_KEY, { [leadId]: JSON.stringify(lead) });
+            await writeLeads(redis, { [leadId]: JSON.stringify(lead) });
           }
         }
       } catch {

@@ -21,6 +21,7 @@ export async function callAnthropicMessages(apiKey: string, body: Record<string,
     try {
       res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
+        signal: AbortSignal.timeout(45_000),
         headers: {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',

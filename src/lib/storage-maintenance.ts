@@ -9,6 +9,7 @@ import { CONVERSATIONS_KEY as LEAD_CONVERSATIONS_KEY } from '../pages/api/whatsa
 import { purgeExpiredSessions } from './auth';
 import { NOTIF_KEY_PREFIX, trimNotifications } from './notifications';
 import { todayInColombia } from './colombia-time';
+import { bumpVersion, REPORTS_VERSION_KEY } from './versions';
 
 // ---------------------------------------------------------------- Reglas de retención
 export const RETENTION = {
@@ -127,7 +128,41 @@ async function deleteBlobs(pathnames: string[], token: string, errors: string[])
   return deleted;
 }
 
+// Última entrada real de la lista: si no coincide con la última que se recorrió, otra corrida
+// (cron y "Ejecutar ahora" a la vez) ya movió la cola y recortar por conteo borraría de más.
+async function tailMatches(redis: any, key: string, expectedId: string | undefined): Promise<boolean> {
+  if (!expectedId) return false;
+  const raw = await redis.lindex(key, -1);
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return !!parsed && parsed.id === expectedId;
+  } catch {
+    return false;
+  }
+}
+
 export async function runCleanup(redis: any, options: { dryRun: boolean }): Promise<CleanupSummary> {
+  const { dryRun } = options;
+  if (!dryRun) {
+    const lock = await redis.set('internal:cleanup-lock', '1', { nx: true, ex: 900 });
+    if (!lock) {
+      const now = new Date().toISOString();
+      return {
+        dryRun, startedAt: now, finishedAt: now,
+        audit: { removed: 0 }, reports: { archived: 0, imagesDeleted: 0, archiveFile: null, moreLeft: false, photosPurged: 0, reportsWithoutPhotos: 0 },
+        leads: { archived: 0, conversationsDeleted: 0 }, tasks: { archived: 0, proofsDeleted: 0 }, notifications: { removed: 0, usersTrimmed: 0 }, sessions: { removed: 0 },
+        errors: ['Ya hay otra limpieza en curso; no se hizo nada para no recortar dos veces.'],
+      };
+    }
+  }
+  try {
+    return await runCleanupUnlocked(redis, options);
+  } finally {
+    if (!dryRun) await redis.del('internal:cleanup-lock').catch(() => {});
+  }
+}
+
+async function runCleanupUnlocked(redis: any, options: { dryRun: boolean }): Promise<CleanupSummary> {
   const { dryRun } = options;
   const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
   const summary: CleanupSummary = {
@@ -150,7 +185,10 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
     summary.audit.removed = old.length;
     // ltrim con índices negativos recorta desde la cola, así no importa que entren entradas
     // nuevas al frente mientras corre.
-    if (old.length && !dryRun) await redis.ltrim(AUDIT_KEY, 0, -(old.length + 1));
+    if (old.length && !dryRun) {
+      if (!(await tailMatches(redis, AUDIT_KEY, old[old.length - 1]?.id))) throw new Error('la cola cambió durante la revisión; se reintenta en la próxima corrida');
+      await redis.ltrim(AUDIT_KEY, 0, -(old.length + 1));
+    }
   } catch (err) {
     summary.errors.push(`Auditoría: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -175,7 +213,9 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
         contentType: 'application/json',
       });
       summary.reports.archiveFile = file.pathname;
+      if (!(await tailMatches(redis, REPORTS_KEY, batch[batch.length - 1]?.id))) throw new Error('la lista de novedades cambió durante el respaldo; no se recortó (el archivo queda como copia extra)');
       await redis.ltrim(REPORTS_KEY, 0, -(batch.length + 1));
+      await bumpVersion(redis, REPORTS_VERSION_KEY);
       // Las archivadas salieron de la cola: el contador de "ya sin fotos" baja en esa cantidad.
       const purgedCount = Number(await redis.get(REPORTS_PHOTOS_PURGED_COUNT_KEY)) || 0;
       await redis.set(REPORTS_PHOTOS_PURGED_COUNT_KEY, Math.max(0, purgedCount - batch.length));
@@ -211,14 +251,33 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
       if (!token && photos.length) throw new Error('falta BLOB_READ_WRITE_TOKEN para borrar fotos');
       // Primero se limpia la referencia en Redis y luego el archivo: si algo falla a mitad,
       // queda a lo sumo una foto huérfana en Blob, nunca una novedad apuntando a una foto borrada.
+      // Antes de cada lset se comprueba que en esa posición siga la misma novedad: si otra
+      // corrida recortó la lista en medio, los índices se corren y se pisaría la equivocada.
+      const confirmed: typeof withPhotos = [];
       for (let i = 0; i < withPhotos.length; i += 200) {
+        const slice = withPhotos.slice(i, i + 200);
+        const check = redis.pipeline();
+        for (const o of slice) check.lindex(REPORTS_KEY, o.index);
+        const current: unknown[] = await check.exec();
+        slice.forEach((o, j) => {
+          try {
+            const parsed = typeof current[j] === 'string' ? JSON.parse(current[j] as string) : current[j];
+            if (parsed && (parsed as any).id === o.entry.id) confirmed.push(o);
+          } catch {
+            // no coincide, se deja para la próxima corrida
+          }
+        });
+      }
+      for (let i = 0; i < confirmed.length; i += 200) {
         const pipeline = redis.pipeline();
-        for (const o of withPhotos.slice(i, i + 200)) {
+        for (const o of confirmed.slice(i, i + 200)) {
           pipeline.lset(REPORTS_KEY, o.index, JSON.stringify({ ...o.entry, images: [], photosPurgedAt: new Date().toISOString() }));
         }
         await pipeline.exec();
       }
-      summary.reports.photosPurged = token ? await deleteBlobs(photos, token, summary.errors) : 0;
+      const confirmedPhotos = confirmed.flatMap((o) => o.entry.images.filter((p: unknown) => typeof p === 'string'));
+      summary.reports.photosPurged = token ? await deleteBlobs(confirmedPhotos, token, summary.errors) : 0;
+      if (confirmed.length) await bumpVersion(redis, REPORTS_VERSION_KEY);
       await redis.set(REPORTS_PHOTOS_PURGED_COUNT_KEY, alreadyPurged + batch.length);
     }
   } catch (err) {

@@ -40,6 +40,9 @@ export async function sendWhatsappText(to: string, body: string): Promise<{ ok: 
   try {
     const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
       method: 'POST',
+      // Sin tope, una llamada colgada a Meta detenía el cron de cobranza y hacía que Meta
+      // reintentara el webhook mientras el primero seguía corriendo.
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -75,6 +78,9 @@ export async function sendWhatsappMedia(
   try {
     const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
       method: 'POST',
+      // Sin tope, una llamada colgada a Meta detenía el cron de cobranza y hacía que Meta
+      // reintentara el webhook mientras el primero seguía corriendo.
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -112,6 +118,9 @@ export async function sendWhatsappTemplate(
   try {
     const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
       method: 'POST',
+      // Sin tope, una llamada colgada a Meta detenía el cron de cobranza y hacía que Meta
+      // reintentara el webhook mientras el primero seguía corriendo.
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',

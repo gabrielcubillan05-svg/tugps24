@@ -7,6 +7,7 @@ import { isOnShiftNow } from '../../lib/shift';
 import { todayInColombia, timeInColombia } from '../../lib/colombia-time';
 import { readSchedule } from './schedule';
 import { readShutdownSchedules, buildAgenda, toMinutes, LATE_AFTER_MINUTES, type AgendaEntry } from './apagados-programados';
+import { markCronOk } from '../../lib/incidents';
 
 export const prerender = false;
 
@@ -41,6 +42,7 @@ export const GET: APIRoute = async ({ request }) => {
     const delay = nowMin - toMinutes(e.hora);
     return e.status === 'vencido' && delay >= LATE_AFTER_MINUTES && delay < LATE_AFTER_MINUTES + 3;
   });
+  await markCronOk(redis, 'apagados');
   if (!upcoming.length && !late.length) {
     return new Response(JSON.stringify({ ok: true, pushed: 0, escalated: 0 }), { headers: { 'Content-Type': 'application/json' } });
   }
