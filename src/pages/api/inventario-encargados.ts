@@ -24,9 +24,16 @@ const RESPONSABLES = [
   'hisnaldis',
 ];
 
-// Cristian (Bucaramanga) e Isnaldi llevan el inventario de todas las sucursales a nivel
-// nacional: se les marcan todas, no solo la de su perfil.
-const RESPONSABLES_NACIONALES = ['Cristian Zambrano', 'hisnaldis'];
+// Cristian (Bucaramanga) lleva el inventario de todas las sucursales a nivel nacional: se le
+// marcan todas, no solo la de su perfil.
+const RESPONSABLES_NACIONALES = ['Cristian Zambrano'];
+// Sucursal fija, independiente de la del perfil, y que REEMPLAZA lo que tenga marcado: el 2 de
+// octubre se le asignaron todas a Isnaldi por error, y José Miguel (supervisor de turno) tiene
+// la Central en su perfil, así que no se le deducía ninguna.
+const RESPONSABLES_FIJOS: Record<string, string[]> = {
+  hisnaldis: ['Riohacha'],
+  'Jose Miguel Reales': ['Riohacha'],
+};
 const TODAS_LAS_SUCURSALES = BRANCHES.filter((b) => b !== 'Central de Monitoreo');
 
 function tokens(name: string): string[] {
@@ -76,19 +83,24 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       continue;
     }
     for (const user of candidates) {
-      const branches = RESPONSABLES_NACIONALES.includes(listName)
-        ? TODAS_LAS_SUCURSALES
-        : branchesOf(user).filter((b) => b !== 'Central de Monitoreo');
+      const fixed = RESPONSABLES_FIJOS[listName];
+      const branches = fixed
+        ? fixed
+        : RESPONSABLES_NACIONALES.includes(listName)
+          ? TODAS_LAS_SUCURSALES
+          : branchesOf(user).filter((b) => b !== 'Central de Monitoreo');
       if (!branches.length) {
         withoutBranch.push(user.name);
         continue;
       }
       const current = user.inventoryBranches || [];
-      if (current.length && branches.every((b) => current.includes(b))) {
+      const sameSet = current.length === branches.length && branches.every((b) => current.includes(b));
+      if (fixed ? sameSet : current.length && branches.every((b) => current.includes(b))) {
         alreadySet.push(`${user.name} (${current.join(', ')})`);
         continue;
       }
-      user.inventoryBranches = [...new Set([...current, ...branches])];
+      // Con sucursal fija se reemplaza lo marcado (sirve para quitar de más); en los demás solo se agrega.
+      user.inventoryBranches = fixed ? [...branches] : [...new Set([...current, ...branches])];
       user.updatedAt = new Date().toISOString();
       await saveUser(redis, user);
       await logAudit(redis, session, 'user_inventory_branches_update', user.username, user.inventoryBranches.join(', '));
