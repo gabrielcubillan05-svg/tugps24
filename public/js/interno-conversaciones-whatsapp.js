@@ -62,11 +62,11 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     conversationsList.innerHTML = allConversations.map((c) => `
-      <div class="conversation-row ${c.key === selectedKey ? 'active' : ''}" data-key="${c.key}">
+      <div class="conversation-row ${c.key === selectedKey ? 'active' : ''} ${c.unanswered ? 'unanswered' : ''}" data-key="${c.key}">
         <div class="name">${escapeHtml(c.name)} <span class="agent-tag agent-${c.agent}">${c.agent === 'andres' ? 'Andrés' : 'Valentina'}</span></div>
         <div class="meta">
           ${escapeHtml(c.phone)}${c.city ? ' · ' + escapeHtml(c.city) : ''}${c.deuda ? ' · ' + fmtMoney(c.deuda) : ''}<br />
-          ${STAGE_LABELS[c.aiStage] || c.aiStage} · ${fmtDate(c.lastInboundAt || c.createdAt)}
+          ${STAGE_LABELS[c.aiStage] || c.aiStage} · ${fmtDate(c.lastInboundAt || c.createdAt)}${c.unanswered ? ' · <span class="unanswered-tag">sin responder</span>' : ''}
         </div>
       </div>
     `).join('') + (loadingRest ? '<div class="empty">Cargando más conversaciones...</div>' : '');
@@ -76,7 +76,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const params = new URLSearchParams();
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
     if (agentFilter.value) params.set('agent', agentFilter.value);
-    if (stageFilter.value) params.set('aiStage', stageFilter.value);
+    if (stageFilter.value === 'sin_responder') params.set('unanswered', '1');
+    else if (stageFilter.value) params.set('aiStage', stageFilter.value);
     return params;
   }
 
@@ -98,6 +99,12 @@ document.addEventListener('DOMContentLoaded', function () {
       .then((data) => {
         if (token !== loadToken) return;
         const total = Number(data.total) || data.conversations.length;
+        const summary = document.getElementById('unansweredSummary');
+        if (summary) {
+          const n = Number(data.unansweredCount) || 0;
+          summary.style.display = n ? '' : 'none';
+          summary.textContent = n ? `${n} conversación(es) con el último mensaje del cliente sin respuesta.` : '';
+        }
         allConversations = data.conversations;
         loadingRest = allConversations.length < total;
         renderList();

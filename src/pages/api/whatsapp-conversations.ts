@@ -48,6 +48,9 @@ async function handleGet({ cookies, url }: Parameters<APIRoute>[0]): Promise<Res
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const aiStage = url.searchParams.get('aiStage') || '';
   const agentFilter = url.searchParams.get('agent') || '';
+  // "Sin responder": el último mensaje es del cliente y nadie (ni el agente ni una persona)
+  // le ha contestado después. Es lo que el supervisor necesita ver primero.
+  const unansweredOnly = url.searchParams.get('unanswered') === '1';
 
   const [allLeads, allCobros] = await Promise.all([readLeads(redis), readCobros(redis)]);
   const leadItems = allLeads
@@ -94,10 +97,13 @@ async function handleGet({ cookies, url }: Parameters<APIRoute>[0]): Promise<Res
     name: String(i.name || i.phone || 'Sin nombre'),
     phone: String(i.phone || ''),
     lastActivity: String(i.lastInboundAt || i.updatedAt || i.createdAt || ''),
+    unanswered: !!i.lastInboundAt && (!i.lastOutboundAt || String(i.lastInboundAt) > String(i.lastOutboundAt)),
   }));
   if (agentFilter) items = items.filter((i) => i.agent === agentFilter);
   if (q) items = items.filter((i) => i.name.toLowerCase().includes(q) || i.phone.toLowerCase().includes(q));
   if (aiStage) items = items.filter((i) => i.aiStage === aiStage);
+  if (unansweredOnly) items = items.filter((i) => i.unanswered);
+  const unansweredCount = items.filter((i) => i.unanswered).length;
   items.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
   // Paginación (offset/limit sobre la lista ya ordenada): mandar todas las conversaciones de
@@ -107,7 +113,7 @@ async function handleGet({ cookies, url }: Parameters<APIRoute>[0]): Promise<Res
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_PAGE_SIZE) : MAX_PAGE_SIZE;
   const page = items.slice(offset, offset + limit);
 
-  return new Response(JSON.stringify({ conversations: page, total: items.length, offset, limit }), {
+  return new Response(JSON.stringify({ conversations: page, total: items.length, unansweredCount, offset, limit }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 }

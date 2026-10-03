@@ -25,6 +25,7 @@ if (!canViewWhatsappConversations(session)) {
       </select>
       <select id="stageFilter">
         <option value="">Todos los estados</option>
+        <option value="sin_responder">⚠️ Sin responder</option>
         <option value="en_conversacion">En conversación</option>
         <option value="entregado">Entregado a sucursal</option>
         <option value="acuerdo">Acuerdo de pago</option>
@@ -32,6 +33,7 @@ if (!canViewWhatsappConversations(session)) {
         <option value="sin_iniciar">Sin iniciar</option>
       </select>
     </div>
+    <p class="unanswered-summary" id="unansweredSummary" style="display:none;"></p>
     <div class="conversations-layout">
       <div class="conversations-list" id="conversationsList">
         <div class="empty">Cargando...</div>
@@ -45,6 +47,9 @@ if (!canViewWhatsappConversations(session)) {
 
 <style is:global>
   .conversations-layout { display: flex; gap: 16px; margin-top: 14px; align-items: flex-start; }
+  .conversation-row .unanswered-tag { color: var(--danger); font-weight: 600; }
+  .conversation-row.unanswered { border-color: var(--danger); }
+  .unanswered-summary { margin: 10px 0 0; font-size: 13px; color: var(--danger); font-weight: 600; }
   .msg-status { align-self: center; color: var(--slate); font-size: 11.5px; margin: 2px 0; text-align: center; }
   .conversations-list {
     flex: 0 0 320px;
