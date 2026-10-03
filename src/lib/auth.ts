@@ -412,9 +412,14 @@ export async function getSession(cookieValue: string | undefined): Promise<Sessi
     return null;
   }
   // Cada request válido marca actividad, para que las 4 horas de inactividad se cuenten
-  // desde el último uso real, no desde el login.
-  session.lastActivityAt = new Date(now).toISOString();
-  await redis.hset(SESSIONS_KEY, { [sessionId]: JSON.stringify(session) });
+  // desde el último uso real, no desde el login. Se escribe como mucho una vez por minuto:
+  // con los sondeos automáticos del panel, escribirla en cada petición era una escritura a
+  // Redis por cada lectura, y a esa precisión nadie la necesita.
+  const lastActivity = session.lastActivityAt ? new Date(session.lastActivityAt).getTime() : 0;
+  if (now - lastActivity > 60_000) {
+    session.lastActivityAt = new Date(now).toISOString();
+    await redis.hset(SESSIONS_KEY, { [sessionId]: JSON.stringify(session) });
+  }
   return session;
 }
 

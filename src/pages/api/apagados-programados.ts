@@ -4,6 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, findUserById, canAccessShutdownSchedules, canDeleteShutdownSchedules, verifySameOrigin, type Session } from '../../lib/auth';
 import { todayInColombia, timeInColombia } from '../../lib/colombia-time';
+import { bumpVersion, readVersion, SHUTDOWNS_VERSION_KEY, unchangedResponse } from '../../lib/versions';
 
 export const prerender = false;
 
@@ -203,14 +204,20 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   }
   const date = todayInColombia();
   const now = timeInColombia();
-  const items = await readShutdownSchedules(redis);
-  const agenda = buildAgenda(items, date, now);
   const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
 
-  // Consulta liviana que hace la alarma de cada pestaña del panel cada minuto.
+  // Consulta liviana que hace la alarma de cada pestaña del panel cada minuto. La versión
+  // cambia con cada alta, edición o confirmación; la agenda del día se identifica por la
+  // fecha para que al cambiar de día se vuelva a mandar completa.
+  const version = `${date}:${await readVersion(redis, SHUTDOWNS_VERSION_KEY)}`;
   if (url.searchParams.get('agenda')) {
-    return new Response(JSON.stringify({ agenda, date, serverNow: new Date().toISOString() }), { headers });
+    const known = url.searchParams.get('v');
+    if (known && known === version) return unchangedResponse(version, { serverNow: new Date().toISOString() });
+    const agenda = buildAgenda(await readShutdownSchedules(redis), date, now);
+    return new Response(JSON.stringify({ agenda, date, version, serverNow: new Date().toISOString() }), { headers });
   }
+  const items = await readShutdownSchedules(redis);
+  const agenda = buildAgenda(items, date, now);
 
   const log = await readLog(redis, 100);
   return new Response(
@@ -257,6 +264,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     item.doneAt = nowIso;
     item.doneByName = name;
     await redis.hset(REDIS_KEY, { [item.id]: JSON.stringify(item) });
+    await bumpVersion(redis, SHUTDOWNS_VERSION_KEY);
 
     const nowColombia = `${todayInColombia()}T${timeInColombia()}`;
     const lateMinutes = Math.max(0, Math.round((Date.parse(`${nowColombia}:00Z`) - Date.parse(`${slot}:00Z`)) / 60000));
@@ -291,6 +299,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error }), { status: 400 });
   }
   await redis.hset(REDIS_KEY, { [item.id]: JSON.stringify(item) });
+  await bumpVersion(redis, SHUTDOWNS_VERSION_KEY);
   await logAudit(redis, session, 'apagado_programado_create', `${item.accion} ${item.placa}`, `${item.hora} · ${item.repeat}`);
   return new Response(JSON.stringify({ item }), { headers: { 'Content-Type': 'application/json' } });
 };
@@ -326,6 +335,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   item.updatedAt = new Date().toISOString();
   item.updatedByName = await actorName(redis, session);
   await redis.hset(REDIS_KEY, { [item.id]: JSON.stringify(item) });
+  await bumpVersion(redis, SHUTDOWNS_VERSION_KEY);
   await logAudit(redis, session, 'apagado_programado_update', `${item.accion} ${item.placa}`, `${before} → ${item.hora} · ${item.repeat}${item.activo ? '' : ' · inactivo'}`);
   return new Response(JSON.stringify({ item }), { headers: { 'Content-Type': 'application/json' } });
 };
@@ -354,6 +364,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
   }
   const item: ShutdownSchedule = typeof raw === 'string' ? JSON.parse(raw) : raw;
   await redis.hdel(REDIS_KEY, item.id);
+  await bumpVersion(redis, SHUTDOWNS_VERSION_KEY);
   await logAudit(redis, session, 'apagado_programado_delete', `${item.accion} ${item.placa}`, `${item.hora} · ${item.repeat}`);
   return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
 };

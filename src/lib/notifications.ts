@@ -3,6 +3,7 @@ import { getRedis } from './redis';
 import { getUsers, type Session } from './auth';
 import { sendPushToUser } from './push';
 import { isOverdueInColombia } from './colombia-time';
+import { bumpVersion, notifVersionKey } from './versions';
 
 export const NOTIF_KEY_PREFIX = 'internal:notifications:';
 export const MAX_NOTIFICATIONS = 200;
@@ -41,6 +42,7 @@ export async function pushNotification(
     createdAt: new Date().toISOString(),
   };
   await redis.hset(keyFor(userId), { [id]: JSON.stringify(entry) });
+  await bumpVersion(redis, notifVersionKey(userId));
 
   // El tope solo se aplicaba al abrir la campanita: a quien no la abría se le acumulaban
   // miles de avisos (84.000 entre 49 usuarios cuando se detectó). Ahora se recorta al escribir.
@@ -251,6 +253,7 @@ async function applyComputed(redis: Redis, userId: string, computed: Computed): 
     toWrite[key] = JSON.stringify(entry);
   }
   if (Object.keys(toWrite).length) await redis.hset(keyFor(userId), toWrite);
+  if (toDelete.length || Object.keys(toWrite).length) await bumpVersion(redis, notifVersionKey(userId));
 }
 
 export async function syncComputedNotifications(redis: Redis, _session?: Session): Promise<void> {
@@ -289,6 +292,7 @@ export async function trimNotifications(redis: Redis, userId: string): Promise<n
   for (let i = 0; i < toDelete.length; i += 500) {
     await redis.hdel(keyFor(userId), ...toDelete.slice(i, i + 500));
   }
+  await bumpVersion(redis, notifVersionKey(userId));
   return toDelete.length;
 }
 
@@ -308,6 +312,7 @@ export async function readNotifications(
 
 export async function removeNotification(redis: Redis, userId: string, id: string): Promise<void> {
   await redis.hdel(keyFor(userId), id);
+  await bumpVersion(redis, notifVersionKey(userId));
 }
 
 export async function markNotificationRead(redis: Redis, userId: string, id: string): Promise<void> {
@@ -316,6 +321,7 @@ export async function markNotificationRead(redis: Redis, userId: string, id: str
   const entry: NotificationEntry = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
   entry.read = true;
   await redis.hset(keyFor(userId), { [id]: JSON.stringify(entry) });
+  await bumpVersion(redis, notifVersionKey(userId));
 }
 
 export async function markAllNotificationsRead(redis: Redis, userId: string): Promise<void> {
@@ -328,4 +334,5 @@ export async function markAllNotificationsRead(redis: Redis, userId: string): Pr
     }
   });
   if (Object.keys(updates).length) await redis.hset(keyFor(userId), updates);
+  await bumpVersion(redis, notifVersionKey(userId));
 }

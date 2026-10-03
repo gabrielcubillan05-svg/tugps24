@@ -205,14 +205,18 @@
     }
   }
 
+  let agendaVersion = '';
   function poll() {
     lastPoll = Date.now();
-    return fetch('/api/apagados-programados?agenda=1')
+    return fetch('/api/apagados-programados?agenda=1' + (agendaVersion ? '&v=' + encodeURIComponent(agendaVersion) : ''))
       .then((res) => (res.ok ? res.json() : null))
       .then((d) => {
-        if (!d || !Array.isArray(d.agenda)) return;
-        agenda = d.agenda;
+        if (!d) return;
         if (d.serverNow) serverOffsetMs = Date.parse(d.serverNow) - Date.now();
+        if (d.unchanged) { evaluate(); return; }
+        if (!Array.isArray(d.agenda)) return;
+        if (d.version) agendaVersion = d.version;
+        agenda = d.agenda;
         evaluate();
       })
       .catch(() => {});
@@ -229,6 +233,7 @@
         const d = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(d.error || 'No se pudo confirmar.');
         agenda = agenda.map((e) => (e.id === id && e.slot === slot ? { ...e, status: 'hecho' } : e));
+        agendaVersion = '';
         ringingKeys = '';
         evaluate();
         document.dispatchEvent(new CustomEvent('apagados:changed', { detail: { fromAlarm: true } }));

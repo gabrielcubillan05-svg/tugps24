@@ -82,12 +82,16 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
+  let notifVersion = '';
   function loadNotifications() {
-    fetch('/api/notifications')
+    fetch('/api/notifications' + (notifVersion ? '?v=' + encodeURIComponent(notifVersion) : ''))
       .then((res) => res.json())
       .then((data) => {
-        if (!data || !Array.isArray(data.notifications)) return;
+        if (!data) return;
         if (data.build) checkVersion(data.build);
+        if (data.unchanged) return;
+        if (!Array.isArray(data.notifications)) return;
+        if (data.version) notifVersion = data.version;
         renderNotifications(data.notifications);
         if (data.unreadCount > 0) {
           bellBadge.textContent = data.unreadCount > 99 ? '99+' : String(data.unreadCount);
@@ -103,12 +107,15 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {});
   }
 
+  let chatVersion = '';
   function loadChatUnread() {
     if (!chatNavBadge) return;
-    fetch('/api/conversations')
+    fetch('/api/conversations' + (chatVersion ? '?v=' + encodeURIComponent(chatVersion) : ''))
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!data || !Array.isArray(data.conversations)) return;
+        if (!data || data.unchanged) return;
+        if (!Array.isArray(data.conversations)) return;
+        if (data.version) chatVersion = data.version;
         // El widget de GaBot usa esta misma respuesta en vez de pedirla otra vez cada 45 s.
         document.dispatchEvent(new CustomEvent('panel:conversations', { detail: data }));
         const total = data.conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);

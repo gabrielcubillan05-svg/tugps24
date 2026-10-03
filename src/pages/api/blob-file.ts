@@ -103,7 +103,9 @@ export const GET: APIRoute = async ({ url, cookies }) => {
     return new Response(result.stream, {
       headers: {
         'Content-Type': result.blob.contentType || 'image/jpeg',
-        'Cache-Control': 'private, max-age=3600',
+        // Cada archivo tiene una ruta única y nunca cambia: el navegador puede guardarlo un día entero
+        // y no volver a pedirlo al servidor en cada redibujo de la lista.
+        'Cache-Control': 'private, max-age=86400, immutable',
       },
     });
   } catch {

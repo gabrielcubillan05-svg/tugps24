@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { bumpVersion, readVersion, CHAT_VERSION_KEY, unchangedResponse } from '../../lib/versions';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
@@ -43,6 +44,7 @@ export async function readConversations(redis: Redis): Promise<Conversation[]> {
 
 export async function saveConversation(redis: Redis, conversation: Conversation): Promise<void> {
   await redis.hset(REDIS_KEY, { [conversation.id]: JSON.stringify(conversation) });
+  await bumpVersion(redis, CHAT_VERSION_KEY);
 }
 
 export async function getConversation(redis: Redis, id: string): Promise<Conversation | null> {
@@ -62,8 +64,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const all = await readConversations(redis);
-  const users = await getUsers(redis);
+  // Versión global del chat: cualquier mensaje o lectura la sube. Si el cliente ya la tiene,
+  // no se releen conversaciones ni usuarios (lo consulta cada pestaña cada 45 s).
+  const version = await readVersion(redis, CHAT_VERSION_KEY);
+  const known = url.searchParams.get('v');
+  if (known && known === version) return unchangedResponse(version);
+
+  const [all, users] = await Promise.all([readConversations(redis), getUsers(redis)]);
 
   if (url.searchParams.get('scope') === 'all') {
     if (!canManageUsers(session.role)) {
@@ -82,7 +89,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
     await logAudit(redis, session, 'chat_oversight_view', 'todas las conversaciones');
 
-    return new Response(JSON.stringify({ conversations: everything }), {
+    return new Response(JSON.stringify({ conversations: everything, version }), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   }
@@ -106,7 +113,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     })
     .sort((a, b) => (b.lastMessageAt || b.createdAt).localeCompare(a.lastMessageAt || a.createdAt));
 
-  return new Response(JSON.stringify({ conversations: withDisplay }), {
+  return new Response(JSON.stringify({ conversations: withDisplay, version }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };

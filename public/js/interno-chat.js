@@ -94,12 +94,18 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
+  let conversationsVersion = '';
   function loadConversations() {
-    const url = oversightMode ? '/api/conversations?scope=all' : '/api/conversations';
-    return fetch(url)
+    const params = new URLSearchParams();
+    if (oversightMode) params.set('scope', 'all');
+    if (conversationsVersion && !oversightMode) params.set('v', conversationsVersion);
+    const qs = params.toString();
+    return fetch('/api/conversations' + (qs ? '?' + qs : ''))
       .then((res) => res.json())
       .then((data) => {
+        if (data && data.unchanged) return;
         if (data && Array.isArray(data.conversations)) {
+          if (data.version) conversationsVersion = data.version;
           conversations = data.conversations;
           renderConversations();
         }

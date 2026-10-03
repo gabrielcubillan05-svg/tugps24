@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { BUILD_ID } from '../../lib/build-id';
+import { readVersion, notifVersionKey, unchangedResponse } from '../../lib/versions';
 import { getRedis } from '../../lib/redis';
 import { SESSION_COOKIE, getSession, verifySameOrigin } from '../../lib/auth';
 import {
@@ -11,7 +12,7 @@ import {
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ cookies }) => {
+export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
   if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -22,9 +23,15 @@ export const GET: APIRoute = async ({ cookies }) => {
   }
 
   await syncComputedNotifications(redis, session);
+  // La campanita manda la versión que ya tiene: si no hubo escrituras desde entonces, no se
+  // lee ni se serializa el hash (es el sondeo más frecuente de todo el panel).
+  const version = await readVersion(redis, notifVersionKey(session.userId));
+  const known = url.searchParams.get('v');
+  if (known && known === version) return unchangedResponse(version, { build: BUILD_ID });
+
   const { notifications, unreadCount } = await readNotifications(redis, session.userId);
 
-  return new Response(JSON.stringify({ notifications, unreadCount, build: BUILD_ID }), {
+  return new Response(JSON.stringify({ notifications: notifications.slice(0, 100), unreadCount, version, build: BUILD_ID }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
