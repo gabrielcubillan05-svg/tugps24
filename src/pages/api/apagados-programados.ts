@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, findUserById, canAccessShutdownSchedules, canDeleteShutdownSchedules, verifySameOrigin, type Session } from '../../lib/auth';
-import { todayInColombia, timeInColombia } from '../../lib/colombia-time';
+import { todayInColombia, timeInColombia, dateInColombia, addDaysToDateString, minuteKeyInColombia } from '../../lib/colombia-time';
 import { bumpVersion, readVersion, SHUTDOWNS_VERSION_KEY, unchangedResponse } from '../../lib/versions';
 
 export const prerender = false;
@@ -53,6 +53,7 @@ export interface AgendaEntry {
   hora: string;
   nota: string;
   slot: string; // YYYY-MM-DDTHH:MM
+  slotMs: number; // instante real de la franja (hora Colombia, UTC-5)
   status: 'pendiente' | 'hecho' | 'vencido';
   doneAt: string | null;
   doneByName: string;
@@ -89,15 +90,29 @@ export function isDueOn(item: ShutdownSchedule, date: string): boolean {
   }
 }
 
-export function buildAgenda(items: ShutdownSchedule[], date: string, nowHHMM: string): AgendaEntry[] {
-  const nowMin = toMinutes(nowHHMM);
-  return items
-    .filter((i) => isDueOn(i, date))
-    .map((i) => {
+export function slotMsOf(slot: string): number {
+  return Date.parse(`${slot}:00-05:00`);
+}
+
+// La agenda cubre ayer (solo franjas de la última hora que sigan sin confirmar), hoy, y si se
+// pide, los primeros minutos de mañana (para el aviso "en 1 minuto" de un apagado a las 00:00).
+// El retraso se mide sobre el instante real de la franja: antes se restaban minutos del día y
+// un apagado de las 23:50 sin confirmar desaparecía a medianoche y nunca escalaba.
+export function buildAgenda(items: ShutdownSchedule[], now: Date = new Date(), options: { includeTomorrow?: boolean } = {}): AgendaEntry[] {
+  const nowMs = now.getTime();
+  const today = dateInColombia(now.toISOString());
+  const dates = [addDaysToDateString(today, -1), today, ...(options.includeTomorrow ? [addDaysToDateString(today, 1)] : [])];
+  const out: AgendaEntry[] = [];
+  for (const date of dates) {
+    for (const i of items) {
+      if (!isDueOn(i, date)) continue;
       const slot = `${date}T${i.hora}`;
+      const slotMs = slotMsOf(slot);
       const done = i.doneSlot === slot;
-      const status: AgendaEntry['status'] = done ? 'hecho' : nowMin - toMinutes(i.hora) >= LATE_AFTER_MINUTES ? 'vencido' : 'pendiente';
-      return {
+      if (date < today && (done || nowMs - slotMs > 60 * 60000)) continue; // de ayer solo lo reciente sin confirmar
+      if (date > today && slotMs - nowMs > 2 * 60000) continue; // de mañana solo lo inminente
+      const status: AgendaEntry['status'] = done ? 'hecho' : nowMs - slotMs >= LATE_AFTER_MINUTES * 60000 ? 'vencido' : 'pendiente';
+      out.push({
         id: i.id,
         placa: i.placa,
         cliente: i.cliente,
@@ -105,12 +120,14 @@ export function buildAgenda(items: ShutdownSchedule[], date: string, nowHHMM: st
         hora: i.hora,
         nota: i.nota,
         slot,
+        slotMs,
         status,
         doneAt: done ? i.doneAt : null,
         doneByName: done ? i.doneByName : '',
-      };
-    })
-    .sort((a, b) => a.hora.localeCompare(b.hora) || a.placa.localeCompare(b.placa));
+      });
+    }
+  }
+  return out.sort((a, b) => a.slotMs - b.slotMs || a.placa.localeCompare(b.placa));
 }
 
 export async function readShutdownSchedules(redis: any): Promise<ShutdownSchedule[]> {
@@ -203,8 +220,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
   const date = todayInColombia();
-  const now = timeInColombia();
+  const nowDate = new Date();
   const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+  // La alarma de cada pestaña solo hace sonar franjas de los últimos 20 minutos o futuras; el
+  // límite lo da el servidor para no depender del reloj del PC de la central.
+  const ignoreBefore = minuteKeyInColombia(new Date(nowDate.getTime() - 20 * 60000));
 
   // Consulta liviana que hace la alarma de cada pestaña del panel cada minuto. La versión
   // cambia con cada alta, edición o confirmación; la agenda del día se identifica por la
@@ -212,16 +232,16 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const version = `${date}:${await readVersion(redis, SHUTDOWNS_VERSION_KEY)}`;
   if (url.searchParams.get('agenda')) {
     const known = url.searchParams.get('v');
-    if (known && known === version) return unchangedResponse(version, { serverNow: new Date().toISOString() });
-    const agenda = buildAgenda(await readShutdownSchedules(redis), date, now);
-    return new Response(JSON.stringify({ agenda, date, version, serverNow: new Date().toISOString() }), { headers });
+    if (known && known === version) return unchangedResponse(version, { serverNow: nowDate.toISOString(), ignoreBefore });
+    const agenda = buildAgenda(await readShutdownSchedules(redis), nowDate);
+    return new Response(JSON.stringify({ agenda, date, version, ignoreBefore, serverNow: nowDate.toISOString() }), { headers });
   }
-  const items = await readShutdownSchedules(redis);
-  const agenda = buildAgenda(items, date, now);
+  const items = (await readShutdownSchedules(redis)).map((i) => ({ ...i, expired: i.repeat === 'una_vez' && !!i.fecha && i.fecha < date }));
+  const agenda = buildAgenda(items, nowDate);
 
   const log = await readLog(redis, 100);
   return new Response(
-    JSON.stringify({ items, agenda, log, date, serverNow: new Date().toISOString(), canDelete: canDeleteShutdownSchedules(session.role) }),
+    JSON.stringify({ items, agenda, log, date, ignoreBefore, serverNow: nowDate.toISOString(), canDelete: canDeleteShutdownSchedules(session.role) }),
     { headers }
   );
 };
@@ -257,7 +277,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'franja inválida' }), { status: 400 });
     }
     const item: ShutdownSchedule = { dias: [], fecha: null, doneSlot: null, doneAt: null, doneByName: '', ...(typeof raw === 'string' ? JSON.parse(raw) : raw) };
-    if (item.doneSlot === slot) {
+    // Dos operadores pulsando "Hecho" a la vez: solo el primero confirma y queda en el log.
+    const first = await redis.set(`internal:shutdown-done:${item.id}:${slot}`, '1', { nx: true, ex: 86400 });
+    if (item.doneSlot === slot || !first) {
       return new Response(JSON.stringify({ item, already: true }), { headers: { 'Content-Type': 'application/json' } });
     }
     item.doneSlot = slot;

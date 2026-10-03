@@ -69,7 +69,15 @@ document.addEventListener('DOMContentLoaded', function () {
     Promise.resolve({ build })
       .then((data) => {
         if (!data || !data.build || data.build === currentBuild) return;
-        if (document.hidden) {
+        // Oculta no significa sin uso: si hay algo escrito a medias (una nota, una novedad con
+        // fotos) la recarga lo perdería, y en las pestañas con alarma de apagados recargar
+        // sin un clic dejaría el sonido bloqueado por el navegador. En esos casos, banner.
+        const hasUnsavedInput = Array.from(document.querySelectorAll('input, textarea')).some((el) => {
+          if (['hidden', 'checkbox', 'radio', 'submit', 'button', 'search'].includes(el.type)) return false;
+          if (el.type === 'file') return !!(el.files && el.files.length);
+          return !!el.value && el.value !== el.defaultValue;
+        });
+        if (document.hidden && !hasUnsavedInput && !window.TuGpsAlarmas) {
           location.reload();
           return;
         }

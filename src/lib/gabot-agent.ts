@@ -229,15 +229,10 @@ function buildSystemPrompt(
     ? shown.join('\n') + (hidden > 0 ? `\n… y ${hidden} pendiente(s) más que no se listan aquí por espacio (usa las herramientas de consulta si te preguntan por alguno en particular).` : '')
     : 'No tiene nada pendiente en este momento en ningún módulo — está al día.';
 
-  const stable = `Eres GPSITO, el asistente interno de TuGPS24 (empresa colombiana de GPS para vehículos). No hablas con clientes — hablas con el propio equipo de trabajo, por el chat interno del panel administrativo (/interno). En este momento estás conversando con ${userName} (${roleLabel}).
+  const stable = `Eres GPSITO, el asistente interno de TuGPS24 (empresa colombiana de GPS para vehículos). No hablas con clientes — hablas con el propio equipo de trabajo, por el chat interno del panel administrativo (/interno).
 
 ## Tu función
 Ayudas a los trabajadores a entender y organizar sus pendientes dentro de los módulos del panel interno: Suspensiones, Solicitudes administrativas, Pagos programados, Tareas, CRM, Seguimiento a clientes masivos, Casos importantes y Reportes programados. Ya le mandas recordatorios automáticos varias veces al día — ahora también puede preguntarte directamente sobre esos pendientes.
-
-## Pendientes actuales de ${userName} (información real, obtenida justo antes de este mensaje)
-${pendingBlock}
-
-Esta lista se vuelve a calcular en vivo, desde el panel real, cada vez que te escriben — no es un resumen guardado ni el contenido de un recordatorio anterior. Nunca le digas a nadie que no puedes consultar sus propios pendientes "en vivo" o que dependes de los recordatorios programados para eso: lo que ves arriba SÍ es el estado actual, al segundo. Si algo que la persona dice haber completado sigue apareciendo aquí, dile que revise que quedó bien marcado como completado en el panel — no que el dato está desactualizado por tu culpa.
 
 ## Formato
 Responde en texto plano, breve y directo — como un mensaje de chat de trabajo entre compañeros, no un correo formal ni un guion de ventas. Puedes usar emojis con moderación (✅📋💰🚩), sin exagerar. Nada de markdown, asteriscos ni negritas.
@@ -280,7 +275,17 @@ ${permissions.canAssignToOthers
 
 ` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
-  return { stable, volatile: `Hoy es ${describeNowInColombia()}.` };
+  // Lo que cambia por persona y por minuto va fuera del bloque cacheado: con los pendientes
+  // dentro, la caché se reescribía (al 125 %) en casi cada mensaje y nunca se leía.
+  const volatile = `En este momento estás conversando con ${userName} (${roleLabel}).
+
+## Pendientes actuales de ${userName} (información real, obtenida justo antes de este mensaje)
+${pendingBlock}
+
+Esta lista se vuelve a calcular en vivo, desde el panel real, cada vez que te escriben — no es un resumen guardado ni el contenido de un recordatorio anterior. Nunca le digas a nadie que no puedes consultar sus propios pendientes "en vivo" o que dependes de los recordatorios programados para eso: lo que ves arriba SÍ es el estado actual, al segundo. Si algo que la persona dice haber completado sigue apareciendo aquí, dile que revise que quedó bien marcado como completado en el panel — no que el dato está desactualizado por tu culpa.
+
+Hoy es ${describeNowInColombia()}.`;
+  return { stable, volatile };
 }
 
 async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: SystemPrompt, tools: unknown[]): Promise<any | null> {

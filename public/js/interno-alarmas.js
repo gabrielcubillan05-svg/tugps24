@@ -11,7 +11,7 @@
   let agenda = [];
   let serverOffsetMs = 0;
   let lastPoll = 0;
-  let mutedUntil = 0;
+  const mutedKeys = new Map();
   let overlay = null;
   let audioCtx = null;
   let beepTimer = null;
@@ -131,7 +131,10 @@
           return;
         }
         if (e.target.closest('.alarm-mute')) {
-          mutedUntil = Date.now() + MUTE_MS;
+          // Se silencian solo las franjas que están sonando ahora: una nueva que venza en esos
+          // 5 minutos sí debe sonar.
+          const until = Date.now() + MUTE_MS;
+          dueNow().forEach((d) => mutedKeys.set(d.id + d.slot, until));
           evaluate();
         }
       });
@@ -186,9 +189,9 @@
   }
 
   function evaluate() {
-    const due = dueNow();
-    const muted = Date.now() < mutedUntil;
-    if (due.length && !muted) {
+    const now = Date.now();
+    const due = dueNow().filter((e) => !(mutedKeys.get(e.id + e.slot) > now));
+    if (due.length) {
       const keys = due.map((e) => e.id + e.slot).join('|');
       if (keys !== ringingKeys) {
         ringingKeys = keys;
@@ -213,6 +216,9 @@
       .then((d) => {
         if (!d) return;
         if (d.serverNow) serverOffsetMs = Date.parse(d.serverNow) - Date.now();
+        // El límite de "qué tan viejo suena" lo manda el servidor: con el reloj del PC
+        // adelantado, calcularlo aquí dejaba franjas recientes sin sonar.
+        if (d.ignoreBefore) ignoreBefore = d.ignoreBefore;
         if (d.unchanged) { evaluate(); return; }
         if (!Array.isArray(d.agenda)) return;
         if (d.version) agendaVersion = d.version;
@@ -266,18 +272,8 @@
     if (!document.hidden) poll();
   });
 
-  // Al abrir una pestaña no se desentierran franjas de hace horas: solo suena lo de los
-  // últimos 20 minutos o lo que venza de aquí en adelante. Lo más viejo ya lo ve el supervisor
-  // como "vencido" en el módulo y en su campanita.
-  (function initIgnoreBefore() {
-    const d = new Date(Date.now() - 20 * 60000);
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    }).formatToParts(d);
-    const p = {};
-    parts.forEach((x) => { p[x.type] = x.value; });
-    ignoreBefore = `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
-  })();
+  // Hasta que llegue el primer sondeo, no se hace sonar nada (ignoreBefore vacío = todo pasa,
+  // pero agenda vacía = nada que sonar). El servidor fija el límite de 20 minutos hacia atrás.
 
   poll();
   setInterval(poll, POLL_MS);

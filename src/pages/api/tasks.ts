@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
-import { isOverdueInColombia } from '../../lib/colombia-time';
+import { isOverdueInColombia, todayInColombia, addDaysToDateString, addMonthsToDateString } from '../../lib/colombia-time';
 import { shiftBucketFor, SHIFT_SUPERVISORS } from '../../lib/shift';
 import { readSchedule } from './schedule';
 import {
@@ -59,12 +59,14 @@ export interface Task {
 
 const RECURRENCES = ['diaria', 'semanal', 'mensual'];
 
+// Fechas texto en Colombia: con Date del servidor (UTC), una tarea diaria completada después
+// de las 7 pm generaba la siguiente para pasado mañana.
 function nextDueDateFor(dueDate: string | null, recurrence: string): string | null {
-  const base = dueDate ? new Date(dueDate + 'T00:00:00') : new Date();
-  if (recurrence === 'diaria') base.setDate(base.getDate() + 1);
-  else if (recurrence === 'semanal') base.setDate(base.getDate() + 7);
-  else if (recurrence === 'mensual') base.setMonth(base.getMonth() + 1);
-  return base.toISOString().slice(0, 10);
+  const base = dueDate ? dueDate.slice(0, 10) : todayInColombia();
+  if (recurrence === 'diaria') return addDaysToDateString(base, 1);
+  if (recurrence === 'semanal') return addDaysToDateString(base, 7);
+  if (recurrence === 'mensual') return addMonthsToDateString(base, 1);
+  return base;
 }
 
 export function computeOverdue(task: Task): boolean {

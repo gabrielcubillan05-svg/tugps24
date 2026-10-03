@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from './redis';
 import { getUsers, type Session } from './auth';
 import { sendPushToUser } from './push';
-import { isOverdueInColombia } from './colombia-time';
+import { isOverdueInColombia, todayInColombia, dateInColombia, addDaysToDateString } from './colombia-time';
 import { bumpVersion, notifVersionKey } from './versions';
 
 export const NOTIF_KEY_PREFIX = 'internal:notifications:';
@@ -107,11 +107,14 @@ function isLeadOverdue(l: MiniLead): boolean {
 }
 
 const REPORT_FREQUENCIES: Record<string, number> = { Diario: 1, Semanal: 7, Quincenal: 15, Mensual: 30 };
-function isScheduledReportPending(r: MiniScheduledReport): boolean {
+// Misma regla que withStatus en scheduled-reports.ts (días calendario de Colombia); no se
+// importa de ahí para evitar el import circular con pushNotification.
+function isScheduledReportPending(r: MiniScheduledReport & { dueDateOverride?: string | null; resumedAt?: string | null; paused?: boolean }): boolean {
+  if (r.paused) return false;
+  if (r.dueDateOverride) return r.dueDateOverride.slice(0, 10) <= todayInColombia();
   const intervalDays = REPORT_FREQUENCIES[r.frequency] || 7;
-  const base = new Date(r.lastDoneAt || r.createdAt);
-  const nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
-  return nextDue.getTime() <= Date.now();
+  const baseIso = [r.lastDoneAt, r.resumedAt].filter((d): d is string => !!d).sort().pop() || r.createdAt;
+  return addDaysToDateString(dateInColombia(baseIso), intervalDays) <= todayInColombia();
 }
 
 async function readHashList<T>(redis: Redis, key: string): Promise<T[]> {

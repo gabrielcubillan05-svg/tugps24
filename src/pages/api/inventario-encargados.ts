@@ -42,8 +42,10 @@ function tokens(name: string): string[] {
 // deben estar en el nombre del usuario. Una entrada de una sola palabra también puede ser el
 // nombre de usuario (ej. "hisnaldis").
 function matches(listName: string, userName: string, username: string): boolean {
-  if (tokens(listName).join('') === tokens(username).join('')) return true;
   const wanted = tokens(listName);
+  // Una sola palabra es un nombre de usuario exacto; por nombre coincidiría con cualquiera
+  // que la tenga entre sus nombres (p. ej. "Hisnaldis Junior Cárdenas").
+  if (wanted.length === 1) return wanted[0] === tokens(username).join('');
   const have = new Set(tokens(userName));
   return wanted.length > 0 && wanted.every((t) => have.has(t));
 }

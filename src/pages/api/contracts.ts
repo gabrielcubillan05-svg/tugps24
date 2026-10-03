@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { todayInColombia, daysBetweenDateStrings } from '../../lib/colombia-time';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
@@ -35,25 +36,28 @@ async function requireContracts(cookies: any) {
   return session;
 }
 
+// Comparación por día calendario de Colombia: con new Date('YYYY-MM-DD') (medianoche UTC) un
+// contrato aparecía vencido desde las 7 pm del día anterior a su fin.
 export function withStatus(e: ContractEntry) {
-  const now = Date.now();
+  const today = todayInColombia();
+  const windowDays = Math.round(UPCOMING_WINDOW_MS / 86400000);
   if (e.type === 'Contrato') {
     if (e.indefinite || !e.endDate) {
       return { ...e, status: 'indefinido' as const };
     }
-    const end = new Date(e.endDate).getTime();
-    if (end < now) return { ...e, status: 'vencido' as const };
-    if (end - now <= UPCOMING_WINDOW_MS) return { ...e, status: 'proximo' as const };
+    const end = e.endDate.slice(0, 10);
+    if (end < today) return { ...e, status: 'vencido' as const };
+    if (daysBetweenDateStrings(today, end) <= windowDays) return { ...e, status: 'proximo' as const };
     return { ...e, status: 'vigente' as const };
   }
   // Vacaciones: si ya pasó, queda "disfrutada" (aunque haya sido pagada en dinero); si el
   // inicio está por venir dentro de la ventana, "próxima"; si no, "programada".
-  if (e.endDate && new Date(e.endDate).getTime() < now) {
+  if (e.endDate && e.endDate.slice(0, 10) < today) {
     return { ...e, status: 'disfrutada' as const };
   }
   if (e.startDate) {
-    const start = new Date(e.startDate).getTime();
-    if (start >= now && start - now <= UPCOMING_WINDOW_MS) {
+    const start = e.startDate.slice(0, 10);
+    if (start >= today && daysBetweenDateStrings(today, start) <= windowDays) {
       return { ...e, status: 'proxima' as const };
     }
   }

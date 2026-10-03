@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { todayInColombia, dateInColombia, addDaysToDateString, daysBetweenDateStrings } from '../../lib/colombia-time';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
@@ -37,38 +38,29 @@ export interface ScheduledReport {
   resumedAt?: string | null;
 }
 
-const SOON_WINDOW_MS = 2 * 24 * 60 * 60 * 1000; // "por realizar": vence en los próximos 2 días
+const SOON_WINDOW_DAYS = 2; // "por realizar": vence en los próximos 2 días
 
-function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+// Fecha (YYYY-MM-DD, Colombia) en la que vuelve a vencer el reporte. Se calcula con días
+// calendario de Colombia: antes se truncaba con la medianoche del servidor (UTC), y un Diario
+// hecho a las 6 pm volvía a aparecer vencido a las 7 pm.
+export function nextDueDateFor(r: Pick<ScheduledReport, 'dueDateOverride' | 'frequency' | 'lastDoneAt' | 'resumedAt' | 'createdAt'>): string {
+  if (r.dueDateOverride) return r.dueDateOverride.slice(0, 10);
+  const intervalDays = FREQUENCIES[r.frequency] || 7;
+  const baseIso = [r.lastDoneAt, r.resumedAt].filter((d): d is string => !!d).sort().pop() || r.createdAt;
+  return addDaysToDateString(dateInColombia(baseIso), intervalDays);
 }
 
 export function withStatus(r: ScheduledReport) {
   if (r.paused) {
     return { ...r, nextDue: r.createdAt, pending: false, bucket: 'pausado' as const };
   }
-  let nextDue: Date;
-  if (r.dueDateOverride) {
-    // Fecha de entrega fijada a mano: manda sobre el cálculo automático por frecuencia,
-    // solo para este ciclo (se limpia al marcar el reporte como hecho).
-    nextDue = startOfDay(new Date(r.dueDateOverride));
-  } else {
-    const intervalDays = FREQUENCIES[r.frequency] || 7;
-    // Se trunca a inicio del día para que el vencimiento sea por día calendario, no por hora exacta:
-    // un "Diario" marcado como hecho a cualquier hora vuelve a quedar pendiente justo al empezar el día siguiente.
-    const baseIso = [r.lastDoneAt, r.resumedAt].filter((d): d is string => !!d).sort().pop() || r.createdAt;
-    const base = startOfDay(new Date(baseIso));
-    nextDue = new Date(base.getTime() + intervalDays * 24 * 60 * 60 * 1000);
-  }
-  const pending = nextDue.getTime() <= Date.now();
-  const bucket: 'pendiente' | 'por-realizar' | 'al-dia' = pending
-    ? 'pendiente'
-    : nextDue.getTime() - Date.now() <= SOON_WINDOW_MS
-    ? 'por-realizar'
-    : 'al-dia';
-  return { ...r, nextDue: nextDue.toISOString(), pending, bucket };
+  const nextDueDate = nextDueDateFor(r);
+  const today = todayInColombia();
+  const pending = nextDueDate <= today;
+  const daysUntil = daysBetweenDateStrings(today, nextDueDate);
+  const bucket: 'pendiente' | 'por-realizar' | 'al-dia' = pending ? 'pendiente' : daysUntil <= SOON_WINDOW_DAYS ? 'por-realizar' : 'al-dia';
+  // Medianoche de Colombia en ISO, para que las pantallas que formatean la fecha la muestren bien.
+  return { ...r, nextDue: `${nextDueDate}T05:00:00.000Z`, pending, bucket };
 }
 
 export async function readScheduledReports(redis: any) {

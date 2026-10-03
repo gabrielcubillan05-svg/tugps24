@@ -4,9 +4,8 @@ import { getUsers } from '../../lib/auth';
 import { sendPushToUser } from '../../lib/push';
 import { pushNotification } from '../../lib/notifications';
 import { isOnShiftNow } from '../../lib/shift';
-import { todayInColombia, timeInColombia } from '../../lib/colombia-time';
 import { readSchedule } from './schedule';
-import { readShutdownSchedules, buildAgenda, toMinutes, LATE_AFTER_MINUTES, type AgendaEntry } from './apagados-programados';
+import { readShutdownSchedules, buildAgenda, LATE_AFTER_MINUTES, type AgendaEntry } from './apagados-programados';
 import { markCronOk } from '../../lib/incidents';
 
 export const prerender = false;
@@ -31,16 +30,16 @@ export const GET: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const date = todayInColombia();
-  const now = timeInColombia();
-  const nowMin = toMinutes(now);
-  const agenda = buildAgenda(await readShutdownSchedules(redis), date, now);
+  const nowMs = Date.now();
+  const agenda = buildAgenda(await readShutdownSchedules(redis), new Date(nowMs), { includeTomorrow: true });
 
-  const upcoming = agenda.filter((e) => e.status !== 'hecho' && toMinutes(e.hora) - nowMin === 1);
-  // Ventana de 3 minutos por si una corrida del cron se salta o llega tarde.
+  // Aviso previo: franjas que vencen en los próximos 0 a 2 minutos (ventana amplia porque el
+  // cron de Vercel no cae en el minuto exacto; la llave NX evita repetir el aviso).
+  const upcoming = agenda.filter((e) => e.status !== 'hecho' && e.slotMs - nowMs > 0 && e.slotMs - nowMs <= 2 * 60000);
+  // Escalación: entre 15 y 18 minutos de retraso sin confirmar.
   const late = agenda.filter((e) => {
-    const delay = nowMin - toMinutes(e.hora);
-    return e.status === 'vencido' && delay >= LATE_AFTER_MINUTES && delay < LATE_AFTER_MINUTES + 3;
+    const delayMin = (nowMs - e.slotMs) / 60000;
+    return e.status === 'vencido' && delayMin >= LATE_AFTER_MINUTES && delayMin < LATE_AFTER_MINUTES + 3;
   });
   await markCronOk(redis, 'apagados');
   if (!upcoming.length && !late.length) {
@@ -74,10 +73,10 @@ export const GET: APIRoute = async ({ request }) => {
     if (!first) continue;
     const message = `Sin confirmar: ${describe(e)} lleva ${LATE_AFTER_MINUTES} minutos sin que ningún operador lo marque hecho.`;
     await Promise.allSettled(
-      supervisors.map(async (u) => {
-        await pushNotification(redis, u.id, { type: 'apagado-programado', message, link: '/interno/apagados-programados', key: `shutdown-late:${e.id}:${e.slot}` });
-        await sendPushToUser(redis, u.id, { title: `⚠️ ${ACTION_LABEL[e.accion]} ${e.placa} sin confirmar`, body: message, link: '/interno/apagados-programados' });
-      })
+      // pushNotification ya manda el push al celular además de la campanita.
+      supervisors.map((u) =>
+        pushNotification(redis, u.id, { type: 'apagado-programado', message, link: '/interno/apagados-programados', key: `shutdown-late:${e.id}:${e.slot}` })
+      )
     );
     escalated++;
   }

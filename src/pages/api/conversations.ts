@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { bumpVersion, readVersion, CHAT_VERSION_KEY, unchangedResponse } from '../../lib/versions';
+import { bumpVersion, readVersion, CHAT_VERSION_KEY, chatVersionKey, unchangedResponse } from '../../lib/versions';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
@@ -44,7 +44,10 @@ export async function readConversations(redis: Redis): Promise<Conversation[]> {
 
 export async function saveConversation(redis: Redis, conversation: Conversation): Promise<void> {
   await redis.hset(REDIS_KEY, { [conversation.id]: JSON.stringify(conversation) });
+  // Versión por miembro: antes era global y el "visto" de cualquiera invalidaba el "sin
+  // cambios" de todas las pestañas de todos los usuarios.
   await bumpVersion(redis, CHAT_VERSION_KEY);
+  await Promise.all((conversation.memberIds || []).map((id) => bumpVersion(redis, chatVersionKey(id))));
 }
 
 export async function getConversation(redis: Redis, id: string): Promise<Conversation | null> {
@@ -66,7 +69,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   // Versión global del chat: cualquier mensaje o lectura la sube. Si el cliente ya la tiene,
   // no se releen conversaciones ni usuarios (lo consulta cada pestaña cada 45 s).
-  const version = await readVersion(redis, CHAT_VERSION_KEY);
+  const scopeAll = url.searchParams.get('scope') === 'all';
+  const version = await readVersion(redis, scopeAll ? CHAT_VERSION_KEY : chatVersionKey(session.userId));
   const known = url.searchParams.get('v');
   if (known && known === version) return unchangedResponse(version);
 

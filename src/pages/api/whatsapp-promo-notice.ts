@@ -80,7 +80,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!branch) continue;
     const promo = promos.find((p) => p.branches.includes(branch));
     if (!promo) continue;
-    const contactedSince = lead.createdAt >= sinceIso || (!!lead.lastInboundAt && lead.lastInboundAt >= sinceIso);
+    // Se compara por instante, no por texto: los ISO vienen en zonas distintas (Z vs -05:00).
+    const sinceMs = Date.parse(sinceIso);
+    const contactedSince = Date.parse(lead.createdAt) >= sinceMs || (!!lead.lastInboundAt && Date.parse(lead.lastInboundAt) >= sinceMs);
     if (!contactedSince) continue;
     if (lead.promoNoticeSentAt) {
       alreadyNotified++;

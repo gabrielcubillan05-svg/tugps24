@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <td>${escapeHtml(i.cliente) || '<span class="hint" style="margin:0;">—</span>'}</td>
         <td>${escapeHtml(repeatLabel(i))}</td>
         <td>${escapeHtml(i.nota) || ''}</td>
-        <td>${i.activo ? 'Activa' : 'Pausada'}</td>
+        <td>${i.expired ? 'Vencida (ya pasó)' : i.activo ? 'Activa' : 'Pausada'}</td>
         <td class="actions">
           <button class="btn-small" data-action="toggle" data-id="${i.id}" type="button">${i.activo ? 'Pausar' : 'Activar'}</button>
           <button class="btn-small" data-action="edit" data-id="${i.id}" type="button">Editar</button>
