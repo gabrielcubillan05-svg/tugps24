@@ -250,7 +250,9 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       submitBtn.textContent = 'Guardando...';
-      const res = await fetch('/api/reports', { method: 'POST', body: formData });
+      // Con conexión muy lenta la subida de fotos puede tardar; pasado el tope se avisa en vez de
+      // dejar el botón en "Guardando..." para siempre.
+      const res = await fetch('/api/reports', { method: 'POST', body: formData, signal: AbortSignal.timeout(90000) });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || `error ${res.status}`);
@@ -261,7 +263,10 @@ document.addEventListener('DOMContentLoaded', function () {
       renderImagePreview();
       loadReports();
     } catch (err) {
-      alert('No se pudo guardar el reporte: ' + (err.message || 'intenta de nuevo.'));
+      const timedOut = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
+      alert(timedOut
+        ? 'La conexión está muy lenta y no se recibió respuesta en 90 segundos. Revisa en la lista si la novedad quedó guardada antes de volver a intentarlo.'
+        : 'No se pudo guardar el reporte: ' + (err.message || 'intenta de nuevo.'));
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = originalLabel;

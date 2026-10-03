@@ -50,7 +50,9 @@ export async function sendPushToUser(
   }
 
   try {
-    await webpush.sendNotification(subscription as any, JSON.stringify(payload));
+    // Sin tiempo límite, un servicio push que no responde dejaba colgada la petición de quien
+    // originó el aviso (el operador veía "Guardando..." sin fin al crear una novedad).
+    await webpush.sendNotification(subscription as any, JSON.stringify(payload), { TTL: 600, timeout: 5000 });
   } catch (err: any) {
     if (err && (err.statusCode === 404 || err.statusCode === 410)) {
       // La suscripción ya no es válida (el navegador la revocó) — se borra para no seguir

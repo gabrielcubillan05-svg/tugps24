@@ -6,6 +6,7 @@ import { getRedis } from '../../lib/redis';
 import { bumpVersion, readVersion, REPORTS_VERSION_KEY, unchangedResponse } from '../../lib/versions';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
+import { runAfterResponse } from '../../lib/background';
 import { SESSION_COOKIE, getSession, canAccessSection, getUsers, findUserById, verifySameOrigin } from '../../lib/auth';
 
 export const prerender = false;
@@ -222,7 +223,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       // Las fotos suben a la vez, no una tras otra: con 3 o 4 fotos eso recorta varios segundos.
       const uploaded = await Promise.all(
         imageFiles.slice(0, MAX_IMAGES).map((file) =>
-          put(`reports/${id}-${randomUUID()}`, file, { access: 'private', token, addRandomSuffix: false })
+          put(`reports/${id}-${randomUUID()}`, file, { access: 'private', token, addRandomSuffix: false, abortSignal: AbortSignal.timeout(25_000) })
         )
       );
       uploaded.forEach((blob) => images.push(blob.pathname));
@@ -254,18 +255,24 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   // incluye un push real al navegador del destinatario (una llamada externa de varios cientos
   // de ms): con una docena de destinatarios, el operador esperaba varios segundos por novedad.
   // Si alguno falla no tumba el guardado.
-  const managers = (await getUsers(redis)).filter(
-    (u) => u.active && u.id !== session.userId && (u.role === 'supervisor' || u.role === 'gerente')
-  );
-  await Promise.allSettled(
-    managers.map((manager) =>
-      pushNotification(redis, manager.id, {
-        type: 'novedad',
-        message: `Nueva novedad: ${report.plate} · ${report.branch} (${report.category})`,
-        link: '/interno/novedades',
-      })
-    )
-  );
+  // Y ahora, además, van después de responderle al operador: la novedad ya está guardada y él
+  // no tiene por qué esperar a que lleguen los pushes a una docena de celulares.
+  const notifyManagers = (async () => {
+    const managers = (await getUsers(redis)).filter(
+      (u) => u.active && u.id !== session.userId && (u.role === 'supervisor' || u.role === 'gerente')
+    );
+    await Promise.allSettled(
+      managers.map((manager) =>
+        pushNotification(redis, manager.id, {
+          type: 'novedad',
+          message: `Nueva novedad: ${report.plate} · ${report.branch} (${report.category})`,
+          link: '/interno/novedades',
+        })
+      )
+    );
+  })().catch((err) => console.error('reports: fallo avisando a supervisores', err instanceof Error ? err.message : String(err)));
+  const inline = runAfterResponse(notifyManagers);
+  if (inline) await inline;
 
   return new Response(JSON.stringify({ report }), {
     headers: { 'Content-Type': 'application/json' },

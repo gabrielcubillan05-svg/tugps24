@@ -6,6 +6,7 @@ import { pushNotification } from '../../lib/notifications';
 import { logAudit, readAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
 import { incrementUnread } from '../../lib/chat-unread';
+import { runAfterResponse } from '../../lib/background';
 import { GABOT_ID, GABOT_NAME } from '../../lib/gabot-constants';
 import { runGabotAgent, type AgentMessage, type CreateTaskInput, type GabotPermissions, type GabotActions } from '../../lib/gabot-agent';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
@@ -148,14 +149,20 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     conversation.type === 'group'
       ? `${message.senderName} en ${conversation.name}: ${preview}`
       : `Nuevo mensaje de ${message.senderName}: ${preview}`;
-  for (const memberId of recipients) {
-    await pushNotification(redis, memberId, {
-      type: 'chat_message',
-      message: notifMessage,
-      link: '/interno/chat',
-      key: `chat:${conversationId}`,
-    });
-  }
+  // Los avisos (campanita + push al celular de cada miembro) iban uno por uno y antes de
+  // responder: en un grupo grande, quien escribía esperaba varios segundos por cada mensaje.
+  const notifyMembers = Promise.allSettled(
+    recipients.map((memberId) =>
+      pushNotification(redis, memberId, {
+        type: 'chat_message',
+        message: notifMessage,
+        link: '/interno/chat',
+        key: `chat:${conversationId}`,
+      })
+    )
+  );
+  const inlineNotify = runAfterResponse(notifyMembers);
+  if (inlineNotify) await inlineNotify;
 
   // Si le está escribiendo a GPSITO (por el widget flotante o desde Chat), le contestamos en la
   // misma conversación con el modelo de IA — con los pendientes reales de esta persona como
