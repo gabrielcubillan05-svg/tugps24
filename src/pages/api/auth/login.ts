@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../../lib/redis';
 import { logAudit } from '../../../lib/audit';
+import { getClientIp, checkAndIncrementRateLimit } from '../../../lib/rate-limit';
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
@@ -10,6 +11,7 @@ import {
   createBootstrapAdminIfMatches,
   saveUser,
   verifyPassword,
+  hashPassword,
   verifySameOrigin,
   CHANGE_PASSWORD_PATH,
 } from '../../../lib/auth';
@@ -18,9 +20,15 @@ export const prerender = false;
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 15 * 60;
+// Tope por IP además del bloqueo por usuario: sin él, un tercero bloqueaba a cualquier cuenta
+// con 5 intentos, y podía probar claves sobre decenas de usuarios sin tocar ningún límite.
+const MAX_ATTEMPTS_PER_IP = 20;
+// Hash de relleno para que un usuario inexistente tarde lo mismo que uno real (scrypt).
+const DUMMY_HASH = hashPassword('relleno-tiempo-constante');
 
-function loginAttemptsKey(username: string) {
-  return `internal:login-attempts:${username.toLowerCase()}`;
+// El bloqueo es por usuario + IP: así un atacante remoto no deja fuera al dueño real de la cuenta.
+function loginAttemptsKey(username: string, ip: string) {
+  return `internal:login-attempts:${username.toLowerCase()}:${ip}`;
 }
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
@@ -41,7 +49,13 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect(`${LOGIN_PATH}?error=1`);
   }
 
-  const attemptsKey = loginAttemptsKey(username);
+  const ip = getClientIp(request);
+  const okIp = await checkAndIncrementRateLimit(redis, `internal:login-ip:${ip}`, MAX_ATTEMPTS_PER_IP, LOGIN_LOCKOUT_SECONDS);
+  if (!okIp) {
+    await logAudit(redis, { userId: 'anon', username: username || 'desconocido' }, 'login_locked', `${username} (ip)`);
+    return redirect(`${LOGIN_PATH}?error=locked`);
+  }
+  const attemptsKey = loginAttemptsKey(username, ip);
   const attempts = Number((await redis.get<number>(attemptsKey)) || 0);
   if (attempts >= MAX_LOGIN_ATTEMPTS) {
     await logAudit(redis, { userId: 'anon', username: username || 'desconocido' }, 'login_locked', username);
@@ -53,7 +67,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     user = await createBootstrapAdminIfMatches(redis, username, password);
   }
 
-  if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
+  const passwordOk = verifyPassword(password, user?.passwordHash || DUMMY_HASH);
+  if (!user || !user.active || !passwordOk) {
     const newCount = await redis.incr(attemptsKey);
     if (newCount === 1) {
       await redis.expire(attemptsKey, LOGIN_LOCKOUT_SECONDS);

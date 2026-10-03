@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const usersList = document.getElementById('usersList');
+  const isFullAdmin = !!(usersList && usersList.dataset.fullAdmin);
   if (!usersList) return;
 
   const userForm = document.getElementById('userForm');
@@ -46,9 +47,9 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="user-meta">Usuario: ${escapeHtml(u.username)}${(u.branches || []).length ? ` · Sucursales: ${escapeHtml(u.branches.join(', '))}` : ''}${(u.inventoryBranches || []).length ? ` · Inventario: ${escapeHtml(u.inventoryBranches.join(', '))}` : ''}</div>
         <div class="user-controls">
-          <select data-action="role" data-id="${u.id}">
+          ${isFullAdmin ? `<select data-action="role" data-id="${u.id}">
             ${roles.map((r) => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
-          </select>
+          </select>` : `<span class="badge">${escapeHtml(u.role)}</span>`}
           <select data-action="branch" data-id="${u.id}" multiple size="4" title="Ctrl/Cmd + clic para elegir varias">
             ${BRANCHES.map((b) => `<option value="${b}" ${(u.branches || []).includes(b) ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
@@ -56,10 +57,10 @@ document.addEventListener('DOMContentLoaded', function () {
             <option value="" disabled>Inventario en:</option>
             ${BRANCHES.filter((b) => b !== 'Central de Monitoreo').map((b) => `<option value="${b}" ${(u.inventoryBranches || []).includes(b) ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
-          <button class="btn-small" data-action="reset-password" data-id="${u.id}" type="button">Restablecer clave</button>
+          ${isFullAdmin ? `<button class="btn-small" data-action="reset-password" data-id="${u.id}" type="button">Restablecer clave</button>
           <button class="btn-small ${u.active ? 'btn-delete' : 'btn-done'}" data-action="toggle-active" data-id="${u.id}" type="button">
             ${u.active ? 'Desactivar' : 'Activar'}
-          </button>
+          </button>` : ''}
         </div>
       </div>
     `).join('');

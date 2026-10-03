@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { bumpVersion, readVersion, LEADS_VERSION_KEY } from '../../lib/versions';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, findUserById, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, canVerifyInstalls, findUserById, verifySameOrigin } from '../../lib/auth';
 import { isOverdueInColombia, todayInColombia, dateInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
@@ -487,6 +487,11 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
+  // Borrar es destructivo: solo supervisor en adelante, no cualquier cuenta con CRM.
+  if (!canVerifyInstalls(session.role)) {
+    return new Response(JSON.stringify({ error: 'solo un supervisor, gerente o administrador puede borrar leads' }), { status: 403 });
+  }
+
   let body: { id?: string };
   try {
     body = await request.json();
@@ -494,8 +499,17 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
 
-  await deleteLeads(redis, [String(body.id || '')]);
-  await logAudit(redis, session, 'lead_delete', String(body.id || ''));
+  const id = String(body.id || '');
+  const raw = await redis.hget<string>(REDIS_KEY, id);
+  const lead: Lead | null = raw ? normalizeLead(typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
+  await deleteLeads(redis, [id]);
+  // Que no queden rastros del cliente: su conversación de WhatsApp y su entrada en el índice
+  // de teléfonos (las llaves viven en whatsapp-webhook.ts; aquí se nombran para no crear un
+  // import circular).
+  await redis.hdel('internal:lead-whatsapp-conversations', id);
+  const phone = lead ? normalizePhone(lead.phone) : '';
+  if (phone) await redis.hdel('internal:whatsapp-phone-index', phone);
+  await logAudit(redis, session, 'lead_delete', id);
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },
   });

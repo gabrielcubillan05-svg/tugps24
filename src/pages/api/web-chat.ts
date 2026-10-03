@@ -75,6 +75,10 @@ export const POST: APIRoute = async ({ request }) => {
   if (!sessionId || !text) {
     return new Response(JSON.stringify({ error: 'faltan campos' }), { status: 400 });
   }
+  // El sessionId es parte de llaves de Redis: solo caracteres de identificador y largo acotado.
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(sessionId)) {
+    return new Response(JSON.stringify({ error: 'sesión inválida' }), { status: 400 });
+  }
   if (text.length > 2000) {
     return new Response(JSON.stringify({ error: 'mensaje demasiado largo' }), { status: 400 });
   }
@@ -99,8 +103,8 @@ export const POST: APIRoute = async ({ request }) => {
   let isNewLead = false;
 
   if (!lead) {
-    const name = String(body.name || '').trim();
-    const rawPhone = String(body.phone || '').trim();
+    const name = String(body.name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    const rawPhone = String(body.phone || '').trim().slice(0, 20);
     if (!name || !rawPhone) {
       return new Response(JSON.stringify({ error: 'falta el nombre y el WhatsApp para empezar' }), { status: 400 });
     }
@@ -108,13 +112,16 @@ export const POST: APIRoute = async ({ request }) => {
     if (phone.length < 7) {
       return new Response(JSON.stringify({ error: 'el número de WhatsApp no parece válido' }), { status: 400 });
     }
+    // Nunca se reutiliza un lead existente por teléfono: cualquiera que escriba el número de un
+    // cliente se colgaría de su historial, le sacaría sus datos al agente y podría cambiarle el
+    // estado. El chat web siempre crea su propio lead ligado a esta sesión; si el número ya
+    // existe, queda anotado para que la secretaria los fusione a mano.
     const existingByPhone = allLeads.find((l) => normalizePhone(l.phone) === phone);
+    lead = newLeadFromWeb(phone, name, now);
+    lead.metaLeadId = sessionId;
+    isNewLead = true;
     if (existingByPhone) {
-      lead = existingByPhone;
-    } else {
-      lead = newLeadFromWeb(phone, name, now);
-      lead.metaLeadId = sessionId;
-      isNewLead = true;
+      lead.notes = [{ text: `[Sistema] Posible duplicado: este número ya existe en el CRM como "${existingByPhone.name}" (${existingByPhone.status}). Verificar antes de contactar.`, date: now }, ...(lead.notes || [])];
     }
   }
 

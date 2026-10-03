@@ -16,8 +16,11 @@
     "@upstash/redis": "^1.38.2",
     "@vercel/blob": "^2.6.1",
     "astro": "^7.1.6",
+    "exceljs": "^4.4.0",
     "pdf-lib": "^1.17.1",
-    "web-push": "^3.6.7",
-    "xlsx": "^0.18.5"
+    "web-push": "^3.6.7"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

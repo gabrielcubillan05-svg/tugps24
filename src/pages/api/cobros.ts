@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
-import * as XLSX from 'xlsx';
+import { readFirstSheetRows, SpreadsheetError } from '../../lib/spreadsheet';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessCobros, canUploadCobros, findUserById, verifySameOrigin } from '../../lib/auth';
@@ -282,13 +282,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   let rows: unknown[][];
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new Error('sin hojas');
-    rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, defval: '' });
-  } catch {
-    return new Response(JSON.stringify({ error: 'no se pudo leer el archivo, verifica el formato' }), { status: 400 });
+    rows = await readFirstSheetRows(file);
+  } catch (err) {
+    const message = err instanceof SpreadsheetError ? err.message : 'no se pudo leer el archivo, verifica el formato';
+    return new Response(JSON.stringify({ error: message }), { status: 400 });
   }
   if (!rows.length) {
     return new Response(JSON.stringify({ error: 'el archivo no tiene filas de datos' }), { status: 400 });

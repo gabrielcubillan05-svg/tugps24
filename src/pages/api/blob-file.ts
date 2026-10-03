@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { get } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, canAccessSection, canAccessSuspensiones, canAccessSolicitudesAdministrativas } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, canAccessSuspensiones, canAccessSolicitudesAdministrativas, canAccessGarantias } from '../../lib/auth';
+import { isSafeBlobPath, cacheControlFor, downloadHeadersFor } from '../../lib/blob-path';
 
 export const prerender = false;
 
@@ -17,6 +18,9 @@ export const GET: APIRoute = async ({ url, cookies }) => {
   const path = url.searchParams.get('path');
   if (!path) {
     return new Response('missing path', { status: 400 });
+  }
+  if (!isSafeBlobPath(path)) {
+    return new Response('forbidden', { status: 403 });
   }
 
   if (path.startsWith('archive/')) {
@@ -43,6 +47,10 @@ export const GET: APIRoute = async ({ url, cookies }) => {
     if (!canAccessSolicitudesAdministrativas(session)) {
       return new Response('forbidden', { status: 403 });
     }
+  } else if (path.startsWith('garantias/')) {
+    if (!canAccessGarantias(session)) {
+      return new Response('forbidden', { status: 403 });
+    }
   } else if (path.startsWith('tasks/')) {
     const match = path.match(TASK_PATH_RE);
     const isManager = session.role === 'supervisor' || session.role === 'gerente' || session.role === 'admin';
@@ -59,7 +67,8 @@ export const GET: APIRoute = async ({ url, cookies }) => {
         return new Response('forbidden', { status: 403 });
       }
       const task = typeof taskRaw === 'string' ? JSON.parse(taskRaw) : (taskRaw as any);
-      if (task.assigneeId !== session.userId) {
+      // Además del dueño, la ruta tiene que ser exactamente la guardada en esa tarea.
+      if (task.assigneeId !== session.userId || !JSON.stringify(task).includes(JSON.stringify(path))) {
         return new Response('forbidden', { status: 403 });
       }
     }
@@ -82,7 +91,7 @@ export const GET: APIRoute = async ({ url, cookies }) => {
         return new Response('forbidden', { status: 403 });
       }
       const planilla = typeof planillaRaw === 'string' ? JSON.parse(planillaRaw) : (planillaRaw as any);
-      if (planilla.tecnicoId !== session.userId) {
+      if (planilla.tecnicoId !== session.userId || !JSON.stringify(planilla).includes(JSON.stringify(path))) {
         return new Response('forbidden', { status: 403 });
       }
     }
@@ -102,10 +111,9 @@ export const GET: APIRoute = async ({ url, cookies }) => {
     }
     return new Response(result.stream, {
       headers: {
-        'Content-Type': result.blob.contentType || 'image/jpeg',
-        // Cada archivo tiene una ruta única y nunca cambia: el navegador puede guardarlo un día entero
-        // y no volver a pedirlo al servidor en cada redibujo de la lista.
-        'Cache-Control': 'private, max-age=86400, immutable',
+        ...downloadHeadersFor(path, result.blob.contentType),
+        'Cache-Control': cacheControlFor(path),
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch {

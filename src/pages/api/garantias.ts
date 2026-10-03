@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
-import * as XLSX from 'xlsx';
+import { readFirstSheetRows, SpreadsheetError } from '../../lib/spreadsheet';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
@@ -394,13 +394,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   let rows: any[][];
   try {
-    const buf = new Uint8Array(await file.arrayBuffer());
-    const wb = XLSX.read(buf, { type: 'array' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
+    rows = await readFirstSheetRows(file);
   } catch (err) {
     console.error('garantias: fallo al leer el Excel', err instanceof Error ? err.message : String(err));
-    return new Response(JSON.stringify({ error: 'no se pudo leer el archivo — confirma que es un Excel válido' }), { status: 400 });
+    const message = err instanceof SpreadsheetError ? err.message : 'no se pudo leer el archivo — confirma que es un Excel válido';
+    return new Response(JSON.stringify({ error: message }), { status: 400 });
   }
   if (rows.length < 2) {
     return new Response(JSON.stringify({ error: 'el Excel no tiene filas de datos' }), { status: 400 });

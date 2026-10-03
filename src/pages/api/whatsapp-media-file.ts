@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { get } from '@vercel/blob';
+import { isSafeBlobPath, downloadHeadersFor } from '../../lib/blob-path';
 
 export const prerender = false;
 
@@ -9,7 +10,7 @@ export const prerender = false;
 // prefijo "whatsapp-agent-media/" para no exponer nada más del almacenamiento privado.
 export const GET: APIRoute = async ({ url }) => {
   const path = url.searchParams.get('path');
-  if (!path || !path.startsWith('whatsapp-agent-media/')) {
+  if (!path || !path.startsWith('whatsapp-agent-media/') || !isSafeBlobPath(path)) {
     return new Response('forbidden', { status: 403 });
   }
 
@@ -25,8 +26,9 @@ export const GET: APIRoute = async ({ url }) => {
     }
     return new Response(result.stream, {
       headers: {
-        'Content-Type': result.blob.contentType || 'application/octet-stream',
+        ...downloadHeadersFor(path, result.blob.contentType),
         'Cache-Control': 'public, max-age=86400',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch {

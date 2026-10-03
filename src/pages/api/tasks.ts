@@ -341,6 +341,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!isManager && !isOwner) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
+  // Un gerente solo edita tareas de su(s) sucursal(es), igual que solo las ve en el GET.
+  if (session.role === 'gerente' && !isOwner) {
+    const [me, assignee] = await Promise.all([findUserById(redis, session.userId), findUserById(redis, task.assigneeId)]);
+    const mine = branchesOf(me);
+    if (!assignee || !branchesOf(assignee).some((b) => mine.includes(b))) {
+      return new Response(JSON.stringify({ error: 'esa tarea es de otra sucursal' }), { status: 403 });
+    }
+  }
 
   let justCompleted = false;
   if (body.status !== undefined) {

@@ -18,6 +18,7 @@ import {
   canAccessRRHH,
   canAccessSuspensiones,
   canSetUserBranches,
+  destroyOtherSessionsForUser,
   destroyAllSessionsForUser,
   verifySameOrigin,
   BRANCHES,
@@ -89,7 +90,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
   let users = await getUsers(redis);
-  if (isPrivileged || canBranchManage) {
+  const fullDetail = isPrivileged || canBranchManage;
+  if (fullDetail) {
     if (requestedRoles.length) users = users.filter((u) => requestedRoles.includes(u.role));
   } else if (canCrmContacts || canReportesOperadores || canNovedadesAuthors || canSuspensionesAssignees) {
     users = users.filter((u) => requestedRoles.includes(u.role) && u.active);
@@ -98,7 +100,12 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   } else if (canHorario || canChat) {
     users = users.filter((u) => u.active);
   }
-  return new Response(JSON.stringify({ users: users.map(publicUser), roles: ROLES }), {
+  // Quien solo necesita poblar un selector (chat, filtros) recibe lo mínimo: el username y
+  // "debe cambiar clave" de todo el personal facilitaban adivinar y bloquear cuentas ajenas.
+  const projected = fullDetail
+    ? users.map(publicUser)
+    : users.map((u) => ({ id: u.id, name: u.name, role: u.role, branches: branchesOf(u) }));
+  return new Response(JSON.stringify({ users: projected, roles: ROLES }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };
@@ -132,6 +139,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   if (!username || !name || !password || !ROLES.includes(role)) {
     return new Response(JSON.stringify({ error: 'campos incompletos o rol inválido' }), { status: 400 });
+  }
+  // Quien solo gestiona sucursales no puede crear administradores (el PATCH ya lo impedía,
+  // pero por aquí se podía crear una cuenta admin nueva y entrar con ella).
+  if (role === 'admin' && !canManageUsers(session.role)) {
+    return new Response(JSON.stringify({ error: 'solo un administrador puede crear otro administrador' }), { status: 403 });
   }
   if (password.length < 8) {
     return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
@@ -214,18 +226,19 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
 
   if (isBranchManager) {
-    // Josué y Wilmar pueden editarle a otros usuarios la sucursal, el rol, la contraseña y
-    // activar/desactivar la cuenta — nada de nombre (eso sigue siendo exclusivo de admin).
-    // Nunca pueden tocar una cuenta que YA es admin, ni ascender a nadie a admin: ese límite
-    // es lo único que evita que tomen control de una cuenta de administrador o se autoasciendan.
+    // Josué y Wilmar solo configuran la sucursal (y la de inventario) de cada usuario. Antes
+    // también podían resetear claves, cambiar roles y activar cuentas de cualquier no admin,
+    // lo que permitía suplantar a un gerente; eso queda solo para admin.
     if (user.role === 'admin') {
       return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
     }
-    if (body.name !== undefined || body.currentPassword !== undefined) {
-      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal, el rol, la contraseña o el estado activo de este usuario' }), { status: 403 });
+    const allowed = ['id', 'branch', 'branches', 'inventoryBranches'];
+    const extra = Object.keys(body).filter((k) => !allowed.includes(k) && (body as any)[k] !== undefined);
+    if (extra.length) {
+      return new Response(JSON.stringify({ error: 'solo puedes editar la sucursal y la sucursal de inventario de este usuario' }), { status: 403 });
     }
-    if (body.branch === undefined && body.branches === undefined && body.inventoryBranches === undefined && body.password === undefined && body.role === undefined && body.active === undefined) {
-      return new Response(JSON.stringify({ error: 'falta la sucursal, el rol, la nueva contraseña o el estado activo' }), { status: 400 });
+    if (body.branch === undefined && body.branches === undefined && body.inventoryBranches === undefined) {
+      return new Response(JSON.stringify({ error: 'falta la sucursal' }), { status: 400 });
     }
 
     if (body.inventoryBranches !== undefined) {
@@ -235,14 +248,6 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       }
       user.inventoryBranches = inventoryBranches;
       await logAudit(redis, session, 'user_inventory_branches_update', user.username, inventoryBranches.join(', ') || '(ninguna)');
-    }
-
-    if (body.role !== undefined) {
-      if (!ROLES.includes(body.role as Role) || body.role === 'admin') {
-        return new Response(JSON.stringify({ error: 'rol inválido' }), { status: 400 });
-      }
-      user.role = body.role as Role;
-      await logAudit(redis, session, 'user_role_update', user.username, body.role);
     }
 
     if (body.branches !== undefined) {
@@ -261,24 +266,6 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       user.branches = branch ? [branch] : [];
       user.branch = branch || null;
       await logAudit(redis, session, 'user_branch_update', user.username, branch || '(sin sucursal)');
-    }
-
-    if (body.password !== undefined && body.password !== '') {
-      if (String(body.password).length < 8) {
-        return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
-      }
-      user.passwordHash = hashPassword(String(body.password));
-      user.mustChangePassword = true;
-      await destroyAllSessionsForUser(redis, user.id);
-      await logAudit(redis, session, 'user_password_reset', user.username, `(reiniciada por ${session.username})`);
-    }
-
-    if (body.active !== undefined) {
-      user.active = Boolean(body.active);
-      if (!user.active) {
-        await destroyAllSessionsForUser(redis, user.id);
-      }
-      await logAudit(redis, session, 'user_update', user.username, user.active ? 'activado' : 'desactivado');
     }
 
     user.updatedAt = new Date().toISOString();
@@ -307,6 +294,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     user.mustChangePassword = false;
     user.updatedAt = new Date().toISOString();
     await saveUser(redis, user);
+    // Si cambió la clave porque sospecha que se la robaron, las otras sesiones deben caer.
+    await destroyOtherSessionsForUser(redis, user.id, cookies.get(SESSION_COOKIE)?.value);
     await logAudit(redis, session, 'user_password_self_change', user.username);
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
   }
@@ -326,6 +315,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!ROLES.includes(body.role as Role)) {
       return new Response(JSON.stringify({ error: 'rol inválido' }), { status: 400 });
     }
+    // El rol viaja dentro de la sesión: sin esto, un usuario degradado seguía con los permisos
+    // viejos hasta 24 horas.
+    if (user.role !== body.role && !isSelf) await destroyAllSessionsForUser(redis, user.id);
     user.role = body.role as Role;
   }
   if (body.branches !== undefined) {
@@ -355,10 +347,17 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (String(body.password).length < 8) {
       return new Response(JSON.stringify({ error: 'la contraseña debe tener al menos 8 caracteres' }), { status: 400 });
     }
+    // Un admin que cambia su propia clave debe demostrar la actual: si no, una sesión robada
+    // se vuelve permanente.
+    if (isSelf && (!body.currentPassword || !verifyPassword(body.currentPassword, user.passwordHash))) {
+      return new Response(JSON.stringify({ error: 'la contraseña actual no es correcta' }), { status: 401 });
+    }
     user.passwordHash = hashPassword(String(body.password));
     if (!isSelf) {
       user.mustChangePassword = true;
       await destroyAllSessionsForUser(redis, user.id);
+    } else {
+      await destroyOtherSessionsForUser(redis, user.id, cookies.get(SESSION_COOKIE)?.value);
     }
   }
   if (body.active !== undefined) {
@@ -373,7 +372,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   user.updatedAt = new Date().toISOString();
 
   await saveUser(redis, user);
-  await logAudit(redis, session, 'user_update', user.username, JSON.stringify({ ...body, password: body.password ? '***' : undefined }));
+  // En auditoría solo qué campos cambiaron, nunca los valores (ahí caían contraseñas).
+  const changed = ['name', 'role', 'active', 'branch', 'branches', 'inventoryBranches'].filter((k) => (body as any)[k] !== undefined);
+  if (body.password) changed.push('password');
+  await logAudit(redis, session, 'user_update', user.username, changed.join(', '));
 
   return new Response(JSON.stringify({ user: publicUser(user) }), {
     headers: { 'Content-Type': 'application/json' },

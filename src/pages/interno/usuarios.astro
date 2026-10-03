@@ -31,7 +31,7 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
         <div class="field">
           <label for="u-role">Rol</label>
           <select id="u-role" required>
-            {ROLES.map((r) => <option value={r}>{ROLE_LABELS[r]}</option>)}
+            {ROLES.filter((r) => isFullAdmin || r !== 'admin').map((r) => <option value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
         </div>
         <div class="field">
@@ -95,7 +95,7 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
 
   <div class="panel-card">
     <h2>Usuarios</h2>
-    {!isFullAdmin && <p class="hint">Puedes crear usuarios nuevos, asignarles sucursal o rol, restablecer su contraseña, y activar o desactivar su cuenta.</p>}
+    {!isFullAdmin && <p class="hint">Puedes crear usuarios nuevos (sin rol de administrador) y asignarles sucursal y sucursal de inventario. Cambiar el rol, restablecer la contraseña o desactivar una cuenta lo hace el administrador.</p>}
     <div class="filters">
       <input id="searchInput" type="text" placeholder="Buscar por nombre o usuario..." />
       <select id="roleFilter">
@@ -103,7 +103,7 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
         {ROLES.map((r) => <option value={r}>{ROLE_LABELS[r]}</option>)}
       </select>
     </div>
-    <div class="list-col" id="usersList">
+    <div class="list-col" id="usersList" data-full-admin={isFullAdmin ? '1' : ''}>
       <div class="empty">Cargando...</div>
     </div>
   </div>

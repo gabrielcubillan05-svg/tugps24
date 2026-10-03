@@ -453,6 +453,23 @@ export async function purgeExpiredSessions(redis: Redis, dryRun = false): Promis
   return toDelete.length;
 }
 
+// Cierra las demás sesiones del usuario y conserva la actual (la del cookieValue dado).
+export async function destroyOtherSessionsForUser(redis: Redis, userId: string, currentCookieValue: string | undefined): Promise<void> {
+  const keep = currentCookieValue ? parseCookieValue(currentCookieValue) : null;
+  const raw = (await redis.hgetall<Record<string, string>>(SESSIONS_KEY)) || {};
+  const toDelete: string[] = [];
+  for (const [sessionId, v] of Object.entries(raw)) {
+    if (sessionId === keep) continue;
+    try {
+      const session: Session = typeof v === 'string' ? JSON.parse(v) : (v as any);
+      if (session.userId === userId) toDelete.push(sessionId);
+    } catch {
+      // entrada corrupta, se ignora
+    }
+  }
+  if (toDelete.length) await redis.hdel(SESSIONS_KEY, ...toDelete);
+}
+
 export async function destroyAllSessionsForUser(redis: Redis, userId: string): Promise<void> {
   const raw = (await redis.hgetall<Record<string, string>>(SESSIONS_KEY)) || {};
   const toDelete: string[] = [];
