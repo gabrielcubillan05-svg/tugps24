@@ -103,12 +103,13 @@ document.addEventListener('DOMContentLoaded', function () {
     return fetch('/api/conversations' + (qs ? '?' + qs : ''))
       .then((res) => res.json())
       .then((data) => {
-        if (data && data.unchanged) return;
+        if (data && data.unchanged) return false;
         if (data && Array.isArray(data.conversations)) {
           if (data.version) conversationsVersion = data.version;
           conversations = data.conversations;
           renderConversations();
         }
+        return true;
       })
       .catch(() => {});
   }
@@ -363,9 +364,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // El polling automático solo aplica al modo normal — en modo supervisión (admin viendo
   // conversaciones ajenas) se evita, para no dejar un registro de auditoría repitiéndose solo.
+  // Los mensajes de la conversación abierta solo se vuelven a pedir cuando la lista cambió
+  // (mensaje nuevo o lectura): si nada se movió, el sondeo cuesta una sola lectura.
   setInterval(function () {
     if (oversightMode) return;
-    loadConversations();
-    if (activeConversationId) loadMessages(activeConversationId);
+    loadConversations().then((changed) => {
+      if (changed !== false && activeConversationId) loadMessages(activeConversationId);
+    });
   }, 20000);
 });

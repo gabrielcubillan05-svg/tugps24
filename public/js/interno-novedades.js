@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return Boolean(searchInput.value.trim() || branchFilter.value || categoryFilter.value || employeeFilter.value || loadAll);
   }
 
+  let reportsVersion = '';
   function loadReports() {
     const params = new URLSearchParams();
     const q = searchInput.value.trim();
@@ -113,11 +114,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (employeeFilter.value) params.set('employee', employeeFilter.value);
     if (loadAll) params.set('all', '1');
     if (scanLimit) params.set('scanLimit', String(scanLimit));
+    const plainView = params.toString() === '';
+    if (plainView && reportsVersion) params.set('v', reportsVersion);
 
     fetch('/api/reports?' + params.toString())
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
+        if (data && data.unchanged) return;
         if (data && Array.isArray(data.reports)) {
+          reportsVersion = plainView && data.version ? data.version : '';
           // El auto-refresco no redibuja (ni recarga las fotos) si no llegó nada nuevo.
           const signature = params.toString() + '|' + data.reports.map((r) => r.id).join(',');
           if (signature !== lastSignature) {

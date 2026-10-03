@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
+import { bumpVersion, readVersion, REPORTS_VERSION_KEY, unchangedResponse } from '../../lib/versions';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { SESSION_COOKIE, getSession, canAccessSection, getUsers, findUserById, verifySameOrigin } from '../../lib/auth';
@@ -84,6 +85,14 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // bloques hasta un tope (ampliable con scanLimit si el operador pide seguir
   // buscando más atrás), no el historial completo de golpe.
   const needsFullScan = Boolean(q || branch || category || employee || all);
+  // Vista normal (las 200 más recientes): cada pestaña de la central la refresca cada 2
+  // minutos; si no entró ninguna novedad desde la última vez, no se relee ni se serializa.
+  let listVersion: string | undefined;
+  if (!needsFullScan) {
+    listVersion = await readVersion(redis, REPORTS_VERSION_KEY);
+    const known = url.searchParams.get('v');
+    if (known && known === listVersion) return unchangedResponse(listVersion);
+  }
   const total = await redis.llen(REDIS_KEY);
   let raw: string[] = [];
   if (needsFullScan) {
@@ -133,6 +142,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       searchIncomplete: needsFullScan && scannedCount < total,
       scannedCount,
       scanLimit,
+      version: listVersion,
     }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
@@ -231,6 +241,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   await redis.lpush(REDIS_KEY, JSON.stringify(report));
+  await bumpVersion(redis, REPORTS_VERSION_KEY);
   await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category);
 
   // Los avisos a supervisores y gerentes van en paralelo. Antes iban uno por uno, y cada uno

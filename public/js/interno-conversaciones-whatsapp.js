@@ -192,5 +192,7 @@ document.addEventListener('DOMContentLoaded', function () {
   stageFilter.addEventListener('change', loadList);
 
   loadList();
-  setInterval(loadList, 20000);
+  // La lista recorre todos los leads y cobros en el servidor: un minuto es suficiente para
+  // que aparezca una conversación nueva; el hilo abierto sí se refresca cada 8 s.
+  setInterval(loadList, 60000);
 });

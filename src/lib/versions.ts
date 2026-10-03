@@ -4,6 +4,7 @@
 export const NOTIF_VERSION_PREFIX = 'internal:ver:notif:';
 export const CHAT_VERSION_KEY = 'internal:ver:chat';
 export const SHUTDOWNS_VERSION_KEY = 'internal:ver:shutdowns';
+export const REPORTS_VERSION_KEY = 'internal:ver:reports';
 
 export function notifVersionKey(userId: string): string {
   return `${NOTIF_VERSION_PREFIX}${userId}`;
