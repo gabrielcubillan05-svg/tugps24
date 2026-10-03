@@ -2,6 +2,24 @@
 
 **Fecha:** 3 de octubre de 2026 · **Alcance:** todo el repositorio (70 endpoints, 32 páginas del panel, librerías, crons, JS del navegador, dependencias, historial de git) · **Método:** cinco revisiones independientes en paralelo (autenticación y permisos; exposición de datos; entradas externas e inyección; operación y resiliencia; lógica de negocio), cada hallazgo verificado leyendo el código real y, donde aplicaba, reproducido con scripts. No se modificó código durante la auditoría.
 
+## 0. Estado de ejecución (3 de octubre de 2026, madrugada)
+
+Se aplicaron en `main`, en seis commits, 58 de los 69 hallazgos. Lo que queda pendiente y por qué:
+
+| Pendiente | Motivo | Quién |
+|---|---|---|
+| Confirmar respaldos diarios en la consola de Upstash | No es visible desde el código; el cron propio de respaldo a Blob ya corre a las 2:30 am | Gabriel |
+| Aceptar los acuerdos de tratamiento de datos (DPA) de Anthropic y OpenAI y pedir retención cero | Trámite en las consolas de cada proveedor | Gabriel |
+| Revisar el texto nuevo de la política de privacidad con quien lleve lo legal | Es un borrador técnico, no asesoría jurídica | Gabriel |
+| Conectar `/api/health` a un monitor externo gratuito (UptimeRobot, Better Stack) | Servicio externo | Gabriel |
+| Reescribir el historial de git para sacar el teléfono real del script borrado | Requiere `git filter-repo` y push forzado que afecta el clon de la PC | Decisión de Gabriel |
+| Campo `rev` por registro contra el "último que escribe gana" | Toca todas las escrituras del sistema; se dejó para una iteración aparte con pruebas | Siguiente iteración |
+| Historial de WhatsApp como lista y contadores de no leídos atómicos | Cambio de estructura de datos con migración | Siguiente iteración |
+| Webhook asíncrono (`waitUntil`) | Mitigado con tiempos límite y marca dentro del try; el rediseño va aparte | Siguiente iteración |
+| Índices secundarios (tareas por asignado, leads por seguimiento, novedades por día, conversaciones por usuario) | Rendimiento, no seguridad; se hará con medición | Siguiente iteración |
+| Dos vulnerabilidades altas en herramientas del adaptador de Vercel (`path-to-regexp`, `http-cache-semantics`) | Solo con `npm audit fix --force`, que cambia versiones mayores; afectan al build, no al runtime | Revisar con la próxima versión del adaptador |
+| Operadores ven casos importantes de todas las sucursales | La central de monitoreo es nacional por diseño; se deja documentado | Sin cambio |
+
 ## 1. Resumen ejecutivo
 
 | Gravedad | Cantidad | Qué significa |
