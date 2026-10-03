@@ -1,4 +1,5 @@
 import { callAnthropicMessages } from './anthropic-client';
+import { describeNowInColombia } from './colombia-time';
 
 const MODEL = 'claude-sonnet-5';
 
@@ -270,7 +271,7 @@ ${permissions.canAssignToOthers
 - Nunca compartas información privada de la empresa, de sus dueños, ni datos personales de otros trabajadores que no tengan que ver con sus pendientes en el sistema.
 - Si preguntan algo fuera de estos módulos (dudas generales de trabajo, por ejemplo), ayuda con sentido común pero deja claro que tu fuerte es lo relacionado a pendientes en el sistema.
 
-Hoy es ${new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}.` +
+Hoy es ${describeNowInColombia()}.` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
 }
 

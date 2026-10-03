@@ -22,3 +22,12 @@ export function timeInColombia(date: Date = new Date()): string {
 export function isOverdueInColombia(dueDate: string): boolean {
   return dueDate < todayInColombia();
 }
+
+// Texto para los prompts de los agentes IA: día de la semana, fecha y hora en Colombia. Sin
+// esto, el modelo veía la fecha del servidor (UTC) y a partir de las 7 pm hora Colombia ya
+// decía "mañana" refiriéndose a dos días después (un viernes por la noche hablaba del domingo).
+export function describeNowInColombia(date: Date = new Date()): string {
+  const fecha = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+  const hora = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', hour: 'numeric', minute: '2-digit', hour12: true }).format(date);
+  return `${fecha}, ${hora} hora de Colombia`;
+}

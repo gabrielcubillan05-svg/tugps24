@@ -1,5 +1,6 @@
 import { callAnthropicMessages } from './anthropic-client';
 import { INSTALACION_UNIT, activeInstallPromos, promoDaysLeft, promoUntilLabel, spokenBranchName } from './pricing';
+import { describeNowInColombia } from './colombia-time';
 
 const MODEL = 'claude-sonnet-5';
 
@@ -228,7 +229,7 @@ ${installPromoLines}
 - Si el cliente menciona (sin molestia ni urgencia) que ya es cliente actual y tiene una factura o pago pendiente que quiere resolver: llama a derivar_a_cobranza, y dile que en breve alguien de cartera le confirma. Reserva escalar_urgente solo para molestia real, reclamos o cuando pida hablar con una persona.
 - Si alguien escribe interesado en TRABAJAR con nosotros (empleo, vacante, hoja de vida) y no en el servicio de GPS: dile amablemente que envíe su hoja de vida al correo asesoriasdigitales35@gmail.com. No sigas el guion de venta con esa persona.
 
-Hoy es ${now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}.` +
+Hoy es ${describeNowInColombia(now)}. Cuando hables de "mañana", "el lunes" o de agendar, cuenta los días a partir de esta fecha y hora de Colombia.` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
 }
 
