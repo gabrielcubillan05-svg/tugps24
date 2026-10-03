@@ -7,7 +7,7 @@ import { pushNotification } from '../../lib/notifications';
 import { sendGabotMessage } from '../../lib/gabot';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
-import { readLeads, writeLeads, normalizePhone, type Lead } from './leads';
+import { readLeads, writeLeads, normalizePhone, mergeLeadIntoCurrent, type Lead } from './leads';
 import { readHistory, appendHistory, findBranchAssignee, GENERIC_FALLBACK_TEXT, conversationOnly } from './whatsapp-webhook';
 import { getClientIp, checkAndIncrementRateLimit } from '../../lib/rate-limit';
 
@@ -100,6 +100,7 @@ export const POST: APIRoute = async ({ request }) => {
   // reutilizado aquí solo como un identificador libre) hasta que da su teléfono real —
   // a partir de ahí también queda deduplicado por teléfono como cualquier otro lead.
   let lead = allLeads.find((l) => l.source === 'web-chat' && l.metaLeadId === sessionId);
+  const snapshot = lead ? structuredClone(lead) : null;
   let isNewLead = false;
 
   if (!lead) {
@@ -229,6 +230,7 @@ export const POST: APIRoute = async ({ request }) => {
   lead.updatedAt = new Date().toISOString();
   lead.lastOutboundAt = lead.updatedAt;
 
+  lead = await mergeLeadIntoCurrent(redis, snapshot, lead);
   await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
   await appendHistory(redis, lead.id, [
     { role: 'user', content: text },

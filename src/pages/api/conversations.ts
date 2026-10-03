@@ -6,6 +6,7 @@ import { logAudit } from '../../lib/audit';
 import { removeNotification } from '../../lib/notifications';
 import { SESSION_COOKIE, getSession, getUsers, findUserById, canManageUsers, verifySameOrigin } from '../../lib/auth';
 import { GABOT_ID, GABOT_NAME } from '../../lib/gabot-constants';
+import { clearUnread, readUnreadMap } from '../../lib/chat-unread';
 
 export const prerender = false;
 
@@ -74,7 +75,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const known = url.searchParams.get('v');
   if (known && known === version) return unchangedResponse(version);
 
-  const [all, users] = await Promise.all([readConversations(redis), getUsers(redis)]);
+  const [all, users, unreadMap] = await Promise.all([readConversations(redis), getUsers(redis), scopeAll ? Promise.resolve({}) : readUnreadMap(redis, session.userId)]);
 
   if (url.searchParams.get('scope') === 'all') {
     if (!canManageUsers(session.role)) {
@@ -111,7 +112,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       return {
         ...c,
         displayName,
-        unreadCount: c.unread[session.userId] || 0,
+        unreadCount: unreadMap[c.id] !== undefined ? unreadMap[c.id] : c.unread[session.userId] || 0,
         isGabot: c.type === 'dm' && c.memberIds.includes(GABOT_ID),
       };
     })
@@ -274,6 +275,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   if (body.markRead) {
     conversation.unread[session.userId] = 0;
+    await clearUnread(redis, session.userId, id);
     conversation.lastRead[session.userId] = new Date().toISOString();
     await removeNotification(redis, session.userId, `chat:${id}`);
   }

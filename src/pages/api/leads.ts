@@ -127,6 +127,41 @@ export async function writeLeads(redis: any, fields: Record<string, string>): Pr
   leadsCache = null;
 }
 
+// Los agentes IA tardan entre 5 y 45 segundos entre leer el lead y volver a escribirlo. Si en
+// ese lapso una secretaria lo editó en el CRM (o llegó otro mensaje), guardar el objeto
+// completo borraba su cambio ("el último que escribe gana"). Aquí se relee el lead actual y se
+// le aplican solo los campos que este flujo cambió respecto a la foto que tomó al empezar; las
+// notas nuevas se agregan encima de las que haya ahora. Un lead nuevo no tiene foto: se guarda
+// tal cual.
+export async function mergeLeadIntoCurrent(redis: any, snapshot: Lead | null, changed: Lead): Promise<Lead> {
+  if (!snapshot) return changed;
+  const raw = await redis.hget(REDIS_KEY, changed.id);
+  if (!raw) return changed;
+  let current: Lead;
+  try {
+    current = normalizeLead(typeof raw === 'string' ? JSON.parse(raw) : raw);
+  } catch {
+    return changed;
+  }
+  const merged: any = { ...current };
+  const keys = new Set([...Object.keys(snapshot), ...Object.keys(changed)]);
+  for (const key of keys) {
+    if (key === 'notes') continue;
+    if (JSON.stringify((snapshot as any)[key]) !== JSON.stringify((changed as any)[key])) merged[key] = (changed as any)[key];
+  }
+  // Si un humano tomó el lead mientras el agente pensaba, el agente no lo devuelve a la IA.
+  const humanHasIt = current.aiStage === 'entregado' || current.aiStage === 'escalado';
+  if (humanHasIt && changed.aiStage === 'en_conversacion') {
+    merged.aiStage = current.aiStage;
+    merged.aiHandoffAt = current.aiHandoffAt;
+    if (current.secretary) merged.secretary = current.secretary;
+  }
+  const known = new Set((snapshot.notes || []).map((n) => `${n.date}|${n.text}`));
+  const newNotes = (changed.notes || []).filter((n) => !known.has(`${n.date}|${n.text}`));
+  merged.notes = [...newNotes, ...(current.notes || [])];
+  return merged as Lead;
+}
+
 export async function deleteLeads(redis: any, ids: string[]): Promise<void> {
   if (!ids.length) return;
   await redis.hdel(REDIS_KEY, ...ids);

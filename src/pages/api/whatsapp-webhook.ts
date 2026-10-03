@@ -8,7 +8,8 @@ import { sendWhatsappText, sendWhatsappMedia, verifyMetaSignature } from '../../
 import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { runCollectionsAgent } from '../../lib/collections-agent';
-import { readLeads, writeLeads, normalizeLead, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { readLeads, writeLeads, normalizeLead, normalizePhone, mergeLeadIntoCurrent, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { waitUntil } from '@vercel/functions';
 import { readCobros, normalizeCobro, writeCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { reportIncident } from '../../lib/incidents';
 import { readAgentMedia } from './whatsapp-agent-media';
@@ -291,6 +292,9 @@ async function handleUnsupportedMessage(redis: any, fromPhone: string, msgType: 
 async function handleInboundMessage(redis: any, fromPhone: string, text: string, contactName: string, ctx?: ReplyCtx): Promise<void> {
   const now = new Date().toISOString();
   let lead = await findLeadByPhone(redis, fromPhone);
+  // Foto del lead tal como estaba antes de tocarlo: al guardar se aplican solo los cambios de
+  // este mensaje sobre lo que haya en Redis en ese momento (ver mergeLeadIntoCurrent).
+  const snapshot = lead ? structuredClone(lead) : null;
   const isNewLead = !lead;
   if (!lead) {
     lead = newLeadFromWhatsapp(fromPhone, contactName, now);
@@ -307,6 +311,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   // Si ya se entregó a una sucursal o se escaló, la IA no vuelve a contestar sola: solo
   // registra el mensaje y avisa a quien lo tenga asignado, para no chocar con la secretaria.
   if (lead.aiStage === 'entregado' || lead.aiStage === 'escalado') {
+    lead = await mergeLeadIntoCurrent(redis, snapshot, lead);
     await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
     await appendHistory(redis, lead.id, [{ role: 'user', content: text }]);
     if (lead.secretary) {
@@ -459,6 +464,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
     await reportIncident(redis, 'whatsapp_send_failed', `…${fromPhone.slice(-4)}: ${sendResult.error || 'error'}`);
   }
 
+  lead = await mergeLeadIntoCurrent(redis, snapshot, lead);
   await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
   await appendHistory(redis, lead.id, [
     { role: 'user', content: text },
@@ -643,6 +649,132 @@ export async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: st
   }
 }
 
+// Candado por número de cliente. Dos mensajes seguidos del mismo cliente llegan como dos
+// invocaciones en paralelo: las dos leían el mismo historial y el mismo lead, y la que guardaba
+// de última borraba lo de la otra (se perdían mensajes del historial y respuestas del agente).
+// Con el candado, el segundo mensaje espera al primero y además lo ve ya en el historial, así
+// que Andrés contesta con todo el contexto. Si en un minuto no se libera (una invocación que
+// murió), se sigue igual: peor es dejar al cliente sin respuesta.
+const PHONE_LOCK_SECONDS = 90;
+const PHONE_LOCK_WAIT_MS = 60_000;
+
+async function withPhoneLock<T>(redis: any, phone: string, fn: () => Promise<T>, options: { waitMs?: number; skipIfBusy?: boolean } = {}): Promise<T | undefined> {
+  const key = `internal:whatsapp-phone-lock:${phone}`;
+  const token = randomUUID();
+  const waitMs = options.waitMs ?? PHONE_LOCK_WAIT_MS;
+  const started = Date.now();
+  let acquired = false;
+  for (;;) {
+    acquired = !!(await redis.set(key, token, { nx: true, ex: PHONE_LOCK_SECONDS }));
+    if (acquired || Date.now() - started >= waitMs) break;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  if (!acquired && options.skipIfBusy) return undefined;
+  try {
+    return await fn();
+  } finally {
+    if (acquired) {
+      // Solo se libera si sigue siendo nuestro: si venció y lo tomó otra invocación, no se le quita.
+      const owner = await redis.get(key).catch(() => null);
+      if (owner === token) await redis.del(key).catch(() => {});
+    }
+  }
+}
+
+// En Vercel, waitUntil deja la función viva hasta que termine la promesa aunque ya se haya
+// respondido. Fuera de Vercel (astro dev) no hay contexto y el trabajo se espera en línea.
+function runAfterResponse(work: Promise<unknown>): Promise<unknown> | null {
+  const context = (globalThis as any)[Symbol.for('@vercel/request-context')]?.get?.();
+  if (!context || typeof context.waitUntil !== 'function') return work;
+  waitUntil(work);
+  return null;
+}
+
+type StatusWork = { phone: string; note: string };
+type InboundWork = { msg: any; fromPhone: string; contacts: any[] };
+
+async function processStatusNotes(redis: any, statuses: StatusWork[]): Promise<void> {
+  for (const { phone, note } of statuses) {
+    try {
+      const target = await resolvePhoneTarget(redis, phone);
+      if (!target) continue;
+      // Un acuse es diagnóstico: si el número está ocupado procesando un mensaje real, se omite
+      // en vez de esperar o de pisarle el historial.
+      await withPhoneLock(
+        redis,
+        phone,
+        async () => {
+          if (target.kind === 'cobro') await appendCobroHistory(redis, target.id, [{ role: 'assistant', content: note }]);
+          else await appendHistory(redis, target.id, [{ role: 'assistant', content: note }]);
+        },
+        { waitMs: 5_000, skipIfBusy: true }
+      );
+    } catch (err) {
+      console.error('whatsapp-webhook: acuse no registrado …' + phone.slice(-4), err instanceof Error ? err.message : String(err));
+    }
+  }
+}
+
+async function processInboundMessage(redis: any, { msg, fromPhone, contacts }: InboundWork): Promise<void> {
+  const ctx: ReplyCtx = { replied: false };
+  try {
+    await withPhoneLock(redis, fromPhone, async () => {
+      const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
+
+      // Si el número corresponde a un cobro cargado en Cobranza Masiva, lo maneja la
+      // agente de cobranza (Valentina) — salvo que ya se haya derivado a ventas (el
+      // cliente pidió instalar un vehículo nuevo), en cuyo caso sigue con Andrés.
+      const cobro = await findCobroByPhone(redis, fromPhone);
+      const routeToCollections = !!cobro && !cobro.derivedToSales;
+
+      let text = '';
+      if (msg.type === 'text') {
+        text = msg.text?.body ? String(msg.text.body) : '';
+      } else if (msg.type === 'audio' && msg.audio?.id) {
+        text = (await transcribeWhatsappAudio(String(msg.audio.id))) || '';
+      }
+
+      if (!text) {
+        // No se pudo transcribir el audio, o es un tipo que no leemos (foto, video,
+        // documento, sticker, ubicación) — avisamos al cliente en vez de dejarlo en
+        // silencio, salvo que el caso ya lo tenga un humano.
+        if (routeToCollections && cobro) {
+          await handleUnsupportedCobroMessage(redis, cobro, msg.type);
+        } else {
+          await handleUnsupportedMessage(redis, fromPhone, msg.type, ctx);
+        }
+        return;
+      }
+
+      if (routeToCollections && cobro) {
+        await handleCollectionsMessage(redis, cobro, text, ctx);
+      } else {
+        await handleInboundMessage(redis, fromPhone, text, contactName, ctx);
+      }
+    });
+  } catch (err) {
+    // Un mensaje que falla (Anthropic, Redis, Meta) no debe tumbar los demás del mismo
+    // paquete ni quedar marcado como atendido: se libera su marca para que el reintento
+    // de Meta lo vuelva a procesar, y queda en auditoría con el número del cliente.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('whatsapp-webhook: fallo procesando mensaje de …' + fromPhone.slice(-4), message);
+    await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', `…${fromPhone.slice(-4)}`, message).catch(() => {});
+    await reportIncident(redis, 'whatsapp_webhook_error', message);
+    // La marca solo se libera si al cliente no le llegó respuesta: si ya se le respondió
+    // y falló algo posterior, reprocesar le mandaría una segunda respuesta.
+    if (msg.id && !ctx.replied) await redis.del(`internal:whatsapp-msg-seen:${msg.id}`).catch(() => {});
+  }
+}
+
+async function processWebhookWork(redis: any, statuses: StatusWork[], inbound: InboundWork[]): Promise<void> {
+  try {
+    await processStatusNotes(redis, statuses);
+    for (const item of inbound) await processInboundMessage(redis, item);
+  } catch (err) {
+    await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', 'error', err instanceof Error ? err.message : String(err)).catch(() => {});
+  }
+}
+
 export const POST: APIRoute = async ({ request }) => {
   const rawBody = await request.text();
   if (!verifyMetaSignature(rawBody, request.headers.get('x-hub-signature-256'))) {
@@ -662,114 +794,63 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('EVENT_RECEIVED', { status: 200 });
   }
 
-  try {
-    const entries = Array.isArray(payload.entry) ? payload.entry : [];
-    for (const entry of entries) {
-      const changes = Array.isArray(entry.changes) ? entry.changes : [];
-      for (const change of changes) {
-        if (change.field !== 'messages') continue;
-        const value = change.value || {};
-        // Si la misma app de Meta llegara a tener otro número, sus mensajes no deben entrar al CRM.
-        const ourNumber = import.meta.env.META_PHONE_NUMBER_ID;
-        if (ourNumber && value.metadata?.phone_number_id && String(value.metadata.phone_number_id) !== String(ourNumber)) continue;
-        const messages = Array.isArray(value.messages) ? value.messages : [];
-        const contacts = Array.isArray(value.contacts) ? value.contacts : [];
+  // Primera fase, antes de responder: se decide qué hay que procesar y se marca cada mensaje
+  // como visto. Lo pesado (transcribir, Anthropic, enviar) va en la segunda fase, después de
+  // responderle a Meta: Meta espera la respuesta pocos segundos y, si tarda, reenvía el paquete
+  // y con el tiempo da el webhook por caído. Antes se procesaba todo antes de responder.
+  const statuses: StatusWork[] = [];
+  const inbound: InboundWork[] = [];
+  const entries = Array.isArray(payload.entry) ? payload.entry : [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry.changes) ? entry.changes : [];
+    for (const change of changes) {
+      if (change.field !== 'messages') continue;
+      const value = change.value || {};
+      // Si la misma app de Meta llegara a tener otro número, sus mensajes no deben entrar al CRM.
+      const ourNumber = import.meta.env.META_PHONE_NUMBER_ID;
+      if (ourNumber && value.metadata?.phone_number_id && String(value.metadata.phone_number_id) !== String(ourNumber)) continue;
+      const messages = Array.isArray(value.messages) ? value.messages : [];
+      const contacts = Array.isArray(value.contacts) ? value.contacts : [];
 
-        // Meta también manda por acá el estado real de entrega de cada mensaje que
-        // enviamos (enviado/entregado/leído/fallido) — se registra en el historial del
-        // cliente para poder diagnosticar de verdad si algo se está demorando o fallando
-        // en vez de adivinar. "sent" no se registra: ya sabíamos que se mandó.
-        // Solo "read" y "failed" aportan algo: "sent" ya lo sabíamos y "delivered" queda
-        // implícito en "read". Así el historial no se llena de acuses.
-        const statuses = (Array.isArray(value.statuses) ? value.statuses : []).filter((st: any) => {
-          const label = String(st?.status || '');
-          return (label === 'read' || label === 'failed') && normalizePhone(String(st?.recipient_id || ''));
-        });
-        for (const st of statuses) {
-          const statusLabel = String(st.status);
-          const phone = normalizePhone(String(st.recipient_id));
-          const errorInfo = Array.isArray(st.errors) && st.errors[0] ? ` — ${st.errors[0].title || st.errors[0].code || ''}` : '';
-          const note = `[Estado WhatsApp] ${statusLabel}${errorInfo}`;
-          const target = await resolvePhoneTarget(redis, phone);
-          if (!target) continue;
-          if (target.kind === 'cobro') {
-            await appendCobroHistory(redis, target.id, [{ role: 'assistant', content: note }]);
-          } else {
-            await appendHistory(redis, target.id, [{ role: 'assistant', content: note }]);
-          }
-        }
+      // Meta también manda por acá el estado real de entrega de cada mensaje que enviamos —
+      // se registra en el historial del cliente para poder diagnosticar si algo se demora o
+      // falla. Solo "read" y "failed" aportan algo: "sent" ya lo sabíamos y "delivered" queda
+      // implícito en "read". Así el historial no se llena de acuses.
+      for (const st of Array.isArray(value.statuses) ? value.statuses : []) {
+        const statusLabel = String(st?.status || '');
+        const phone = normalizePhone(String(st?.recipient_id || ''));
+        if ((statusLabel !== 'read' && statusLabel !== 'failed') || !phone) continue;
+        const errorInfo = Array.isArray(st.errors) && st.errors[0] ? ` — ${st.errors[0].title || st.errors[0].code || ''}` : '';
+        statuses.push({ phone, note: `${STATUS_NOTE_PREFIX} ${statusLabel}${errorInfo}` });
+      }
 
-        for (const msg of messages) {
-          const fromPhone = normalizePhone(String(msg.from || ''));
-          if (!fromPhone) continue;
+      for (const msg of messages) {
+        const fromPhone = normalizePhone(String(msg.from || ''));
+        if (!fromPhone) continue;
 
-          // Meta puede reenviar el mismo mensaje varias veces (reintentos); nos quedamos
-          // solo con el primer intento usando el id del mensaje como llave de una sola vez.
-          if (msg.id) {
-            let isNew: unknown;
-            try {
-              isNew = await redis.set(`internal:whatsapp-msg-seen:${msg.id}`, '1', { nx: true, ex: 86400 });
-            } catch (err) {
-              // Redis no respondió antes de marcar el mensaje: se contesta 503 para que Meta
-              // reintente el paquete (los ya procesados quedan protegidos por su marca). Antes
-              // se respondía 200 y el mensaje se perdía sin rastro.
-              console.error('whatsapp-webhook: Redis falló al marcar el mensaje', msg.id, err instanceof Error ? err.message : String(err));
-              return new Response('retry', { status: 503 });
-            }
-            if (!isNew) continue;
-          }
-
-          const ctx: ReplyCtx = { replied: false };
+        // Meta puede reenviar el mismo mensaje varias veces (reintentos); nos quedamos
+        // solo con el primer intento usando el id del mensaje como llave de una sola vez.
+        if (msg.id) {
+          let isNew: unknown;
           try {
-          const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
-
-          // Si el número corresponde a un cobro cargado en Cobranza Masiva, lo maneja la
-          // agente de cobranza (Valentina) — salvo que ya se haya derivado a ventas (el
-          // cliente pidió instalar un vehículo nuevo), en cuyo caso sigue con Andrés.
-          const cobro = await findCobroByPhone(redis, fromPhone);
-          const routeToCollections = !!cobro && !cobro.derivedToSales;
-
-          let text = '';
-          if (msg.type === 'text') {
-            text = msg.text?.body ? String(msg.text.body) : '';
-          } else if (msg.type === 'audio' && msg.audio?.id) {
-            text = (await transcribeWhatsappAudio(String(msg.audio.id))) || '';
-          }
-
-          if (!text) {
-            // No se pudo transcribir el audio, o es un tipo que no leemos (foto, video,
-            // documento, sticker, ubicación) — avisamos al cliente en vez de dejarlo en
-            // silencio, salvo que el caso ya lo tenga un humano.
-            if (routeToCollections && cobro) {
-              await handleUnsupportedCobroMessage(redis, cobro, msg.type);
-            } else {
-              await handleUnsupportedMessage(redis, fromPhone, msg.type, ctx);
-            }
-            continue;
-          }
-
-          if (routeToCollections && cobro) {
-            await handleCollectionsMessage(redis, cobro, text, ctx);
-          } else {
-            await handleInboundMessage(redis, fromPhone, text, contactName, ctx);
-          }
+            isNew = await redis.set(`internal:whatsapp-msg-seen:${msg.id}`, '1', { nx: true, ex: 86400 });
           } catch (err) {
-            // Un mensaje que falla (Anthropic, Redis, Meta) no debe tumbar los demás del mismo
-            // paquete ni quedar marcado como atendido: se libera su marca para que el reintento
-            // de Meta lo vuelva a procesar, y queda en auditoría con el número del cliente.
-            const message = err instanceof Error ? err.message : String(err);
-            console.error('whatsapp-webhook: fallo procesando mensaje de …' + fromPhone.slice(-4), message);
-            await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', `…${fromPhone.slice(-4)}`, message).catch(() => {});
-            await reportIncident(redis, 'whatsapp_webhook_error', message);
-            // La marca solo se libera si al cliente no le llegó respuesta: si ya se le respondió
-            // y falló algo posterior, reprocesar le mandaría una segunda respuesta.
-            if (msg.id && !ctx.replied) await redis.del(`internal:whatsapp-msg-seen:${msg.id}`).catch(() => {});
+            // Redis no respondió antes de marcar el mensaje: se contesta 503 para que Meta
+            // reintente el paquete (los ya procesados quedan protegidos por su marca). Antes
+            // se respondía 200 y el mensaje se perdía sin rastro.
+            console.error('whatsapp-webhook: Redis falló al marcar el mensaje', msg.id, err instanceof Error ? err.message : String(err));
+            return new Response('retry', { status: 503 });
           }
+          if (!isNew) continue;
         }
+        inbound.push({ msg, fromPhone, contacts });
       }
     }
-  } catch (err) {
-    await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', 'error', err instanceof Error ? err.message : String(err));
+  }
+
+  if (statuses.length || inbound.length) {
+    const pending = runAfterResponse(processWebhookWork(redis, statuses, inbound));
+    if (pending) await pending;
   }
 
   return new Response('EVENT_RECEIVED', { status: 200 });

@@ -3,6 +3,7 @@ import { pushNotification } from './notifications';
 import { readConversations, saveConversation, type Conversation } from '../pages/api/conversations';
 import { messagesKey, MAX_MESSAGES, type Message } from '../pages/api/messages';
 import { GABOT_ID, GABOT_NAME } from './gabot-constants';
+import { incrementUnread } from './chat-unread';
 
 export { GABOT_ID, GABOT_NAME };
 
@@ -51,7 +52,7 @@ export async function sendGabotMessage(redis: Redis, userId: string, text: strin
 
   conversation.lastMessageAt = message.createdAt;
   conversation.lastMessagePreview = text.slice(0, 120);
-  conversation.unread[userId] = (conversation.unread[userId] || 0) + 1;
+  await incrementUnread(redis, conversation.id, [userId]);
   await saveConversation(redis, conversation);
 
   try {

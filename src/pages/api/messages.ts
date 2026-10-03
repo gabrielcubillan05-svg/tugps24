@@ -5,6 +5,7 @@ import { SESSION_COOKIE, getSession, findUserById, getUsers, canManageUsers, can
 import { pushNotification } from '../../lib/notifications';
 import { logAudit, readAudit } from '../../lib/audit';
 import { getConversation, saveConversation } from './conversations';
+import { incrementUnread } from '../../lib/chat-unread';
 import { GABOT_ID, GABOT_NAME } from '../../lib/gabot-constants';
 import { runGabotAgent, type AgentMessage, type CreateTaskInput, type GabotPermissions, type GabotActions } from '../../lib/gabot-agent';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
@@ -139,9 +140,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   conversation.lastMessageAt = message.createdAt;
   conversation.lastMessagePreview = text.slice(0, 120);
   const recipients = conversation.memberIds.filter((memberId) => memberId !== session.userId);
-  recipients.forEach((memberId) => {
-    conversation.unread[memberId] = (conversation.unread[memberId] || 0) + 1;
-  });
+  await incrementUnread(redis, conversationId, recipients);
   await saveConversation(redis, conversation);
 
   const preview = text.length > 80 ? text.slice(0, 80) + '…' : text;
@@ -473,7 +472,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       await redis.ltrim(key, -MAX_MESSAGES, -1);
       conversation.lastMessageAt = botMessage.createdAt;
       conversation.lastMessagePreview = replyText.slice(0, 120);
-      conversation.unread[session.userId] = (conversation.unread[session.userId] || 0) + 1;
+      await incrementUnread(redis, conversationId, [session.userId]);
       await saveConversation(redis, conversation);
     } catch (err) {
       // Cualquier excepción inesperada aquí (no solo una respuesta vacía de Anthropic, que ya
@@ -494,7 +493,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         await redis.ltrim(key, -MAX_MESSAGES, -1);
         conversation.lastMessageAt = fallbackMessage.createdAt;
         conversation.lastMessagePreview = fallbackMessage.text.slice(0, 120);
-        conversation.unread[session.userId] = (conversation.unread[session.userId] || 0) + 1;
+        await incrementUnread(redis, conversationId, [session.userId]);
         await saveConversation(redis, conversation);
       } catch (err2) {
         console.error('gabot chat fallback message also failed', err2 instanceof Error ? err2.message : String(err2));

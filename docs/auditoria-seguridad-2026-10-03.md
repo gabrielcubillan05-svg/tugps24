@@ -4,7 +4,14 @@
 
 ## 0. Estado de ejecución (3 de octubre de 2026, madrugada)
 
-Se aplicaron en `main`, en seis commits, 58 de los 69 hallazgos. Lo que queda pendiente y por qué:
+Se aplicaron en `main`, en siete commits, 61 de los 69 hallazgos. El séptimo commit (3 de octubre, mañana) cerró tres de los que estaban para "siguiente iteración":
+
+- **Webhook de WhatsApp en dos fases:** antes de responder a Meta solo se verifica la firma y se marca cada mensaje como visto; transcripción, Anthropic y envío corren después de responder (`waitUntil` de Vercel). Meta recibe el 200 en menos de un segundo y ya no reenvía paquetes ni da el webhook por caído.
+- **Candado por número de cliente:** dos mensajes seguidos del mismo cliente se procesan uno después del otro (el segundo ve al primero en el historial), con lo que ya no se pisan el historial ni la respuesta del agente. Los acuses de Meta se omiten si el número está ocupado.
+- **Fusión del lead al guardar:** el agente relee el lead después de pensar y aplica solo los campos que cambió este mensaje (las notas nuevas se agregan encima); si una secretaria tomó el lead mientras tanto, se respeta. Aplica a WhatsApp y al chat web.
+- **Contadores de no leídos del chat atómicos (`HINCRBY`):** en un hash por usuario, en vez de reescribir la conversación entera en cada mensaje; los valores viejos se siguen mostrando hasta que la persona abre esa conversación.
+
+Lo que queda pendiente y por qué:
 
 | Pendiente | Motivo | Quién |
 |---|---|---|
@@ -13,9 +20,8 @@ Se aplicaron en `main`, en seis commits, 58 de los 69 hallazgos. Lo que queda pe
 | Revisar el texto nuevo de la política de privacidad con quien lleve lo legal | Es un borrador técnico, no asesoría jurídica | Gabriel |
 | Conectar `/api/health` a un monitor externo gratuito (UptimeRobot, Better Stack) | Servicio externo | Gabriel |
 | Reescribir el historial de git para sacar el teléfono real del script borrado | Requiere `git filter-repo` y push forzado que afecta el clon de la PC | Decisión de Gabriel |
-| Campo `rev` por registro contra el "último que escribe gana" | Toca todas las escrituras del sistema; se dejó para una iteración aparte con pruebas | Siguiente iteración |
-| Historial de WhatsApp como lista y contadores de no leídos atómicos | Cambio de estructura de datos con migración | Siguiente iteración |
-| Webhook asíncrono (`waitUntil`) | Mitigado con tiempos límite y marca dentro del try; el rediseño va aparte | Siguiente iteración |
+| Campo `rev` por registro en TODAS las colecciones | Se cubrió el caso real (el agente IA pisando ediciones del CRM) con fusión de cambios al guardar; el `rev` genérico para el resto de módulos queda para cuando se mida un choque concreto | Siguiente iteración |
+| Historial de WhatsApp como lista en Redis | Se resolvió la pérdida de mensajes con un candado por número de cliente, sin migrar la estructura; la migración a lista queda como mejora opcional | Siguiente iteración |
 | Índices secundarios (tareas por asignado, leads por seguimiento, novedades por día, conversaciones por usuario) | Rendimiento, no seguridad; se hará con medición | Siguiente iteración |
 | Dos vulnerabilidades altas en herramientas del adaptador de Vercel (`path-to-regexp`, `http-cache-semantics`) | Solo con `npm audit fix --force`, que cambia versiones mayores; afectan al build, no al runtime | Revisar con la próxima versión del adaptador |
 | Operadores ven casos importantes de todas las sucursales | La central de monitoreo es nacional por diseño; se deja documentado | Sin cambio |
