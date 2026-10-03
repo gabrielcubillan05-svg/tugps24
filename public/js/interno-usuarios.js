@@ -5,8 +5,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const userForm = document.getElementById('userForm');
   const userFormError = document.getElementById('userFormError');
-  const seedBtn = document.getElementById('seedBtn');
-  const seedResult = document.getElementById('seedResult');
   const branchOperadoresBtn = document.getElementById('branchOperadoresBtn');
   const branchOperadoresResult = document.getElementById('branchOperadoresResult');
   const searchInput = document.getElementById('searchInput');
@@ -141,24 +139,6 @@ document.addEventListener('DOMContentLoaded', function () {
         inventoryManagersResult.textContent = err.message || 'No se pudo asignar.';
       })
       .finally(() => { inventoryManagersBtn.disabled = false; });
-  });
-
-  if (seedBtn) seedBtn.addEventListener('click', function () {
-    if (!confirm('¿Cargar los empleados del archivo? Se crearán los que falten con clave 1234.')) return;
-    seedBtn.disabled = true;
-    fetch('/api/seed-users', { method: 'POST' })
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'No se pudo cargar la lista.');
-        seedResult.textContent = `${data.created} usuario(s) creados, ${data.skipped} ya existían u omitidos.`;
-        seedResult.style.display = 'block';
-        loadUsers();
-      })
-      .catch((err) => {
-        seedResult.textContent = err.message || 'No se pudo cargar la lista.';
-        seedResult.style.display = 'block';
-      })
-      .finally(() => { seedBtn.disabled = false; });
   });
 
   if (branchOperadoresBtn) branchOperadoresBtn.addEventListener('click', async function () {

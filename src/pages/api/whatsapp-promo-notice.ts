@@ -75,7 +75,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   for (const lead of leads) {
     if (lead.source !== 'whatsapp-ads') continue;
-    if (lead.installed || lead.status === 'Instalado' || lead.status === 'Perdido') continue;
+    if (lead.installed || lead.status === 'Instalado' || lead.status === 'Perdido' || lead.optOut) continue;
     const branch = servicingBranchOf(lead);
     if (!branch) continue;
     const promo = promos.find((p) => p.branches.includes(branch));

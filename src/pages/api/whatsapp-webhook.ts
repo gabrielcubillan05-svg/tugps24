@@ -271,6 +271,7 @@ async function handleUnsupportedMessage(redis: any, fromPhone: string, msgType: 
           type: 'crm-whatsapp',
           message: `${lead.name} envió ${UNSUPPORTED_TYPE_LABELS[msgType] || 'un archivo'} por WhatsApp (revísalo directo en WhatsApp).`,
           link: '/interno/crm',
+          pushBody: 'Un lead tuyo envió un archivo por WhatsApp.',
         });
       }
     } else {
@@ -292,6 +293,10 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   const isNewLead = !lead;
   if (!lead) {
     lead = newLeadFromWhatsapp(fromPhone, contactName, now);
+    // El cliente escribió primero: queda registrado como el acto de autorización, y en la
+    // primera respuesta se le indica dónde está la política de datos.
+    lead.consentAt = now;
+    lead.consentSource = 'whatsapp-ads';
     await indexPhoneTarget(redis, fromPhone, { kind: 'lead', id: lead.id });
   }
 
@@ -311,6 +316,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
           type: 'crm-whatsapp',
           message: `${lead.name} volvió a escribir por WhatsApp: "${text.slice(0, 80)}"`,
           link: '/interno/crm',
+          pushBody: 'Un lead tuyo volvió a escribir por WhatsApp.',
         });
       }
     } else {
@@ -399,6 +405,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
                   type: 'crm-urgent',
                   message: `🚨 Lead concretado por el agente IA: ${lead.name} (${lead.city}) — ${summary}`,
                   link: '/interno/crm',
+                  pushBody: `🚨 Nuevo lead concretado por el agente IA en ${lead.city || 'tu sucursal'}.`,
                 });
               }
             }
@@ -420,7 +427,8 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
     } else if (call.name === 'marcar_no_interesado') {
       const motivo = String(call.input?.motivo || 'Sin motivo especificado');
       if (!lead.installed) lead.status = 'Perdido';
-      lead.notes = [{ text: `[Agente IA] Marcado sin interés: ${motivo}`, date: now }, ...lead.notes];
+      lead.optOut = true;
+      lead.notes = [{ text: `[Agente IA] Marcado sin interés: ${motivo} (no recibirá más mensajes automáticos)`, date: now }, ...lead.notes];
     } else if (call.name === 'derivar_a_cobranza') {
       const resumen = String(call.input?.resumen || 'Cliente actual con posible pago pendiente');
       lead.notes = [{ text: `[Agente IA] Derivado a cobranza: ${resumen}`, date: now }, ...lead.notes];
@@ -439,6 +447,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
 
   // Primero se envía y después se registra: si Meta rechaza el envío, el lead no queda como
   // "respondido" (así aparece en "Sin responder" y en el reintento) y se avisa del fallo.
+  if (isNewLead) replyText += '\n\nAl escribirnos aceptas nuestra política de datos: tugps24.com/privacidad';
   const sendResult = await sendWhatsappText(fromPhone, replyText);
   lead.updatedAt = new Date().toISOString();
   if (sendResult.ok) {
@@ -745,7 +754,7 @@ export const POST: APIRoute = async ({ request }) => {
             // paquete ni quedar marcado como atendido: se libera su marca para que el reintento
             // de Meta lo vuelva a procesar, y queda en auditoría con el número del cliente.
             const message = err instanceof Error ? err.message : String(err);
-            console.error('whatsapp-webhook: fallo procesando mensaje de', fromPhone, message);
+            console.error('whatsapp-webhook: fallo procesando mensaje de …' + fromPhone.slice(-4), message);
             await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', `…${fromPhone.slice(-4)}`, message).catch(() => {});
             await reportIncident(redis, 'whatsapp_webhook_error', message);
             // La marca solo se libera si al cliente no le llegó respuesta: si ya se le respondió

@@ -387,7 +387,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   task.updatedAt = new Date().toISOString();
 
   await redis.hset(REDIS_KEY, { [id]: JSON.stringify(task) });
-  await logAudit(redis, session, 'task_update', task.title, JSON.stringify(body));
+  await logAudit(redis, session, 'task_update', task.title, Object.keys(body).filter((k) => k !== 'id').join(', '));
   if (justCompleted) await spawnNextRecurrence(redis, task);
 
   return new Response(JSON.stringify({ task: { ...task, overdue: computeOverdue(task) } }), {

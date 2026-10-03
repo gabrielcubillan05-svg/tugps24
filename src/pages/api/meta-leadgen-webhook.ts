@@ -33,7 +33,7 @@ function verifySignature(rawBody: string, signatureHeader: string | null, appSec
 }
 
 async function fetchLeadData(leadgenId: string, accessToken: string): Promise<any> {
-  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${leadgenId}?access_token=${encodeURIComponent(accessToken)}`);
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${leadgenId}`, { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`graph leadgen error ${res.status}`);
   return res.json();
 }
@@ -41,7 +41,8 @@ async function fetchLeadData(leadgenId: string, accessToken: string): Promise<an
 async function fetchAdLabel(adId: string, accessToken: string): Promise<string> {
   try {
     const res = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${adId}?fields=name,campaign{name}&access_token=${encodeURIComponent(accessToken)}`
+      `https://graph.facebook.com/${GRAPH_VERSION}/${adId}?fields=name,campaign{name}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10_000) }
     );
     if (!res.ok) return '';
     const data = await res.json();

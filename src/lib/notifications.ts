@@ -30,7 +30,9 @@ function keyFor(userId: string): string {
 export async function pushNotification(
   redis: Redis,
   userId: string,
-  data: { type: string; message: string; link: string; key?: string }
+  // pushBody: texto alterno para el push al celular (sin nombres de clientes en la pantalla
+  // bloqueada); la campanita dentro del panel conserva el mensaje completo.
+  data: { type: string; message: string; link: string; key?: string; pushBody?: string }
 ): Promise<void> {
   const id = data.key || randomUUID();
   const entry: NotificationEntry = {
@@ -58,7 +60,7 @@ export async function pushNotification(
   // Además del aviso dentro de la campanita, manda push real (llega aunque tenga la app
   // cerrada) — no bloquea ni rompe nada si el usuario no se ha suscrito todavía.
   try {
-    await sendPushToUser(redis, userId, { title: 'TuGPS24 Interno', body: data.message, link: data.link });
+    await sendPushToUser(redis, userId, { title: 'TuGPS24 Interno', body: data.pushBody || data.message, link: data.link });
   } catch {
     // nunca debe tumbar la notificación normal
   }

@@ -129,7 +129,9 @@ ${facturasImpagas >= 2
 - Si alguien escribe interesado en TRABAJAR con nosotros (empleo, vacante, hoja de vida) y no en su deuda: dile amablemente que envíe su hoja de vida al correo asesoriasdigitales35@gmail.com.
 - SIEMPRE responde con un mensaje de texto para el cliente, incluso cuando uses una herramienta.` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
-  const volatile = `## Cliente con el que hablas\nNombre: ${nombre}. Saldo pendiente: ${deudaFmt}${facturasImpagas ? ` (${facturasImpagas} factura(s) sin pagar)` : ''}.`;
+  // Solo el primer nombre viaja al modelo: el prompt no usa más y es un dato menos fuera.
+  const primerNombre = nombre.trim().split(/\s+/)[0] || nombre;
+  const volatile = `## Cliente con el que hablas\nNombre: ${primerNombre}. Saldo pendiente: ${deudaFmt}${facturasImpagas ? ` (${facturasImpagas} factura(s) sin pagar)` : ''}.`;
   return { stable, volatile };
 }
 

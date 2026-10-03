@@ -17,6 +17,7 @@
     <form class="web-chat-gate" id="webChatGateForm">
       <input id="webChatGateName" type="text" placeholder="Tu nombre" required autocomplete="name" />
       <input id="webChatGatePhone" type="tel" placeholder="Tu WhatsApp (ej: 3001234567)" required autocomplete="tel" />
+      <label class="web-chat-consent"><input id="webChatGateConsent" type="checkbox" required /> <span>Autorizo el tratamiento de mis datos según la <a href="/privacidad" target="_blank" rel="noopener">política de privacidad</a>.</span></label>
       <button type="submit">Empezar a chatear</button>
       <p class="web-chat-gate-hint">Para atenderte mejor, solo necesitamos tu nombre y tu WhatsApp.</p>
     </form>
@@ -177,6 +178,9 @@
     .web-chat-widget { right: 10px; bottom: 10px; }
     .web-chat-panel { width: calc(100vw - 20px); height: min(70vh, 520px); }
   }
+  .web-chat-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.35; opacity: 0.9; }
+  .web-chat-consent input { margin-top: 2px; }
+  .web-chat-consent a { text-decoration: underline; color: inherit; }
 </style>
 
 <script src="/js/web-chat-widget.js" defer></script>

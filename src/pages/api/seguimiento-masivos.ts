@@ -152,7 +152,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   addEvent(cliente, `Cliente masivo registrado por ${cliente.createdByName}${initialNote ? ': ' + initialNote : ''}`, cliente.createdByName, now);
 
   await redis.hset(REDIS_KEY, { [cliente.id]: JSON.stringify(cliente) });
-  await logAudit(redis, session, 'cliente_masivo_create', cliente.clientName, cliente.phone);
+  await logAudit(redis, session, 'cliente_masivo_create', cliente.id, cliente.branch || '');
 
   return new Response(JSON.stringify({ cliente }), {
     headers: { 'Content-Type': 'application/json' },
@@ -235,7 +235,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   cliente.updatedAt = now;
   await redis.hset(REDIS_KEY, { [id]: JSON.stringify(cliente) });
-  await logAudit(redis, session, 'cliente_masivo_update', cliente.clientName, JSON.stringify(body));
+  await logAudit(redis, session, 'cliente_masivo_update', cliente.id, Object.keys(body).filter((k) => k !== 'id').join(', '));
 
   return new Response(JSON.stringify({ cliente }), {
     headers: { 'Content-Type': 'application/json' },

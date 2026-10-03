@@ -355,7 +355,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         return `Leads que coinciden con "${busqueda}":\n${top
           .map((l) => {
             const lastNote = l.notes[0]?.text;
-            return `  · ${l.name} (${l.phone}) — ${l.city || 'sin ciudad'} — estado: ${l.status}${l.secretary ? ` — asignado a ${l.secretary}` : ''}${l.nextFollowUp ? ` — próximo seguimiento: ${l.nextFollowUp}` : ''}${lastNote ? ` — última nota: ${lastNote}` : ''}`;
+            return `  · ${l.name} — ${l.city || 'sin ciudad'} — estado: ${l.status}${l.secretary ? ` — asignado a ${l.secretary}` : ''}${l.nextFollowUp ? ` — próximo seguimiento: ${l.nextFollowUp}` : ''}${lastNote ? ` — última nota: ${lastNote}` : ''}`;
           })
           .join('\n')}`;
       }

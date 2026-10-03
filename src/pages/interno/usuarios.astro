@@ -59,17 +59,6 @@ if (!isFullAdmin && !canSetUserBranches(session)) {
 
   {isFullAdmin && (
   <div class="panel-card">
-    <h2>Cargar empleados desde archivo</h2>
-    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
-      Crea automáticamente los usuarios que todavía no existan a partir de la lista de personal, con contraseña inicial <b>1234</b>. Los usuarios ya existentes no se modifican.
-    </p>
-    <button class="btn-ghost" id="seedBtn" type="button">Cargar empleados</button>
-    <p id="seedResult" style="display:none; margin-top:12px; font-size:13.5px; color:var(--paper-dim);"></p>
-  </div>
-  )}
-
-  {isFullAdmin && (
-  <div class="panel-card">
     <h2>Encargados de inventario</h2>
     <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
       Marca como encargados del inventario físico a los responsables de la lista de gerencia (Cristian Zambrano, Josué González, Gabriel Cubillán,

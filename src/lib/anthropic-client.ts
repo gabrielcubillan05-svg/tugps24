@@ -48,7 +48,7 @@ export async function callAnthropicMessages(apiKey: string, body: Record<string,
     }
 
     const detail = await res.text().catch(() => '');
-    console.error(`${logPrefix}: Anthropic respondió (intento ${attempt + 1}/${maxAttempts})`, res.status, detail.slice(0, 500));
+    console.error(`${logPrefix}: Anthropic respondió (intento ${attempt + 1}/${maxAttempts})`, res.status, detail.slice(0, 200));
     if (RETRYABLE_STATUS.has(res.status) && attempt < maxAttempts - 1) {
       await sleep(RETRY_DELAYS_MS[attempt]);
       continue;

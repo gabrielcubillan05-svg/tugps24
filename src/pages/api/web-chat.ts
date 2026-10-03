@@ -63,7 +63,7 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { sessionId?: string; name?: string; phone?: string; text?: string };
+  let body: { sessionId?: string; name?: string; phone?: string; text?: string; consent?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -116,9 +116,15 @@ export const POST: APIRoute = async ({ request }) => {
     // cliente se colgaría de su historial, le sacaría sus datos al agente y podría cambiarle el
     // estado. El chat web siempre crea su propio lead ligado a esta sesión; si el número ya
     // existe, queda anotado para que la secretaria los fusione a mano.
+    // Autorización expresa de tratamiento de datos antes de guardar nada (Ley 1581, art. 9).
+    if (body.consent !== true) {
+      return new Response(JSON.stringify({ error: 'debes aceptar la política de tratamiento de datos para empezar' }), { status: 400 });
+    }
     const existingByPhone = allLeads.find((l) => normalizePhone(l.phone) === phone);
     lead = newLeadFromWeb(phone, name, now);
     lead.metaLeadId = sessionId;
+    lead.consentAt = now;
+    lead.consentSource = 'web-chat';
     isNewLead = true;
     if (existingByPhone) {
       lead.notes = [{ text: `[Sistema] Posible duplicado: este número ya existe en el CRM como "${existingByPhone.name}" (${existingByPhone.status}). Verificar antes de contactar.`, date: now }, ...(lead.notes || [])];
@@ -182,6 +188,7 @@ export const POST: APIRoute = async ({ request }) => {
               type: 'crm-urgent',
               message: `🚨 Lead concretado por el agente IA (chat web): ${lead.name} (${lead.city}) — ${summary}`,
               link: '/interno/crm',
+              pushBody: `🚨 Nuevo lead concretado por el agente IA (chat web) en ${lead.city || 'tu sucursal'}.`,
             });
           } catch {
             // no debe tumbar el procesamiento del mensaje
@@ -212,7 +219,8 @@ export const POST: APIRoute = async ({ request }) => {
     } else if (call.name === 'marcar_no_interesado') {
       const motivo = String(call.input?.motivo || 'Sin motivo especificado');
       if (!lead.installed) lead.status = 'Perdido';
-      lead.notes = [{ text: `[Agente IA - web] Marcado sin interés: ${motivo}`, date: now }, ...lead.notes];
+      lead.optOut = true;
+      lead.notes = [{ text: `[Agente IA - web] Marcado sin interés: ${motivo} (no recibirá más mensajes automáticos)`, date: now }, ...lead.notes];
     }
     // derivar_a_cobranza y reforzar_con_material no aplican aquí: el chat web no tiene acceso
     // al historial de cobranza por teléfono todavía, ni forma de mandar imágenes/video por chat.
@@ -226,7 +234,7 @@ export const POST: APIRoute = async ({ request }) => {
     { role: 'user', content: text },
     { role: 'assistant', content: replyText },
   ]);
-  await logAudit(redis, WEB_ACTOR, isNewLead ? 'lead_web_chat_create' : 'lead_web_chat_message', lead.name, lead.phone);
+  await logAudit(redis, WEB_ACTOR, isNewLead ? 'lead_web_chat_create' : 'lead_web_chat_message', lead.id);
 
   return new Response(JSON.stringify({ reply: replyText }), {
     headers: { 'Content-Type': 'application/json' },

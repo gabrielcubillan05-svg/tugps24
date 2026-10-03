@@ -54,6 +54,17 @@ if (!canAccessSection(session.role, 'almacenamiento')) {
     <h3 class="agent-section-label">Archivos de respaldo</h3>
     <div id="archivesList"><div class="empty">Cargando...</div></div>
   </div>
+  <div class="panel-card">
+    <h2>Supresión de datos de un cliente</h2>
+    <p class="hint">Para atender una solicitud de eliminación (Ley 1581): busca por teléfono o cédula en leads, cobros, garantías, planillas, suspensiones, solicitudes y clientes masivos. Primero "Buscar" muestra qué hay; "Borrar" elimina los registros y sus archivos. En auditoría solo queda una huella del dato, no el teléfono.</p>
+    <div class="filters" style="margin:0 0 10px;">
+      <input id="dsPhone" type="text" placeholder="Teléfono (ej: 3001234567)" />
+      <input id="dsCedula" type="text" placeholder="Cédula (opcional)" />
+      <button class="btn-small" id="dsLookupBtn" type="button">Buscar</button>
+      <button class="btn-small btn-delete" id="dsDeleteBtn" type="button">Borrar definitivamente</button>
+    </div>
+    <div id="dsResult" class="cleanup-summary"></div>
+  </div>
 </InternoLayout>
 
 <style>

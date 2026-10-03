@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <span class="badge">${escapeHtml(p.fecha)} ${escapeHtml(p.hora)}</span>
         </div>
         <div class="planilla-meta">
-          Técnico: ${escapeHtml(p.tecnicoNombre)}${p.branch ? ' · ' + escapeHtml(p.branch) : ''} · Cliente: ${escapeHtml(p.clienteNombre)} (CC ${escapeHtml(p.clienteCedula)}${p.clienteTelefono ? ' · Tel: ' + escapeHtml(p.clienteTelefono) : ''})
+          Técnico: ${escapeHtml(p.tecnicoNombre)}${p.branch ? ' · ' + escapeHtml(p.branch) : ''} · Cliente: ${escapeHtml(p.clienteNombre)} (CC ***${escapeHtml(String(p.clienteCedula || '').slice(-4))})
           · Combustible: ${escapeHtml(p.nivelCombustible || '—')} · Registrada ${fmtDate(p.createdAt)}
         </div>
         ${problemItems.length ? `

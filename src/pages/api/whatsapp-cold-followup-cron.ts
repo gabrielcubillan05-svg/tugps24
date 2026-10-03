@@ -50,7 +50,10 @@ export const GET: APIRoute = async ({ request }) => {
 
   for (const lead of leads) {
     if (sent >= BATCH_SIZE) break; // no mandar de golpe si un día caen muchos leads fríos a la vez
-    if (lead.installed || lead.status === 'Perdido') continue;
+    if (lead.installed || lead.status === 'Perdido' || lead.optOut) continue;
+    // Solo a quienes nos escribieron primero (WhatsApp Ads o chat web): un lead manual o de un
+    // formulario de Meta pidió una cotización, no mensajes comerciales reiterados.
+    if (lead.source !== 'whatsapp-ads' && lead.source !== 'web-chat') continue;
     const phone = normalizePhone(lead.phone);
     if (phone.length < 10) continue;
 

@@ -44,7 +44,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const retried: string[] = [];
   for (const lead of leads) {
     if (lead.source !== 'whatsapp-ads') continue;
-    if (lead.aiStage !== 'en_conversacion') continue;
+    if (lead.aiStage !== 'en_conversacion' || lead.optOut) continue;
     // Cuentan los leads creados hoy y también los viejos que escribieron hoy.
     const wroteToday = !!lead.lastInboundAt && dateInColombia(lead.lastInboundAt) === today;
     if (dateInColombia(lead.createdAt) !== today && !wroteToday) continue;

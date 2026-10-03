@@ -97,10 +97,11 @@ document.addEventListener('DOMContentLoaded', function () {
     e.preventDefault();
     const name = gateName.value.trim();
     const phone = gatePhone.value.trim();
-    if (!name || !phone) return;
+    const consentBox = document.getElementById('webChatGateConsent');
+    if (!name || !phone || (consentBox && !consentBox.checked)) return;
     const submitBtn = gateForm.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
-    sendToServer('Hola, quiero información sobre el GPS.', { name, phone })
+    sendToServer('Hola, quiero información sobre el GPS.', { name, phone, consent: true })
       .then(() => {
         try { localStorage.setItem(STARTED_KEY, '1'); } catch {}
         gateForm.style.display = 'none';

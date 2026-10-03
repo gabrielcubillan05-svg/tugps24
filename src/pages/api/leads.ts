@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { bumpVersion, readVersion, LEADS_VERSION_KEY } from '../../lib/versions';
+import { branchForCityName } from '../../lib/pricing';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, canVerifyInstalls, findUserById, verifySameOrigin } from '../../lib/auth';
 import { isOverdueInColombia, todayInColombia, dateInColombia } from '../../lib/colombia-time';
@@ -66,6 +67,12 @@ export interface Lead {
   // Andrés no pudo contestar de verdad (Anthropic caído, Meta rechazó el envío): el cron de
   // seguimiento lo reintenta solo mientras siga abierta la ventana de 24 h.
   needsRetry?: boolean;
+  // Autorización de tratamiento de datos (Ley 1581): cuándo y por qué canal la dio.
+  consentAt?: string | null;
+  consentSource?: string | null;
+  // El cliente pidió no recibir más mensajes: ningún cron ni aviso masivo le vuelve a escribir,
+  // aunque alguien le cambie el estado en el CRM.
+  optOut?: boolean;
 }
 
 const VEHICLE_TYPES = ['Moto', 'Carro', 'Flota', 'Máquina Amarilla', ''];
@@ -96,7 +103,7 @@ export function computeOverdue(lead: Lead): boolean {
 // Rellena los campos que se fueron agregando con el tiempo, para que un lead viejo leído
 // suelto (hget) se comporte igual que uno de la lista completa.
 export function normalizeLead(l: any): Lead {
-  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, needsRetry: false, ...l };
+  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, needsRetry: false, consentAt: null, consentSource: null, optOut: false, ...l };
 }
 
 // El hash de leads pesa ~3 MB y se lee en el CRM (varias veces por carga), en el inicio de
@@ -200,7 +207,8 @@ export function computeSalesAgentStats(leads: Lead[]): SalesAgentStats {
 const MAX_PAGE_SIZE = 1000;
 
 export const GET: APIRoute = async ({ cookies, url }) => {
-  if (!(await requireCrm(cookies))) {
+  const session = await requireCrm(cookies);
+  if (!session) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();
@@ -208,7 +216,18 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  const leads = await readLeads(redis);
+  let leads = await readLeads(redis);
+  // Una secretaria ve los leads que tiene asignados y los de su(s) sucursal(es); la vista
+  // nacional queda para supervisor, gerente y admin. Antes cualquier secretaria veía y
+  // exportaba los 3.470 leads del país. Si no tiene sucursal configurada, ve todo (como antes)
+  // para no dejarla sin trabajo por un perfil incompleto.
+  if (session.role === 'secretaria') {
+    const me = await findUserById(redis, session.userId);
+    const myBranches = me ? (me.branches && me.branches.length ? me.branches : me.branch ? [me.branch] : []) : [];
+    if (myBranches.length) {
+      leads = leads.filter((l) => l.secretary === me!.name || myBranches.includes(l.convertedBranch || branchForCityName(l.city) || ''));
+    }
+  }
   const withOverdue = leads.map((l) => ({ ...l, overdue: computeOverdue(l) }));
 
   const stats = { total: leads.length, byStatus: {} as Record<string, number>, overdueCount: 0 };
@@ -482,7 +501,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   lead.updatedAt = new Date().toISOString();
 
   await writeLeads(redis, { [id]: JSON.stringify(lead) });
-  await logAudit(redis, session, 'lead_update', lead.name, JSON.stringify(body));
+  await logAudit(redis, session, 'lead_update', lead.id, Object.keys(body).filter((k) => k !== 'id').join(', '));
 
   return new Response(JSON.stringify({ lead: { ...lead, overdue: computeOverdue(lead) } }), {
     headers: { 'Content-Type': 'application/json' },

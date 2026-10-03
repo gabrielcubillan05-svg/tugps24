@@ -154,6 +154,33 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
+  // --- Supresión de datos de un cliente ---
+  const dsPhone = document.getElementById('dsPhone');
+  const dsCedula = document.getElementById('dsCedula');
+  const dsResult = document.getElementById('dsResult');
+  function dataSubject(dryRun) {
+    const phone = dsPhone.value.trim();
+    const cedula = dsCedula.value.trim();
+    if (!phone && !cedula) { dsResult.textContent = 'Indica un teléfono o una cédula.'; return; }
+    if (!dryRun && !confirm('¿Borrar definitivamente todos los registros y archivos de este cliente? No se puede deshacer.')) return;
+    dsResult.textContent = dryRun ? 'Buscando...' : 'Borrando...';
+    fetch('/api/data-subject', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, cedula, dryRun }),
+    })
+      .then(async (res) => {
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || 'No se pudo procesar.');
+        if (!d.found.length) { dsResult.textContent = 'No se encontró ningún registro con ese dato.'; return; }
+        dsResult.innerHTML = `<p>${dryRun ? 'Se encontraron' : 'Se borraron'} ${d.found.length} registro(s):</p><ul>` +
+          d.found.map((f) => `<li>${escapeHtml(f.collection)}: ${escapeHtml(f.summary)}${f.blobs.length ? ` · ${f.blobs.length} archivo(s)` : ''}</li>`).join('') + '</ul>';
+      })
+      .catch((err) => { dsResult.innerHTML = `<span class="err">${escapeHtml(err.message)}</span>`; });
+  }
+  document.getElementById('dsLookupBtn').addEventListener('click', () => dataSubject(true));
+  document.getElementById('dsDeleteBtn').addEventListener('click', () => dataSubject(false));
+
   refreshBtn.addEventListener('click', loadReport);
   simulateBtn.addEventListener('click', () => runCleanup('simulate'));
   runBtn.addEventListener('click', () => {

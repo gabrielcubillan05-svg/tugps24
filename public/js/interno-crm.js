@@ -1097,8 +1097,14 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       });
   }
 
-  exportBtn.addEventListener('click', function () {
+  if (exportBtn) exportBtn.addEventListener('click', function () {
     const leads = getFilteredLeads();
+    // Queda en auditoría quién exportó cuántos leads (la descarga se arma en el navegador).
+    fetch('/api/leads-export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: leads.length, filters: location.search || '' }),
+    }).catch(() => {});
     const headers = ['Nombre', 'Teléfono', 'Ciudad', 'Campaña', 'Secretaria', 'Estado', 'Próximo seguimiento', 'Sucursal conversión', 'Tipo de cliente', 'Motos', 'Carros', 'Creado', 'Notas'];
     const rows = leads.map((l) => [
       l.name, l.phone, l.city, l.campaign, l.secretary, l.status,
