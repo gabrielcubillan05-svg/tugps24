@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { SESSION_COOKIE, getSession, canAccessSection } from '../../lib/auth';
 import { readSecurityStats } from '../../lib/security-events';
+import { readSlowRequests } from '../../lib/perf';
 
 export const prerender = false;
 
@@ -14,8 +15,8 @@ export const GET: APIRoute = async ({ cookies }) => {
   if (!redis) {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
-  const stats = await readSecurityStats(redis, 7);
-  return new Response(JSON.stringify(stats), {
+  const [stats, slow] = await Promise.all([readSecurityStats(redis, 7), readSlowRequests(redis, 2)]);
+  return new Response(JSON.stringify({ ...stats, slow }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };

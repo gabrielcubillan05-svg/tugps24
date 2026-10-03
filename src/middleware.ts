@@ -3,6 +3,7 @@ import { SESSION_COOKIE, sessionMustChangePassword } from './lib/auth';
 import { getRedis } from './lib/redis';
 import { getClientIp } from './lib/rate-limit';
 import { recordSecurityEvent } from './lib/security-events';
+import { recordSlowRequest, SLOW_REQUEST_MS } from './lib/perf';
 
 const CSP = [
   "default-src 'self'",
@@ -22,6 +23,7 @@ const CSP = [
 const MUST_CHANGE_EXEMPT = ['/api/users', '/api/auth/', '/api/version', '/api/health'];
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  const startedAt = Date.now();
   const path = context.url.pathname;
   if (path.startsWith('/api/') && !MUST_CHANGE_EXEMPT.some((p) => path.startsWith(p))) {
     const cookie = context.cookies.get(SESSION_COOKIE)?.value;
@@ -33,6 +35,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
   const response = await next();
+  // Tiempo del servidor en esta petición: se manda al navegador (pestaña Red → Timing) y, si
+  // pasa del umbral, se cuenta por ruta para verlo en Auditoría.
+  const elapsed = Date.now() - startedAt;
+  response.headers.set('Server-Timing', `app;dur=${elapsed}`);
+  if (elapsed >= SLOW_REQUEST_MS) {
+    console.warn(`lento ${elapsed}ms ${context.request.method} ${path}`);
+    const redis = getRedis();
+    if (redis) await recordSlowRequest(redis, path, elapsed);
+  }
   // Intentos frenados que antes no dejaban rastro: rechazos por origen o firma (403), límites de
   // tasa (429) y rutas inexistentes (404, típico de escáneres). El 403 de la clave inicial de
   // arriba no entra porque ya se devolvió antes de llegar aquí. Se mide en Auditoría.

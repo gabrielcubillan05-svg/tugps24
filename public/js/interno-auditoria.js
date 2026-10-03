@@ -120,6 +120,12 @@ document.addEventListener('DOMContentLoaded', function () {
           <table class="sec-table"><tbody>${pathRows}</tbody></table>
         </div>
       </div>
+      <div style="margin-top:18px;">
+        <h3 style="font-size:13px; color:var(--slate); margin:0 0 6px; font-weight:600;">Peticiones lentas del servidor (más de 1 segundo, hoy y ayer)</h3>
+        ${stats.slow && stats.slow.routes && stats.slow.routes.length
+          ? `<table class="sec-table"><thead><tr><th>Ruta</th><th>Veces</th><th>Promedio</th></tr></thead><tbody>${stats.slow.routes.map((r) => `<tr><td class="path" title="${escapeHtml(r.path)}">${escapeHtml(r.path)}</td><td>${r.count}</td><td>${(r.avgMs / 1000).toFixed(1)} s</td></tr>`).join('')}</tbody></table>`
+          : '<p class="sec-note" style="margin-top:0;">Ninguna. Si aun así el panel se siente lento, la demora está en la conexión de la sucursal o en el navegador, no en el servidor.</p>'}
+      </div>
       <p class="sec-note">Los ataques de denegación de servicio y los bots los frena Vercel antes de llegar aquí: eso se ve en la pestaña Firewall de Vercel. Esta tarjeta empieza a contar desde el despliegue de hoy.</p>
     `;
   }

@@ -25,6 +25,8 @@ export const GET: APIRoute = async () => {
   } catch {
     redisOk = false;
   }
+  // Ida y vuelta de un solo comando: si pasa de 50 ms la base está lejos de la función.
+  const redisPingMs = Date.now() - started;
   const crons: Record<string, { ageMinutes: number | null; ok: boolean }> = {};
   let cronsOk = true;
   if (redisOk) {
@@ -38,7 +40,7 @@ export const GET: APIRoute = async () => {
     }
   }
   const ok = redisOk && cronsOk;
-  return new Response(JSON.stringify({ ok, redis: redisOk ? 'ok' : 'down', redisMs: Date.now() - started, crons }), {
+  return new Response(JSON.stringify({ ok, redis: redisOk ? 'ok' : 'down', redisPingMs, redisMs: Date.now() - started, crons }), {
     status: ok ? 200 : 503,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
