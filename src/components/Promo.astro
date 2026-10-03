@@ -47,7 +47,14 @@ const whatsappUrl = 'https://wa.me/573116105725?text=' + encodeURIComponent(what
         <a class="btn btn-primary" href={whatsappUrl} target="_blank" rel="noopener" style="margin-top:22px; display:inline-flex;">Quiero instalarlo</a>
       </div>
       <div class="promo-photo">
-        <img src="/img/img15.jpg" alt={promo ? `${promo.label} TuGPS24: instalación GPS 4G a ${money(promo.price)}` : 'Instalación GPS 4G TuGPS24'} />
+        {promo ? (
+          <picture>
+            <source media="(max-width: 760px)" srcset="/img/promo-octubre-1x1.webp" />
+            <img src="/img/promo-octubre-4x5.webp" width="900" height="1125" loading="lazy" alt={`${promo.label} TuGPS24: instalación GPS 4G a ${money(promo.price)}, válida ${promoRangeLabel(promo)}`} />
+          </picture>
+        ) : (
+          <img src="/img/img15.jpg" loading="lazy" alt="Instalación GPS 4G TuGPS24" />
+        )}
       </div>
     </div>
   </div>
