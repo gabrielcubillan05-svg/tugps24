@@ -8,7 +8,7 @@ import { sendWhatsappText, sendWhatsappMedia, verifyMetaSignature } from '../../
 import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { runCollectionsAgent } from '../../lib/collections-agent';
-import { readLeads, normalizeLead, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { readLeads, writeLeads, normalizeLead, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
 import { readCobros, normalizeCobro, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { readAgentMedia } from './whatsapp-agent-media';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
@@ -271,7 +271,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   // Si ya se entregó a una sucursal o se escaló, la IA no vuelve a contestar sola: solo
   // registra el mensaje y avisa a quien lo tenga asignado, para no chocar con la secretaria.
   if (lead.aiStage === 'entregado' || lead.aiStage === 'escalado') {
-    await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+    await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
     await appendHistory(redis, lead.id, [{ role: 'user', content: text }]);
     if (lead.secretary) {
       const users = await getUsers(redis);
@@ -403,7 +403,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   lead.updatedAt = new Date().toISOString();
   lead.lastOutboundAt = lead.updatedAt;
 
-  await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+  await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
   await appendHistory(redis, lead.id, [
     { role: 'user', content: text },
     { role: 'assistant', content: replyText },
@@ -417,7 +417,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   if (!lead.mediaSentAt && lead.vehicleType && lead.city) {
     await sendReinforcementMedia(redis, lead, fromPhone);
     lead.mediaSentAt = new Date().toISOString();
-    await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+    await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
   }
 }
 
@@ -515,7 +515,7 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
         await indexPhoneTarget(redis, fromPhone, { kind: 'lead', id: leadMatch.id });
       }
       leadMatch.notes = [{ text: `[Valentina, cobranza] Cliente actual pide instalación nueva: ${resumen}`, date: leadNow }, ...leadMatch.notes];
-      await redis.hset(LEADS_KEY, { [leadMatch.id]: JSON.stringify(leadMatch) });
+      await writeLeads(redis, { [leadMatch.id]: JSON.stringify(leadMatch) });
       // De aquí en adelante este número lo atiende Andrés (ventas), no Valentina — y Andrés
       // responde ya mismo en este mismo mensaje, en vez de esperar a que alguien vea una notificación.
       cobro.derivedToSales = true;
@@ -641,6 +641,7 @@ export const POST: APIRoute = async ({ request }) => {
             if (!isNew) continue;
           }
 
+          try {
           const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
 
           // Si el número corresponde a un cobro cargado en Cobranza Masiva, lo maneja la
@@ -672,6 +673,15 @@ export const POST: APIRoute = async ({ request }) => {
             await handleCollectionsMessage(redis, cobro, text);
           } else {
             await handleInboundMessage(redis, fromPhone, text, contactName);
+          }
+          } catch (err) {
+            // Un mensaje que falla (Anthropic, Redis, Meta) no debe tumbar los demás del mismo
+            // paquete ni quedar marcado como atendido: se libera su marca para que el reintento
+            // de Meta lo vuelva a procesar, y queda en auditoría con el número del cliente.
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('whatsapp-webhook: fallo procesando mensaje de', fromPhone, message);
+            await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', fromPhone, message).catch(() => {});
+            if (msg.id) await redis.del(`internal:whatsapp-msg-seen:${msg.id}`).catch(() => {});
           }
         }
       }

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { sendWhatsappTemplate, isQuietHoursColombia } from '../../lib/whatsapp';
-import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY } from './leads';
+import { readLeads, writeLeads, normalizePhone } from './leads';
 import { appendHistory } from './whatsapp-webhook';
 
 export const prerender = false;
@@ -72,7 +72,7 @@ export const GET: APIRoute = async ({ request }) => {
     lead.lastOutboundAt = nowIso;
     lead.updatedAt = nowIso;
     if (!lead.aiStage || lead.aiStage === 'sin_iniciar') lead.aiStage = 'en_conversacion';
-    await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+    await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
     await appendHistory(redis, lead.id, [{ role: 'assistant', content: `[Plantilla ${TEMPLATE_NAME}] Hola ${firstName}, ¿sigues interesado en el GPS?` }]);
     sent++;
   }

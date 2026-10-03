@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID, createHmac, timingSafeEqual } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { readLeads, normalizePhone, REDIS_KEY, type Lead } from './leads';
+import { readLeads, writeLeads, normalizePhone, type Lead } from './leads';
 
 export const prerender = false;
 
@@ -117,7 +117,7 @@ export const POST: APIRoute = async ({ request }) => {
             ...dup.notes,
           ];
           dup.updatedAt = now;
-          await redis.hset(REDIS_KEY, { [dup.id]: JSON.stringify(dup) });
+          await writeLeads(redis, { [dup.id]: JSON.stringify(dup) });
         } else {
           const lead: Lead = {
             id: randomUUID(),
@@ -142,7 +142,7 @@ export const POST: APIRoute = async ({ request }) => {
             createdAt: now,
             updatedAt: now,
           };
-          await redis.hset(REDIS_KEY, { [lead.id]: JSON.stringify(lead) });
+          await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
         }
         await logAudit(redis, META_ACTOR, 'lead_meta_import', name, phone);
       } catch (err) {

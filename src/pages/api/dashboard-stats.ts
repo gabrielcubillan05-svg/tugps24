@@ -92,6 +92,18 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const cityFilter = url.searchParams.get('city') || '';
   const secretaryFilter = url.searchParams.get('secretary') || '';
 
+  // Son agregados sobre 3.470 leads y 10.000 novedades (unos 7 MB leídos y parseados por
+  // consulta): se guardan 2 minutos por alcance y filtros. Una estadística de 2 minutos de
+  // antigüedad no cambia ninguna decisión, y cada cambio de filtro dejaba de costar 150 ms de CPU.
+  const seesAllForCache = session.role === 'admin' || session.username.toLowerCase() === JOSUE_USERNAME;
+  const cacheKey = `internal:cache:dashboard-stats:${seesAllForCache ? 'all' : `${session.role}:${session.userId}`}:${cityFilter}:${secretaryFilter}`;
+  const cached = await redis.get<string>(cacheKey);
+  if (cached) {
+    return new Response(typeof cached === 'string' ? cached : JSON.stringify(cached), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Cache': 'hit' },
+    });
+  }
+
   // Alcance: admin y Josué ven todo el país; gerente ve solo su(s) propia(s) sucursal(es) (igual
   // que en tasks.ts/suspensiones.ts); un supervisor de turno (José Miguel/Junior) ve las novedades
   // solo de los operadores de su turno — el CRM no es "su personal" (son de monitoreo, no de
@@ -190,8 +202,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const projectedAdditionalInstalls = matureStep.eligible ? Math.round(openLeadsCount * (matureStep.rate / 100)) : null;
   const projectedTotalInstalls = projectedAdditionalInstalls !== null ? installedCount + projectedAdditionalInstalls : null;
 
-  return new Response(
-    JSON.stringify({
+  const payload = JSON.stringify({
       crm: {
         total: leads.length,
         byStatus,
@@ -223,7 +234,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         last7DaysCount: reportsLast7Days,
         last30DaysCount: reportsLast30Days,
       },
-    }),
-    { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
-  );
+    });
+  await redis.set(cacheKey, payload, { ex: 120 });
+  return new Response(payload, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 };

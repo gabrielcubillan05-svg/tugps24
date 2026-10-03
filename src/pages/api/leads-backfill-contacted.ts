@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canVerifyInstalls, verifySameOrigin } from '../../lib/auth';
-import { readLeads, REDIS_KEY } from './leads';
+import { readLeads, writeLeads } from './leads';
 
 export const prerender = false;
 
@@ -36,7 +36,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   if (Object.keys(updates).length) {
-    await redis.hset(REDIS_KEY, updates);
+    await writeLeads(redis, updates);
   }
 
   await logAudit(redis, session, 'lead_backfill_contacted', `${updated} leads movidos a Contactado`);

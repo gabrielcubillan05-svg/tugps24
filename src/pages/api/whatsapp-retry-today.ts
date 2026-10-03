@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
-import { readLeads, REDIS_KEY as LEADS_KEY } from './leads';
+import { readLeads, writeLeads } from './leads';
 import { readHistory, appendHistory, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
 import { SESSION_COOKIE, getSession, canManageAiAgents, verifySameOrigin } from '../../lib/auth';
 import { todayInColombia, dateInColombia } from '../../lib/colombia-time';
@@ -60,7 +60,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const nowIso = new Date().toISOString();
     lead.lastOutboundAt = nowIso;
     lead.updatedAt = nowIso;
-    await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+    await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
     await appendHistory(redis, lead.id, [{ role: 'assistant', content: RETRY_MESSAGE }]);
     sent++;
   }

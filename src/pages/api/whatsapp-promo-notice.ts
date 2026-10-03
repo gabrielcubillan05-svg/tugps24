@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
-import { readLeads, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { readLeads, writeLeads, type Lead } from './leads';
 import { appendHistory } from './whatsapp-webhook';
 import { SESSION_COOKIE, getSession, canManageAiAgents, verifySameOrigin } from '../../lib/auth';
 import { activeInstallPromos, branchForCityName, promoUntilLabel, spokenBranchName, INSTALACION_UNIT, type InstallPromo } from '../../lib/pricing';
@@ -111,7 +111,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       lead.lastOutboundAt = nowIso;
       lead.updatedAt = nowIso;
       lead.notes = [{ text: `[Agente IA] Aviso de ${promo.label.toLowerCase()}: instalación a ${money(promo.price)}`, date: nowIso }, ...(lead.notes || [])];
-      await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+      await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
       // Queda en el historial para que Andrés sepa que ya le corrigió el precio si el cliente responde.
       await appendHistory(redis, lead.id, [{ role: 'assistant', content: message }]);
       sent++;

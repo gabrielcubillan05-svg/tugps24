@@ -7,7 +7,7 @@ import { pushNotification } from '../../lib/notifications';
 import { sendGabotMessage } from '../../lib/gabot';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
-import { readLeads, normalizePhone, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
+import { readLeads, writeLeads, normalizePhone, type Lead } from './leads';
 import { readHistory, appendHistory, findBranchAssignee, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
 import { getClientIp, checkAndIncrementRateLimit } from '../../lib/rate-limit';
 
@@ -214,7 +214,7 @@ export const POST: APIRoute = async ({ request }) => {
   lead.updatedAt = new Date().toISOString();
   lead.lastOutboundAt = lead.updatedAt;
 
-  await redis.hset(LEADS_KEY, { [lead.id]: JSON.stringify(lead) });
+  await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
   await appendHistory(redis, lead.id, [
     { role: 'user', content: text },
     { role: 'assistant', content: replyText },

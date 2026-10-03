@@ -3,7 +3,7 @@
 // vive aquí, en las constantes de abajo, para que cambiarla sea un solo lugar.
 
 import { del, list, put } from '@vercel/blob';
-import { readLeads, REDIS_KEY as LEADS_KEY, type Lead } from '../pages/api/leads';
+import { readLeads, deleteLeads, type Lead } from '../pages/api/leads';
 import { readTasks, REDIS_KEY as TASKS_KEY, type Task } from '../pages/api/tasks';
 import { CONVERSATIONS_KEY as LEAD_CONVERSATIONS_KEY } from '../pages/api/whatsapp-webhook';
 import { purgeExpiredSessions } from './auth';
@@ -261,7 +261,7 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
     if (old.length && !dryRun) {
       const ids = old.map((l) => l.id);
       await redis.hset(LEADS_ARCHIVE_KEY, Object.fromEntries(old.map((l) => [l.id, JSON.stringify(l)])));
-      await redis.hdel(LEADS_KEY, ...ids);
+      await deleteLeads(redis, ids);
       await redis.hdel(LEAD_CONVERSATIONS_KEY, ...ids);
     }
   } catch (err) {

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
+import { bumpVersion, readVersion, LEADS_VERSION_KEY } from '../../lib/versions';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, findUserById, verifySameOrigin } from '../../lib/auth';
 import { isOverdueInColombia } from '../../lib/colombia-time';
@@ -95,7 +96,39 @@ export function normalizeLead(l: any): Lead {
   return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, ...l };
 }
 
+// El hash de leads pesa ~3 MB y se lee en el CRM (varias veces por carga), en el inicio de
+// cada usuario, en cada mensaje de WhatsApp y en los crons. Cada lectura era bajar y parsear
+// esos 3 MB de nuevo. Se guarda en memoria de la instancia junto con un contador de versión
+// que sube en cada escritura (writeLeads/deleteLeads): si la versión no cambió, se devuelve
+// una copia de lo ya parseado con una sola lectura chica. El TTL acota cualquier escritura
+// que se salte el contador.
+const LEADS_CACHE_TTL_MS = 15_000;
+let leadsCache: { version: string; at: number; leads: Lead[] } | null = null;
+
+export async function writeLeads(redis: any, fields: Record<string, string>): Promise<void> {
+  await redis.hset(REDIS_KEY, fields);
+  await bumpVersion(redis, LEADS_VERSION_KEY);
+  leadsCache = null;
+}
+
+export async function deleteLeads(redis: any, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await redis.hdel(REDIS_KEY, ...ids);
+  await bumpVersion(redis, LEADS_VERSION_KEY);
+  leadsCache = null;
+}
+
 export async function readLeads(redis: any): Promise<Lead[]> {
+  const version = await readVersion(redis, LEADS_VERSION_KEY);
+  if (leadsCache && leadsCache.version === version && Date.now() - leadsCache.at < LEADS_CACHE_TTL_MS) {
+    return structuredClone(leadsCache.leads);
+  }
+  const leads = await readLeadsUncached(redis);
+  leadsCache = { version, at: Date.now(), leads };
+  return structuredClone(leads);
+}
+
+async function readLeadsUncached(redis: any): Promise<Lead[]> {
   const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
   return Object.values(raw)
     .map((v) => {
@@ -246,7 +279,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     updatedAt: now,
   };
 
-  await redis.hset(REDIS_KEY, { [lead.id]: JSON.stringify(lead) });
+  await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
   await logAudit(redis, session, 'lead_create', lead.name, lead.phone);
 
   return new Response(JSON.stringify({ lead }), {
@@ -427,7 +460,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   lead.updatedAt = new Date().toISOString();
 
-  await redis.hset(REDIS_KEY, { [id]: JSON.stringify(lead) });
+  await writeLeads(redis, { [id]: JSON.stringify(lead) });
   await logAudit(redis, session, 'lead_update', lead.name, JSON.stringify(body));
 
   return new Response(JSON.stringify({ lead: { ...lead, overdue: computeOverdue(lead) } }), {
@@ -455,7 +488,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
 
-  await redis.hdel(REDIS_KEY, String(body.id || ''));
+  await deleteLeads(redis, [String(body.id || '')]);
   await logAudit(redis, session, 'lead_delete', String(body.id || ''));
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },
