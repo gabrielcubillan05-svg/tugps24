@@ -8,7 +8,7 @@ import { sendGabotMessage } from '../../lib/gabot';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { readLeads, writeLeads, normalizePhone, type Lead } from './leads';
-import { readHistory, appendHistory, findBranchAssignee, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
+import { readHistory, appendHistory, findBranchAssignee, GENERIC_FALLBACK_TEXT, conversationOnly } from './whatsapp-webhook';
 import { getClientIp, checkAndIncrementRateLimit } from '../../lib/rate-limit';
 
 export const prerender = false;
@@ -131,7 +131,7 @@ export const POST: APIRoute = async ({ request }) => {
   lead.lastInboundAt = now;
   if (lead.aiStage === 'sin_iniciar' || !lead.aiStage) lead.aiStage = 'en_conversacion';
 
-  const history = await readHistory(redis, lead.id);
+  const history = conversationOnly(await readHistory(redis, lead.id));
   const extraInstructions = await getExtraInstructions(redis, 'andres');
   const agentResult = await runSalesAgent(history, text, extraInstructions, 'web');
   await recordAgentUsage(redis, 'andres', agentResult.usage, { id: lead.id, channel: 'web' });

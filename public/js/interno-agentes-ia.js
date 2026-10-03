@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (data.reason === 'quiet-hours') {
           retryTodayResult.textContent = 'No se envió nada: son horas de silencio (11pm–6am Colombia). Intenta de nuevo en el día.';
         } else {
-          retryTodayResult.textContent = `${data.sent} mensaje(s) enviados, ${data.skipped} omitidos (ya tenían respuesta), ${data.failed} fallidos.`;
+          retryTodayResult.textContent = `${data.sent} mensaje(s) enviados, ${data.skipped} omitidos (ya tenían respuesta), ${data.failed} fallidos.` + (data.retried && data.retried.length ? ` Se les escribió a: ${data.retried.join('; ')}.` : '');
         }
       })
       .catch((err) => {

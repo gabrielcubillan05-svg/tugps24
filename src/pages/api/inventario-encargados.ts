@@ -21,12 +21,12 @@ const RESPONSABLES = [
   'Pierangela Sanchez',
   'Kelly Lara',
   'Alejandra Molina',
-  'Isnaldi',
+  'hisnaldis',
 ];
 
 // Cristian (Bucaramanga) e Isnaldi llevan el inventario de todas las sucursales a nivel
 // nacional: se les marcan todas, no solo la de su perfil.
-const RESPONSABLES_NACIONALES = ['Cristian Zambrano', 'Isnaldi'];
+const RESPONSABLES_NACIONALES = ['Cristian Zambrano', 'hisnaldis'];
 const TODAS_LAS_SUCURSALES = BRANCHES.filter((b) => b !== 'Central de Monitoreo');
 
 function tokens(name: string): string[] {
@@ -39,8 +39,10 @@ function tokens(name: string): string[] {
 }
 
 // "Jose Miguel Reales" coincide con "José Miguel Reales Pérez": todas las palabras de la lista
-// deben estar en el nombre del usuario.
-function matches(listName: string, userName: string): boolean {
+// deben estar en el nombre del usuario. Una entrada de una sola palabra también puede ser el
+// nombre de usuario (ej. "hisnaldis").
+function matches(listName: string, userName: string, username: string): boolean {
+  if (tokens(listName).join('') === tokens(username).join('')) return true;
   const wanted = tokens(listName);
   const have = new Set(tokens(userName));
   return wanted.length > 0 && wanted.every((t) => have.has(t));
@@ -66,7 +68,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const notFound: string[] = [];
 
   for (const listName of RESPONSABLES) {
-    const candidates = users.filter((u) => matches(listName, u.name));
+    const candidates = users.filter((u) => matches(listName, u.name, u.username));
     if (!candidates.length) {
       notFound.push(listName);
       continue;

@@ -3,7 +3,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, writeLeads } from './leads';
-import { readHistory, appendHistory, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
+import { readHistory, appendHistory, conversationOnly, GENERIC_FALLBACK_TEXT } from './whatsapp-webhook';
 import { SESSION_COOKIE, getSession, canManageAiAgents, verifySameOrigin } from '../../lib/auth';
 import { todayInColombia, dateInColombia } from '../../lib/colombia-time';
 
@@ -41,12 +41,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   let skipped = 0;
   let failed = 0;
 
+  const retried: string[] = [];
   for (const lead of leads) {
     if (lead.source !== 'whatsapp-ads') continue;
     if (lead.aiStage !== 'en_conversacion') continue;
-    if (dateInColombia(lead.createdAt) !== today) continue;
+    // Cuentan los leads creados hoy y también los viejos que escribieron hoy.
+    const wroteToday = !!lead.lastInboundAt && dateInColombia(lead.lastInboundAt) === today;
+    if (dateInColombia(lead.createdAt) !== today && !wroteToday) continue;
 
-    const history = await readHistory(redis, lead.id);
+    // Sin los acuses de Meta: un "[Estado WhatsApp] read" que llega después del mensaje del
+    // cliente hacía creer que ya le habíamos contestado.
+    const history = conversationOnly(await readHistory(redis, lead.id));
     const lastMessage = history[history.length - 1];
     // Necesita reintento si nunca le contestamos (última fue del cliente) o si lo último
     // nuestro fue el relleno genérico — cualquier otra respuesta real, por corta que sea, se
@@ -62,12 +67,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     lead.updatedAt = nowIso;
     await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
     await appendHistory(redis, lead.id, [{ role: 'assistant', content: RETRY_MESSAGE }]);
+    retried.push(`${lead.name || lead.phone} (${lead.city || 'sin ciudad'})`);
     sent++;
   }
 
   await logAudit(redis, session, 'whatsapp_retry_today', `${sent} enviados`, `${skipped} omitidos, ${failed} fallidos`);
 
-  return new Response(JSON.stringify({ ok: true, sent, skipped, failed }), {
+  return new Response(JSON.stringify({ ok: true, sent, skipped, failed, retried }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };

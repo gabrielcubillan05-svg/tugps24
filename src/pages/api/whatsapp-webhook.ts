@@ -64,10 +64,36 @@ export async function readHistory(redis: any, leadId: string): Promise<AgentMess
   }
 }
 
+// Los acuses de Meta ("[Estado WhatsApp] read/failed") se guardan en el historial para
+// diagnóstico, pero no son mensajes: no se le muestran al modelo como si fueran suyos, no
+// cuentan para la ventana de contexto y no cuentan como "ya le contestamos".
+export const STATUS_NOTE_PREFIX = '[Estado WhatsApp]';
+export function isStatusNote(m: AgentMessage): boolean {
+  return m.role === 'assistant' && typeof m.content === 'string' && m.content.startsWith(STATUS_NOTE_PREFIX);
+}
+export function conversationOnly(history: AgentMessage[]): AgentMessage[] {
+  return history.filter((m) => !isStatusNote(m));
+}
+
+function trimHistory(entries: AgentMessage[]): AgentMessage[] {
+  // La ventana se mide en mensajes reales; los acuses viajan con ellos pero no la consumen.
+  let real = 0;
+  const kept: AgentMessage[] = [];
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const m = entries[i];
+    if (!isStatusNote(m)) {
+      if (real >= MAX_HISTORY) break;
+      real++;
+    }
+    kept.push(m);
+  }
+  return kept.reverse();
+}
+
 export async function appendHistory(redis: any, leadId: string, entries: AgentMessage[]): Promise<void> {
   const current = await readHistory(redis, leadId);
   const stamped = entries.map((e) => ({ at: new Date().toISOString(), ...e }));
-  const updated = [...current, ...stamped].slice(-MAX_HISTORY);
+  const updated = trimHistory([...current, ...stamped]);
   await redis.hset(CONVERSATIONS_KEY, { [leadId]: JSON.stringify(updated) });
 }
 
@@ -85,7 +111,7 @@ export async function readCobroHistory(redis: any, cobroId: string): Promise<Age
 async function appendCobroHistory(redis: any, cobroId: string, entries: AgentMessage[]): Promise<void> {
   const current = await readCobroHistory(redis, cobroId);
   const stamped = entries.map((e) => ({ at: new Date().toISOString(), ...e }));
-  const updated = [...current, ...stamped].slice(-MAX_HISTORY);
+  const updated = trimHistory([...current, ...stamped]);
   await redis.hset(COBRO_CONVERSATIONS_KEY, { [cobroId]: JSON.stringify(updated) });
 }
 
@@ -291,7 +317,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
 
   if (lead.aiStage === 'sin_iniciar' || !lead.aiStage) lead.aiStage = 'en_conversacion';
 
-  const history = await readHistory(redis, lead.id);
+  const history = conversationOnly(await readHistory(redis, lead.id));
   const extraInstructions = await getExtraInstructions(redis, 'andres');
   const agentResult = await runSalesAgent(history, text, extraInstructions);
   await recordAgentUsage(redis, 'andres', agentResult.usage, { id: lead.id, channel: 'whatsapp' });
@@ -466,7 +492,7 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string):
 
   if (cobro.aiStage === 'sin_iniciar' || !cobro.aiStage) cobro.aiStage = 'en_conversacion';
 
-  const history = await readCobroHistory(redis, cobro.id);
+  const history = conversationOnly(await readCobroHistory(redis, cobro.id));
   const extraInstructions = await getExtraInstructions(redis, 'valentina');
   const agentResult = await runCollectionsAgent(
     history,
@@ -612,9 +638,11 @@ export const POST: APIRoute = async ({ request }) => {
         // enviamos (enviado/entregado/leído/fallido) — se registra en el historial del
         // cliente para poder diagnosticar de verdad si algo se está demorando o fallando
         // en vez de adivinar. "sent" no se registra: ya sabíamos que se mandó.
+        // Solo "read" y "failed" aportan algo: "sent" ya lo sabíamos y "delivered" queda
+        // implícito en "read". Así el historial no se llena de acuses.
         const statuses = (Array.isArray(value.statuses) ? value.statuses : []).filter((st: any) => {
           const label = String(st?.status || '');
-          return label && label !== 'sent' && normalizePhone(String(st?.recipient_id || ''));
+          return (label === 'read' || label === 'failed') && normalizePhone(String(st?.recipient_id || ''));
         });
         for (const st of statuses) {
           const statusLabel = String(st.status);
