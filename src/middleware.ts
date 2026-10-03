@@ -1,5 +1,8 @@
 import { defineMiddleware } from 'astro:middleware';
 import { SESSION_COOKIE, sessionMustChangePassword } from './lib/auth';
+import { getRedis } from './lib/redis';
+import { getClientIp } from './lib/rate-limit';
+import { recordSecurityEvent } from './lib/security-events';
 
 const CSP = [
   "default-src 'self'",
@@ -30,6 +33,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
   const response = await next();
+  // Intentos frenados que antes no dejaban rastro: rechazos por origen o firma (403), límites de
+  // tasa (429) y rutas inexistentes (404, típico de escáneres). El 403 de la clave inicial de
+  // arriba no entra porque ya se devolvió antes de llegar aquí. Se mide en Auditoría.
+  if (response.status === 403 || response.status === 429 || response.status === 404) {
+    if (path !== '/favicon.ico') {
+      const redis = getRedis();
+      if (redis) {
+        const kind = response.status === 403 ? 'forbidden' : response.status === 429 ? 'rate_limited' : 'not_found';
+        await recordSecurityEvent(redis, kind, getClientIp(context.request), `${response.status} ${context.request.method} ${path}`);
+      }
+    }
+  }
   response.headers.set('Content-Security-Policy', CSP);
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');

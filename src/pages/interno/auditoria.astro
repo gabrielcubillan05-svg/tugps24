@@ -14,6 +14,15 @@ if (!canAccessSection(session.role, 'auditoria')) {
 ---
 
 <InternoLayout title="Auditoría" active="auditoria" session={session}>
+  <div class="panel-card" id="securityCard">
+    <h2>Seguridad</h2>
+    <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
+      Intentos frenados por el sistema en los últimos 7 días (hora Colombia). Un número alto de claves fallidas
+      desde una misma IP, o cientos de rutas inexistentes, indica que alguien está probando la página.
+    </p>
+    <div id="securitySummary" class="empty">Cargando...</div>
+  </div>
+
   <div class="panel-card">
     <h2>Registro de actividad</h2>
     <p style="color:var(--slate); font-size:13px; margin-bottom:14px;">
@@ -41,6 +50,21 @@ if (!canAccessSection(session.role, 'auditoria')) {
   .audit-item .audit-action { font-weight: 700; }
   .audit-item .audit-date { color: var(--slate); font-size: 12px; }
   .audit-item .audit-detail { color: var(--paper-dim); margin-top: 4px; }
+  .sec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .sec-tile { background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .sec-tile .sec-num { font-size: 26px; font-weight: 800; line-height: 1.1; }
+  .sec-tile .sec-label { color: var(--slate); font-size: 12px; margin-top: 4px; }
+  .sec-tile.warn .sec-num { color: #f59e0b; }
+  .sec-tile.alert .sec-num { color: #ef4444; }
+  .sec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sec-table th, .sec-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  .sec-table th:first-child, .sec-table td:first-child { text-align: left; }
+  .sec-table th { color: var(--slate); font-weight: 600; font-size: 12px; }
+  .sec-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  @media (max-width: 760px) { .sec-cols { grid-template-columns: 1fr; } }
+  .sec-cols h3 { font-size: 13px; color: var(--slate); margin: 0 0 6px; font-weight: 600; }
+  .sec-cols td.path { text-align: left; font-family: ui-monospace, monospace; font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sec-note { color: var(--slate); font-size: 12px; margin-top: 10px; }
 </style>
 
 <script src="/js/interno-auditoria.js" defer></script>

@@ -122,7 +122,7 @@ function buildSystemPrompt(extraInstructions?: string, channel: 'whatsapp' | 'we
   const installPromoLines = activeInstallPromos(now)
     .map((p) => {
       const where = p.branches.map((b) => (spokenBranchName(b) === b ? b : `${b} (${spokenBranchName(b)})`)).join(' y ');
-      return `- 🔥 ${p.label.toUpperCase()} — SOLO para la sucursal ${where}: equipo + instalación a ${money(p.price)} en vez de ${money(INSTALACION_UNIT)}, válida hasta el ${promoUntilLabel(p)} (quedan ${promoDaysLeft(p, now)} día(s); úsalo para generar urgencia real, sin inventar plazos). Aplica según la sucursal que atiende al cliente (la que registraste en set_ciudad): si es una de estas, el precio que das es ${money(p.price)} directamente, nunca ${money(INSTALACION_UNIT)}. En cualquier otra ciudad esta promoción NO existe: no la menciones ni la concedas aunque te la pidan.`;
+      return `- 🔥 ${p.label.toUpperCase()} — SOLO para la sucursal ${where}: equipo + instalación a ${money(p.price)} en vez de ${money(INSTALACION_UNIT)}, válida hasta el ${promoUntilLabel(p)} y con cupos limitados (quedan ${promoDaysLeft(p, now)} día(s); úsalo para generar urgencia real, sin inventar plazos ni cifras de cupos). Aplica según la sucursal que atiende al cliente (la que registraste en set_ciudad): si es una de estas, el precio que das es ${money(p.price)} directamente, nunca ${money(INSTALACION_UNIT)}. En cualquier otra ciudad esta promoción NO existe: no la menciones ni la concedas aunque te la pidan.`;
     })
     .join('\n');
 

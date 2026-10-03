@@ -34,7 +34,7 @@ export const INSTALL_PROMOS: InstallPromo[] = [
   {
     label: 'Promoción de octubre',
     branches: ['Atlántico', 'Valledupar'],
-    price: 79900,
+    price: 79999,
     from: '2026-10-01T00:00:00-05:00',
     until: '2026-10-31T23:59:59-05:00',
   },

@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getRedis } from '../../../lib/redis';
 import { logAudit } from '../../../lib/audit';
 import { getClientIp, checkAndIncrementRateLimit } from '../../../lib/rate-limit';
+import { recordSecurityEvent } from '../../../lib/security-events';
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
@@ -53,12 +54,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const okIp = await checkAndIncrementRateLimit(redis, `internal:login-ip:${ip}`, MAX_ATTEMPTS_PER_IP, LOGIN_LOCKOUT_SECONDS);
   if (!okIp) {
     await logAudit(redis, { userId: 'anon', username: username || 'desconocido' }, 'login_locked', `${username} (ip)`);
+    await recordSecurityEvent(redis, 'login_locked', ip);
     return redirect(`${LOGIN_PATH}?error=locked`);
   }
   const attemptsKey = loginAttemptsKey(username, ip);
   const attempts = Number((await redis.get<number>(attemptsKey)) || 0);
   if (attempts >= MAX_LOGIN_ATTEMPTS) {
     await logAudit(redis, { userId: 'anon', username: username || 'desconocido' }, 'login_locked', username);
+    await recordSecurityEvent(redis, 'login_locked', ip);
     return redirect(`${LOGIN_PATH}?error=locked`);
   }
 
@@ -74,6 +77,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       await redis.expire(attemptsKey, LOGIN_LOCKOUT_SECONDS);
     }
     await logAudit(redis, { userId: 'anon', username: username || 'desconocido' }, 'login_failed', username);
+    await recordSecurityEvent(redis, 'login_failed', ip);
     return redirect(`${LOGIN_PATH}?error=1`);
   }
 
