@@ -358,7 +358,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${isFuture ? '' : `
                   <div class="v"><span>Atend.</span><span class="a">${d.atendidos}</span></div>
                   <div class="v"><span>Nuevos</span><span class="n">${d.nuevos}</span></div>
-                  <div class="v"><span>Concr.</span><span class="c">${d.concretados}</span></div>`}
+                  <div class="v"><span>Concr.</span><span class="c">${d.concretados}</span></div>
+                  <div class="v cost"><span>Gasto</span><span>${d.usd ? '$' + d.usd.toFixed(2) : '—'}</span></div>`}
               </div>`;
           }).join('');
           calGrid.innerHTML = html;
@@ -369,7 +370,8 @@ document.addEventListener('DOMContentLoaded', function () {
             <span>Leads nuevos: <b style="color:#f59e0b">${fmtTokens(t.nuevos || 0)}</b></span>
             <span>Concretados: <b style="color:#22c55e">${fmtTokens(t.concretados || 0)}</b></span>
             <span>Escalados: <b>${fmtTokens(t.escalados || 0)}</b></span>
-            <span>% concretado sobre nuevos: <b>${rate}%</b></span>`;
+            <span>% concretado sobre nuevos: <b>${rate}%</b></span>
+            <span>Gasto del mes: <b>$${(t.usd || 0).toFixed(2)} USD</b> · $${Math.round(t.cop || 0).toLocaleString('es-CO')} COP</span>`;
         })
         .catch(() => { calGrid.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>'; });
     }

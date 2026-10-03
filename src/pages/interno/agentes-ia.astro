@@ -53,7 +53,7 @@ if (!canManageAiAgents(session)) {
     <div class="cal-head">
       <div>
         <h2>Calendario de Andrés</h2>
-        <p class="hint" style="margin:4px 0 0;">Por día: conversaciones atendidas, leads nuevos que entraron y cuántos concretó (entregó a sucursal). Fechas en hora de Colombia.</p>
+        <p class="hint" style="margin:4px 0 0;">Por día: conversaciones atendidas (leads nuevos o viejos que escribieron y Andrés respondió), leads nuevos que entraron por primera vez, cuántos concretó (entregó a sucursal) y cuánto gastó en Anthropic en dólares. Fechas en hora de Colombia.</p>
       </div>
       <div class="cal-nav">
         <button class="btn-small" id="calPrevBtn" type="button">‹ Mes anterior</button>
@@ -122,6 +122,7 @@ if (!canManageAiAgents(session)) {
   .cal-day .d { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
   .cal-day .v { display: flex; justify-content: space-between; gap: 4px; line-height: 1.5; }
   .cal-day .v .a { color: #3b82f6; } .cal-day .v .n { color: #f59e0b; } .cal-day .v .c { color: #22c55e; font-weight: 700; }
+  .cal-day .v.cost { color: var(--slate); font-size: 11px; border-top: 1px dashed var(--line); margin-top: 3px; padding-top: 2px; }
   .cal-totals { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 13.5px; }
   .cal-totals b { font-size: 16px; }
   @media (max-width: 720px) { .cal-grid { gap: 3px; } .cal-day { min-height: 60px; padding: 4px; font-size: 11px; } .cal-day .v { flex-direction: column; gap: 0; } }
