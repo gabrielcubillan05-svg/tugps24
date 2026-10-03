@@ -87,14 +87,15 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const total = await redis.llen(REDIS_KEY);
   let raw: string[] = [];
   if (needsFullScan) {
-    let offset = 0;
-    while (offset < scanLimit) {
-      const chunk = (await redis.lrange<string>(REDIS_KEY, offset, offset + SEARCH_CHUNK_SIZE - 1)) || [];
-      if (!chunk.length) break;
-      raw = raw.concat(chunk);
-      offset += chunk.length;
-      if (chunk.length < SEARCH_CHUNK_SIZE) break;
-    }
+    // Los bloques se piden todos a la vez: en serie, una búsqueda de 10.000 eran diez idas y
+    // vueltas a la base una detrás de otra, y el operador esperaba la suma de todas.
+    const end = Math.min(scanLimit, Number(total) || 0);
+    const offsets: number[] = [];
+    for (let offset = 0; offset < end; offset += SEARCH_CHUNK_SIZE) offsets.push(offset);
+    const chunks = await Promise.all(
+      offsets.map((offset) => redis.lrange<string>(REDIS_KEY, offset, Math.min(offset + SEARCH_CHUNK_SIZE, end) - 1))
+    );
+    raw = chunks.flatMap((c) => c || []);
   } else {
     raw = (await redis.lrange<string>(REDIS_KEY, 0, DEFAULT_LIMIT - 1)) || [];
   }
