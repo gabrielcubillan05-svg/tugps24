@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
-import { getUsers, canAccessRRHH, branchesOf } from '../../lib/auth';
+import { getUsers, canAccessRRHH, branchesOf, cronSecretMatches } from '../../lib/auth';
 import { readProfiles } from './employees';
 import { readSchedule } from './schedule';
 import { shiftBucketFor, SHIFT_SUPERVISORS } from '../../lib/shift';
@@ -20,7 +20,7 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(authHeader, secret)) {
     return new Response('unauthorized', { status: 401 });
   }
 

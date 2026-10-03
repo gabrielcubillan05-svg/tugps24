@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { cronSecretMatches } from '../../lib/auth';
 import { getRedis } from '../../lib/redis';
 import { isBulkSendWindowColombia } from '../../lib/whatsapp';
 import { sendReminderBatch, BULK_REMINDER_BATCH_SIZE } from './cobros';
@@ -15,7 +16,7 @@ export const GET: APIRoute = async ({ request }) => {
   const authHeader = request.headers.get('authorization');
   // Falla cerrado: si CRON_SECRET no está configurado, el endpoint se bloquea en vez de
   // quedar abierto — esto dispara envíos masivos de WhatsApp reales, no es solo lectura.
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(authHeader, secret)) {
     return new Response('unauthorized', { status: 401 });
   }
 

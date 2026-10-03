@@ -1,4 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
+import { SESSION_COOKIE, sessionMustChangePassword } from './lib/auth';
 
 const CSP = [
   "default-src 'self'",
@@ -13,7 +14,21 @@ const CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 
+// Con la clave inicial sin cambiar, las páginas redirigen a cambiarla, pero la API seguía
+// abierta. Aquí se cierra también la API, salvo lo necesario para cambiarla y salir.
+const MUST_CHANGE_EXEMPT = ['/api/users', '/api/auth/', '/api/version', '/api/health'];
+
 export const onRequest = defineMiddleware(async (context, next) => {
+  const path = context.url.pathname;
+  if (path.startsWith('/api/') && !MUST_CHANGE_EXEMPT.some((p) => path.startsWith(p))) {
+    const cookie = context.cookies.get(SESSION_COOKIE)?.value;
+    if (cookie && (await sessionMustChangePassword(cookie))) {
+      return new Response(JSON.stringify({ error: 'debes cambiar tu contraseña inicial antes de continuar' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
   const response = await next();
   response.headers.set('Content-Security-Policy', CSP);
   response.headers.set('X-Content-Type-Options', 'nosniff');

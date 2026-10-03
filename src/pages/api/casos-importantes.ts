@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -157,7 +158,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid branch or category' }), { status: 400 });
   }
   for (const file of imageFiles) {
-    if (!file.type.startsWith('image/')) {
+    if (!(await isAllowedImageFile(file))) {
       return new Response(JSON.stringify({ error: 'los adjuntos deben ser imágenes' }), { status: 400 });
     }
     if (file.size > MAX_IMAGE_BYTES) {

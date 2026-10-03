@@ -231,7 +231,8 @@ const COBROS_CACHE_TTL_MS = 5 * 60_000;
 let cobrosCache: { version: string; at: number; cobros: Cobro[] } | null = null;
 
 export async function writeCobros(redis: any, fields: Record<string, string>): Promise<void> {
-  await redis.hset(REDIS_KEY, fields);
+  const entries = Object.entries(fields);
+  for (let i = 0; i < entries.length; i += 300) await redis.hset(REDIS_KEY, Object.fromEntries(entries.slice(i, i + 300)));
   await bumpVersion(redis, COBROS_VERSION_KEY);
   cobrosCache = null;
 }

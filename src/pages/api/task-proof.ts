@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -34,7 +35,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!id || !(photo instanceof File) || photo.size === 0) {
     return new Response(JSON.stringify({ error: 'faltan campos (tarea o foto)' }), { status: 400 });
   }
-  if (!photo.type.startsWith('image/')) {
+  if (!(await isAllowedImageFile(photo))) {
     return new Response(JSON.stringify({ error: 'el archivo debe ser una foto' }), { status: 400 });
   }
   if (photo.size > 8 * 1024 * 1024) {

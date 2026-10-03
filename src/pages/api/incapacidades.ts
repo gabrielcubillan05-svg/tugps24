@@ -85,7 +85,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     employeeName,
     startDate,
     endDate,
-    diagnostico: String(body?.diagnostico || '').trim(),
+    // El diagnóstico es dato sensible de salud (Ley 1581, art. 5) y no hace falta para gestionar
+    // la incapacidad: ya no se guarda; con fechas y nota basta.
+    diagnostico: '',
     note: String(body?.note || '').trim(),
     createdAt: new Date().toISOString(),
   };

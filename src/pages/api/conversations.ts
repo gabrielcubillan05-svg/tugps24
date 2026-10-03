@@ -215,8 +215,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   // Grupo
-  const name = String(body.name || '').trim();
-  const memberIds = Array.isArray(body.memberIds) ? body.memberIds.filter((id) => typeof id === 'string') : [];
+  const name = String(body.name || '').trim().slice(0, 60);
+  const activeIds = new Set((await getUsers(redis)).filter((u) => u.active).map((u) => u.id));
+  // Solo usuarios activos reales; GaBot no entra a grupos y no se aceptan ids inventados.
+  const memberIds = Array.isArray(body.memberIds)
+    ? body.memberIds.filter((id): id is string => typeof id === 'string' && id !== GABOT_ID && activeIds.has(id))
+    : [];
   if (!name || memberIds.length === 0) {
     return new Response(JSON.stringify({ error: 'el grupo necesita nombre y al menos un miembro' }), { status: 400 });
   }

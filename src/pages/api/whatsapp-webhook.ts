@@ -152,7 +152,8 @@ async function rebuildPhoneIndex(redis: any): Promise<Record<string, string>> {
     const phone = normalizePhone(c.telefono);
     if (phone) index[phone] = `cobro:${c.id}`;
   }
-  if (Object.keys(index).length) await redis.hset(PHONE_INDEX_KEY, index);
+  const entries = Object.entries(index);
+  for (let i = 0; i < entries.length; i += 500) await redis.hset(PHONE_INDEX_KEY, Object.fromEntries(entries.slice(i, i + 500)));
   return index;
 }
 
@@ -668,6 +669,9 @@ export const POST: APIRoute = async ({ request }) => {
       for (const change of changes) {
         if (change.field !== 'messages') continue;
         const value = change.value || {};
+        // Si la misma app de Meta llegara a tener otro número, sus mensajes no deben entrar al CRM.
+        const ourNumber = import.meta.env.META_PHONE_NUMBER_ID;
+        if (ourNumber && value.metadata?.phone_number_id && String(value.metadata.phone_number_id) !== String(ourNumber)) continue;
         const messages = Array.isArray(value.messages) ? value.messages : [];
         const contacts = Array.isArray(value.contacts) ? value.contacts : [];
 

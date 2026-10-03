@@ -119,7 +119,10 @@ let leadsCache: { version: string; at: number; leads: Lead[] } | null = null;
 let leadsInflight: Promise<Lead[]> | null = null;
 
 export async function writeLeads(redis: any, fields: Record<string, string>): Promise<void> {
-  await redis.hset(REDIS_KEY, fields);
+  // En lotes: una escritura masiva (backfill de miles de leads) en un solo comando supera el
+  // límite de 10 MB por petición de Upstash cuando la base crece.
+  const entries = Object.entries(fields);
+  for (let i = 0; i < entries.length; i += 300) await redis.hset(REDIS_KEY, Object.fromEntries(entries.slice(i, i + 300)));
   await bumpVersion(redis, LEADS_VERSION_KEY);
   leadsCache = null;
 }
@@ -443,7 +446,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     lead.status = body.status;
   }
   if (body.nextFollowUp !== undefined) {
-    lead.nextFollowUp = body.nextFollowUp || null;
+    if (body.nextFollowUp && !/^\d{4}-\d{2}-\d{2}/.test(String(body.nextFollowUp))) {
+      return new Response(JSON.stringify({ error: 'fecha de seguimiento inválida' }), { status: 400 });
+    }
+    lead.nextFollowUp = body.nextFollowUp ? String(body.nextFollowUp).slice(0, 25) : null;
   }
   if (body.convertedBranch !== undefined) {
     lead.convertedBranch = body.convertedBranch || null;
@@ -471,7 +477,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
   }
   if (body.scheduledInstallDate !== undefined) {
-    lead.scheduledInstallDate = body.scheduledInstallDate || null;
+    if (body.scheduledInstallDate && !/^\d{4}-\d{2}-\d{2}/.test(String(body.scheduledInstallDate))) {
+      return new Response(JSON.stringify({ error: 'fecha de instalación inválida' }), { status: 400 });
+    }
+    lead.scheduledInstallDate = body.scheduledInstallDate ? String(body.scheduledInstallDate).slice(0, 25) : null;
     if (lead.scheduledInstallDate && ['Nuevo', 'Contactado', 'Cotizado', 'Concretado por el agente'].includes(lead.status)) {
       lead.status = 'Agendado';
     } else if (!lead.scheduledInstallDate && lead.status === 'Agendado') {
@@ -490,7 +499,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   }
   if (body.confirmVenta) {
     lead.managerAckAt = new Date().toISOString();
-    lead.managerAckBy = session.name;
+    lead.managerAckBy = (await findUserById(redis, session.userId))?.name || session.username;
   }
   if (body.addNote) {
     lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];

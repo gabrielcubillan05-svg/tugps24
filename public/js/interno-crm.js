@@ -1134,11 +1134,11 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       }
       mediaGallery.innerHTML = assets.map((a) => `
         <div class="media-item" data-id="${a.id}">
-          <div class="media-thumb">${a.kind === 'image' ? `<img src="${a.url}" alt="${escapeHtml(a.label)}" loading="lazy" />` : '🎬'}</div>
+          <div class="media-thumb">${a.kind === 'image' ? `<img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.label)}" loading="lazy" />` : '🎬'}</div>
           <div class="media-label">${escapeHtml(a.label)}</div>
           <div class="media-actions">
-            <a class="btn-tiny" href="${a.url}" target="_blank" rel="noopener">Abrir</a>
-            <button class="btn-tiny" type="button" data-action="copy-media-link" data-url="${a.url}">Copiar enlace</button>
+            <a class="btn-tiny" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">Abrir</a>
+            <button class="btn-tiny" type="button" data-action="copy-media-link" data-url="${escapeHtml(a.url)}">Copiar enlace</button>
             ${canManageMedia ? `<button class="btn-tiny btn-delete" type="button" data-action="delete-media" data-id="${a.id}">Eliminar</button>` : ''}
           </div>
         </div>

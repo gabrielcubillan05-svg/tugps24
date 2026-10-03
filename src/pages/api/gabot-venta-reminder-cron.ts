@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { isQuietHoursColombia } from '../../lib/whatsapp';
-import { getUsers, branchesOf } from '../../lib/auth';
+import { getUsers, branchesOf, cronSecretMatches } from '../../lib/auth';
 import { sendGabotMessage } from '../../lib/gabot';
 import { pushNotification } from '../../lib/notifications';
 import { readLeads } from './leads';
@@ -17,7 +17,7 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(authHeader, secret)) {
     return new Response('unauthorized', { status: 401 });
   }
 

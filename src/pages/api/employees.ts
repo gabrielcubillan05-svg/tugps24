@@ -192,7 +192,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       updated.hijos = Array.isArray(fields.hijos)
         ? fields.hijos.map((h: any) => ({
             nombre: String(h?.nombre || '').trim(),
-            fechaNacimiento: h?.fechaNacimiento ? String(h.fechaNacimiento) : '',
+            fechaNacimiento: h?.fechaNacimiento && /^\d{4}-\d{2}-\d{2}/.test(String(h.fechaNacimiento)) ? String(h.fechaNacimiento).slice(0, 10) : '',
             genero: String(h?.genero || '').trim(),
           }))
         : [];

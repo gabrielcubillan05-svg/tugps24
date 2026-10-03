@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { isQuietHoursColombia } from '../../lib/whatsapp';
-import { getUsers, JOSUE_USERNAME, WILMAR_USERNAME, ROLE_LABELS, branchesOf } from '../../lib/auth';
+import { getUsers, JOSUE_USERNAME, WILMAR_USERNAME, ROLE_LABELS, branchesOf, cronSecretMatches } from '../../lib/auth';
 import { sendGabotMessage } from '../../lib/gabot';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
 import { computePerformanceFlags, type PerformanceFlag } from '../../lib/gabot-performance';
@@ -33,7 +33,7 @@ export const GET: APIRoute = async ({ request }) => {
   const authHeader = request.headers.get('authorization');
   // Antes, si CRON_SECRET no estaba configurado, la condición se saltaba entera y el endpoint
   // quedaba abierto a cualquiera en internet — "falla abierto" en vez de "falla cerrado".
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(authHeader, secret)) {
     return new Response('unauthorized', { status: 401 });
   }
 

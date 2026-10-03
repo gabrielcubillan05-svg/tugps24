@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -56,7 +57,7 @@ const SEARCH_MAX_SCAN = 10000;
 // novedades al día, 2.000 entradas cubren día y medio y se traen 5 veces más rápido que las
 // 10.000 de una búsqueda por texto. El botón "seguir buscando más atrás" amplía el tope.
 const FILTER_MAX_SCAN = 2000;
-const SEARCH_MAX_SCAN_CEILING = 100000; // tope duro para que no se pida algo descontrolado
+const SEARCH_MAX_SCAN_CEILING = 30000; // tope duro para que no se pida algo descontrolado
 
 export const GET: APIRoute = async ({ cookies, url }) => {
   if (!(await requireNovedades(cookies))) {
@@ -101,10 +102,15 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     const end = Math.min(scanLimit, Number(total) || 0);
     const offsets: number[] = [];
     for (let offset = 0; offset < end; offset += SEARCH_CHUNK_SIZE) offsets.push(offset);
-    const chunks = await Promise.all(
-      offsets.map((offset) => redis.lrange<string>(REDIS_KEY, offset, Math.min(offset + SEARCH_CHUNK_SIZE, end) - 1))
-    );
-    raw = chunks.flatMap((c) => c || []);
+    // De a 8 bloques a la vez: todos juntos eran ráfagas de hasta 100 peticiones a Upstash.
+    const chunks: string[][] = [];
+    for (let i = 0; i < offsets.length; i += 8) {
+      const part = await Promise.all(
+        offsets.slice(i, i + 8).map((offset) => redis.lrange<string>(REDIS_KEY, offset, Math.min(offset + SEARCH_CHUNK_SIZE, end) - 1))
+      );
+      chunks.push(...part.map((c) => c || []));
+    }
+    raw = chunks.flat();
   } else {
     raw = (await redis.lrange<string>(REDIS_KEY, 0, DEFAULT_LIMIT - 1)) || [];
   }
@@ -196,7 +202,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'invalid branch or category' }), { status: 400 });
   }
   for (const file of imageFiles) {
-    if (!file.type.startsWith('image/')) {
+    if (!(await isAllowedImageFile(file))) {
       return new Response(JSON.stringify({ error: 'los adjuntos deben ser imágenes' }), { status: 400 });
     }
     if (file.size > MAX_IMAGE_BYTES) {

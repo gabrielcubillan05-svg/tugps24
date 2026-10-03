@@ -241,6 +241,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const startDate = String(body.startDate || '').trim();
   const indefinite = type === 'Contrato' && Boolean(body.indefinite);
   const endDate = indefinite ? null : body.endDate ? String(body.endDate) : null;
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if ((startDate && !DATE_RE.test(startDate)) || (endDate && !DATE_RE.test(endDate))) {
+    return new Response(JSON.stringify({ error: 'las fechas deben tener formato AAAA-MM-DD' }), { status: 400 });
+  }
   const pagada = type === 'Vacaciones' && Boolean(body.pagada);
   const note = String(body.note || '').trim();
 

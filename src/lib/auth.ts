@@ -336,6 +336,14 @@ export function verifyPassword(password: string, stored: string): boolean {
   return timingSafeEqual(derived, expected);
 }
 
+// Comparación en tiempo constante del secreto de los crons (Authorization: Bearer <secreto>).
+export function cronSecretMatches(authHeader: string | null | undefined, secret: string | undefined): boolean {
+  if (!secret || !authHeader) return false;
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const given = Buffer.from(String(authHeader));
+  return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
 // --- Sesiones ---
 
 function sessionSecret(): string {
@@ -454,6 +462,24 @@ export async function purgeExpiredSessions(redis: Redis, dryRun = false): Promis
 }
 
 // Cierra las demás sesiones del usuario y conserva la actual (la del cookieValue dado).
+// Solo mira la sesión (sin tocar actividad): lo usa el middleware para exigir el cambio de la
+// clave inicial también en la API, no solo en las páginas.
+export async function sessionMustChangePassword(cookieValue: string | undefined): Promise<boolean> {
+  if (!cookieValue) return false;
+  const sessionId = parseCookieValue(cookieValue);
+  if (!sessionId) return false;
+  const redis = getRedis();
+  if (!redis) return false;
+  try {
+    const raw = await redis.hget<string>(SESSIONS_KEY, sessionId);
+    if (!raw) return false;
+    const session: Session = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
+    return !!session.mustChangePassword;
+  } catch {
+    return false;
+  }
+}
+
 export async function destroyOtherSessionsForUser(redis: Redis, userId: string, currentCookieValue: string | undefined): Promise<void> {
   const keep = currentCookieValue ? parseCookieValue(currentCookieValue) : null;
   const raw = (await redis.hgetall<Record<string, string>>(SESSIONS_KEY)) || {};

@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -178,7 +179,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
   for (const file of [clienteFirmaFile, tecnicoFirmaFile]) {
     if (file instanceof File && file.size > 0) {
-      if (!file.type.startsWith('image/')) {
+      if (!(await isAllowedImageFile(file))) {
         return new Response(JSON.stringify({ error: 'la firma debe ser una imagen' }), { status: 400 });
       }
       if (file.size > MAX_IMAGE_BYTES) {
@@ -311,7 +312,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (!(salidaFirmaFile instanceof File) || salidaFirmaFile.size === 0) {
     return new Response(JSON.stringify({ error: 'falta la firma de conforme de salida' }), { status: 400 });
   }
-  if (!salidaFirmaFile.type.startsWith('image/')) {
+  if (!(await isAllowedImageFile(salidaFirmaFile))) {
     return new Response(JSON.stringify({ error: 'la firma debe ser una imagen' }), { status: 400 });
   }
   if (salidaFirmaFile.size > MAX_IMAGE_BYTES) {

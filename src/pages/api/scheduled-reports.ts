@@ -187,6 +187,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       await logAudit(redis, session, 'scheduled_report_resume', `${existing.client} · ${existing.reportType}`);
     }
   } else if (body.dueDate !== undefined) {
+    if (body.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.dueDate))) {
+      return new Response(JSON.stringify({ error: 'fecha inválida' }), { status: 400 });
+    }
     existing.dueDateOverride = body.dueDate || null;
     await redis.hset(REDIS_KEY, { [id]: JSON.stringify(existing) });
     await logAudit(redis, session, 'scheduled_report_due_date_set', `${existing.client} · ${existing.reportType}`, String(body.dueDate));

@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { readFirstSheetRows, SpreadsheetError } from '../../lib/spreadsheet';
 import { put } from '@vercel/blob';
@@ -595,7 +596,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     garantia.category = category;
     garantia.called = true;
-    garantia.history = [{ category, note: trimmedNote, date: new Date().toISOString(), by: session.name }, ...garantia.history];
+    garantia.history = [{ category, note: trimmedNote, date: new Date().toISOString(), by: (session as any).name || session.username }, ...garantia.history];
   }
 
   if (imageFiles.length) {
@@ -604,7 +605,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: 'almacenamiento no configurado' }), { status: 503 });
     }
     for (const f of imageFiles) {
-      if (!f.type.startsWith('image/')) {
+      if (!(await isAllowedImageFile(f))) {
         return new Response(JSON.stringify({ error: 'los adjuntos deben ser imágenes' }), { status: 400 });
       }
       if (f.size > MAX_IMAGE_BYTES) {

@@ -102,7 +102,12 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!validAgentKeys.includes(agentKey)) {
       return new Response(JSON.stringify({ error: 'agente inválido' }), { status: 400 });
     }
-    await setExtraInstructions(redis, agentKey, String(body.text || ''));
+    const text = String(body.text || '');
+    // Se concatena al final del prompt: un texto enorme invalida la caché y encarece cada mensaje.
+    if (text.length > 4000) {
+      return new Response(JSON.stringify({ error: 'las instrucciones adicionales no pueden pasar de 4.000 caracteres' }), { status: 400 });
+    }
+    await setExtraInstructions(redis, agentKey, text);
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
   }
 

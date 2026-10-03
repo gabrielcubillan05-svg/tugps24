@@ -361,12 +361,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!currentEmployee) return;
     const startDate = document.getElementById('inc-start').value;
     const endDate = document.getElementById('inc-end').value;
-    const diagnostico = document.getElementById('inc-diagnostico').value.trim();
     const note = document.getElementById('inc-note').value.trim();
     fetch('/api/incapacidades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ employeeId: currentEmployee.id, employeeName: currentEmployee.name, startDate, endDate, diagnostico, note }),
+      body: JSON.stringify({ employeeId: currentEmployee.id, employeeName: currentEmployee.name, startDate, endDate, note }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));

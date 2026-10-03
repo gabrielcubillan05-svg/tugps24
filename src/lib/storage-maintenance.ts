@@ -28,7 +28,56 @@ export const RETENTION = {
   // Tareas completadas o canceladas: pasan a internal:tasks-archive y se borra la foto de
   // evidencia.
   tasksArchiveAfterDays: 180,
+  // Casos cerrados de suspensiones, casos importantes, solicitudes y pagos, y planillas de
+  // vehículo ya entregadas: a los dos años pasan a su archivo y se borran sus fotos y firmas.
+  closedModulesArchiveAfterDays: 730,
+  // Los archivos (leads, tareas, módulos) se vacían al año: no son respaldo (viven en el mismo
+  // Redis; el respaldo real es backup-cron) y solo acumulan datos personales.
+  archivesPurgeAfterDays: 365,
+  // Ficha, incapacidades y solicitudes de un empleado retirado: dos años después del retiro.
+  retiredEmployeesPurgeAfterDays: 730,
 };
+
+type ModuleRule = { key: string; label: string; blobPrefix?: string; closed: (r: any) => boolean; closedAt: (r: any) => string | null | undefined };
+const MODULE_RULES: ModuleRule[] = [
+  { key: 'internal:suspensiones', label: 'suspensiones', blobPrefix: 'suspensiones/', closed: (r) => ['Resuelto', 'Suspendido', 'Desinstalación (se reinstalará)', 'Recompra'].includes(r.status), closedAt: (r) => r.resolvedAt || r.updatedAt || r.createdAt },
+  { key: 'internal:casos-importantes', label: 'casos importantes', blobPrefix: 'casos/', closed: (r) => r.status === 'Finalizado', closedAt: (r) => r.updatedAt || r.createdAt },
+  { key: 'internal:solicitudes-administrativas', label: 'solicitudes administrativas', blobPrefix: 'solicitudes-admin/', closed: (r) => ['Completada', 'No completada'].includes(r.status), closedAt: (r) => r.resolvedAt || r.updatedAt || r.createdAt },
+  { key: 'internal:pagos-internos', label: 'pagos internos', closed: (r) => r.status === 'Pagado', closedAt: (r) => r.updatedAt || r.createdAt },
+  { key: 'internal:planillas-vehiculo', label: 'planillas de vehículo', blobPrefix: 'planillas/', closed: () => true, closedAt: (r) => r.salidaAt || r.createdAt },
+];
+const ARCHIVE_KEYS = ['internal:leads-archive', 'internal:tasks-archive', ...MODULE_RULES.map((m) => `${m.key}-archive`)];
+const MAX_MODULE_PER_RUN = 500;
+
+async function scanHashAll(redis: any, key: string): Promise<[string, any][]> {
+  const out: [string, any][] = [];
+  let cursor: string | number = 0;
+  do {
+    const [next, flat] = await redis.hscan(key, cursor, { count: 500 });
+    cursor = next;
+    const pairs = Array.isArray(flat) ? flat : [];
+    for (let i = 0; i + 1 < pairs.length; i += 2) {
+      let v: any = pairs[i + 1];
+      if (typeof v === 'string') {
+        try { v = JSON.parse(v); } catch { continue; }
+      }
+      if (v && typeof v === 'object') out.push([String(pairs[i]), v]);
+    }
+  } while (String(cursor) !== '0');
+  return out;
+}
+
+function blobPathsIn(record: any, prefix: string): string[] {
+  const out: string[] = [];
+  const walk = (v: any) => {
+    if (typeof v === 'string') {
+      if (v.startsWith(prefix)) out.push(v);
+    } else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+  };
+  walk(record);
+  return out;
+}
 
 // Topes por corrida para que el cron termine dentro del tiempo de una función serverless.
 // Si queda más por limpiar, lo toma la corrida del mes siguiente.
@@ -62,6 +111,9 @@ export interface CleanupSummary {
   tasks: { archived: number; proofsDeleted: number };
   notifications: { removed: number; usersTrimmed: number };
   sessions: { removed: number };
+  modules: { label: string; archived: number; filesDeleted: number }[];
+  archivesPurged: number;
+  employeesPurged: number;
   errors: string[];
 }
 
@@ -151,6 +203,7 @@ export async function runCleanup(redis: any, options: { dryRun: boolean }): Prom
         dryRun, startedAt: now, finishedAt: now,
         audit: { removed: 0 }, reports: { archived: 0, imagesDeleted: 0, archiveFile: null, moreLeft: false, photosPurged: 0, reportsWithoutPhotos: 0 },
         leads: { archived: 0, conversationsDeleted: 0 }, tasks: { archived: 0, proofsDeleted: 0 }, notifications: { removed: 0, usersTrimmed: 0 }, sessions: { removed: 0 },
+        modules: [], archivesPurged: 0, employeesPurged: 0,
         errors: ['Ya hay otra limpieza en curso; no se hizo nada para no recortar dos veces.'],
       };
     }
@@ -175,6 +228,9 @@ async function runCleanupUnlocked(redis: any, options: { dryRun: boolean }): Pro
     tasks: { archived: 0, proofsDeleted: 0 },
     notifications: { removed: 0, usersTrimmed: 0 },
     sessions: { removed: 0 },
+    modules: [],
+    archivesPurged: 0,
+    employeesPurged: 0,
     errors: [],
   };
 
@@ -345,6 +401,68 @@ async function runCleanupUnlocked(redis: any, options: { dryRun: boolean }): Pro
     }
   } catch (err) {
     summary.errors.push(`Tareas: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ---- Módulos operativos cerrados: a su archivo y sin fotos ni firmas
+  for (const rule of MODULE_RULES) {
+    try {
+      const cutoff = daysAgoIso(RETENTION.closedModulesArchiveAfterDays);
+      const entries = await scanHashAll(redis, rule.key);
+      const old = entries
+        .filter(([, r]) => rule.closed(r) && typeof rule.closedAt(r) === 'string' && (rule.closedAt(r) as string) < cutoff)
+        .slice(0, MAX_MODULE_PER_RUN);
+      const files = rule.blobPrefix ? old.flatMap(([, r]) => blobPathsIn(r, rule.blobPrefix!)) : [];
+      const item = { label: rule.label, archived: old.length, filesDeleted: files.length };
+      if (old.length && !dryRun) {
+        for (let i = 0; i < old.length; i += 200) {
+          await redis.hset(`${rule.key}-archive`, Object.fromEntries(old.slice(i, i + 200).map(([id, r]) => [id, JSON.stringify({ ...r, archivedAt: new Date().toISOString() })])));
+        }
+        for (let i = 0; i < old.length; i += 500) await redis.hdel(rule.key, ...old.slice(i, i + 500).map(([id]) => id));
+        item.filesDeleted = token && files.length ? await deleteBlobs(files, token, summary.errors) : 0;
+      }
+      summary.modules.push(item);
+    } catch (err) {
+      summary.errors.push(`${rule.label}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ---- Archivos: se vacían al año
+  try {
+    const cutoff = daysAgoIso(RETENTION.archivesPurgeAfterDays);
+    for (const key of ARCHIVE_KEYS) {
+      const entries = await scanHashAll(redis, key);
+      const old = entries
+        .filter(([, r]) => {
+          const stamp = r.archivedAt || r.completedAt || r.updatedAt || r.createdAt;
+          return typeof stamp === 'string' && stamp < cutoff;
+        })
+        .slice(0, 2000);
+      summary.archivesPurged += old.length;
+      if (old.length && !dryRun) {
+        for (let i = 0; i < old.length; i += 500) await redis.hdel(key, ...old.slice(i, i + 500).map(([id]) => id));
+      }
+    }
+  } catch (err) {
+    summary.errors.push(`Archivos: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ---- Empleados retirados hace más de dos años: ficha, incapacidades y solicitudes
+  try {
+    const cutoff = daysAgoIso(RETENTION.retiredEmployeesPurgeAfterDays).slice(0, 10);
+    const profiles = await scanHashAll(redis, 'internal:employee-profiles');
+    const retired = profiles.filter(([, p]) => typeof p.fechaRetiro === 'string' && p.fechaRetiro && p.fechaRetiro.slice(0, 10) < cutoff);
+    summary.employeesPurged = retired.length;
+    if (retired.length && !dryRun) {
+      const ids = new Set(retired.map(([id]) => id));
+      await redis.hdel('internal:employee-profiles', ...retired.map(([id]) => id));
+      for (const key of ['internal:incapacidades', 'internal:vacation-requests', 'internal:comp-days']) {
+        const entries = await scanHashAll(redis, key);
+        const mine = entries.filter(([, r]) => ids.has(String(r.employeeId || ''))).map(([id]) => id);
+        for (let i = 0; i < mine.length; i += 500) await redis.hdel(key, ...mine.slice(i, i + 500));
+      }
+    }
+  } catch (err) {
+    summary.errors.push(`Empleados retirados: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // ---- Sesiones vencidas
@@ -532,6 +650,9 @@ export function describeCleanup(s: CleanupSummary): string {
     `${s.tasks.archived} tareas archivadas (${s.tasks.proofsDeleted} evidencias)`,
     `${s.notifications.removed} notificaciones viejas`,
     `${s.sessions.removed} sesiones vencidas`,
+    ...((s.modules || []).filter((m) => m.archived).map((m) => `${m.archived} ${m.label} archivadas (${m.filesDeleted} archivos)`)),
+    ...(s.archivesPurged ? [`${s.archivesPurged} entradas de archivo vaciadas`] : []),
+    ...(s.employeesPurged ? [`${s.employeesPurged} fichas de empleados retirados`] : []),
   ];
   const head = s.dryRun ? `Simulación de limpieza (${todayInColombia()})` : `Limpieza automática (${todayInColombia()})`;
   return `${head}: ${parts.join(' · ')}${s.errors.length ? ` · ${s.errors.length} error(es)` : ''}`;

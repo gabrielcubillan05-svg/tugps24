@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { cronSecretMatches } from '../../lib/auth';
 import { getRedis } from '../../lib/redis';
 import { sendWhatsappText, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, writeLeads } from './leads';
@@ -26,7 +27,7 @@ export const GET: APIRoute = async ({ request }) => {
   const authHeader = request.headers.get('authorization');
   // Falla cerrado: si CRON_SECRET no está configurado, el endpoint se bloquea en vez de
   // quedar abierto a cualquiera en internet.
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(authHeader, secret)) {
     return new Response('unauthorized', { status: 401 });
   }
 

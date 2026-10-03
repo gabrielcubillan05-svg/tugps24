@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { cronSecretMatches } from '../../lib/auth';
 import { getRedis } from '../../lib/redis';
 import { reassignForToday } from './garantias';
 
@@ -10,7 +11,7 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(authHeader, secret)) {
     return new Response('unauthorized', { status: 401 });
   }
 

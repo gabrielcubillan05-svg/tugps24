@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put, del } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -87,7 +88,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!(file instanceof File) || file.size === 0) {
       return new Response(JSON.stringify({ error: 'falta la foto' }), { status: 400 });
     }
-    if (!file.type.startsWith('image/')) {
+    if (!(await isAllowedImageFile(file))) {
       return new Response(JSON.stringify({ error: 'el archivo debe ser una imagen' }), { status: 400 });
     }
     if (file.size > MAX_IMAGE_BYTES) {
@@ -129,8 +130,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!label || !url) {
       return new Response(JSON.stringify({ error: 'falta el nombre o el enlace' }), { status: 400 });
     }
-    if (!/^https?:\/\//i.test(url)) {
-      return new Response(JSON.stringify({ error: 'el enlace debe empezar con http:// o https://' }), { status: 400 });
+    if (!/^https?:\/\//i.test(url) || url.length > 2048 || /[\s"'<>]/.test(url)) {
+      return new Response(JSON.stringify({ error: 'el enlace debe empezar con http:// o https:// y no llevar espacios ni comillas' }), { status: 400 });
+    }
+    try {
+      new URL(url);
+    } catch {
+      return new Response(JSON.stringify({ error: 'el enlace no es una URL válida' }), { status: 400 });
     }
     asset = {
       id: randomUUID(),

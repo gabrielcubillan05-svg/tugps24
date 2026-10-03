@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, verifySameOrigin, findUserById } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -90,7 +90,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     colores: String(body?.colores || '').trim(),
     ubicacion: String(body?.ubicacion || '').trim(),
     createdAt: new Date().toISOString(),
-    createdByName: session.name,
+    createdByName: (await findUserById(redis, session.userId))?.name || session.username,
   };
 
   await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });

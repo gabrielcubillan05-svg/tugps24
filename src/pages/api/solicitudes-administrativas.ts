@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -86,7 +87,7 @@ export async function readSolicitudes(redis: any): Promise<Solicitud[]> {
 }
 
 async function uploadSolicitudPhoto(photoFile: File): Promise<{ path?: string; error?: string; status?: number }> {
-  if (!photoFile.type.startsWith('image/')) {
+  if (!(await isAllowedImageFile(photoFile))) {
     return { error: 'la foto debe ser una imagen', status: 400 };
   }
   if (photoFile.size > MAX_IMAGE_BYTES) {

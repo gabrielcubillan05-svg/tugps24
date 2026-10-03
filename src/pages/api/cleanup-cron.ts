@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
-import { getUsers } from '../../lib/auth';
+import { getUsers, cronSecretMatches } from '../../lib/auth';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { runCleanup, describeCleanup } from '../../lib/storage-maintenance';
@@ -15,7 +15,7 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(authHeader, secret)) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   }
   const redis = getRedis();

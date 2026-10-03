@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessRRHH, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessRRHH, verifySameOrigin, findUserById } from '../../lib/auth';
 import { createVacationEntry } from './contracts';
 
 export const prerender = false;
@@ -78,12 +78,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!startDate || !endDate) {
     return new Response(JSON.stringify({ error: 'faltan las fechas' }), { status: 400 });
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return new Response(JSON.stringify({ error: 'las fechas deben tener formato AAAA-MM-DD' }), { status: 400 });
+  }
+  const requesterName = (await findUserById(redis, session.userId))?.name || session.username;
 
   // employeeId/employeeName siempre salen de la sesión — nadie puede solicitar a nombre de otro.
   const entry: VacationRequest = {
     id: randomUUID(),
     employeeId: session.userId,
-    employeeName: session.name,
+    employeeName: requesterName,
     startDate,
     endDate,
     note: String(body?.note || '').trim(),
@@ -95,7 +99,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   await redis.hset(REDIS_KEY, { [entry.id]: JSON.stringify(entry) });
-  await logAudit(redis, session, 'vacation_request_create', session.name, `${startDate} – ${endDate}`);
+  await logAudit(redis, session, 'vacation_request_create', requesterName, `${startDate} – ${endDate}`);
 
   return new Response(JSON.stringify({ entry }), {
     headers: { 'Content-Type': 'application/json' },
@@ -136,7 +140,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (status !== undefined) {
     entry.status = status;
     entry.resolvedAt = new Date().toISOString();
-    entry.resolvedByName = session.name;
+    entry.resolvedByName = (await findUserById(redis, session.userId))?.name || session.username;
     entry.resolutionNote = String(body?.resolutionNote || '').trim();
   }
 

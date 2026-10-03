@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -35,7 +36,7 @@ function isTesoreriaSession(session: { username: string }): boolean {
 }
 
 async function uploadRequestPhoto(photoFile: File): Promise<{ path?: string; error?: string; status?: number }> {
-  if (!photoFile.type.startsWith('image/')) {
+  if (!(await isAllowedImageFile(photoFile))) {
     return { error: 'la foto de la solicitud debe ser una imagen', status: 400 };
   }
   if (photoFile.size > MAX_IMAGE_BYTES) {

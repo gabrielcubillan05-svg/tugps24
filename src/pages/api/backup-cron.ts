@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { cronSecretMatches } from '../../lib/auth';
 import { put, list, del } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
@@ -59,7 +60,7 @@ async function dumpKey(redis: any, key: string): Promise<unknown | null> {
 
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
-  if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (!secret || !cronSecretMatches(request.headers.get('authorization'), secret)) {
     return new Response('unauthorized', { status: 401 });
   }
   const redis = getRedis();
