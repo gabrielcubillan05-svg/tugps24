@@ -1,4 +1,4 @@
-import { callAnthropicMessages } from './anthropic-client';
+import { callAnthropicMessages, cachedSystemBlocks, withCachedTail, usageFromResponse, type SystemPrompt } from './anthropic-client';
 import { INSTALACION_UNIT, activeInstallPromos, promoDaysLeft, promoUntilLabel, spokenBranchName } from './pricing';
 import { describeNowInColombia } from './colombia-time';
 
@@ -115,7 +115,7 @@ const TOOLS = [
   },
 ];
 
-function buildSystemPrompt(extraInstructions?: string, channel: 'whatsapp' | 'web' = 'whatsapp'): string {
+function buildSystemPrompt(extraInstructions?: string, channel: 'whatsapp' | 'web' = 'whatsapp'): SystemPrompt {
   const now = new Date();
   const money = (n: number) => '$' + n.toLocaleString('es-CO');
   // Promociones de instalación por sucursal vigentes hoy (lib/pricing.ts). Se apagan solas.
@@ -132,7 +132,7 @@ function buildSystemPrompt(extraInstructions?: string, channel: 'whatsapp' | 'we
     ? 'Estás conversando por el chat en vivo de la página web www.tugps24.com, con alguien que entró buscando información de la empresa.'
     : 'Estás conversando por WhatsApp con alguien que escribió después de ver un anuncio.';
 
-  return `Eres Andrés, asesor comercial de TuGPS24 (empresa colombiana de GPS para vehículos, fundada el 17 de julio de 2016 en Riohacha, La Guajira, para frenar el robo de motos y carros en la región; 10 años en el mercado, más de 1.650 vehículos recuperados, 9 sucursales propias en la Costa Caribe y el interior del país). ${channelContext} NUNCA digas que eres una inteligencia artificial ni un bot — eres un asesor humano más del equipo.
+  const stable = `Eres Andrés, asesor comercial de TuGPS24 (empresa colombiana de GPS para vehículos, fundada el 17 de julio de 2016 en Riohacha, La Guajira, para frenar el robo de motos y carros en la región; 10 años en el mercado, más de 1.650 vehículos recuperados, 9 sucursales propias en la Costa Caribe y el interior del país). ${channelContext} NUNCA digas que eres una inteligencia artificial ni un bot — eres un asesor humano más del equipo.
 
 ## Objetivo de la conversación
 Eres un experto en ventas consultivas orientado al logro: tu trabajo no es "recitar el guion", es entender qué necesita y qué le preocupa a este cliente en particular, y mostrarle por qué TuGPS24 es la mejor solución para eso. Sé amable, cálido y genuinamente interesado en resolver su necesidad — pero también insistente y persuasivo: no aceptes un "no" o un silencio a la primera, busca la objeción real detrás y respóndela con datos concretos (la central de monitoreo, los vehículos recuperados, la geocerca) en vez de simplemente bajar el precio o rendirte. Tu meta real es cerrar la venta o, como mínimo, dejar al cliente agendado con la sucursal de su ciudad — no te conformes con solo informar.
@@ -229,14 +229,16 @@ ${installPromoLines}
 - Si el cliente menciona (sin molestia ni urgencia) que ya es cliente actual y tiene una factura o pago pendiente que quiere resolver: llama a derivar_a_cobranza, y dile que en breve alguien de cartera le confirma. Reserva escalar_urgente solo para molestia real, reclamos o cuando pida hablar con una persona.
 - Si alguien escribe interesado en TRABAJAR con nosotros (empleo, vacante, hoja de vida) y no en el servicio de GPS: dile amablemente que envíe su hoja de vida al correo asesoriasdigitales35@gmail.com. No sigas el guion de venta con esa persona.
 
-Hoy es ${describeNowInColombia(now)}. Cuando hables de "mañana", "el lunes" o de agendar, cuenta los días a partir de esta fecha y hora de Colombia.` +
+` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
+  const volatile = `Hoy es ${describeNowInColombia(now)}. Cuando hables de "mañana", "el lunes" o de agendar, cuenta los días a partir de esta fecha y hora de Colombia.`;
+  return { stable, volatile };
 }
 
-async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: string): Promise<any | null> {
+async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: SystemPrompt): Promise<any | null> {
   return callAnthropicMessages(
     apiKey,
-    { model: MODEL, max_tokens: 2048, system: systemPrompt, messages, tools: TOOLS },
+    { model: MODEL, max_tokens: 2048, system: cachedSystemBlocks(systemPrompt), messages: withCachedTail(messages), tools: TOOLS },
     'sales-agent'
   );
 }
@@ -254,12 +256,7 @@ function extractReplyAndTools(data: any): { reply: string; toolCalls: AgentToolC
   return { reply: reply.trim(), toolCalls };
 }
 
-function usageOf(data: any): { inputTokens: number; outputTokens: number } {
-  return {
-    inputTokens: Number(data?.usage?.input_tokens) || 0,
-    outputTokens: Number(data?.usage?.output_tokens) || 0,
-  };
-}
+const usageOf = usageFromResponse;
 
 export async function runSalesAgent(
   history: AgentMessage[],
@@ -268,7 +265,7 @@ export async function runSalesAgent(
   channel: 'whatsapp' | 'web' = 'whatsapp'
 ): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
-  const noUsage = { inputTokens: 0, outputTokens: 0 };
+  const noUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
   if (!apiKey) {
     return { reply: null, toolCalls: [], usage: noUsage };
   }
@@ -306,6 +303,8 @@ export async function runSalesAgent(
       const followUpUsage = usageOf(followUpData);
       usage.inputTokens += followUpUsage.inputTokens;
       usage.outputTokens += followUpUsage.outputTokens;
+      usage.cacheReadTokens += followUpUsage.cacheReadTokens;
+      usage.cacheCreationTokens += followUpUsage.cacheCreationTokens;
       const second = extractReplyAndTools(followUpData);
       if (second.reply) {
         return { reply: second.reply, toolCalls: [...first.toolCalls, ...second.toolCalls], usage };

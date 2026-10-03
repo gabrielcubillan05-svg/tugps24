@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <h3 class="agent-section-label">Costo</h3>
         <div class="agent-usage-row">
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.inputTokens)}</span><span class="l">Tokens de entrada</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.cacheReadTokens || 0)}</span><span class="l">Leídos de caché (10 % del precio)</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.outputTokens)}</span><span class="l">Tokens de salida</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.usage.calls)}</span><span class="l">Respuestas generadas</span></div>
           ${renderConversationStats(a.usage, a.key)}
@@ -137,6 +138,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <span class="title">${escapeHtml(a.label)}</span>
         <div class="agent-usage-row">
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.inputTokens)}</span><span class="l">Tokens de entrada</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.cacheReadTokens || 0)}</span><span class="l">Leídos de caché (10 % del precio)</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.outputTokens)}</span><span class="l">Tokens de salida</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(a.rangeUsage.calls)}</span><span class="l">Respuestas generadas</span></div>
           ${renderConversationStats(a.rangeUsage, a.key)}
@@ -315,6 +317,67 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .finally(() => { retryTodayBtn.disabled = false; });
   });
+
+  // --- Calendario mensual de Andrés ---
+  const calGrid = document.getElementById('calGrid');
+  if (calGrid) {
+    const calTotals = document.getElementById('calTotals');
+    const calMonthLabel = document.getElementById('calMonthLabel');
+    const DOW = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    let calMonth = null;
+
+    function shiftMonth(month, delta) {
+      const [y, m] = month.split('-').map((v) => parseInt(v, 10));
+      const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function loadCalendar(month) {
+      calGrid.innerHTML = '<div class="empty">Cargando...</div>';
+      fetch('/api/andres-calendario' + (month ? '?month=' + month : ''))
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data || !Array.isArray(data.days)) {
+            calGrid.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
+            return;
+          }
+          calMonth = data.month;
+          const [y, m] = data.month.split('-').map((v) => parseInt(v, 10));
+          calMonthLabel.textContent = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+          // La semana empieza en lunes.
+          const order = [1, 2, 3, 4, 5, 6, 0];
+          let html = order.map((d) => `<div class="cal-dow">${DOW[d]}</div>`).join('');
+          const lead = (data.firstWeekday + 6) % 7;
+          for (let i = 0; i < lead; i++) html += '<div class="cal-day empty-day"></div>';
+          html += data.days.map((d) => {
+            const isToday = d.date === data.today;
+            const isFuture = d.date > data.today;
+            return `
+              <div class="cal-day ${isToday ? 'today' : ''} ${isFuture ? 'future' : ''}" title="${d.date}">
+                <div class="d">${parseInt(d.date.slice(8), 10)}</div>
+                ${isFuture ? '' : `
+                  <div class="v"><span>Atend.</span><span class="a">${d.atendidos}</span></div>
+                  <div class="v"><span>Nuevos</span><span class="n">${d.nuevos}</span></div>
+                  <div class="v"><span>Concr.</span><span class="c">${d.concretados}</span></div>`}
+              </div>`;
+          }).join('');
+          calGrid.innerHTML = html;
+          const t = data.totals || {};
+          const rate = t.nuevos ? Math.round((t.concretados / t.nuevos) * 100) : 0;
+          calTotals.innerHTML = `
+            <span>Atendidos: <b style="color:#3b82f6">${fmtTokens(t.atendidos || 0)}</b></span>
+            <span>Leads nuevos: <b style="color:#f59e0b">${fmtTokens(t.nuevos || 0)}</b></span>
+            <span>Concretados: <b style="color:#22c55e">${fmtTokens(t.concretados || 0)}</b></span>
+            <span>Escalados: <b>${fmtTokens(t.escalados || 0)}</b></span>
+            <span>% concretado sobre nuevos: <b>${rate}%</b></span>`;
+        })
+        .catch(() => { calGrid.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>'; });
+    }
+
+    document.getElementById('calPrevBtn').addEventListener('click', () => loadCalendar(shiftMonth(calMonth, -1)));
+    document.getElementById('calNextBtn').addEventListener('click', () => loadCalendar(shiftMonth(calMonth, 1)));
+    loadCalendar(null);
+  }
 
   agentsList.addEventListener('click', function (e) {
     const card = e.target.closest('.agent-card');

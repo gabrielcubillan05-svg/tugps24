@@ -1,4 +1,4 @@
-import { callAnthropicMessages } from './anthropic-client';
+import { callAnthropicMessages, cachedSystemBlocks, withCachedTail, usageFromResponse, type SystemPrompt } from './anthropic-client';
 import { describeNowInColombia } from './colombia-time';
 
 const MODEL = 'claude-sonnet-5';
@@ -211,18 +211,25 @@ const CONTRATOS_POR_VENCER_TOOL = {
   input_schema: { type: 'object', properties: {} },
 };
 
+const MAX_PENDING_LINES = 60;
+
 function buildSystemPrompt(
   userName: string,
   roleLabel: string,
   pendingLines: string[],
   extraInstructions: string | undefined,
   permissions: GabotPermissions
-): string {
+): SystemPrompt {
+  // Un jefe con cientos de pendientes metía decenas de miles de tokens en cada mensaje (se
+  // vieron 87.000 por respuesta). Se listan los primeros y el resto se resume: para el detalle
+  // están las herramientas de consulta por módulo.
+  const shown = pendingLines.slice(0, MAX_PENDING_LINES);
+  const hidden = pendingLines.length - shown.length;
   const pendingBlock = pendingLines.length
-    ? pendingLines.join('\n')
+    ? shown.join('\n') + (hidden > 0 ? `\n… y ${hidden} pendiente(s) más que no se listan aquí por espacio (usa las herramientas de consulta si te preguntan por alguno en particular).` : '')
     : 'No tiene nada pendiente en este momento en ningún módulo — está al día.';
 
-  return `Eres GPSITO, el asistente interno de TuGPS24 (empresa colombiana de GPS para vehículos). No hablas con clientes — hablas con el propio equipo de trabajo, por el chat interno del panel administrativo (/interno). En este momento estás conversando con ${userName} (${roleLabel}).
+  const stable = `Eres GPSITO, el asistente interno de TuGPS24 (empresa colombiana de GPS para vehículos). No hablas con clientes — hablas con el propio equipo de trabajo, por el chat interno del panel administrativo (/interno). En este momento estás conversando con ${userName} (${roleLabel}).
 
 ## Tu función
 Ayudas a los trabajadores a entender y organizar sus pendientes dentro de los módulos del panel interno: Suspensiones, Solicitudes administrativas, Pagos programados, Tareas, CRM, Seguimiento a clientes masivos, Casos importantes y Reportes programados. Ya le mandas recordatorios automáticos varias veces al día — ahora también puede preguntarte directamente sobre esos pendientes.
@@ -271,30 +278,26 @@ ${permissions.canAssignToOthers
 - Nunca compartas información privada de la empresa, de sus dueños, ni datos personales de otros trabajadores que no tengan que ver con sus pendientes en el sistema.
 - Si preguntan algo fuera de estos módulos (dudas generales de trabajo, por ejemplo), ayuda con sentido común pero deja claro que tu fuerte es lo relacionado a pendientes en el sistema.
 
-Hoy es ${describeNowInColombia()}.` +
+` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
+  return { stable, volatile: `Hoy es ${describeNowInColombia()}.` };
 }
 
-async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: string, tools: unknown[]): Promise<any | null> {
+async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: SystemPrompt, tools: unknown[]): Promise<any | null> {
   return callAnthropicMessages(
     apiKey,
     {
       model: MODEL,
       max_tokens: 1024,
-      system: systemPrompt,
-      messages,
+      system: cachedSystemBlocks(systemPrompt),
+      messages: withCachedTail(messages),
       ...(tools.length ? { tools } : {}),
     },
     'gabot-agent'
   );
 }
 
-function usageOf(data: any): { inputTokens: number; outputTokens: number } {
-  return {
-    inputTokens: Number(data?.usage?.input_tokens) || 0,
-    outputTokens: Number(data?.usage?.output_tokens) || 0,
-  };
-}
+const usageOf = usageFromResponse;
 
 interface ToolCall {
   id: string;
@@ -326,7 +329,7 @@ export async function runGabotAgent(
   actions: GabotActions
 ): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
-  const noUsage = { inputTokens: 0, outputTokens: 0 };
+  const noUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
   if (!apiKey) {
     return { reply: null, usage: noUsage };
   }
@@ -413,6 +416,8 @@ export async function runGabotAgent(
       const followUpUsage = usageOf(followUpData);
       usage.inputTokens += followUpUsage.inputTokens;
       usage.outputTokens += followUpUsage.outputTokens;
+      usage.cacheReadTokens += followUpUsage.cacheReadTokens;
+      usage.cacheCreationTokens += followUpUsage.cacheCreationTokens;
       const second = extractReplyAndTools(followUpData);
       if (second.reply) {
         return { reply: second.reply, usage };

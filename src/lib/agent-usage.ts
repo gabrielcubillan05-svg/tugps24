@@ -41,10 +41,12 @@ export interface CostConfig {
 
 // Precios por defecto de Claude Sonnet (USD por millón de tokens) y una tasa de cambio
 // aproximada — verifica y ajusta ambos en el menú de IA, ya que pueden cambiar.
+// Claude Sonnet 5 (el modelo de los tres agentes) vale 2 USD por millón de entrada y 10 de
+// salida; si en el menú de IA quedó 3/15 (la tarifa de Sonnet 4.6), el costo sale inflado 1,5x.
 const DEFAULT_COST_CONFIG: CostConfig = {
   usdToCop: 4000,
-  inputPricePerMTokUsd: 3,
-  outputPricePerMTokUsd: 15,
+  inputPricePerMTokUsd: 2,
+  outputPricePerMTokUsd: 10,
 };
 
 export type ConversationChannel = 'whatsapp' | 'web' | 'panel';
@@ -58,11 +60,15 @@ export interface ConversationCounts {
 export interface AgentUsage {
   inputTokens: number;
   outputTokens: number;
+  // Tokens del prompt servidos desde la caché de Anthropic (cuestan el 10 %) y escritos en
+  // ella (cuestan el 125 %). inputTokens solo cuenta los que se cobraron a precio pleno.
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
   calls: number;
   conversations: ConversationCounts;
 }
 
-const EMPTY_USAGE = (): AgentUsage => ({ inputTokens: 0, outputTokens: 0, calls: 0, conversations: { whatsapp: 0, web: 0, panel: 0 } });
+const EMPTY_USAGE = (): AgentUsage => ({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, calls: 0, conversations: { whatsapp: 0, web: 0, panel: 0 } });
 
 function countByChannel(members: unknown): ConversationCounts {
   const counts: ConversationCounts = { whatsapp: 0, web: 0, panel: 0 };
@@ -85,10 +91,12 @@ export async function setExtraInstructions(redis: any, agentKey: string, text: s
 export async function recordAgentUsage(
   redis: any,
   agentKey: string,
-  usage: { inputTokens: number; outputTokens: number },
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheCreationTokens?: number },
   conversation?: { id: string; channel: ConversationChannel }
 ): Promise<void> {
-  if (!usage.inputTokens && !usage.outputTokens) return;
+  if (!usage.inputTokens && !usage.outputTokens && !usage.cacheReadTokens) return;
+  const cacheRead = usage.cacheReadTokens || 0;
+  const cacheCreation = usage.cacheCreationTokens || 0;
   const key = USAGE_KEY_PREFIX + agentKey;
   const today = todayInColombia();
   const dailyKey = DAILY_USAGE_KEY_PREFIX + agentKey + ':' + today;
@@ -104,9 +112,13 @@ export async function recordAgentUsage(
       : []),
     redis.hincrby(key, 'inputTokens', usage.inputTokens),
     redis.hincrby(key, 'outputTokens', usage.outputTokens),
+    redis.hincrby(key, 'cacheReadTokens', cacheRead),
+    redis.hincrby(key, 'cacheCreationTokens', cacheCreation),
     redis.hincrby(key, 'calls', 1),
     redis.hincrby(dailyKey, 'inputTokens', usage.inputTokens),
     redis.hincrby(dailyKey, 'outputTokens', usage.outputTokens),
+    redis.hincrby(dailyKey, 'cacheReadTokens', cacheRead),
+    redis.hincrby(dailyKey, 'cacheCreationTokens', cacheCreation),
     redis.hincrby(dailyKey, 'calls', 1),
     redis.expire(dailyKey, DAILY_TTL_SECONDS),
     // Se guarda una sola vez (nx) — marca desde cuándo existe el desglose por día, para poder
@@ -135,6 +147,8 @@ export async function getAgentUsage(redis: any, agentKey: string): Promise<Agent
   return {
     inputTokens: Number(r.inputTokens) || 0,
     outputTokens: Number(r.outputTokens) || 0,
+    cacheReadTokens: Number(r.cacheReadTokens) || 0,
+    cacheCreationTokens: Number(r.cacheCreationTokens) || 0,
     calls: Number(r.calls) || 0,
     conversations: countByChannel(members),
   };
@@ -168,6 +182,8 @@ export async function getAgentUsageRange(redis: any, agentKey: string, fromDate:
       const r = raw || {};
       acc.inputTokens += Number(r.inputTokens) || 0;
       acc.outputTokens += Number(r.outputTokens) || 0;
+      acc.cacheReadTokens += Number(r.cacheReadTokens) || 0;
+      acc.cacheCreationTokens += Number(r.cacheCreationTokens) || 0;
       acc.calls += Number(r.calls) || 0;
       return acc;
     },
@@ -196,6 +212,8 @@ export async function setCostConfig(redis: any, partial: Partial<CostConfig>): P
 }
 
 export function computeCost(usage: AgentUsage, cost: CostConfig): { usd: number; cop: number } {
-  const usd = (usage.inputTokens / 1_000_000) * cost.inputPricePerMTokUsd + (usage.outputTokens / 1_000_000) * cost.outputPricePerMTokUsd;
+  // Tarifas de Anthropic: lectura de caché al 10 % del precio de entrada, escritura al 125 %.
+  const billedInput = usage.inputTokens + (usage.cacheReadTokens || 0) * 0.1 + (usage.cacheCreationTokens || 0) * 1.25;
+  const usd = (billedInput / 1_000_000) * cost.inputPricePerMTokUsd + (usage.outputTokens / 1_000_000) * cost.outputPricePerMTokUsd;
   return { usd, cop: usd * cost.usdToCop };
 }

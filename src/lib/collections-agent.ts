@@ -1,4 +1,4 @@
-import { callAnthropicMessages } from './anthropic-client';
+import { callAnthropicMessages, cachedSystemBlocks, withCachedTail, usageFromResponse, type SystemPrompt } from './anthropic-client';
 
 const MODEL = 'claude-sonnet-5';
 
@@ -70,9 +70,9 @@ const TOOLS = [
   },
 ];
 
-function buildSystemPrompt(nombre: string, deuda: number, facturasImpagas: number, extraInstructions?: string): string {
+function buildSystemPrompt(nombre: string, deuda: number, facturasImpagas: number, extraInstructions?: string): SystemPrompt {
   const deudaFmt = '$' + Math.round(deuda).toLocaleString('es-CO');
-  return `Eres Valentina, encargada de cobranza de TuGPS24 (empresa colombiana de GPS para vehículos). Le escribes por WhatsApp a ${nombre}, quien tiene un saldo pendiente de ${deudaFmt}${facturasImpagas ? ` (${facturasImpagas} factura(s) sin pagar)` : ''} por el servicio de monitoreo. NUNCA digas que eres una inteligencia artificial ni un bot — eres una persona real del equipo de cartera.
+  const stable = `Eres Valentina, encargada de cobranza de TuGPS24 (empresa colombiana de GPS para vehículos). Le escribes por WhatsApp a un cliente que tiene un saldo pendiente por el servicio de monitoreo (su nombre y su saldo exacto están al final de estas instrucciones). NUNCA digas que eres una inteligencia artificial ni un bot — eres una persona real del equipo de cartera.
 
 ## Objetivo
 Eres orientada al logro: tu meta real es que el cliente se ponga al día, no solo informarle su deuda. No solo exijas el pago — sé una excelente cobradora: firme, insistente, profesional, pero también dispuesta a buscar un acuerdo de pago razonable (una fecha concreta, o cuotas) si el cliente no puede pagar todo de una vez. Prioriza llegar a un compromiso concreto (fecha o plan) antes que solo repetir el monto — no dejes la conversación sin un acuerdo o un siguiente paso claro.
@@ -129,12 +129,14 @@ ${facturasImpagas >= 2
 - Si alguien escribe interesado en TRABAJAR con nosotros (empleo, vacante, hoja de vida) y no en su deuda: dile amablemente que envíe su hoja de vida al correo asesoriasdigitales35@gmail.com.
 - SIEMPRE responde con un mensaje de texto para el cliente, incluso cuando uses una herramienta.` +
     (extraInstructions ? `\n\n## Instrucciones adicionales del administrador\n${extraInstructions}` : '');
+  const volatile = `## Cliente con el que hablas\nNombre: ${nombre}. Saldo pendiente: ${deudaFmt}${facturasImpagas ? ` (${facturasImpagas} factura(s) sin pagar)` : ''}.`;
+  return { stable, volatile };
 }
 
-async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: string): Promise<any | null> {
+async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: SystemPrompt): Promise<any | null> {
   return callAnthropicMessages(
     apiKey,
-    { model: MODEL, max_tokens: 2048, system: systemPrompt, messages, tools: TOOLS },
+    { model: MODEL, max_tokens: 2048, system: cachedSystemBlocks(systemPrompt), messages: withCachedTail(messages), tools: TOOLS },
     'collections-agent'
   );
 }
@@ -152,12 +154,7 @@ function extractReplyAndTools(data: any): { reply: string; toolCalls: AgentToolC
   return { reply: reply.trim(), toolCalls };
 }
 
-function usageOf(data: any): { inputTokens: number; outputTokens: number } {
-  return {
-    inputTokens: Number(data?.usage?.input_tokens) || 0,
-    outputTokens: Number(data?.usage?.output_tokens) || 0,
-  };
-}
+const usageOf = usageFromResponse;
 
 export async function runCollectionsAgent(
   history: AgentMessage[],
@@ -166,7 +163,7 @@ export async function runCollectionsAgent(
   extraInstructions?: string
 ): Promise<AgentResult> {
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
-  const noUsage = { inputTokens: 0, outputTokens: 0 };
+  const noUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
   if (!apiKey) {
     return { reply: null, toolCalls: [], usage: noUsage };
   }
@@ -200,6 +197,8 @@ export async function runCollectionsAgent(
       const followUpUsage = usageOf(followUpData);
       usage.inputTokens += followUpUsage.inputTokens;
       usage.outputTokens += followUpUsage.outputTokens;
+      usage.cacheReadTokens += followUpUsage.cacheReadTokens;
+      usage.cacheCreationTokens += followUpUsage.cacheCreationTokens;
       const second = extractReplyAndTools(followUpData);
       if (second.reply) {
         return { reply: second.reply, toolCalls: [...first.toolCalls, ...second.toolCalls], usage };
