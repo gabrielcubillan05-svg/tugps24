@@ -9,7 +9,7 @@ import { transcribeWhatsappAudio } from '../../lib/transcribe';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { runCollectionsAgent } from '../../lib/collections-agent';
 import { readLeads, writeLeads, normalizeLead, normalizePhone, mergeLeadIntoCurrent, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
-import { waitUntil } from '@vercel/functions';
+import { runAfterResponse } from '../../lib/background';
 import { readCobros, normalizeCobro, writeCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { reportIncident } from '../../lib/incidents';
 import { readAgentMedia } from './whatsapp-agent-media';
@@ -679,15 +679,6 @@ async function withPhoneLock<T>(redis: any, phone: string, fn: () => Promise<T>,
       if (owner === token) await redis.del(key).catch(() => {});
     }
   }
-}
-
-// En Vercel, waitUntil deja la función viva hasta que termine la promesa aunque ya se haya
-// respondido. Fuera de Vercel (astro dev) no hay contexto y el trabajo se espera en línea.
-function runAfterResponse(work: Promise<unknown>): Promise<unknown> | null {
-  const context = (globalThis as any)[Symbol.for('@vercel/request-context')]?.get?.();
-  if (!context || typeof context.waitUntil !== 'function') return work;
-  waitUntil(work);
-  return null;
 }
 
 type StatusWork = { phone: string; note: string };

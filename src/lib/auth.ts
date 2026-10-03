@@ -10,6 +10,29 @@ export const CHANGE_PASSWORD_PATH = '/interno/cambiar-clave';
 const USERS_KEY = 'internal:users';
 const SESSIONS_KEY = 'internal:sessions';
 
+// La sesión es la lectura más repetida de todo el sistema: el middleware la lee para exigir el
+// cambio de clave inicial y acto seguido el endpoint la vuelve a leer, en cada petición de la
+// API y en cada sondeo de cada pestaña. Se guarda unos segundos en memoria de la instancia:
+// una petición típica pasa de dos idas a Redis a una o ninguna. Cerrar sesión o cambiar de rol
+// la saca de la caché en esta instancia; en otra instancia caduca sola en segundos.
+const SESSION_CACHE_MS = 5_000;
+const sessionCache = new Map<string, { at: number; raw: string | null }>();
+
+async function readSessionRaw(redis: Redis, sessionId: string): Promise<string | null> {
+  const cached = sessionCache.get(sessionId);
+  if (cached && Date.now() - cached.at < SESSION_CACHE_MS) return cached.raw;
+  const raw = await redis.hget<string>(SESSIONS_KEY, sessionId);
+  const text = raw == null ? null : typeof raw === 'string' ? raw : JSON.stringify(raw);
+  sessionCache.set(sessionId, { at: Date.now(), raw: text });
+  if (sessionCache.size > 2000) sessionCache.clear();
+  return text;
+}
+
+function forgetSessionCache(sessionId?: string): void {
+  if (sessionId) sessionCache.delete(sessionId);
+  else sessionCache.clear();
+}
+
 type Redis = NonNullable<ReturnType<typeof getRedis>>;
 
 export type Role = 'tecnico' | 'operador' | 'secretaria' | 'supervisor' | 'gerente' | 'admin';
@@ -402,21 +425,23 @@ export async function getSession(cookieValue: string | undefined): Promise<Sessi
   if (!sessionId) return null;
   const redis = getRedis();
   if (!redis) return null;
-  const raw = await redis.hget<string>(SESSIONS_KEY, sessionId);
+  const raw = await readSessionRaw(redis, sessionId);
   if (!raw) return null;
   let session: Session;
   try {
-    session = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
+    session = JSON.parse(raw);
   } catch {
     return null;
   }
   const now = Date.now();
   if (new Date(session.expiresAt).getTime() < now) {
     await redis.hdel(SESSIONS_KEY, sessionId);
+    forgetSessionCache(sessionId);
     return null;
   }
   if (session.lastActivityAt && now - new Date(session.lastActivityAt).getTime() > INACTIVITY_TIMEOUT_MS) {
     await redis.hdel(SESSIONS_KEY, sessionId);
+    forgetSessionCache(sessionId);
     return null;
   }
   // Cada request válido marca actividad, para que las 4 horas de inactividad se cuenten
@@ -426,7 +451,9 @@ export async function getSession(cookieValue: string | undefined): Promise<Sessi
   const lastActivity = session.lastActivityAt ? new Date(session.lastActivityAt).getTime() : 0;
   if (now - lastActivity > 60_000) {
     session.lastActivityAt = new Date(now).toISOString();
-    await redis.hset(SESSIONS_KEY, { [sessionId]: JSON.stringify(session) });
+    const text = JSON.stringify(session);
+    await redis.hset(SESSIONS_KEY, { [sessionId]: text });
+    sessionCache.set(sessionId, { at: Date.now(), raw: text });
   }
   return session;
 }
@@ -438,6 +465,7 @@ export async function destroySession(cookieValue: string | undefined): Promise<v
   const redis = getRedis();
   if (!redis) return;
   await redis.hdel(SESSIONS_KEY, sessionId);
+  forgetSessionCache(sessionId);
 }
 
 // Las sesiones vencidas solo se borran cuando alguien intenta usarlas (getSession). Las que
@@ -471,9 +499,9 @@ export async function sessionMustChangePassword(cookieValue: string | undefined)
   const redis = getRedis();
   if (!redis) return false;
   try {
-    const raw = await redis.hget<string>(SESSIONS_KEY, sessionId);
+    const raw = await readSessionRaw(redis, sessionId);
     if (!raw) return false;
-    const session: Session = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
+    const session: Session = JSON.parse(raw);
     return !!session.mustChangePassword;
   } catch {
     return false;
@@ -494,6 +522,7 @@ export async function destroyOtherSessionsForUser(redis: Redis, userId: string, 
     }
   }
   if (toDelete.length) await redis.hdel(SESSIONS_KEY, ...toDelete);
+  forgetSessionCache();
 }
 
 export async function destroyAllSessionsForUser(redis: Redis, userId: string): Promise<void> {
@@ -508,6 +537,7 @@ export async function destroyAllSessionsForUser(redis: Redis, userId: string): P
     }
   }
   if (toDelete.length) await redis.hdel(SESSIONS_KEY, ...toDelete);
+  forgetSessionCache();
 }
 
 // --- Usuarios ---
