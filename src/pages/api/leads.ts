@@ -4,7 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { bumpVersion, readVersion, LEADS_VERSION_KEY } from '../../lib/versions';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, findUserById, verifySameOrigin } from '../../lib/auth';
-import { isOverdueInColombia } from '../../lib/colombia-time';
+import { isOverdueInColombia, todayInColombia, dateInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
 
@@ -150,14 +150,20 @@ export interface SalesAgentStats {
   concretados: number;
   escalados: number;
   sinInteres: number;
+  // Lo de hoy (hora Colombia): leads nuevos que atendió y cuántos entregó a sucursal hoy.
+  nuevosHoy: number;
+  concretadosHoy: number;
 }
 
 // Resultados del agente IA (Andrés) — cuenta los leads de los canales donde él conversa de
 // verdad con el cliente: WhatsApp Ads y el chat en vivo de la página web.
 export function computeSalesAgentStats(leads: Lead[]): SalesAgentStats {
   const touched = leads.filter((l) => l.source === 'whatsapp-ads' || l.source === 'web-chat');
-  const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0 };
+  const today = todayInColombia();
+  const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0, nuevosHoy: 0, concretadosHoy: 0 };
   for (const l of touched) {
+    if (dateInColombia(l.createdAt) === today) stats.nuevosHoy++;
+    if (l.aiStage === 'entregado' && l.aiHandoffAt && dateInColombia(l.aiHandoffAt) === today) stats.concretadosHoy++;
     switch (l.aiStage) {
       case 'en_conversacion':
         stats.enConversacion++;

@@ -51,6 +51,10 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="agent-usage-stat"><span class="n">${fmtTokens(r.sinInteres)}</span><span class="l">Sin interés</span></div>
           <div class="agent-usage-stat"><span class="n">${r.total ? Math.round((r.concretados / r.total) * 100) : 0}%</span><span class="l">% concretado</span></div>
         </div>
+        <div class="agent-usage-row">
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.nuevosHoy || 0)}</span><span class="l">Leads nuevos hoy</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.concretadosHoy || 0)}</span><span class="l">Concretados hoy</span></div>
+        </div>
       `;
     }
     return `
