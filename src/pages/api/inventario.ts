@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, findUserById, inventoryScopeFor, verifySameOrigin, type Session } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, findUserById, inventoryScopeFor, verifySameOrigin, BRANCHES, type Session } from '../../lib/auth';
 
 export const prerender = false;
 
@@ -40,9 +40,27 @@ export interface InventoryItem {
   updatedByName: string;
 }
 
+export interface CountRow {
+  category: Category;
+  registered: number;
+  counted: number;
+}
+
+// Conteo físico diario: lo hace el encargado de la sucursal (quien tiene los equipos en la
+// mano) y el sistema lo compara con lo registrado en las tablas. La auditoría es el control
+// aparte del auditor nacional o el admin: dice si al revisar le cuadró o no, con nota.
 export interface BranchMeta {
   lastUpdatedAt: string;
   lastUpdatedByName: string;
+  lastCount?: { at: string; byName: string; ok: boolean; rows: CountRow[] };
+  audit?: { at: string; byName: string; ok: boolean; note: string };
+}
+
+const ALL_BRANCHES = BRANCHES.filter((b) => b !== 'Central de Monitoreo');
+
+// Audita quien ve el inventario de todas las sucursales (Cristian) o el admin.
+function canAuditInventory(session: Session, scope: string[]): boolean {
+  return session.role === 'admin' || ALL_BRANCHES.every((b) => scope.includes(b));
 }
 
 async function requireInventory(cookies: any): Promise<{ session: Session; scope: string[] } | null> {
@@ -82,8 +100,10 @@ export async function readInventoryMeta(redis: any): Promise<Record<string, Bran
   return out;
 }
 
-async function touchBranch(redis: any, branch: string, byName: string): Promise<BranchMeta> {
-  const meta: BranchMeta = { lastUpdatedAt: new Date().toISOString(), lastUpdatedByName: byName };
+async function touchBranch(redis: any, branch: string, byName: string, extra: Partial<BranchMeta> = {}): Promise<BranchMeta> {
+  // Se conserva el último conteo y la auditoría: antes cada cambio reescribía la ficha entera.
+  const current = (await readInventoryMeta(redis))[branch] || ({} as Partial<BranchMeta>);
+  const meta: BranchMeta = { ...current, lastUpdatedAt: new Date().toISOString(), lastUpdatedByName: byName, ...extra } as BranchMeta;
   await redis.hset(META_KEY, { [branch]: JSON.stringify(meta) });
   return meta;
 }
@@ -117,7 +137,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const metaScoped: Record<string, BranchMeta> = {};
   for (const b of access.scope) if (meta[b]) metaScoped[b] = meta[b];
   return new Response(
-    JSON.stringify({ items, meta: metaScoped, scope: access.scope, categories: CATEGORIES, labels: CATEGORY_LABELS, isAdmin: access.session.role === 'admin' }),
+    JSON.stringify({ items, meta: metaScoped, scope: access.scope, categories: CATEGORIES, labels: CATEGORY_LABELS, isAdmin: access.session.role === 'admin', canAudit: canAuditInventory(access.session, access.scope) }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };
@@ -152,6 +172,51 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (body.action === 'confirm') {
     const meta = await touchBranch(redis, branch, name);
     await logAudit(redis, access.session, 'inventario_confirm', branch);
+    return new Response(JSON.stringify({ meta }), { headers: { 'Content-Type': 'application/json' } });
+  }
+
+  // Conteo físico: cuántas unidades hay de verdad en cada tabla, contra lo registrado.
+  if (body.action === 'count') {
+    const counts = body.counts && typeof body.counts === 'object' ? body.counts : {};
+    const all = await readInventory(redis);
+    const rows: CountRow[] = [];
+    for (const category of CATEGORIES) {
+      const raw = counts[category];
+      if (raw === undefined || raw === null || raw === '') {
+        return new Response(JSON.stringify({ error: `falta el conteo de "${CATEGORY_LABELS[category]}"` }), { status: 400 });
+      }
+      const counted = Number(raw);
+      if (!Number.isInteger(counted) || counted < 0 || counted > 100000) {
+        return new Response(JSON.stringify({ error: `conteo inválido en "${CATEGORY_LABELS[category]}"` }), { status: 400 });
+      }
+      const registered = all.filter((i) => i.branch === branch && i.category === category).length;
+      rows.push({ category, registered, counted });
+    }
+    const ok = rows.every((r) => r.registered === r.counted);
+    const meta = await touchBranch(redis, branch, name, { lastCount: { at: new Date().toISOString(), byName: name, ok, rows } });
+    const summary = rows.map((r) => `${CATEGORY_LABELS[r.category]}: ${r.counted}/${r.registered}`).join('; ');
+    await logAudit(redis, access.session, ok ? 'inventario_conteo_ok' : 'inventario_conteo_descuadre', branch, summary);
+    return new Response(JSON.stringify({ meta }), { headers: { 'Content-Type': 'application/json' } });
+  }
+
+  if (body.action === 'audit') {
+    if (!canAuditInventory(access.session, access.scope)) {
+      return new Response(JSON.stringify({ error: 'solo el auditor de inventario o el administrador pueden auditar' }), { status: 403 });
+    }
+    const ok = body.ok === true;
+    const note = clean(body.note, 300);
+    if (!ok && !note) {
+      return new Response(JSON.stringify({ error: 'si no cuadró, escribe qué encontraste' }), { status: 400 });
+    }
+    const current = (await readInventoryMeta(redis))[branch];
+    const meta: BranchMeta = {
+      lastUpdatedAt: current?.lastUpdatedAt || new Date().toISOString(),
+      lastUpdatedByName: current?.lastUpdatedByName || name,
+      ...current,
+      audit: { at: new Date().toISOString(), byName: name, ok, note },
+    };
+    await redis.hset(META_KEY, { [branch]: JSON.stringify(meta) });
+    await logAudit(redis, access.session, ok ? 'inventario_auditoria_ok' : 'inventario_auditoria_descuadre', branch, note);
     return new Response(JSON.stringify({ meta }), { headers: { 'Content-Type': 'application/json' } });
   }
 

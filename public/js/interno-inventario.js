@@ -71,32 +71,90 @@ document.addEventListener('DOMContentLoaded', function () {
 
   branchSelect.innerHTML = scope.map((b) => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
 
+  let canAudit = false;
+
+  function fmtRowsDiff(rows) {
+    return rows.map((r) => {
+      const diff = r.counted - r.registered;
+      const tag = diff === 0 ? 'ok' : diff < 0 ? `faltan ${-diff}` : `sobran ${diff}`;
+      return `<li class="${diff === 0 ? 'ok' : 'bad'}"><span>${escapeHtml(labels[r.category] || r.category)}</span><span>contados ${r.counted} / registrados ${r.registered} · ${tag}</span></li>`;
+    }).join('');
+  }
+
   function renderStatus() {
-    const m = meta[currentBranch()];
+    const branch = currentBranch();
+    const m = meta[branch];
+    let html = '';
+
+    // 1. Última actualización de las tablas.
     if (!m) {
-      invStatus.innerHTML = `<span class="stamp stale">Esta sucursal todavía no ha registrado su inventario.</span>
-        <button class="btn-small" id="confirmBtn" type="button">Confirmar inventario revisado hoy</button>`;
+      html += `<div class="inv-line"><span class="stamp stale">Esta sucursal todavía no ha registrado su inventario.</span></div>`;
     } else {
       const ageHours = (Date.now() - new Date(m.lastUpdatedAt).getTime()) / 3600000;
       const stale = ageHours > STALE_HOURS;
-      invStatus.innerHTML = `<span class="stamp ${stale ? 'stale' : 'fresh'}">Última actualización: ${fmtDateTime(m.lastUpdatedAt)} por ${escapeHtml(m.lastUpdatedByName)}${stale ? ' · lleva más de un día sin actualizar' : ''}</span>
-        <button class="btn-small" id="confirmBtn" type="button">Confirmar inventario revisado hoy</button>`;
+      html += `<div class="inv-line"><span class="stamp ${stale ? 'stale' : 'fresh'}">Última actualización: ${fmtDateTime(m.lastUpdatedAt)} por ${escapeHtml(m.lastUpdatedByName)}${stale ? ' · lleva más de un día sin actualizar' : ''}</span></div>`;
     }
-    const confirmBtn = document.getElementById('confirmBtn');
-    confirmBtn.addEventListener('click', function () {
-      confirmBtn.disabled = true;
-      fetch('/api/inventario', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'confirm', branch: currentBranch() }),
-      })
-        .then(async (res) => {
-          const d = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(d.error || 'No se pudo confirmar.');
-          meta[currentBranch()] = d.meta;
-          renderStatus();
-        })
-        .catch((err) => { alert(err.message || 'No se pudo confirmar.'); confirmBtn.disabled = false; });
+
+    // 2. Conteo físico del encargado: resultado del último y formulario para el de hoy.
+    const lc = m && m.lastCount;
+    html += `<div class="inv-block">
+      <div class="inv-block-head">
+        <strong>Conteo físico diario</strong>
+        ${lc ? `<span class="inv-badge ${lc.ok ? 'ok' : 'bad'}">${lc.ok ? '✔ Cuadró' : '✖ No cuadró'} · ${fmtDateTime(lc.at)} por ${escapeHtml(lc.byName)}</span>` : '<span class="inv-badge none">Sin conteo registrado</span>'}
+      </div>
+      ${lc && !lc.ok ? `<ul class="inv-diff">${fmtRowsDiff(lc.rows)}</ul>` : ''}
+      <form class="inv-count" id="countForm">
+        ${categories.map((c) => `
+          <label>
+            <span>${escapeHtml(labels[c])} <small>(registrados: ${branchItems(c).length})</small></span>
+            <input type="number" min="0" step="1" inputmode="numeric" name="${c}" placeholder="¿Cuántos hay?" required />
+          </label>`).join('')}
+        <button class="btn-small btn-done" type="submit">Registrar conteo de hoy</button>
+      </form>
+      <p class="hint" style="margin:6px 0 0;">Cuenta físicamente lo que hay en cada tabla y escribe el número. El sistema lo compara con lo registrado: verde si cuadra, rojo con la diferencia si no.</p>
+    </div>`;
+
+    // 3. Auditoría (Cristian / admin).
+    const au = m && m.audit;
+    html += `<div class="inv-block">
+      <div class="inv-block-head">
+        <strong>Auditoría</strong>
+        ${au ? `<span class="inv-badge ${au.ok ? 'ok' : 'bad'}">${au.ok ? '✔ Auditoría cuadró' : '✖ Auditoría no cuadró'} · ${fmtDateTime(au.at)} por ${escapeHtml(au.byName)}</span>` : '<span class="inv-badge none">Sin auditar</span>'}
+      </div>
+      ${au && au.note ? `<p class="inv-audit-note">${escapeHtml(au.note)}</p>` : ''}
+      ${canAudit ? `
+        <div class="inv-audit-form">
+          <input type="text" id="auditNote" maxlength="300" placeholder="Nota (obligatoria si no cuadró): qué faltó o sobró" />
+          <button class="btn-small btn-done" data-audit="ok" type="button">Cuadró</button>
+          <button class="btn-small btn-delete" data-audit="bad" type="button">No cuadró</button>
+        </div>` : ''}
+    </div>`;
+
+    invStatus.innerHTML = html;
+
+    const countForm = document.getElementById('countForm');
+    countForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const counts = {};
+      categories.forEach((c) => { counts[c] = countForm.elements[c].value; });
+      const btn = countForm.querySelector('button');
+      btn.disabled = true;
+      request('POST', { action: 'count', branch, counts })
+        .then((d) => { meta[branch] = d.meta; renderStatus(); })
+        .catch((err) => { alert(err.message || 'No se pudo registrar el conteo.'); btn.disabled = false; });
+    });
+
+    invStatus.querySelectorAll('button[data-audit]').forEach((b) => {
+      b.addEventListener('click', function () {
+        const ok = b.getAttribute('data-audit') === 'ok';
+        const note = (document.getElementById('auditNote').value || '').trim();
+        if (!ok && !note) { alert('Si no cuadró, escribe qué encontraste.'); return; }
+        if (!confirm(ok ? `¿Registrar que el inventario de ${branch} cuadró en la auditoría?` : `¿Registrar que el inventario de ${branch} NO cuadró?`)) return;
+        b.disabled = true;
+        request('POST', { action: 'audit', branch, ok, note })
+          .then((d) => { meta[branch] = d.meta; renderStatus(); })
+          .catch((err) => { alert(err.message || 'No se pudo registrar la auditoría.'); b.disabled = false; });
+      });
     });
   }
 
@@ -208,6 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
         meta = d.meta || {};
         categories = d.categories || [];
         labels = d.labels || {};
+        canAudit = !!d.canAudit;
         renderAll();
       })
       .catch(() => {

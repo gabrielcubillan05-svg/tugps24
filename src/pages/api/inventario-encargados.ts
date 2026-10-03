@@ -22,6 +22,7 @@ const RESPONSABLES = [
   'Kelly Lara',
   'Alejandra Molina',
   'hisnaldis',
+  'yoniparra',
 ];
 
 // Cristian (Bucaramanga) lleva el inventario de todas las sucursales a nivel nacional: se le
@@ -33,6 +34,7 @@ const RESPONSABLES_NACIONALES = ['Cristian Zambrano'];
 const RESPONSABLES_FIJOS: Record<string, string[]> = {
   hisnaldis: ['Riohacha'],
   'Jose Miguel Reales': ['Riohacha'],
+  yoniparra: ['Bucaramanga'],
 };
 const TODAS_LAS_SUCURSALES = BRANCHES.filter((b) => b !== 'Central de Monitoreo');
 

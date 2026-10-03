@@ -50,7 +50,24 @@ if (!scope.length) {
   .inv-search-note { color: var(--paper-dim); font-size: 13px; margin: 10px 0 0; }
   .inv-search-note b { color: var(--paper); }
   @media (max-width: 720px) { .inv-filters #invSearch { min-width: 0; width: 100%; } }
-  .inv-status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 14px 0 10px; font-size: 13.5px; }
+  .inv-status { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 10px; font-size: 13.5px; }
+  .inv-block { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--ink-800); }
+  .inv-block-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .inv-badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+  .inv-badge.ok { background: rgba(34, 197, 94, 0.18); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.5); }
+  .inv-badge.bad { background: rgba(239, 68, 68, 0.18); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.5); }
+  .inv-badge.none { background: transparent; color: var(--slate); border: 1px dashed var(--line); font-weight: 400; }
+  .inv-diff { list-style: none; padding: 0; margin: 0 0 10px; font-size: 13px; }
+  .inv-diff li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .inv-diff li.ok span:last-child { color: #22c55e; }
+  .inv-diff li.bad span:last-child { color: #ef4444; font-weight: 600; }
+  .inv-count { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: end; }
+  .inv-count label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--paper-dim); }
+  .inv-count label small { color: var(--slate); }
+  .inv-count input { padding: 7px 9px; font-size: 14px; }
+  .inv-audit-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .inv-audit-form input { flex: 1; min-width: 220px; padding: 7px 9px; font-size: 13px; }
+  .inv-audit-note { color: var(--paper-dim); font-size: 13px; margin: 0 0 8px; }
   .inv-status .stamp { color: var(--paper-dim); }
   .inv-status .stamp.stale { color: var(--danger); font-weight: 600; }
   .inv-status .stamp.fresh { color: var(--ok); }
