@@ -382,6 +382,7 @@ const app = {
   env: { timeMode: 'auto', weatherMode: 'real', weather: null, sun: null, phase: 'dia', lights: 0, tint: [1, 1, 1], photoTint: [1, 1, 1] },
   photo: false,
   gkey: '',
+  report: 'continuo',
 };
 
 // La clave de Google va en la variable PUBLIC_GOOGLE_MAPS_KEY de Vercel; para probar sin desplegar
@@ -419,7 +420,7 @@ function camFor(mode, v) {
   if (mode === 'conductor') {
     // A zoom 21 la cámara queda ~47 m detrás del centro; con el centro 14 m adelante el carro
     // queda en primer plano. Con más distancia el carro termina detrás de la cámara.
-    const ahead = posAt(v.route, (app.replay?.v === v ? app.replay.sample.d : v.state.d) + 14);
+    const ahead = posAt(v.route, v.viewD + 14);
     return { center: toLL(ahead), zoom: 21, pitch: 80, bearing: h };
   }
   if (mode === 'replay') return { center: v.ll, zoom: 17.2, pitch: 62, bearing: h };
@@ -460,7 +461,7 @@ function hudHtml(v) {
     <div class="big" style="color:${color}">${on ? kmh : 0}<small>km/h</small></div>
     <div class="rows"><span>Encendido</span><b>${on ? 'Sí' : 'No'}</b><span>Batería</span><b>${fmt1.format(batt)} V</b>
     <span>Combustible</span><b>${Math.round(s.fuel)} %</b><span>Hoy</span><b>${fmt1.format(s.odo / 1000)} km</b>
-    <span>Rumbo</span><b>${Math.round((s.heading + 360) % 360)}°</b><span>Reporte GPS</span><b>hace ${Math.floor(app.simTime % 10)} s</b></div>${status}`;
+    <span>Rumbo</span><b>${Math.round((v.viewHeading + 360) % 360)}°</b><span>Reporte GPS</span><b>${reportAge(v)}</b>${app.report === 'continuo' ? '' : `<span>Posición</span><b>de hace ${REPORT_S} s</b>`}</div>${status}`;
 }
 
 let lastNarr = 0;
@@ -471,7 +472,8 @@ function narrate(force = false) {
   const v = app.selected;
   if (!v) return;
   const s = v.state;
-  const kmh = Math.round(s.v * KMH);
+  // Con reportes cada 30 s se narra lo que muestra la pantalla, no la posición interna de la simulación.
+  const kmh = Math.round((app.report === 'continuo' ? s.v : v.viewV) * KMH);
   const near = nearText(toXY(v.ll));
   let t;
   if (app.replay) t = `Repetición del día: a las <b>${replayClock(app.replay.t)}</b> tu ${v.def.short} iba a <b>${Math.round(app.replay.sample.v * KMH)} km/h</b> ${near}.`;
@@ -644,7 +646,7 @@ function tintTiles(obj) {
 }
 
 const VECTOR_LAYERS = ['park', 'green', 'water', 'road-minor', 'road-major', 'road-glow', 'buildings', 'road-labels', 'place-labels'];
-const OVERLAY_LAYERS = ['fence-line', 'trail-glow', 'trail', 'future'];
+const OVERLAY_LAYERS = ['fence-line', 'trail-glow', 'trail', 'reports', 'future'];
 
 function setPhoto(on) {
   app.photo = on && !!three.tiles;
@@ -684,7 +686,7 @@ function updateModel(v, k, t) {
   const s = v.state, m = v.model;
   const [x, y] = toXY(v.ll);
   m.group.position.set(x, app.photo ? v.groundY : 0, -y);
-  m.group.rotation.y = (-s.heading * Math.PI) / 180;
+  m.group.rotation.y = (-v.viewHeading * Math.PI) / 180;
   m.group.scale.setScalar(k);
   const kmh = s.v * KMH;
   const on = !(s.engineCut && s.v === 0);
@@ -734,6 +736,10 @@ function addOverlays() {
     paint: { 'line-color': '#ff7a1a', 'line-width': 14, 'line-blur': 10, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'trail', type: 'line', source: 'trail', layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: { 'line-width': 4, 'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, 'rgba(255,122,26,0)', 0.6, 'rgba(255,122,26,0.7)', 1, '#ffd29e'] } });
+
+  map.addSource('reports', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'reports', type: 'circle', source: 'reports',
+    paint: { 'circle-radius': 6, 'circle-color': '#38e1ff', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2, 'circle-opacity': 0.95 } });
 
   map.addSource('future', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'future', type: 'line', source: 'future', layout: { 'line-cap': 'round' },
@@ -928,7 +934,8 @@ async function init() {
     const ll = toLL(posAt(route, state.d));
     const hud = document.createElement('div');
     hud.className = 'hud';
-    const v = { def, id: def.id, route, state, ll, model: kit.buildVehicle(def), hud, groundY: 0 };
+    const v = { def, id: def.id, route, state, ll, model: kit.buildVehicle(def), hud, groundY: 0,
+      startD: state.d, reports: [], nextReport: i * 7, viewD: state.d, viewHeading: state.heading, viewV: 0 };
     v.marker = new maplibregl.Marker({ element: hud, anchor: 'bottom', offset: [0, -34] }).setLngLat(ll).addTo(map);
     hud.addEventListener('click', () => select(v));
     v.inFence = def.id === 'main' ? pointInRing(ll, FENCE.ring) : null;
@@ -972,7 +979,9 @@ async function init() {
   else map.once('style.load', ready);
 }
 
-let last = performance.now(), trailAt = 0, listAt = 0, simSpeed = 1;
+// ?x=N acelera el tiempo de la simulación (para ver en segundos lo que pasa en minutos).
+let last = performance.now(), trailAt = 0, listAt = 0;
+const simSpeed = Math.min(20, Math.max(1, Number(new URLSearchParams(location.search).get('x')) || 1));
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -991,6 +1000,12 @@ function loop(now) {
       narrate(true);
     }
     checkEvents(v, now);
+    recordReport(v);
+    if (app.report === 'continuo') {
+      v.viewD = v.state.d;
+      v.viewHeading = v.state.heading;
+      v.viewV = v.state.v;
+    } else reportView(v, dt);
   }
 
   if (app.replay) {
@@ -1005,6 +1020,8 @@ function loop(now) {
     $('replaySlider').value = Math.round((r.t / v.day.dur) * 1000);
     $('replayTime').textContent = replayClock(r.t);
     v.replayV = r.sample.v;
+    v.viewD = r.sample.d;
+    v.viewHeading = v.state.heading;
   }
 
   const sel = app.selected;
@@ -1012,7 +1029,7 @@ function loop(now) {
   const zoom = map.getZoom();
   const k = Math.max(1, Math.min(60, 2 ** (20.3 - zoom)));
   for (const v of app.vehicles) {
-    const shownV = app.replay?.v === v ? v.replayV : v.state.v;
+    const shownV = app.replay?.v === v ? v.replayV : v.viewV;
     const real = v.state.v;
     v.state.v = shownV;
     updateModel(v, k, t);
@@ -1048,9 +1065,14 @@ function loop(now) {
 
   if (now - trailAt > 180 && map.getSource('trail')) {
     trailAt = now;
-    const d = app.replay ? app.replay.sample.d : sel.state.d;
-    const coords = app.replay ? sampleRange(sel.route, 0, Math.max(1, d), 15) : sampleRange(sel.route, d - 1400, d, 12);
+    const d = sel.viewD;
+    let coords;
+    if (app.replay) coords = sampleRange(sel.route, 0, Math.max(1, d), 15);
+    else if (app.report === 'recto') coords = [...sel.reports.filter((r) => r.D > d - 1400 && r.D <= d).map((r) => toLL(posAt(sel.route, r.D))), sel.ll];
+    else coords = sampleRange(sel.route, d - 1400, d, 12);
     map.getSource('trail').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
+    const dots = app.report === 'continuo' || app.replay ? [] : sel.reports.filter((r) => r.D > d - 1400 && r.t <= app.simTime - REPORT_S + 0.01);
+    map.getSource('reports')?.setData({ type: 'FeatureCollection', features: dots.map((r) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: toLL(posAt(sel.route, r.D)) } })) });
   }
 
   if (sel && mode !== 'libre' && now > (app.flyLock || 0)) {
@@ -1059,7 +1081,7 @@ function loop(now) {
     } else {
       const lag = mode === 'conductor' ? 5 : mode === 'replay' ? 1.2 : 2;
       const offset = mode === 'replay' ? Math.sin(t * 0.15) * 25 : 0;
-      app.camBearing += angDiff(app.camBearing, sel.state.heading + offset) * Math.min(1, dt * lag);
+      app.camBearing += angDiff(app.camBearing, sel.viewHeading + offset) * Math.min(1, dt * lag);
       map.jumpTo(camFor(mode, sel));
     }
   }
@@ -1316,6 +1338,7 @@ function resetDemo() {
   app.env.weatherMode = 'real';
   app.env.timeMode = 'auto';
   applyEnv();
+  setReportMode('continuo', true);
   setLivePill();
   syncActionButtons();
 }
@@ -1374,6 +1397,82 @@ function stopShow() {
   $('caption').hidden = true;
   app.flyLock = 0;
   resetDemo();
+}
+
+// ───────────────────────── reportes del GPS cada 30 s ─────────────────────────
+// Un equipo real no manda posición continua sino un punto cada N segundos. Para que el carro no salte
+// ni corte esquinas, se muestra un reporte atrás (siempre entre dos puntos ya conocidos) y entre ellos
+// recorre la calle con la velocidad que trajo cada reporte. El modo "recto" existe para mostrar el
+// problema: une los puntos en línea recta, como lo hacen muchas plataformas.
+const REPORT_S = 30;
+const REPORT_MODES = ['continuo', 'suave', 'recto'];
+const REPORT_LABEL = { continuo: '📡 Continuo', suave: '📡 30 s · por calles', recto: '📡 30 s · línea recta' };
+
+function recordReport(v) {
+  if (app.simTime < v.nextReport) return;
+  v.nextReport = app.simTime + REPORT_S;
+  v.reports.push({ t: app.simTime, D: v.startD + v.state.odo, v: v.state.v });
+  if (v.reports.length > 60) v.reports.shift();
+}
+
+function reportAge(v) {
+  const last = v.reports[v.reports.length - 1];
+  return last ? `hace ${Math.max(0, Math.round(app.simTime - last.t))} s` : '—';
+}
+
+function reportView(v, dt) {
+  const R = v.reports;
+  const tau = app.simTime - REPORT_S;
+  let i = -1;
+  for (let k = R.length - 1; k >= 0; k--) if (R[k].t <= tau) { i = k; break; }
+  if (i < 0 || i === R.length - 1) {
+    const r = R[Math.max(0, i)];
+    v.viewV = 0;
+    if (r) { v.viewD = Math.max(v.viewD, r.D); v.ll = toLL(posAt(v.route, v.viewD)); }
+    return;
+  }
+  const r0 = R[i], r1 = R[i + 1];
+  const span = r1.t - r0.t;
+  const u = Math.min(1, Math.max(0, (tau - r0.t) / span));
+  if (app.report === 'recto') {
+    const a = posAt(v.route, r0.D), b = posAt(v.route, r1.D);
+    v.ll = toLL([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]);
+    v.viewD = r0.D + (r1.D - r0.D) * u;
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 1) v.viewHeading = (Math.atan2(b[0] - a[0], b[1] - a[1]) * 180) / Math.PI;
+    v.viewV = Math.hypot(b[0] - a[0], b[1] - a[1]) / span;
+    return;
+  }
+  // Hermite cúbico: pasa por los dos reportes con la velocidad de cada uno; se recorta al tramo y
+  // nunca retrocede, así una velocidad reportada rara no hace que el carro vaya en reversa.
+  const u2 = u * u, u3 = u2 * u;
+  let D = (2 * u3 - 3 * u2 + 1) * r0.D + (u3 - 2 * u2 + u) * span * r0.v + (-2 * u3 + 3 * u2) * r1.D + (u3 - u2) * span * r1.v;
+  D = Math.max(v.viewD, Math.min(r1.D, Math.max(r0.D, D)));
+  const dDdu = (6 * u2 - 6 * u) * r0.D + (3 * u2 - 4 * u + 1) * span * r0.v + (-6 * u2 + 6 * u) * r1.D + (3 * u2 - 2 * u) * span * r1.v;
+  v.viewV = Math.min(40, Math.max(0, dDdu / span));
+  v.viewD = D;
+  v.ll = toLL(posAt(v.route, D));
+  if (r1.D - r0.D > 0.5) v.viewHeading += angDiff(v.viewHeading, headingAt(v.route, D)) * Math.min(1, dt * 6);
+}
+
+function setReportMode(mode, silent = false) {
+  app.report = mode;
+  $('btnReports').textContent = REPORT_LABEL[mode];
+  $('btnReports').classList.toggle('ok', mode !== 'continuo');
+  for (const v of app.vehicles) { v.viewD = v.state.d; v.viewHeading = v.state.heading; }
+  if (mode !== 'continuo') {
+    // Arranca un reporte atrás: la vista se ubica en el primer punto ya "recibido".
+    for (const v of app.vehicles) {
+      const r = [...v.reports].reverse().find((x) => x.t <= app.simTime - REPORT_S);
+      v.viewD = r ? r.D : v.reports[0]?.D ?? v.state.d;
+    }
+  }
+  if (silent) return;
+  const msg = {
+    continuo: '📡 Movimiento continuo (simulación de demo).',
+    suave: `📡 El GPS reporta cada ${REPORT_S} s. El carro se muestra un reporte atrás y recorre las calles entre punto y punto: sin saltos ni esquinas cortadas.`,
+    recto: `📡 Así se ve en muchas plataformas: cada ${REPORT_S} s un punto y una línea recta entre ellos. El carro corta esquinas y gira de golpe.`,
+  }[mode];
+  toast(msg, mode === 'recto' ? 'red' : 'cyan', 7000);
 }
 
 // ───────────────────────── eventos de la interfaz ─────────────────────────
@@ -1435,6 +1534,7 @@ $('btnCut').addEventListener('click', () => {
 });
 $('btnTheft').addEventListener('click', () => setTheft(app.selected, !app.selected.state.theft));
 $('btnFuture').addEventListener('click', () => setFuture(!app.future));
+$('btnReports').addEventListener('click', () => setReportMode(REPORT_MODES[(REPORT_MODES.indexOf(app.report) + 1) % REPORT_MODES.length]));
 $('btnTheme').addEventListener('click', () => {
   const env = app.env;
   env.timeMode = TIME_MODES[(TIME_MODES.indexOf(env.timeMode) + 1) % TIME_MODES.length];
