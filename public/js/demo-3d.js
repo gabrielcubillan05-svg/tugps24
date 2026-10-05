@@ -367,10 +367,10 @@ const STYLE = {
 const map = new maplibregl.Map({
   container: 'map',
   style: STYLE,
-  center: PLACES.parque93.ll,
-  zoom: 15.5,
-  pitch: 60,
-  bearing: -20,
+  center: [-74.3, 4.4],
+  zoom: 5.2,
+  pitch: 0,
+  bearing: 0,
   maxPitch: 85,
   maxZoom: 22,
   antialias: true,
@@ -416,6 +416,10 @@ const app = {
   replay: null,
   simTime: 0,
   recording: null,
+  theme: (() => {
+    const h = Number(new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', hour: 'numeric', hour12: false }).format(new Date()));
+    return h >= 6 && h < 18 ? 'dia' : 'noche';
+  })(),
 };
 
 function setCam(mode) {
@@ -514,10 +518,11 @@ const vehicleLayer = {
   onAdd(m, gl) {
     three.camera = new THREE.Camera();
     three.scene = new THREE.Scene();
-    three.scene.add(new THREE.AmbientLight(0xb8c4ff, 1.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-    sun.position.set(60, 120, 40);
-    three.scene.add(sun);
+    three.ambient = new THREE.AmbientLight(0xb8c4ff, 1.1);
+    three.scene.add(three.ambient);
+    three.sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    three.sun.position.set(60, 120, 40);
+    three.scene.add(three.sun);
     const fill = new THREE.DirectionalLight(0xff9a50, 0.8);
     fill.position.set(-80, 40, -60);
     three.scene.add(fill);
@@ -527,6 +532,7 @@ const vehicleLayer = {
     three.renderer = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true });
     three.renderer.autoClear = false;
     for (const v of app.vehicles) three.root.add(v.model.group);
+    applyTheme(app.theme);
   },
   render(gl, matrix) {
     // El origen de la escena se mueve al centro de la vista en cada cuadro: con un origen fijo
@@ -597,6 +603,15 @@ function addOverlays() {
     paint: { 'line-color': '#ff7a1a', 'line-width': 14, 'line-blur': 10, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'trail', type: 'line', source: 'trail', layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: { 'line-width': 4, 'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, 'rgba(255,122,26,0)', 0.6, 'rgba(255,122,26,0.7)', 1, '#ffd29e'] } });
+
+  map.addSource('future', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'future', type: 'line', source: 'future', layout: { 'line-cap': 'round' },
+    paint: { 'line-color': '#38e1ff', 'line-width': 3, 'line-dasharray': [1.2, 1.6], 'line-opacity': 0.9 } });
+  const gl = document.createElement('div');
+  gl.className = 'ghost-label';
+  gl.hidden = true;
+  app.ghostLabel = gl;
+  app.ghostMarker = new maplibregl.Marker({ element: gl, anchor: 'bottom', offset: [0, -30] }).setLngLat(PLACES.parque93.ll).addTo(map);
 
   const el = document.createElement('div');
   el.className = 'fence-label';
@@ -800,6 +815,8 @@ async function init() {
     map.addLayer(vehicleLayer);
     select(app.vehicles[0]);
     requestAnimationFrame(loop);
+    if (new URLSearchParams(location.search).has('presentacion')) runShow();
+    else intro();
   };
   // Se espera solo al estilo y no a las teselas: si el servidor de mapas falla, la flota sigue visible.
   if (map.style?._loaded) ready();
@@ -871,6 +888,7 @@ function loop(now) {
   }
   three.fx?.update(dt);
   updateFenceFlash(now);
+  updateFuture(sel, k, now);
 
   if (now - trailAt > 180 && map.getSource('trail')) {
     trailAt = now;
@@ -911,6 +929,212 @@ function checkEvents(v, now) {
   }
 }
 
+// ───────────────────────── día y noche ─────────────────────────
+const THEMES = {
+  noche: {
+    bg: ['background-color', '#0a0d16'], park: ['fill-color', '#0d1c17'], green: ['fill-color', '#0d1a15'], water: ['fill-color', '#0a1d33'],
+    'road-minor': ['line-color', '#1b2234'], 'road-major': ['line-color', '#283249'], 'road-glow': ['line-opacity', 0.22],
+    buildings: ['fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6], 0, '#141a29', 30, '#1c2640', 100, '#2b3d66']],
+    'road-labels': ['text-color', '#7d8597'], 'place-labels': ['text-color', '#5b6478'],
+    halo: '#0a0d16', ambient: 0.9, sun: 1.8,
+  },
+  dia: {
+    bg: ['background-color', '#e6eaf0'], park: ['fill-color', '#cfe5d3'], green: ['fill-color', '#d6e8d4'], water: ['fill-color', '#9cc3e6'],
+    'road-minor': ['line-color', '#ffffff'], 'road-major': ['line-color', '#fde7cf'], 'road-glow': ['line-opacity', 0.4],
+    buildings: ['fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6], 0, '#e4e8f0', 30, '#c9d1e0', 100, '#a3b1cb']],
+    'road-labels': ['text-color', '#4b5563'], 'place-labels': ['text-color', '#6b7280'],
+    halo: '#ffffff', ambient: 1.5, sun: 2.6,
+  },
+};
+
+function applyTheme(name) {
+  app.theme = name;
+  const th = THEMES[name];
+  for (const [layer, val] of Object.entries(th)) {
+    if (Array.isArray(val) && map.getLayer(layer)) map.setPaintProperty(layer, val[0], val[1]);
+  }
+  for (const layer of ['road-labels', 'place-labels']) if (map.getLayer(layer)) map.setPaintProperty(layer, 'text-halo-color', th.halo);
+  if (three.ambient) { three.ambient.intensity = th.ambient; three.sun.intensity = th.sun; }
+  document.body.dataset.theme = name;
+  $('btnTheme').textContent = name === 'dia' ? '☀️' : '🌙';
+  $('btnTheme').title = name === 'dia' ? 'Cambiar a noche' : 'Cambiar a día';
+}
+
+// ───────────────────────── 4D: dónde estará en 5 minutos ─────────────────────────
+const FUTURE_S = 300;
+
+function futureD(v) {
+  if (v.state.engineCut) return null;
+  return v.state.d + ((v.def.cruise * 0.8) / KMH) * (v.state.theft ? 1.4 : 1) * FUTURE_S;
+}
+
+function ensureGhost(def) {
+  if (app.ghost?.kind === def.kind) return;
+  if (app.ghost) three.root.remove(app.ghost.model.group);
+  const model = buildVehicle({ ...def, color: 0x38e1ff });
+  model.group.traverse((o) => {
+    if (!o.material) return;
+    o.material = o.material.clone();
+    o.material.transparent = true;
+    o.material.opacity = 0.38;
+    o.material.depthWrite = false;
+    if (o.material.emissive) o.material.emissive.setHex(0x38e1ff);
+  });
+  model.ringMat = model.group.children.find((o) => o.geometry?.type === 'RingGeometry').material;
+  model.ringMat.color.setHex(0x38e1ff);
+  model.bar.visible = false;
+  model.group.visible = false;
+  three.root.add(model.group);
+  app.ghost = { kind: def.kind, model };
+}
+
+function setFuture(on) {
+  app.future = on;
+  $('btnFuture').classList.toggle('ok', on);
+  if (!on) {
+    if (app.ghost) app.ghost.model.group.visible = false;
+    if (app.ghostLabel) app.ghostLabel.hidden = true;
+    map.getSource('future')?.setData({ type: 'FeatureCollection', features: [] });
+    return;
+  }
+  const v = app.selected;
+  const d1 = futureD(v);
+  if (d1 === null) {
+    app.future = false;
+    $('btnFuture').classList.remove('ok');
+    toast('El vehículo está apagado: no hay recorrido por predecir.', '');
+    return;
+  }
+  ensureGhost(v.def);
+  const b = new maplibregl.LngLatBounds();
+  for (const p of sampleRange(v.route, v.state.d, d1, 80)) b.extend(p);
+  const narrow = window.innerWidth < 760;
+  app.cam = 'libre';
+  setCamButtons('libre');
+  app.flyLock = performance.now() + 2200;
+  map.fitBounds(b, { padding: narrow ? { top: 90, bottom: 270, left: 40, right: 80 } : { top: 140, bottom: 170, left: 300, right: 140 }, pitch: 55, bearing: v.state.heading, duration: 2200, maxZoom: 16.5 });
+  const eta = clockFmt.format(new Date(Date.now() + FUTURE_S * 1000)).slice(0, 5);
+  toast(`🔮 En 5 minutos <b>${v.def.plate}</b> estará ${nearText(posAt(v.route, d1))} (hacia las ${eta}).`, 'cyan', 6000);
+}
+
+let futureAt = 0;
+function updateFuture(v, k, now) {
+  if (!app.future || !app.ghost) return;
+  const d1 = app.replay ? null : futureD(v);
+  const g = app.ghost.model;
+  if (d1 === null) {
+    g.group.visible = false;
+    app.ghostLabel.hidden = true;
+    return;
+  }
+  const xy = posAt(v.route, d1);
+  g.group.visible = true;
+  g.group.position.set(xy[0], 0, -xy[1]);
+  g.group.rotation.y = (-headingAt(v.route, d1) * Math.PI) / 180;
+  g.group.scale.setScalar(k);
+  g.ringMat.opacity = 0.5 + 0.4 * Math.sin(now / 250);
+  if (now - futureAt < 250) return;
+  futureAt = now;
+  const ll = toLL(xy);
+  app.ghostMarker.setLngLat(ll);
+  app.ghostLabel.hidden = false;
+  const eta = clockFmt.format(new Date(Date.now() + FUTURE_S * 1000)).slice(0, 5);
+  app.ghostLabel.innerHTML = `🔮 En 5 min · ${eta}<small>${nearText(xy).replace(/<\/?b>/g, '')}</small>`;
+  map.getSource('future')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: sampleRange(v.route, v.state.d, d1, 25) } });
+}
+
+// ───────────────────────── entrada y modo presentación ─────────────────────────
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function intro() {
+  const v = app.selected;
+  $('intro').classList.add('on');
+  document.body.classList.add('intro-on');
+  app.flyLock = performance.now() + 60000;
+  map.jumpTo({ center: [-74.3, 4.4], zoom: 5.2, pitch: 0, bearing: 0 });
+  await sleep(900);
+  map.flyTo({ center: v.ll, zoom: 13.2, pitch: 50, bearing: -25, duration: 4500, essential: true });
+  await sleep(4600);
+  $('intro').classList.remove('on');
+  document.body.classList.remove('intro-on');
+  app.cam = 'dron';
+  setCamButtons('dron');
+  app.camBearing = v.state.heading;
+  map.easeTo({ ...camFor('dron', v), duration: 2600, essential: true });
+  await sleep(2600);
+  app.flyLock = 0;
+}
+
+let show = null;
+async function wait(token, ms) {
+  await sleep(ms);
+  if (show !== token) throw new Error('stop');
+}
+
+function caption(i, n, text) {
+  const c = $('caption');
+  c.hidden = false;
+  c.innerHTML = `<small>${i} / ${n}</small><span>${text}</span>`;
+  c.classList.remove('in');
+  void c.offsetWidth;
+  c.classList.add('in');
+}
+
+function resetDemo() {
+  if (app.replay) closeReplay();
+  setFuture(false);
+  for (const v of app.vehicles) { v.state.theft = false; v.state.engineCut = false; }
+  showCai(false);
+  setLivePill();
+  syncActionButtons();
+}
+
+const SHOW = [
+  { text: 'Del satélite a la calle: así ve cada cliente su vehículo, en la ciudad real.', run: async (tk) => { await intro(); await wait(tk, 1200); } },
+  { text: 'Telemetría en vivo sobre el vehículo: velocidad, encendido, batería, combustible y rumbo.', run: (tk) => { setCam('dron'); return wait(tk, 7000); } },
+  { text: 'Cámara de conductor: como ir detrás de tu propio carro.', run: (tk) => { setCam('conductor'); return wait(tk, 8000); } },
+  { text: '4D · Predicción: dónde estará en 5 minutos y a qué hora.', run: async (tk) => { setFuture(true); await wait(tk, 8500); setFuture(false); } },
+  { text: 'Toda la flota de una empresa en una sola mirada, con color por velocidad.', run: (tk) => { setCam('torre'); return wait(tk, 9000); } },
+  { text: 'Robo: alerta inmediata, cámara de persecución y el CAI más cercano.', run: (tk) => { setTheft(app.selected, true); setCam('dron'); return wait(tk, 8000); } },
+  { text: 'Apagado remoto con un toque: frena de forma segura y queda inmovilizado.', run: (tk) => { setEngineCut(app.selected, true); return wait(tk, 9000); } },
+  { text: 'El recorrido del día como una película, con paradas y excesos de velocidad marcados.', run: async (tk) => {
+    setEngineCut(app.selected, false);
+    $('replaySpeed').value = '60';
+    openReplay();
+    await wait(tk, 13000);
+    closeReplay();
+  } },
+  { text: 'TuGPS24 3D · el siguiente nivel del rastreo satelital.', run: (tk) => { setCam('torre'); return wait(tk, 7000); } },
+];
+
+async function runShow() {
+  const token = {};
+  show = token;
+  document.body.classList.add('showing');
+  $('btnShow').textContent = '■ Detener';
+  try {
+    resetDemo();
+    select(app.vehicles[0]);
+    for (let i = 0; i < SHOW.length; i++) {
+      caption(i + 1, SHOW.length, SHOW[i].text);
+      await SHOW[i].run(token);
+    }
+  } catch (e) {
+    if (e.message !== 'stop') console.error(e);
+  } finally {
+    if (show === token) stopShow();
+  }
+}
+
+function stopShow() {
+  show = null;
+  document.body.classList.remove('showing');
+  $('btnShow').textContent = '▶ Presentación';
+  $('caption').hidden = true;
+  app.flyLock = 0;
+  resetDemo();
+}
+
 // ───────────────────────── eventos de la interfaz ─────────────────────────
 document.querySelectorAll('.cams button').forEach((b) => b.addEventListener('click', () => {
   if (app.replay) closeReplay();
@@ -923,11 +1147,10 @@ for (const ev of ['dragstart', 'rotatestart', 'pitchstart', 'zoomstart']) {
   });
 }
 
-$('btnCut').addEventListener('click', () => {
-  const v = app.selected;
+function setEngineCut(v, cut) {
   const s = v.state;
-  if (!s.engineCut) {
-    if (!confirm(`¿Apagar el motor de ${v.def.plate}? El vehículo frenará de forma segura hasta detenerse.`)) return;
+  if (s.engineCut === cut) return;
+  if (cut) {
     s.engineCut = true;
     const [x, y] = toXY(v.ll);
     three.fx.wave(x, -y, 0x38e1ff);
@@ -943,12 +1166,12 @@ $('btnCut').addEventListener('click', () => {
   setLivePill();
   syncActionButtons();
   narrate(true);
-});
+}
 
-$('btnTheft').addEventListener('click', () => {
-  const v = app.selected;
+function setTheft(v, on) {
   const s = v.state;
-  s.theft = !s.theft;
+  if (s.theft === on) return;
+  s.theft = on;
   if (s.theft) {
     s.engineCut = false;
     s.stopTimer = 0;
@@ -962,7 +1185,22 @@ $('btnTheft').addEventListener('click', () => {
   setLivePill();
   syncActionButtons();
   narrate(true);
+}
+
+$('btnCut').addEventListener('click', () => {
+  const v = app.selected;
+  if (!v.state.engineCut && !confirm(`¿Apagar el motor de ${v.def.plate}? El vehículo frenará de forma segura hasta detenerse.`)) return;
+  setEngineCut(v, !v.state.engineCut);
 });
+$('btnTheft').addEventListener('click', () => setTheft(app.selected, !app.selected.state.theft));
+$('btnFuture').addEventListener('click', () => setFuture(!app.future));
+$('btnTheme').addEventListener('click', () => applyTheme(app.theme === 'dia' ? 'noche' : 'dia'));
+$('btnShow').addEventListener('click', () => {
+  if (show) { stopShow(); return; }
+  try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch {}
+  runShow();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && show) stopShow(); });
 
 $('btnReplay').addEventListener('click', openReplay);
 $('replayClose').addEventListener('click', closeReplay);

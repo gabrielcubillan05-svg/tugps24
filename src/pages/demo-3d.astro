@@ -26,7 +26,15 @@
       <a class="brand" href="/">TuGPS<span>24</span> <em>3D</em></a>
       <div class="live-pill" id="livePill"><i></i><span id="liveText">EN VIVO</span></div>
       <div class="clock" id="clock">--:--:--</div>
+      <button type="button" class="tb" id="btnTheme" title="Cambiar a día">🌙</button>
+      <button type="button" class="tb show" id="btnShow">▶ Presentación</button>
     </header>
+
+    <div class="intro" id="intro" aria-hidden="true">
+      <div class="intro-logo">TuGPS<span>24</span> <em>3D</em></div>
+      <p>Del satélite a tu calle</p>
+    </div>
+    <div class="caption" id="caption" hidden aria-live="polite"></div>
 
     <aside class="fleet" id="fleet" aria-label="Vehículos">
       <h2>Mi flota</h2>
@@ -43,6 +51,7 @@
     <section class="actions" aria-label="Acciones">
       <button type="button" id="btnCut" class="danger">⏻ Apagar motor</button>
       <button type="button" id="btnTheft">🚨 Simular robo</button>
+      <button type="button" id="btnFuture">🔮 En 5 min</button>
       <button type="button" id="btnReplay">🎬 Recorrido de hoy</button>
       <button type="button" id="btnRecord">⏺ Grabar clip</button>
     </section>
