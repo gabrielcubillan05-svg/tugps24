@@ -1,0 +1,77 @@
+---
+// Prototipo público con datos simulados (sin clientes reales): sirve para mostrar el monitoreo
+// 3D a prospectos antes de conectarlo a la plataforma GPS.
+---
+
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>TuGPS24 3D · Monitoreo en vivo</title>
+    <meta name="description" content="Demostración del monitoreo 3D de TuGPS24: tu vehículo en la ciudad real, en tiempo real." />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/vendor/maplibre-gl-4.7.1/maplibre-gl.css" />
+    <link rel="stylesheet" href="/css/demo-3d.css" />
+  </head>
+  <body>
+    <div id="map" aria-label="Mapa 3D de la flota"></div>
+    <div class="vignette" id="vignette"></div>
+
+    <header class="topbar">
+      <a class="brand" href="/">TuGPS<span>24</span> <em>3D</em></a>
+      <div class="live-pill" id="livePill"><i></i><span id="liveText">EN VIVO</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </header>
+
+    <aside class="fleet" id="fleet" aria-label="Vehículos">
+      <h2>Mi flota</h2>
+      <ul id="fleetList"></ul>
+    </aside>
+
+    <section class="cams" aria-label="Cámara">
+      <button type="button" data-cam="dron" class="on" title="Sigue al vehículo desde arriba">🚁<span>Dron</span></button>
+      <button type="button" data-cam="conductor" title="Vista desde la cabina">🧑‍✈️<span>Conductor</span></button>
+      <button type="button" data-cam="torre" title="Toda la flota">🗼<span>Torre</span></button>
+      <button type="button" data-cam="libre" title="Mueve el mapa a tu gusto">✋<span>Libre</span></button>
+    </section>
+
+    <section class="actions" aria-label="Acciones">
+      <button type="button" id="btnCut" class="danger">⏻ Apagar motor</button>
+      <button type="button" id="btnTheft">🚨 Simular robo</button>
+      <button type="button" id="btnReplay">🎬 Recorrido de hoy</button>
+      <button type="button" id="btnRecord">⏺ Grabar clip</button>
+    </section>
+
+    <section class="replay" id="replay" hidden>
+      <button type="button" id="replayPlay" aria-label="Pausar">❚❚</button>
+      <div class="track">
+        <input type="range" id="replaySlider" min="0" max="1000" value="0" aria-label="Línea de tiempo del recorrido" />
+        <div class="events" id="replayEvents"></div>
+      </div>
+      <span class="replay-time" id="replayTime">07:30</span>
+      <select id="replaySpeed" aria-label="Velocidad de la repetición">
+        <option value="10">x10</option>
+        <option value="30" selected>x30</option>
+        <option value="60">x60</option>
+      </select>
+      <button type="button" id="replayClose" aria-label="Volver al vivo">✕ Vivo</button>
+    </section>
+
+    <section class="gpsito" aria-live="polite">
+      <div class="avatar">G</div>
+      <p id="gpsitoText">Conectando con los satélites…</p>
+    </section>
+
+    <div class="toasts" id="toasts" aria-live="assertive"></div>
+    <div class="speed-legend"><i class="g"></i>&lt;40 <i class="a"></i>40–60 <i class="r"></i>&gt;60 km/h <i class="o"></i>apagado</div>
+    <div class="demo-badge">Demostración · datos simulados</div>
+
+    <script src="/vendor/maplibre-gl-4.7.1/maplibre-gl-csp.js" is:inline></script>
+    <script type="module" src="/js/demo-3d.js" is:inline></script>
+  </body>
+</html>

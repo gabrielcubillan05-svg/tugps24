@@ -18,6 +18,13 @@ const CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 
+// El prototipo 3D necesita teselas del mapa y rutas por calles de servicios externos; se abre
+// solo para esa página en vez de aflojar la política de todo el sitio.
+const CSP_DEMO_3D = CSP.replace(
+  "connect-src 'self'",
+  "connect-src 'self' https://tiles.openfreemap.org https://router.project-osrm.org",
+);
+
 // Con la clave inicial sin cambiar, las páginas redirigen a cambiarla, pero la API seguía
 // abierta. Aquí se cierra también la API, salvo lo necesario para cambiarla y salir.
 const MUST_CHANGE_EXEMPT = ['/api/users', '/api/auth/', '/api/version', '/api/health'];
@@ -56,7 +63,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
       }
     }
   }
-  response.headers.set('Content-Security-Policy', CSP);
+  response.headers.set('Content-Security-Policy', path.replace(/\/$/, '') === '/demo-3d' ? CSP_DEMO_3D : CSP);
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
