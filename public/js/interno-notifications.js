@@ -78,6 +78,13 @@ document.addEventListener('DOMContentLoaded', function () {
           return !!el.value && el.value !== el.defaultValue;
         });
         if (document.hidden && !hasUnsavedInput && !window.TuGpsAlarmas) {
+          // Durante un despliegue conviven instancias con la versión vieja y la nueva unos
+          // minutos: sin esta marca, una pestaña oculta podía recargar una y otra vez al ir
+          // cayendo alternadamente en una y otra. Una sola recarga automática cada 10 minutos.
+          let lastReload = 0;
+          try { lastReload = Number(sessionStorage.getItem('panel:auto-reload-at') || 0); } catch { /* sin storage */ }
+          if (Date.now() - lastReload < 10 * 60000) return;
+          try { sessionStorage.setItem('panel:auto-reload-at', String(Date.now())); } catch { /* sin storage */ }
           location.reload();
           return;
         }

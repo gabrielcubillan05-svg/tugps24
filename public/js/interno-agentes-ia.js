@@ -195,10 +195,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function loadAll() {
     fetch('/api/ai-agents')
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => ({ status: res.status, data: await res.json().catch(() => null) }))
+      .then(({ status, data }) => {
         if (!data || !Array.isArray(data.agents)) {
-          agentsList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
+          // Con el código HTTP a la vista se sabe si fue permiso (401), servidor (500) o red.
+          agentsList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
           return;
         }
         agents = data.agents;
@@ -340,10 +341,10 @@ document.addEventListener('DOMContentLoaded', function () {
       if (calBranch && calBranch.value) params.set('branch', calBranch.value);
       const qs = params.toString();
       fetch('/api/andres-calendario' + (qs ? '?' + qs : ''))
-        .then((res) => res.json())
-        .then((data) => {
+        .then(async (res) => ({ status: res.status, data: await res.json().catch(() => null) }))
+        .then(({ status, data }) => {
           if (!data || !Array.isArray(data.days)) {
-            calGrid.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
+            calGrid.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
             return;
           }
           calMonth = data.month;

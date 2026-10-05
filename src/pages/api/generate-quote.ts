@@ -35,7 +35,8 @@ const BRANCHES: Record<string, string> = {
 };
 
 async function fetchImageBytes(origin: string, path: string): Promise<ArrayBuffer> {
-  const res = await fetch(new URL(path, origin));
+  const res = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`imagen ${path}: ${res.status}`);
   return res.arrayBuffer();
 }
 
@@ -99,30 +100,33 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const totalMaquinaAmarillaSemestre = maquinasAmarillas * MAQUINA_AMARILLA_SEMESTRE_UNIT;
   const totalMaquinaAmarillaPrimerPago = totalMaquinaAmarillaInstalacion + totalMaquinaAmarillaSemestre;
 
+  // Versiones reducidas (máx. 1100 px) de las fotos del sitio, solo para el PDF: con las
+  // originales la cotización pesaba 6,9 MB, por encima del límite de 4,5 MB que Vercel permite
+  // en la respuesta de una función, y la secretaria veía "No se pudo generar la cotización".
   const SEDE_PHOTOS: [string, string][] = [
-    ['Riohacha', '/img/branches/riohacha/facade.jpg'],
-    ['Maicao', '/img/branches/maicao/facade.jpg'],
-    ['Santa Marta', '/img/branches/santa-marta/facade.jpg'],
-    ['Valledupar', '/img/branches/valledupar/facade.jpg'],
-    ['Barranquilla', '/img/branches/barranquilla/facade.jpg'],
-    ['Soledad', '/img/branches/soledad/facade.jpg'],
-    ['Bucaramanga', '/img/branches/bucaramanga/facade.jpg'],
-    ['Medellín', '/img/branches/medellin/facade.jpg'],
-    ['Montería', '/img/branches/monteria/facade.jpg'],
+    ['Riohacha', '/img/quote/sede-riohacha.jpg'],
+    ['Maicao', '/img/quote/sede-maicao.jpg'],
+    ['Santa Marta', '/img/quote/sede-santa-marta.jpg'],
+    ['Valledupar', '/img/quote/sede-valledupar.jpg'],
+    ['Barranquilla', '/img/quote/sede-barranquilla.jpg'],
+    ['Soledad', '/img/quote/sede-soledad.jpg'],
+    ['Bucaramanga', '/img/quote/sede-bucaramanga.jpg'],
+    ['Medellín', '/img/quote/sede-medellin.jpg'],
+    ['Montería', '/img/quote/sede-monteria.jpg'],
   ];
   const RECOVERY_PHOTOS = [
-    '/img/recuperaciones/recuperacion-60.jpg',
-    '/img/recuperaciones/recuperacion-58.jpg',
-    '/img/recuperaciones/recuperacion-54.jpg',
-    '/img/recuperaciones/recuperacion-50.jpg',
+    '/img/quote/recuperacion-60.jpg',
+    '/img/quote/recuperacion-58.jpg',
+    '/img/quote/recuperacion-54.jpg',
+    '/img/quote/recuperacion-50.jpg',
   ];
 
   const origin = url.origin;
   const [coverJpg, statsJpg, priceJpg, closeJpg, sedeJpgs, recoveryJpgs] = await Promise.all([
-    fetchImageBytes(origin, '/img/central/central-1.jpg'),
-    fetchImageBytes(origin, '/img/central/central-2.jpg'),
-    fetchImageBytes(origin, '/img/central/central-video-poster.jpg'),
-    fetchImageBytes(origin, '/img/recuperaciones/recuperacion-55.jpg'),
+    fetchImageBytes(origin, '/img/quote/central-1.jpg'),
+    fetchImageBytes(origin, '/img/quote/central-2.jpg'),
+    fetchImageBytes(origin, '/img/quote/central-video-poster.jpg'),
+    fetchImageBytes(origin, '/img/quote/recuperacion-55.jpg'),
     Promise.all(SEDE_PHOTOS.map(([, p]) => fetchImageBytes(origin, p))),
     Promise.all(RECOVERY_PHOTOS.map((p) => fetchImageBytes(origin, p))),
   ]);
