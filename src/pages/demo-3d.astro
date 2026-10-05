@@ -1,6 +1,8 @@
 ---
 // Prototipo público con datos simulados (sin clientes reales): sirve para mostrar el monitoreo
-// 3D a prospectos antes de conectarlo a la plataforma GPS.
+// 3D a prospectos antes de conectarlo a la plataforma GPS. La clave de Google es de navegador
+// (se restringe por dominio en Google Cloud), por eso puede ir en la página.
+const gkey = import.meta.env.PUBLIC_GOOGLE_MAPS_KEY ?? '';
 ---
 
 <!DOCTYPE html>
@@ -18,21 +20,28 @@
     <link rel="stylesheet" href="/vendor/maplibre-gl-4.7.1/maplibre-gl.css" />
     <link rel="stylesheet" href="/css/demo-3d.css" />
   </head>
-  <body>
+  <body data-gkey={gkey}>
     <div id="map" aria-label="Mapa 3D de la flota"></div>
+    <div class="sky-tint" aria-hidden="true"></div>
+    <div class="fog" aria-hidden="true"></div>
+    <canvas class="rain" id="rain" aria-hidden="true"></canvas>
+    <div class="flash" id="flash" aria-hidden="true"></div>
     <div class="vignette" id="vignette"></div>
+    <div class="gattr" id="gattr" hidden><b>Google</b> <span id="gattrText"></span></div>
 
     <header class="topbar">
       <a class="brand" href="/">TuGPS<span>24</span> <em>3D</em></a>
       <div class="live-pill" id="livePill"><i></i><span id="liveText">EN VIVO</span></div>
       <div class="clock" id="clock">--:--:--</div>
-      <button type="button" class="tb" id="btnTheme" title="Cambiar a día">🌙</button>
-      <button type="button" class="tb show" id="btnShow">▶ Presentación</button>
+      <button type="button" class="tb wx" id="btnWeather">🌤️</button>
+      <button type="button" class="tb" id="btnTheme">🕒</button>
+      <button type="button" class="tb" id="btnPhoto">🗺️<span> Mapa</span></button>
+      <button type="button" class="tb show" id="btnShow">▶<span> Presentación</span></button>
     </header>
 
     <div class="intro" id="intro" aria-hidden="true">
       <div class="intro-logo">TuGPS<span>24</span> <em>3D</em></div>
-      <p>Del satélite a tu calle</p>
+      <p>Del satélite a tu calle · Riohacha</p>
     </div>
     <div class="caption" id="caption" hidden aria-live="polite"></div>
 

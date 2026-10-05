@@ -1,58 +1,62 @@
-import * as THREE from '/vendor/three-0.160.0/three.module.min.js';
+import {
+  THREE, GLTFLoader, DRACOLoader, TilesRenderer, GoogleCloudAuthPlugin, GLTFExtensionsPlugin, ReorientationPlugin, TileCompressionPlugin,
+} from '/vendor/three-tiles/three-tiles.js';
+import { createModelKit } from '/js/demo-3d-models.js';
+import { sunPosition, phaseFor, describeWeather, fetchWeather, RainLayer } from '/js/demo-3d-env.js';
 
 const maplibregl = window.maplibregl;
 maplibregl.setWorkerUrl('/vendor/maplibre-gl-4.7.1/maplibre-gl-csp-worker.js');
 
 // ───────────────────────── geografía ─────────────────────────
-const ORIGIN = { lng: -74.075, lat: 4.66 };
+const CITY = { name: 'Riohacha', lat: 11.5385, lng: -72.9135 };
+const ORIGIN = { lng: CITY.lng, lat: CITY.lat };
+const RAD = Math.PI / 180;
 const M_PER_DEG = 111319.49;
-const MX = M_PER_DEG * Math.cos((ORIGIN.lat * Math.PI) / 180);
+const MX = M_PER_DEG * Math.cos(ORIGIN.lat * RAD);
 const MY = M_PER_DEG;
 const toXY = ([lng, lat]) => [(lng - ORIGIN.lng) * MX, (lat - ORIGIN.lat) * MY];
 const toLL = ([x, y]) => [ORIGIN.lng + x / MX, ORIGIN.lat + y / MY];
 
+// Centro, aeropuerto y Viva Wajiira son coordenadas publicadas; el resto sale de la cuadrícula
+// de calles (paralelas al mar) y carreras. Las rutas se ajustan a las vías reales con OSRM.
 const PLACES = {
-  parque93: { ll: [-74.0484, 4.6766], name: 'el Parque de la 93' },
-  andino: { ll: [-74.0527, 4.6669], name: 'el Centro Andino' },
-  calle72: { ll: [-74.0563, 4.6553], name: 'la Calle 72 con Séptima' },
-  campin: { ll: [-74.0773, 4.6459], name: 'el Estadio El Campín' },
-  calle100: { ll: [-74.0554, 4.6866], name: 'la Calle 100 con Autopista' },
-  unicentro: { ll: [-74.0416, 4.7022], name: 'Unicentro' },
-  usaquen: { ll: [-74.0308, 4.6949], name: 'Usaquén' },
-  plazaBolivar: { ll: [-74.076, 4.5981], name: 'la Plaza de Bolívar' },
-  colpatria: { ll: [-74.0703, 4.6107], name: 'la Torre Colpatria' },
-  unal: { ll: [-74.084, 4.6381], name: 'la Universidad Nacional' },
-  simonBolivar: { ll: [-74.0939, 4.6584], name: 'el Parque Simón Bolívar' },
-  salitre: { ll: [-74.1095, 4.6526], name: 'Salitre Plaza' },
-  eldorado: { ll: [-74.1469, 4.7016], name: 'el Aeropuerto El Dorado' },
+  casa: { ll: [-72.9128, 11.5398], name: 'la casa' },
+  padilla: { ll: [-72.9069, 11.5444], name: 'el Parque Almirante Padilla' },
+  muelle: { ll: [-72.9052, 11.5457], name: 'el Muelle Turístico' },
+  calle15: { ll: [-72.9044, 11.5362], name: 'la Calle 15 con Carrera 5' },
+  terminal: { ll: [-72.9122, 11.5352], name: 'la Terminal de Transportes' },
+  viva: { ll: [-72.9209, 11.5362], name: 'el C.C. Viva Wajiira' },
+  hospital: { ll: [-72.9174, 11.5381], name: 'el Hospital Nuestra Señora de los Remedios' },
+  aeropuerto: { ll: [-72.9258, 11.5264], name: 'el Aeropuerto Almirante Padilla' },
+  sur: { ll: [-72.9109, 11.5266], name: 'el sur de la ciudad' },
 };
 const PLACE_LIST = Object.values(PLACES).map((p) => ({ ...p, xy: toXY(p.ll) }));
 
 const FENCE = {
   name: 'Zona segura · Casa',
   ring: [
-    [-74.0578, 4.6655], [-74.0551, 4.6628], [-74.0478, 4.6636], [-74.0447, 4.6702],
-    [-74.0452, 4.6795], [-74.0512, 4.6812], [-74.0566, 4.6745], [-74.0578, 4.6655],
+    [-72.915, 11.5382], [-72.911, 11.538], [-72.9102, 11.54], [-72.9112, 11.5416],
+    [-72.914, 11.5418], [-72.9154, 11.5401], [-72.915, 11.5382],
   ],
 };
 
 // Puntos de policía ficticios, solo para la simulación de robo.
 const CAI = [
-  { ll: [-74.0592, 4.6578], name: 'CAI Chapinero · demo' },
-  { ll: [-74.0447, 4.6985], name: 'CAI Unicentro · demo' },
-  { ll: [-74.0735, 4.6492], name: 'CAI Galerías · demo' },
+  { ll: [-72.9085, 11.5432], name: 'CAI Centro · demo' },
+  { ll: [-72.919, 11.535], name: 'CAI Viva · demo' },
+  { ll: [-72.914, 11.533], name: 'CAI Terminal · demo' },
 ];
 
 const FLEET = [
-  { id: 'main', name: 'Mi carro', plate: 'ABC-123', kind: 'sedan', icon: '🚗', color: 0xff7a1a, cruise: 52, start: 0,
-    stops: ['parque93', 'andino', 'calle72', 'campin', 'calle100', 'unicentro', 'usaquen', 'parque93'] },
-  { id: 'moto', name: 'Moto mensajería', plate: 'XYZ-45A', kind: 'moto', icon: '🏍️', color: 0x38e1ff, cruise: 46, start: 0.35,
-    stops: ['plazaBolivar', 'colpatria', 'unal', 'campin', 'colpatria', 'plazaBolivar'] },
-  { id: 'truck', name: 'Camión reparto', plate: 'TRK-908', kind: 'truck', icon: '🚚', color: 0xf2ede2, cruise: 40, start: 0.2,
-    stops: ['eldorado', 'salitre', 'simonBolivar', 'unal', 'salitre', 'eldorado'] },
-  { id: 'van', name: 'Van escolar', plate: 'VAN-321', kind: 'van', icon: '🚐', color: 0xffc23d, cruise: 42, start: 0.6,
-    stops: ['unicentro', 'usaquen', 'parque93', 'calle100', 'unicentro'] },
-];
+  { id: 'main', role: 'Mi carro', name: 'Mazda 2 Sedán', short: 'Mazda 2', plate: 'ABC-123', kind: 'sedan', slug: 'mazda2-sedan', length: 4.34, icon: '🚗', color: 0x8e0f1c, cruise: 48, start: 0,
+    stops: ['casa', 'padilla', 'muelle', 'calle15', 'terminal', 'viva', 'aeropuerto', 'hospital', 'casa'] },
+  { id: 'moto', role: 'Mensajería', name: 'Bajaj Boxer CT100', short: 'moto de mensajería', plate: 'XYZ-45A', kind: 'moto', slug: 'bajaj-boxer', length: 1.95, icon: '🏍️', color: 0xb91c1c, cruise: 42, start: 0.35,
+    stops: ['padilla', 'terminal', 'sur', 'hospital', 'padilla'] },
+  { id: 'truck', role: 'Reparto', name: 'Chevrolet NHR', short: 'camión de reparto', plate: 'TRK-908', kind: 'truck', slug: 'chevrolet-nhr', length: 5.6, icon: '🚚', color: 0xf3f4f6, cruise: 36, start: 0.2,
+    stops: ['aeropuerto', 'viva', 'terminal', 'calle15', 'viva', 'aeropuerto'] },
+  { id: 'van', role: 'Ruta escolar', name: 'Toyota Hiace', short: 'van escolar', plate: 'VAN-321', kind: 'van', slug: 'toyota-hiace', length: 5.38, icon: '🚐', color: 0xf2b705, cruise: 38, start: 0.6,
+    stops: ['sur', 'hospital', 'padilla', 'muelle', 'terminal', 'sur'] },
+].map((d) => ({ ...d, city: CITY.name }));
 
 // ───────────────────────── rutas ─────────────────────────
 function densify(lls, step = 25) {
@@ -200,93 +204,7 @@ function pointInRing([x, y], ring) {
 }
 
 // ───────────────────────── modelos 3D ─────────────────────────
-const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.35, ...o });
-const GLASS = mat(0x0d1a2b, { roughness: 0.1, metalness: 0.9 });
-const TIRE = mat(0x111111, { roughness: 0.9, metalness: 0 });
-
-function box(w, h, l, m, x, y, z) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), m);
-  mesh.position.set(x, y, z);
-  return mesh;
-}
-function wheel(r, w, x, z) {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 18), TIRE);
-  mesh.rotation.z = Math.PI / 2;
-  mesh.position.set(x, r, z);
-  return mesh;
-}
-
-function buildVehicle(veh) {
-  const g = new THREE.Group();
-  const body = mat(veh.color);
-  const head = new THREE.MeshStandardMaterial({ color: 0xfff4d6, emissive: 0xfff4d6, emissiveIntensity: 2 });
-  const tail = new THREE.MeshStandardMaterial({ color: 0xff2a2a, emissive: 0xff2a2a, emissiveIntensity: 1.6 });
-  const lights = [];
-  const addLight = (m) => { lights.push(m); g.add(m); };
-  let L = 4.5;
-  if (veh.kind === 'sedan') {
-    g.add(box(1.84, 0.62, 4.5, body, 0, 0.62, 0));
-    g.add(box(1.62, 0.55, 2.3, GLASS, 0, 1.2, 0.25));
-    g.add(box(1.58, 0.07, 1.95, body, 0, 1.5, 0.3));
-    for (const x of [-0.88, 0.88]) for (const z of [-1.45, 1.4]) g.add(wheel(0.34, 0.26, x, z));
-    for (const x of [-0.62, 0.62]) { addLight(box(0.42, 0.12, 0.06, head, x, 0.72, -2.26)); addLight(box(0.42, 0.12, 0.06, tail, x, 0.78, 2.26)); }
-  } else if (veh.kind === 'moto') {
-    L = 2;
-    g.add(box(0.34, 0.45, 1.8, body, 0, 0.72, 0));
-    g.add(box(0.46, 0.7, 0.4, mat(0x1f2937), 0, 1.3, 0.12));
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), body);
-    helmet.position.set(0, 1.82, 0.08);
-    g.add(helmet);
-    g.add(box(0.5, 0.42, 0.42, mat(0x111827), 0, 1.05, 0.85));
-    for (const z of [-0.72, 0.72]) g.add(wheel(0.32, 0.12, 0, z));
-    addLight(box(0.16, 0.12, 0.06, head, 0, 0.95, -0.92));
-    addLight(box(0.16, 0.08, 0.06, tail, 0, 0.9, 1.08));
-  } else if (veh.kind === 'truck') {
-    L = 8.5;
-    g.add(box(2.3, 2.3, 1.9, mat(0x2563eb), 0, 1.55, -3.2));
-    g.add(box(2.0, 0.8, 0.08, GLASS, 0, 2.05, -4.16));
-    g.add(box(2.5, 2.9, 6.2, body, 0, 2.05, 0.9));
-    g.add(box(2.4, 0.3, 8.2, mat(0x1f2937), 0, 0.55, -0.1));
-    for (const x of [-1.05, 1.05]) for (const z of [-3.2, 1.6, 2.9]) g.add(wheel(0.5, 0.35, x, z));
-    for (const x of [-0.85, 0.85]) { addLight(box(0.4, 0.2, 0.06, head, x, 0.95, -4.18)); addLight(box(0.3, 0.2, 0.06, tail, x, 0.9, 4.02)); }
-  } else {
-    L = 5.2;
-    g.add(box(1.95, 1.75, 5.2, body, 0, 1.25, 0));
-    g.add(box(1.97, 0.6, 3.6, GLASS, 0, 1.62, 0.5));
-    g.add(box(1.7, 0.7, 0.06, GLASS, 0, 1.55, -2.62));
-    for (const x of [-0.92, 0.92]) for (const z of [-1.7, 1.7]) g.add(wheel(0.36, 0.28, x, z));
-    for (const x of [-0.7, 0.7]) { addLight(box(0.36, 0.14, 0.06, head, x, 0.85, -2.62)); addLight(box(0.3, 0.2, 0.06, tail, x, 1.0, 2.62)); }
-  }
-
-  // El anillo y la columna de luz son lo que se ve desde la vista de torre, donde el modelo es diminuto.
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(L * 0.62, L * 0.75, 48), ringMat);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.06;
-  g.add(ring);
-  const discMat = new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: 0.16, depthWrite: false });
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(L * 0.62, 48), discMat);
-  disc.rotation.x = -Math.PI / 2;
-  disc.position.y = 0.05;
-  g.add(disc);
-  const beamMat = new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending });
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(L * 0.08, L * 0.08, 60, 10, 1, true), beamMat);
-  beam.position.y = 30;
-  g.add(beam);
-
-  const bar = new THREE.Group();
-  const redL = new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff2020, emissiveIntensity: 3 });
-  const blueL = new THREE.MeshStandardMaterial({ color: 0x2060ff, emissive: 0x2060ff, emissiveIntensity: 3 });
-  const top = veh.kind === 'truck' ? 3.6 : veh.kind === 'van' ? 2.2 : veh.kind === 'moto' ? 2.1 : 1.6;
-  const r = box(0.5, 0.14, 0.26, redL, -0.3, top, 0.2);
-  const b = box(0.5, 0.14, 0.26, blueL, 0.3, top, 0.2);
-  bar.add(r, b);
-  bar.visible = false;
-  g.add(bar);
-
-  g.traverse((o) => { o.frustumCulled = false; });
-  return { group: g, lights, head, tail, ringMat, discMat, beamMat, bar, red: r, blue: b, L };
-}
+const kit = createModelKit(THREE, GLTFLoader, DRACOLoader);
 
 function makeFx(scene) {
   const list = [];
@@ -367,8 +285,8 @@ const STYLE = {
 const map = new maplibregl.Map({
   container: 'map',
   style: STYLE,
-  center: [-74.3, 4.4],
-  zoom: 5.2,
+  center: [-73.6, 7.2],
+  zoom: 5,
   pitch: 0,
   bearing: 0,
   maxPitch: 85,
@@ -416,11 +334,23 @@ const app = {
   replay: null,
   simTime: 0,
   recording: null,
-  theme: (() => {
-    const h = Number(new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', hour: 'numeric', hour12: false }).format(new Date()));
-    return h >= 6 && h < 18 ? 'dia' : 'noche';
-  })(),
+  env: { timeMode: 'auto', weatherMode: 'real', weather: null, sun: null, phase: 'dia', lights: 0, tint: [1, 1, 1] },
+  photo: false,
+  gkey: '',
 };
+
+// La clave de Google va en la variable PUBLIC_GOOGLE_MAPS_KEY de Vercel; para probar sin desplegar
+// también se acepta ?gkey=... una vez y queda guardada en este navegador.
+{
+  const qs = new URLSearchParams(location.search);
+  let key = qs.get('gkey') || document.body.dataset.gkey || '';
+  try {
+    if (qs.get('gkey')) localStorage.setItem('demo3d-gkey', key);
+    else if (!key) key = localStorage.getItem('demo3d-gkey') || '';
+  } catch {}
+  app.gkey = key;
+  app.photo = !!key && qs.get('foto') !== '0';
+}
 
 function setCam(mode) {
   app.cam = mode;
@@ -481,7 +411,7 @@ function hudHtml(v) {
     : s.stopTimer > 0 ? '<span class="st" style="color:#ffc23d">■ DETENIDO · MOTOR ENCENDIDO</span>'
     : '<span class="st" style="color:#3ddc84">● EN MOVIMIENTO</span>';
   const batt = on ? 13.8 + Math.sin(app.simTime * 0.7) * 0.08 : 12.5;
-  return `<div class="pl">${v.def.icon} ${v.def.name} · ${v.def.plate}</div>
+  return `<div class="pl">${v.def.icon} ${v.def.role} · ${v.def.plate}</div><div class="md">${v.def.name}</div>
     <div class="big" style="color:${color}">${on ? kmh : 0}<small>km/h</small></div>
     <div class="rows"><span>Encendido</span><b>${on ? 'Sí' : 'No'}</b><span>Batería</span><b>${fmt1.format(batt)} V</b>
     <span>Combustible</span><b>${Math.round(s.fuel)} %</b><span>Hoy</span><b>${fmt1.format(s.odo / 1000)} km</b>
@@ -499,18 +429,19 @@ function narrate(force = false) {
   const kmh = Math.round(s.v * KMH);
   const near = nearText(toXY(v.ll));
   let t;
-  if (app.replay) t = `Repetición del día: a las <b>${replayClock(app.replay.t)}</b> tu ${v.def.name.toLowerCase()} iba a <b>${Math.round(app.replay.sample.v * KMH)} km/h</b> ${near}.`;
+  if (app.replay) t = `Repetición del día: a las <b>${replayClock(app.replay.t)}</b> tu ${v.def.short} iba a <b>${Math.round(app.replay.sample.v * KMH)} km/h</b> ${near}.`;
   else if (s.theft && !s.engineCut) t = `🚨 Movimiento sin autorización a <b>${kmh} km/h</b> ${near}. Lo sigo en vivo y el CAI más cercano ya está marcado. Puedes <b>apagar el motor</b> desde aquí.`;
   else if (s.engineCut && s.v === 0) t = `Motor apagado a distancia. <b>${v.def.plate}</b> está inmovilizado ${near}. Para encenderlo de nuevo usa <b>Reactivar motor</b>.`;
   else if (s.engineCut) t = `Orden de apagado recibida: el vehículo baja la velocidad de forma segura (${kmh} km/h).`;
   else if (kmh > OVER_KMH) t = `Ojo: <b>${v.def.plate}</b> va a <b>${kmh} km/h</b> ${near}, por encima del límite urbano de 60.`;
   else if (s.stopTimer > 0) t = `<b>${v.def.plate}</b> está detenido ${near}, con el motor encendido. Parece un semáforo.`;
-  else t = `Tu <b>${v.def.name.toLowerCase()}</b> va a <b>${kmh} km/h</b> ${near}. Hoy lleva <b>${fmt1.format(s.odo / 1000)} km</b> recorridos.`;
+  else t = `Tu <b>${v.def.short}</b> va a <b>${kmh} km/h</b> ${near}. Hoy lleva <b>${fmt1.format(s.odo / 1000)} km</b> recorridos.`;
   $('gpsitoText').innerHTML = t;
 }
 
 // ───────────────────────── capa 3D ─────────────────────────
 const three = {};
+const DOWN = new THREE.Vector3(0, -1, 0);
 const vehicleLayer = {
   id: 'vehicles-3d',
   type: 'custom',
@@ -523,16 +454,22 @@ const vehicleLayer = {
     three.sun = new THREE.DirectionalLight(0xffffff, 2.2);
     three.sun.position.set(60, 120, 40);
     three.scene.add(three.sun);
-    const fill = new THREE.DirectionalLight(0xff9a50, 0.8);
-    fill.position.set(-80, 40, -60);
-    three.scene.add(fill);
+    three.fill = new THREE.DirectionalLight(0xff9a50, 0.6);
+    three.fill.position.set(-80, 40, -60);
+    three.scene.add(three.fill);
     three.root = new THREE.Group();
     three.scene.add(three.root);
     three.fx = makeFx(three.root);
     three.renderer = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true });
     three.renderer.autoClear = false;
+    three.lodCam = new THREE.PerspectiveCamera(36.87, 1, 1, 100000);
+    three.ray = new THREE.Raycaster();
+    three.ray.firstHitOnly = true;
     for (const v of app.vehicles) three.root.add(v.model.group);
-    applyTheme(app.theme);
+    three.fence = buildFenceMesh();
+    three.root.add(three.fence);
+    if (app.gkey) setupTiles();
+    applyEnv();
   },
   render(gl, matrix) {
     // El origen de la escena se mueve al centro de la vista en cada cuadro: con un origen fijo
@@ -545,16 +482,142 @@ const vehicleLayer = {
     three.root.position.set(-ox, 0, oy);
     three.root.updateMatrixWorld(true);
     three.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(origin);
+    if (three.tiles && app.photo) {
+      syncLodCamera(c.lat);
+      three.tiles.update();
+      groundTick();
+    }
     three.renderer.resetState();
     three.renderer.render(three.scene, three.camera);
     map.triggerRepaint();
   },
 };
 
+// ───────────────────────── ciudad fotorrealista (Google 3D Tiles) ─────────────────────────
+// MapLibre sigue mandando la cámara; esta cámara paralela solo le dice a la librería de teselas
+// desde dónde se mira, para que pida el nivel de detalle correcto.
+function syncLodCamera(lat) {
+  const tr = map.transform;
+  const canvas = map.getCanvas();
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const mpp = (40075016.686 * Math.cos(lat * RAD)) / tr.worldSize;
+  const D = tr.cameraToCenterDistance * mpp;
+  const p = map.getPitch() * RAD, b = map.getBearing() * RAD;
+  const cam = three.lodCam;
+  cam.position.set(-Math.sin(b) * D * Math.sin(p), D * Math.cos(p), Math.cos(b) * D * Math.sin(p));
+  cam.rotation.set(-(Math.PI / 2 - p), -b, 0, 'YXZ');
+  cam.fov = tr.fov;
+  cam.aspect = w / h;
+  cam.near = Math.max(0.5, D / 100);
+  cam.far = D * 60 + 30000;
+  cam.updateProjectionMatrix();
+  cam.updateMatrixWorld(true);
+  three.tiles.setResolution(cam, w, h);
+}
+
+function setupTiles() {
+  const tiles = new TilesRenderer();
+  tiles.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: app.gkey, autoRefreshToken: true }));
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('/vendor/three-tiles/draco/');
+  tiles.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader: draco }));
+  tiles.registerPlugin(new TileCompressionPlugin());
+  tiles.registerPlugin(new ReorientationPlugin({ lat: ORIGIN.lat * RAD, lon: ORIGIN.lng * RAD, height: 0, recenter: true }));
+  // El plugin de Google pone 20 (pensado para ver la ciudad de lejos); con la cámara a nivel de calle
+  // se nota borroso, y la sesión se cobra igual sin importar cuántas teselas se pidan.
+  tiles.errorTarget = 12;
+  tiles.setCamera(three.lodCam);
+  tiles.addEventListener('load-model', ({ scene }) => tintTiles(scene));
+  tiles.addEventListener('load-error', (e) => {
+    if (e.tile) return;
+    toast('No se pudo cargar la ciudad fotorrealista (revisa la clave de Google y que la Map Tiles API esté activa). Sigo con el mapa normal.', 'red', 9000);
+    setPhoto(false);
+    three.tiles = null;
+  });
+  // La librería orienta la ciudad con X al oeste y Z al norte; la escena usa X al este y Z al sur.
+  const holder = new THREE.Group();
+  holder.rotation.y = Math.PI;
+  holder.add(tiles.group);
+  three.root.add(holder);
+  three.tiles = tiles;
+  three.tilesHolder = holder;
+  setPhoto(app.photo);
+}
+
+let groundIdx = 0;
+function groundAt(wx, wz) {
+  three.ray.set(new THREE.Vector3(wx, 4000, wz), DOWN);
+  const hit = three.ray.intersectObject(three.tiles.group, true)[0];
+  return hit ? hit.point.y : null;
+}
+
+// Un rayo por cuadro, por turnos: el centro de la vista (para que el piso real quede en la altura 0
+// del mapa y las líneas dibujadas coincidan) y cada vehículo (para apoyarlo sobre la calle).
+function groundTick() {
+  const n = app.vehicles.length + 1;
+  groundIdx = (groundIdx + 1) % n;
+  if (groundIdx === 0) {
+    const h = groundAt(0, 0);
+    if (h !== null && Math.abs(h) < 400) {
+      three.tilesHolder.position.y -= h * 0.5;
+      three.tilesHolder.updateMatrixWorld(true);
+    }
+    return;
+  }
+  const v = app.vehicles[groundIdx - 1];
+  const p = v.model.group.position;
+  const h = groundAt(p.x + three.root.position.x, p.z + three.root.position.z);
+  // Más de 6 m sobre el piso del centro suele ser un techo o un árbol: se ignora.
+  if (h !== null && h < 6 && h > -25) v.groundY += (h - v.groundY) * 0.5;
+}
+
+function tintTiles(obj) {
+  const t = app.env.tint;
+  obj.traverse((o) => {
+    const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of mats) if (m.color) m.color.setRGB(t[0], t[1], t[2]);
+  });
+}
+
+const VECTOR_LAYERS = ['park', 'green', 'water', 'road-minor', 'road-major', 'road-glow', 'buildings', 'road-labels', 'place-labels'];
+const OVERLAY_LAYERS = ['fence-line', 'trail-glow', 'trail', 'future'];
+
+function setPhoto(on) {
+  app.photo = on && !!three.tiles;
+  const vis = app.photo ? 'none' : 'visible';
+  for (const id of [...VECTOR_LAYERS, 'fence-floor', 'fence-wall']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+  // Sobre la ciudad real las líneas se dibujan encima de todo; si quedaran debajo, el piso las taparía.
+  for (const id of OVERLAY_LAYERS) if (map.getLayer(id)) map.moveLayer(id, app.photo ? undefined : 'vehicles-3d');
+  if (three.tiles) three.tiles.group.visible = app.photo;
+  if (three.fence) three.fence.visible = app.photo;
+  if (!app.photo) for (const v of app.vehicles) v.groundY = 0;
+  $('btnPhoto').classList.toggle('on', app.photo);
+  $('btnPhoto').innerHTML = app.photo ? '🌍<span> Ciudad real</span>' : '🗺️<span> Mapa</span>';
+  $('gattr').hidden = !app.photo;
+  applyEnv();
+}
+
+function buildFenceMesh() {
+  const pts = FENCE.ring.map(toXY);
+  const pos = [];
+  const H = 40;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+    pos.push(ax, 0, -ay, bx, 0, -by, bx, H, -by, ax, 0, -ay, bx, H, -by, ax, H, -ay);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const mat = new THREE.MeshBasicMaterial({ color: 0x38e1ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+  return mesh;
+}
+
 function updateModel(v, k, t) {
   const s = v.state, m = v.model;
   const [x, y] = toXY(v.ll);
-  m.group.position.set(x, 0, -y);
+  m.group.position.set(x, app.photo ? v.groundY : 0, -y);
   m.group.rotation.y = (-s.heading * Math.PI) / 180;
   m.group.scale.setScalar(k);
   const kmh = s.v * KMH;
@@ -566,8 +629,10 @@ function updateModel(v, k, t) {
   m.ringMat.opacity = 0.35 + 0.55 * pulse;
   m.beamMat.color.setHex(c);
   m.beamMat.opacity = Math.min(0.5, Math.max(0, (k - 4) / 20));
-  m.head.emissiveIntensity = on ? 2 : 0;
-  m.tail.emissiveIntensity = on ? (s.v < 2 ? 3 : 1.4) : 0;
+  const night = app.env.lights;
+  m.head.emissiveIntensity = on ? 1.2 + night * 2.5 : 0;
+  m.tail.emissiveIntensity = on ? (s.v < 2 ? 3 : 1.2 + night) : 0;
+  m.coneMat.opacity = on ? night * 0.85 : 0;
   m.bar.visible = s.theft;
   if (s.theft) {
     const f = Math.sin(t * 14) > 0;
@@ -611,7 +676,7 @@ function addOverlays() {
   gl.className = 'ghost-label';
   gl.hidden = true;
   app.ghostLabel = gl;
-  app.ghostMarker = new maplibregl.Marker({ element: gl, anchor: 'bottom', offset: [0, -30] }).setLngLat(PLACES.parque93.ll).addTo(map);
+  app.ghostMarker = new maplibregl.Marker({ element: gl, anchor: 'bottom', offset: [0, -30] }).setLngLat(PLACES.casa.ll).addTo(map);
 
   const el = document.createElement('div');
   el.className = 'fence-label';
@@ -632,11 +697,15 @@ function updateFenceFlash(now) {
     const on = Math.floor((fenceFlashUntil - now) / 200) % 2 === 0;
     map.setPaintProperty('fence-wall', 'fill-extrusion-color', on ? app.fenceFlashColor : '#ffffff');
     map.setPaintProperty('fence-wall', 'fill-extrusion-opacity', 0.6);
+    three.fence?.material.color.set(on ? app.fenceFlashColor : '#ffffff');
+    if (three.fence) three.fence.material.opacity = 0.6;
     app.fenceFlashing = true;
   } else if (app.fenceFlashing) {
     app.fenceFlashing = false;
     map.setPaintProperty('fence-wall', 'fill-extrusion-color', '#38e1ff');
     map.setPaintProperty('fence-wall', 'fill-extrusion-opacity', 0.32);
+    three.fence?.material.color.set('#38e1ff');
+    if (three.fence) three.fence.material.opacity = 0.28;
   }
 }
 
@@ -783,7 +852,7 @@ async function onRecord() {
 
 // ───────────────────────── arranque ─────────────────────────
 async function init() {
-  $('gpsitoText').textContent = 'Calculando rutas por las calles de Bogotá…';
+  $('gpsitoText').textContent = `Calculando rutas por las calles de ${CITY.name}…`;
   const routes = await Promise.all(FLEET.map((f) => fetchRoute(f.stops.map((k) => PLACES[k].ll))));
   app.vehicles = FLEET.map((def, i) => {
     const route = buildRoute(routes[i], 1000 + i * 77);
@@ -791,7 +860,7 @@ async function init() {
     const ll = toLL(posAt(route, state.d));
     const hud = document.createElement('div');
     hud.className = 'hud';
-    const v = { def, id: def.id, route, state, ll, model: buildVehicle(def), hud };
+    const v = { def, id: def.id, route, state, ll, model: kit.buildVehicle(def), hud, groundY: 0 };
     v.marker = new maplibregl.Marker({ element: hud, anchor: 'bottom', offset: [0, -34] }).setLngLat(ll).addTo(map);
     hud.addEventListener('click', () => select(v));
     v.inFence = def.id === 'main' ? pointInRing(ll, FENCE.ring) : null;
@@ -801,11 +870,23 @@ async function init() {
   const list = $('fleetList');
   for (const v of app.vehicles) {
     const li = document.createElement('li');
-    li.innerHTML = `<button type="button" data-id="${v.id}"><span class="ico">${v.def.icon}</span><span class="name">${v.def.name}<span class="plate">${v.def.plate}</span></span><span class="spd">0</span></button>`;
+    li.innerHTML = `<button type="button" data-id="${v.id}"><span class="ico">${v.def.icon}</span><span class="name">${v.def.role}<span class="plate">${v.def.plate} · ${v.def.name}</span></span><span class="spd">0</span></button>`;
     li.querySelector('button').addEventListener('click', () => select(v));
     v.listSpeed = li.querySelector('.spd');
     list.append(li);
   }
+
+  app.rain = new RainLayer($('rain'), lightning);
+  updateSun();
+  refreshWeather();
+  setInterval(refreshWeather, 10 * 60 * 1000);
+  setInterval(updateSun, 60 * 1000);
+  kit.loadManifest().then((models) => {
+    for (const v of app.vehicles) {
+      const entry = models[v.def.slug];
+      if (entry?.archivo) kit.applyGlb(v.model, v.def, entry).catch(() => {});
+    }
+  });
 
   let started = false;
   const ready = () => {
@@ -885,8 +966,14 @@ function loop(now) {
   if (now - listAt > 250) {
     listAt = now;
     $('clock').textContent = clockFmt.format(new Date());
+    if (app.photo && three.tiles && now - (app.attrAt || 0) > 2000) {
+      app.attrAt = now;
+      const txt = three.tiles.getAttributions().filter((a) => a.type === 'string').map((a) => a.value).join(' ');
+      $('gattrText').textContent = txt;
+    }
   }
   three.fx?.update(dt);
+  app.rain?.draw(dt, now);
   updateFenceFlash(now);
   updateFuture(sel, k, now);
 
@@ -929,35 +1016,106 @@ function checkEvents(v, now) {
   }
 }
 
-// ───────────────────────── día y noche ─────────────────────────
-const THEMES = {
+// ───────────────────────── hora y clima reales ─────────────────────────
+const PALETTES = {
   noche: {
     bg: ['background-color', '#0a0d16'], park: ['fill-color', '#0d1c17'], green: ['fill-color', '#0d1a15'], water: ['fill-color', '#0a1d33'],
     'road-minor': ['line-color', '#1b2234'], 'road-major': ['line-color', '#283249'], 'road-glow': ['line-opacity', 0.22],
     buildings: ['fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6], 0, '#141a29', 30, '#1c2640', 100, '#2b3d66']],
     'road-labels': ['text-color', '#7d8597'], 'place-labels': ['text-color', '#5b6478'],
-    halo: '#0a0d16', ambient: 0.9, sun: 1.8,
+    halo: '#0a0d16',
   },
   dia: {
     bg: ['background-color', '#e6eaf0'], park: ['fill-color', '#cfe5d3'], green: ['fill-color', '#d6e8d4'], water: ['fill-color', '#9cc3e6'],
     'road-minor': ['line-color', '#ffffff'], 'road-major': ['line-color', '#fde7cf'], 'road-glow': ['line-opacity', 0.4],
     buildings: ['fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6], 0, '#e4e8f0', 30, '#c9d1e0', 100, '#a3b1cb']],
     'road-labels': ['text-color', '#4b5563'], 'place-labels': ['text-color', '#6b7280'],
-    halo: '#ffffff', ambient: 1.5, sun: 2.6,
+    halo: '#ffffff',
   },
 };
 
-function applyTheme(name) {
-  app.theme = name;
-  const th = THEMES[name];
-  for (const [layer, val] of Object.entries(th)) {
+// Luz por momento del día: intensidad de luces, color del sol, tinte de la ciudad real y del cielo.
+const PHASES = {
+  dia: { palette: 'dia', ambient: 1.9, sun: 2.6, sunColor: 0xffffff, tint: [1, 1, 1], lights: 0, sky: '#8fb8de', icon: '☀️', label: 'Día' },
+  atardecer: { palette: 'dia', ambient: 0.95, sun: 1.9, sunColor: 0xffa062, tint: [1, 0.8, 0.66], lights: 0.45, sky: '#d99a78', icon: '🌅', label: 'Atardecer' },
+  noche: { palette: 'noche', ambient: 0.55, sun: 0.5, sunColor: 0x8aa2ff, tint: [0.2, 0.25, 0.42], lights: 1, sky: '#0b1220', icon: '🌙', label: 'Noche' },
+};
+const WEATHER_MODES = ['real', 'rain', 'storm', 'clear'];
+const WEATHER_SIM = {
+  rain: { icon: '🌧️', text: 'Lluvia', kind: 'rain' },
+  storm: { icon: '⛈️', text: 'Tormenta eléctrica', kind: 'storm' },
+  clear: { icon: '☀️', text: 'Despejado', kind: 'clear' },
+};
+const TIME_MODES = ['auto', 'dia', 'atardecer', 'noche'];
+
+function currentPhase() {
+  if (app.env.timeMode !== 'auto') return app.env.timeMode;
+  return phaseFor(app.env.sun?.elevation ?? 30);
+}
+
+function currentWeather() {
+  if (app.env.weatherMode !== 'real') return WEATHER_SIM[app.env.weatherMode];
+  const w = app.env.weather;
+  return w ? describeWeather(w.code) : { icon: '🌤️', text: 'Sin datos de clima', kind: 'clear' };
+}
+
+function applyEnv() {
+  const phaseName = currentPhase();
+  const ph = PHASES[phaseName];
+  const wx = currentWeather();
+  const wet = wx.kind === 'rain' || wx.kind === 'storm' || wx.kind === 'drizzle';
+  const dim = wet ? 0.72 : wx.kind === 'cloudy' || wx.kind === 'fog' ? 0.86 : 1;
+  app.env.phase = phaseName;
+  app.env.lights = Math.min(1, ph.lights + (wet ? 0.35 : 0));
+  app.env.tint = ph.tint.map((c) => c * dim);
+  const pal = PALETTES[ph.palette];
+  for (const [layer, val] of Object.entries(pal)) {
     if (Array.isArray(val) && map.getLayer(layer)) map.setPaintProperty(layer, val[0], val[1]);
   }
-  for (const layer of ['road-labels', 'place-labels']) if (map.getLayer(layer)) map.setPaintProperty(layer, 'text-halo-color', th.halo);
-  if (three.ambient) { three.ambient.intensity = th.ambient; three.sun.intensity = th.sun; }
-  document.body.dataset.theme = name;
-  $('btnTheme').textContent = name === 'dia' ? '☀️' : '🌙';
-  $('btnTheme').title = name === 'dia' ? 'Cambiar a noche' : 'Cambiar a día';
+  for (const layer of ['road-labels', 'place-labels']) if (map.getLayer(layer)) map.setPaintProperty(layer, 'text-halo-color', pal.halo);
+  if (app.photo && map.getLayer('bg')) map.setPaintProperty('bg', 'background-color', ph.sky);
+  if (three.ambient) {
+    three.ambient.intensity = ph.ambient * dim;
+    three.sun.intensity = ph.sun * dim;
+    three.sun.color.setHex(ph.sunColor);
+    const sun = app.env.sun;
+    if (sun && sun.elevation > -2) {
+      const el = Math.max(4, sun.elevation) * RAD, az = sun.azimuth * RAD;
+      three.sun.position.set(Math.sin(az) * Math.cos(el) * 100, Math.sin(el) * 100, -Math.cos(az) * Math.cos(el) * 100);
+    } else three.sun.position.set(-40, 90, 30);
+  }
+  if (three.tiles) tintTiles(three.tiles.group);
+  document.body.dataset.theme = ph.palette;
+  document.body.dataset.phase = phaseName;
+  document.body.dataset.weather = wx.kind;
+  const tm = app.env.timeMode;
+  $('btnTheme').textContent = tm === 'auto' ? `🕒 ${ph.icon}` : ph.icon;
+  $('btnTheme').title = tm === 'auto' ? `Hora real de ${CITY.name}: ${ph.label.toLowerCase()} (toca para simular otra hora)` : `${ph.label} simulado (toca para cambiar)`;
+  const w = app.env.weather;
+  const temp = w && app.env.weatherMode === 'real' ? ` ${Math.round(w.temp)}°` : '';
+  $('btnWeather').innerHTML = `${wx.icon}<span>${temp} ${CITY.name}${app.env.weatherMode === 'real' ? '' : ' · simulado'}</span>`;
+  $('btnWeather').title = `${wx.text}${w && app.env.weatherMode === 'real' ? ` · humedad ${w.humidity}% · viento ${Math.round(w.wind)} km/h` : ''} (toca para simular otro clima)`;
+  const intensity = wx.kind === 'storm' ? 1 : wx.kind === 'rain' ? Math.min(1, 0.55 + (w?.precip || 0) / 6) : wx.kind === 'drizzle' ? 0.25 : 0;
+  app.rain?.set(intensity, wx.kind === 'storm', 0.15 + Math.min(0.5, (w?.wind || 12) / 60));
+}
+
+function updateSun() {
+  const prev = app.env.sun ? phaseFor(app.env.sun.elevation) : null;
+  app.env.sun = sunPosition(new Date(), CITY.lat, CITY.lng);
+  if (prev !== phaseFor(app.env.sun.elevation)) applyEnv();
+}
+
+async function refreshWeather() {
+  const w = await fetchWeather(CITY.lat, CITY.lng);
+  if (w) app.env.weather = w;
+  applyEnv();
+}
+
+function lightning() {
+  const f = $('flash');
+  f.classList.remove('on');
+  void f.offsetWidth;
+  f.classList.add('on');
 }
 
 // ───────────────────────── 4D: dónde estará en 5 minutos ─────────────────────────
@@ -971,7 +1129,7 @@ function futureD(v) {
 function ensureGhost(def) {
   if (app.ghost?.kind === def.kind) return;
   if (app.ghost) three.root.remove(app.ghost.model.group);
-  const model = buildVehicle({ ...def, color: 0x38e1ff });
+  const model = kit.buildVehicle({ ...def, color: 0x38e1ff });
   model.group.traverse((o) => {
     if (!o.material) return;
     o.material = o.material.clone();
@@ -1051,10 +1209,10 @@ async function intro() {
   $('intro').classList.add('on');
   document.body.classList.add('intro-on');
   app.flyLock = performance.now() + 60000;
-  map.jumpTo({ center: [-74.3, 4.4], zoom: 5.2, pitch: 0, bearing: 0 });
+  map.jumpTo({ center: [-73.6, 7.2], zoom: 5, pitch: 0, bearing: 0 });
   await sleep(900);
-  map.flyTo({ center: v.ll, zoom: 13.2, pitch: 50, bearing: -25, duration: 4500, essential: true });
-  await sleep(4600);
+  map.flyTo({ center: v.ll, zoom: 13.6, pitch: 55, bearing: -25, duration: 5200, essential: true });
+  await sleep(5300);
   $('intro').classList.remove('on');
   document.body.classList.remove('intro-on');
   app.cam = 'dron';
@@ -1085,16 +1243,29 @@ function resetDemo() {
   setFuture(false);
   for (const v of app.vehicles) { v.state.theft = false; v.state.engineCut = false; }
   showCai(false);
+  app.env.weatherMode = 'real';
+  app.env.timeMode = 'auto';
+  applyEnv();
   setLivePill();
   syncActionButtons();
 }
 
 const SHOW = [
-  { text: 'Del satélite a la calle: así ve cada cliente su vehículo, en la ciudad real.', run: async (tk) => { await intro(); await wait(tk, 1200); } },
+  { text: `Del satélite a las calles de ${CITY.name}: así ve cada cliente su vehículo.`, run: async (tk) => { await intro(); await wait(tk, 1200); } },
   { text: 'Telemetría en vivo sobre el vehículo: velocidad, encendido, batería, combustible y rumbo.', run: (tk) => { setCam('dron'); return wait(tk, 7000); } },
-  { text: 'Cámara de conductor: como ir detrás de tu propio carro.', run: (tk) => { setCam('conductor'); return wait(tk, 8000); } },
+  { text: 'Cámara de conductor: detrás de tu propio Mazda 2, con su color y su placa.', run: (tk) => { setCam('conductor'); return wait(tk, 8000); } },
   { text: '4D · Predicción: dónde estará en 5 minutos y a qué hora.', run: async (tk) => { setFuture(true); await wait(tk, 8500); setFuture(false); } },
   { text: 'Toda la flota de una empresa en una sola mirada, con color por velocidad.', run: (tk) => { setCam('torre'); return wait(tk, 9000); } },
+  { text: `Hora y clima reales de ${CITY.name}: si allá llueve, aquí llueve; de noche, el carro va con las luces encendidas.`, run: async (tk) => {
+    setCam('dron');
+    app.env.weatherMode = 'storm';
+    app.env.timeMode = 'noche';
+    applyEnv();
+    await wait(tk, 9500);
+    app.env.weatherMode = 'real';
+    app.env.timeMode = 'auto';
+    applyEnv();
+  } },
   { text: 'Robo: alerta inmediata, cámara de persecución y el CAI más cercano.', run: (tk) => { setTheft(app.selected, true); setCam('dron'); return wait(tk, 8000); } },
   { text: 'Apagado remoto con un toque: frena de forma segura y queda inmovilizado.', run: (tk) => { setEngineCut(app.selected, true); return wait(tk, 9000); } },
   { text: 'El recorrido del día como una película, con paradas y excesos de velocidad marcados.', run: async (tk) => {
@@ -1111,7 +1282,7 @@ async function runShow() {
   const token = {};
   show = token;
   document.body.classList.add('showing');
-  $('btnShow').textContent = '■ Detener';
+  $('btnShow').innerHTML = '■<span> Detener</span>';
   try {
     resetDemo();
     select(app.vehicles[0]);
@@ -1129,7 +1300,7 @@ async function runShow() {
 function stopShow() {
   show = null;
   document.body.classList.remove('showing');
-  $('btnShow').textContent = '▶ Presentación';
+  $('btnShow').innerHTML = '▶<span> Presentación</span>';
   $('caption').hidden = true;
   app.flyLock = 0;
   resetDemo();
@@ -1194,7 +1365,26 @@ $('btnCut').addEventListener('click', () => {
 });
 $('btnTheft').addEventListener('click', () => setTheft(app.selected, !app.selected.state.theft));
 $('btnFuture').addEventListener('click', () => setFuture(!app.future));
-$('btnTheme').addEventListener('click', () => applyTheme(app.theme === 'dia' ? 'noche' : 'dia'));
+$('btnTheme').addEventListener('click', () => {
+  const env = app.env;
+  env.timeMode = TIME_MODES[(TIME_MODES.indexOf(env.timeMode) + 1) % TIME_MODES.length];
+  applyEnv();
+  toast(env.timeMode === 'auto' ? `🕒 Hora real de ${CITY.name}: ${PHASES[currentPhase()].label.toLowerCase()}.` : `${PHASES[env.timeMode].icon} Simulando ${PHASES[env.timeMode].label.toLowerCase()}.`, 'cyan', 3000);
+});
+$('btnWeather').addEventListener('click', () => {
+  const env = app.env;
+  env.weatherMode = WEATHER_MODES[(WEATHER_MODES.indexOf(env.weatherMode) + 1) % WEATHER_MODES.length];
+  applyEnv();
+  const wx = currentWeather();
+  toast(env.weatherMode === 'real' ? `${wx.icon} Clima real de ${CITY.name}: ${wx.text.toLowerCase()}.` : `${wx.icon} Simulando ${wx.text.toLowerCase()}.`, 'cyan', 3000);
+});
+$('btnPhoto').addEventListener('click', () => {
+  if (!three.tiles) {
+    toast('Para la ciudad fotorrealista falta la clave de Google Map Tiles API (variable PUBLIC_GOOGLE_MAPS_KEY o ?gkey= en el enlace).', 'red', 8000);
+    return;
+  }
+  setPhoto(!app.photo);
+});
 $('btnShow').addEventListener('click', () => {
   if (show) { stopShow(); return; }
   try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch {}

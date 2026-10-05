@@ -26,6 +26,8 @@ html, body {
 }
 
 #map { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 0%, #1a2238 0%, #07090f 70%); }
+body[data-theme=dia] #map { background: linear-gradient(to bottom, #8fb8de 0%, #cfe0ef 45%, #e6eaf0 70%); }
+body[data-phase=atardecer] #map { background: linear-gradient(to bottom, #f0a070 0%, #f6c9a2 40%, #e6eaf0 70%); }
 
 button, select {
   font: inherit;
@@ -39,6 +41,23 @@ button, select {
 }
 button:hover { border-color: rgba(255, 122, 26, 0.6); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* ── hora y clima ── */
+.sky-tint, .fog, .rain, .flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.5s ease; }
+.rain { width: 100%; height: 100%; transition: opacity 0.6s; }
+body[data-phase=atardecer] .sky-tint { opacity: 1; background: linear-gradient(to bottom, rgba(255, 120, 50, 0.24), rgba(255, 160, 90, 0.08) 45%, transparent 70%); }
+body[data-phase=noche] .sky-tint { opacity: 1; background: linear-gradient(to bottom, rgba(10, 20, 60, 0.35), transparent 55%); }
+body[data-weather=fog] .fog { opacity: 1; background: radial-gradient(ellipse at 50% 65%, transparent 25%, rgba(205, 212, 222, 0.5)); }
+body[data-weather=cloudy] .fog, body[data-weather=rain] .fog, body[data-weather=drizzle] .fog { opacity: 1; background: rgba(40, 50, 64, 0.2); }
+body[data-weather=storm] .fog { opacity: 1; background: rgba(20, 26, 40, 0.35); }
+.flash { background: #eef3ff; transition: none; }
+.flash.on { animation: bolt 0.7s ease-out; }
+@keyframes bolt { 0% { opacity: 0; } 8% { opacity: 0.75; } 16% { opacity: 0.1; } 26% { opacity: 0.55; } 100% { opacity: 0; } }
+.gattr { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(70px, calc(env(safe-area-inset-bottom) + 70px)); font: 500 10px 'Poppins', sans-serif; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gattr[hidden] { display: none; }
+.gattr b { font-weight: 700; letter-spacing: 0.01em; }
+.tb.wx span { font: 500 12px var(--mono); margin-left: 4px; }
+#btnPhoto.on { border-color: var(--cyan); box-shadow: 0 0 16px rgba(56, 225, 255, 0.35); }
 
 .vignette {
   position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s;
@@ -209,6 +228,7 @@ body[data-theme=dia] .actions button.danger { background: rgba(200, 40, 40, 0.88
   transition: border-color 0.3s, box-shadow 0.3s, opacity 0.8s;
 }
 .hud .pl { font-weight: 600; }
+.hud .md { font-size: 10px; color: var(--ink-dim); margin-top: 1px; }
 .hud .sp { font-weight: 600; margin-left: 6px; }
 .hud.main { padding: 8px 12px; border-color: rgba(255, 122, 26, 0.6); box-shadow: 0 0 24px rgba(255, 122, 26, 0.25); }
 .hud.main .big { display: flex; align-items: baseline; gap: 4px; font-size: 26px; font-weight: 600; line-height: 1; }
@@ -256,6 +276,9 @@ body[data-theme=dia] .actions button.danger { background: rgba(200, 40, 40, 0.88
   .brand { font-size: 17px; }
   .live-pill { white-space: nowrap; padding: 5px 8px; }
   .tb { white-space: nowrap; padding: 7px 9px; }
+  .tb span { display: none; }
+  .live-pill span { display: none; }
+  .gattr { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 248px); max-width: 90vw; }
   .hud.main .big { font-size: 20px; }
   .hud.main .rows { display: none; }
   .replay { flex-wrap: wrap; }
