@@ -20,10 +20,12 @@ const CSP = [
 
 // El prototipo 3D necesita teselas del mapa, rutas por calles, la ciudad 3D de Google y el clima
 // de servicios externos; se abre solo para esa página en vez de aflojar la política de todo el
-// sitio. El decodificador de las mallas de Google es WebAssembly y corre en un worker blob.
+// sitio. El decodificador de las mallas de Google es WebAssembly y corre en un worker blob, y las
+// fotos vienen dentro de cada malla: el lector de glTF las saca a una URL blob: y las pide con
+// fetch, así que sin blob: en connect-src la ciudad salía sin texturas, de un solo color.
 const CSP_DEMO_3D = CSP.replace(
   "connect-src 'self'",
-  "connect-src 'self' https://tiles.openfreemap.org https://router.project-osrm.org https://tile.googleapis.com https://api.open-meteo.com",
+  "connect-src 'self' blob: data: https://tiles.openfreemap.org https://router.project-osrm.org https://tile.googleapis.com https://api.open-meteo.com",
 )
   .replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
   .concat("; worker-src 'self' blob:");

@@ -379,7 +379,7 @@ const app = {
   replay: null,
   simTime: 0,
   recording: null,
-  env: { timeMode: 'auto', weatherMode: 'real', weather: null, sun: null, phase: 'dia', lights: 0, tint: [1, 1, 1] },
+  env: { timeMode: 'auto', weatherMode: 'real', weather: null, sun: null, phase: 'dia', lights: 0, tint: [1, 1, 1], photoTint: [1, 1, 1] },
   photo: false,
   gkey: '',
 };
@@ -572,7 +572,17 @@ function setupTiles() {
   // se nota borroso, y la sesión se cobra igual sin importar cuántas teselas se pidan.
   tiles.errorTarget = 12;
   tiles.setCamera(three.lodCam);
-  tiles.addEventListener('load-model', ({ scene }) => tintTiles(scene));
+  tiles.addEventListener('load-model', ({ scene }) => {
+    // Las fotos de Google ya traen la luz del día en que se tomaron; iluminarlas otra vez con las
+    // luces de la escena las aplana y oscurece. Se pasan a material sin luz, conservando la foto.
+    scene.traverse((o) => {
+      if (!o.isMesh || !o.material || o.material.isMeshBasicMaterial) return;
+      const old = o.material;
+      o.material = new THREE.MeshBasicMaterial({ map: old.map, color: old.color, side: old.side, transparent: old.transparent, opacity: old.opacity });
+      old.dispose();
+    });
+    tintTiles(scene);
+  });
   tiles.addEventListener('load-error', (e) => {
     if (e.tile) return;
     toast('No se pudo cargar la ciudad fotorrealista (revisa la clave de Google y que la Map Tiles API esté activa). Sigo con el mapa normal.', 'red', 9000);
@@ -621,10 +631,15 @@ function groundTick() {
 }
 
 function tintTiles(obj) {
-  const t = app.env.tint;
+  const t = app.env.photoTint;
   obj.traverse((o) => {
     const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-    for (const m of mats) if (m.color) m.color.setRGB(t[0], t[1], t[2]);
+    for (const m of mats) {
+      if (!m.color) continue;
+      m.userData.baseColor ||= m.color.clone();
+      const b = m.userData.baseColor;
+      m.color.setRGB(b.r * t[0], b.g * t[1], b.b * t[2]);
+    }
   });
 }
 
@@ -1021,8 +1036,9 @@ function loop(now) {
     $('clock').textContent = clockFmt.format(new Date());
     if (app.photo && three.tiles && now - (app.attrAt || 0) > 2000) {
       app.attrAt = now;
+      // La etiqueta ya dice "Google"; los datos de cada tesela suelen repetirlo.
       const txt = three.tiles.getAttributions().filter((a) => a.type === 'string').map((a) => a.value).join(' ');
-      $('gattrText').textContent = txt;
+      $('gattrText').textContent = txt.replace(/^\s*Google\s*[;,]?\s*/i, '');
     }
   }
   three.fx?.update(dt);
@@ -1089,9 +1105,9 @@ const PALETTES = {
 
 // Luz por momento del día: intensidad de luces, color del sol, tinte de la ciudad real y del cielo.
 const PHASES = {
-  dia: { palette: 'dia', ambient: 1.9, sun: 2.6, sunColor: 0xffffff, tint: [1, 1, 1], lights: 0, sky: '#8fb8de', icon: '☀️', label: 'Día' },
-  atardecer: { palette: 'dia', ambient: 0.95, sun: 1.9, sunColor: 0xffa062, tint: [1, 0.8, 0.66], lights: 0.45, sky: '#d99a78', icon: '🌅', label: 'Atardecer' },
-  noche: { palette: 'noche', ambient: 0.55, sun: 0.5, sunColor: 0x8aa2ff, tint: [0.2, 0.25, 0.42], lights: 1, sky: '#0b1220', icon: '🌙', label: 'Noche' },
+  dia: { palette: 'dia', ambient: 1.9, sun: 2.6, sunColor: 0xffffff, tint: [1, 1, 1], photoTint: [1, 1, 1], lights: 0, sky: '#8fb8de', icon: '☀️', label: 'Día' },
+  atardecer: { palette: 'dia', ambient: 0.95, sun: 1.9, sunColor: 0xffa062, tint: [1, 0.8, 0.66], photoTint: [1, 0.84, 0.72], lights: 0.45, sky: '#d99a78', icon: '🌅', label: 'Atardecer' },
+  noche: { palette: 'noche', ambient: 0.55, sun: 0.5, sunColor: 0x8aa2ff, tint: [0.2, 0.25, 0.42], photoTint: [0.38, 0.42, 0.62], lights: 1, sky: '#0b1220', icon: '🌙', label: 'Noche' },
 };
 const WEATHER_MODES = ['real', 'rain', 'storm', 'clear'];
 const WEATHER_SIM = {
@@ -1121,6 +1137,7 @@ function applyEnv() {
   app.env.phase = phaseName;
   app.env.lights = Math.min(1, ph.lights + (wet ? 0.35 : 0));
   app.env.tint = ph.tint.map((c) => c * dim);
+  app.env.photoTint = ph.photoTint.map((c) => c * (dim < 1 ? 0.85 + dim * 0.15 : 1));
   const pal = PALETTES[ph.palette];
   for (const [layer, val] of Object.entries(pal)) {
     if (Array.isArray(val) && map.getLayer(layer)) map.setPaintProperty(layer, val[0], val[1]);
