@@ -12,5 +12,6 @@ export default defineConfig({
     '/operadores': '/interno/novedades',
     '/cotizaciones': '/interno/cotizaciones',
     '/secretarias': '/interno/crm',
+    '/demo-3d-medellin': '/demo-3d?ciudad=medellin',
   },
 });

@@ -8,7 +8,80 @@ const maplibregl = window.maplibregl;
 maplibregl.setWorkerUrl('/vendor/maplibre-gl-4.7.1/maplibre-gl-csp-worker.js');
 
 // ───────────────────────── geografía ─────────────────────────
-const CITY = { name: 'Riohacha', lat: 11.5385, lng: -72.9135 };
+// Cada ciudad trae sus lugares, la geocerca de la casa, los CAI de la demo y la ruta de cada
+// vehículo. Se elige con ?ciudad=medellin; sin parámetro queda Riohacha.
+const CITIES = {
+  riohacha: {
+    name: 'Riohacha', lat: 11.5385, lng: -72.9135, elev: 5,
+    // Centro, aeropuerto y Viva Wajiira son coordenadas publicadas; el resto sale de la cuadrícula
+    // de calles (paralelas al mar) y carreras. Las rutas se ajustan a las vías reales con OSRM.
+    places: {
+      casa: { ll: [-72.9128, 11.5398], name: 'la casa' },
+      padilla: { ll: [-72.9069, 11.5444], name: 'el Parque Almirante Padilla' },
+      muelle: { ll: [-72.9052, 11.5457], name: 'el Muelle Turístico' },
+      calle15: { ll: [-72.9044, 11.5362], name: 'la Calle 15 con Carrera 5' },
+      terminal: { ll: [-72.9122, 11.5352], name: 'la Terminal de Transportes' },
+      viva: { ll: [-72.9209, 11.5362], name: 'el C.C. Viva Wajiira' },
+      hospital: { ll: [-72.9174, 11.5381], name: 'el Hospital Nuestra Señora de los Remedios' },
+      aeropuerto: { ll: [-72.9258, 11.5264], name: 'el Aeropuerto Almirante Padilla' },
+      sur: { ll: [-72.9109, 11.5266], name: 'el sur de la ciudad' },
+    },
+    fence: [
+      [-72.915, 11.5382], [-72.911, 11.538], [-72.9102, 11.54], [-72.9112, 11.5416],
+      [-72.914, 11.5418], [-72.9154, 11.5401], [-72.915, 11.5382],
+    ],
+    cai: [
+      { ll: [-72.9085, 11.5432], name: 'CAI Centro · demo' },
+      { ll: [-72.919, 11.535], name: 'CAI Viva · demo' },
+      { ll: [-72.914, 11.533], name: 'CAI Terminal · demo' },
+    ],
+    routes: {
+      main: ['casa', 'padilla', 'muelle', 'calle15', 'terminal', 'viva', 'aeropuerto', 'hospital', 'casa'],
+      moto: ['padilla', 'terminal', 'sur', 'hospital', 'padilla'],
+      truck: ['aeropuerto', 'viva', 'terminal', 'calle15', 'viva', 'aeropuerto'],
+      van: ['sur', 'hospital', 'padilla', 'muelle', 'terminal', 'sur'],
+    },
+  },
+  medellin: {
+    name: 'Medellín', lat: 6.2245, lng: -75.5745, elev: 1500,
+    // Lleras, Botero, estadio, Olaya Herrera, Santafé, El Tesoro, Pueblito Paisa y Explora son
+    // coordenadas publicadas; Alpujarra, Unicentro, EAFIT y el Parque de El Poblado son aproximadas.
+    places: {
+      casa: { ll: [-75.5677, 6.2097], name: 'la casa, junto al Parque Lleras' },
+      poblado: { ll: [-75.571, 6.21], name: 'el Parque de El Poblado' },
+      santafe: { ll: [-75.5792, 6.1969], name: 'el C.C. Santafé' },
+      tesoro: { ll: [-75.5593, 6.1975], name: 'El Tesoro Parque Comercial' },
+      eafit: { ll: [-75.5784, 6.2001], name: 'la Universidad EAFIT' },
+      olaya: { ll: [-75.5903, 6.2197], name: 'el Aeropuerto Olaya Herrera' },
+      pueblito: { ll: [-75.5803, 6.2362], name: 'el Pueblito Paisa' },
+      unicentro: { ll: [-75.5876, 6.241], name: 'Unicentro Medellín' },
+      estadio: { ll: [-75.5902, 6.2568], name: 'el Estadio Atanasio Girardot' },
+      alpujarra: { ll: [-75.5755, 6.2445], name: 'La Alpujarra' },
+      botero: { ll: [-75.5683, 6.2519], name: 'la Plaza Botero' },
+      explora: { ll: [-75.5658, 6.2698], name: 'el Parque Explora' },
+    },
+    fence: [
+      [-75.5702, 6.2078], [-75.5655, 6.2075], [-75.5648, 6.2098], [-75.5658, 6.2118],
+      [-75.5692, 6.2121], [-75.5706, 6.21], [-75.5702, 6.2078],
+    ],
+    cai: [
+      { ll: [-75.5668, 6.2085], name: 'CAI Lleras · demo' },
+      { ll: [-75.5695, 6.2505], name: 'CAI Botero · demo' },
+      { ll: [-75.588, 6.2545], name: 'CAI Estadio · demo' },
+    ],
+    routes: {
+      main: ['casa', 'poblado', 'santafe', 'olaya', 'pueblito', 'unicentro', 'estadio', 'alpujarra', 'poblado', 'casa'],
+      moto: ['botero', 'alpujarra', 'explora', 'botero'],
+      truck: ['olaya', 'santafe', 'tesoro', 'poblado', 'olaya'],
+      van: ['estadio', 'unicentro', 'pueblito', 'alpujarra', 'estadio'],
+    },
+  },
+};
+const CITY_KEY = (() => {
+  const q = (new URLSearchParams(location.search).get('ciudad') || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return CITIES[q] ? q : 'riohacha';
+})();
+const CITY = CITIES[CITY_KEY];
 const ORIGIN = { lng: CITY.lng, lat: CITY.lat };
 const RAD = Math.PI / 180;
 const M_PER_DEG = 111319.49;
@@ -17,46 +90,18 @@ const MY = M_PER_DEG;
 const toXY = ([lng, lat]) => [(lng - ORIGIN.lng) * MX, (lat - ORIGIN.lat) * MY];
 const toLL = ([x, y]) => [ORIGIN.lng + x / MX, ORIGIN.lat + y / MY];
 
-// Centro, aeropuerto y Viva Wajiira son coordenadas publicadas; el resto sale de la cuadrícula
-// de calles (paralelas al mar) y carreras. Las rutas se ajustan a las vías reales con OSRM.
-const PLACES = {
-  casa: { ll: [-72.9128, 11.5398], name: 'la casa' },
-  padilla: { ll: [-72.9069, 11.5444], name: 'el Parque Almirante Padilla' },
-  muelle: { ll: [-72.9052, 11.5457], name: 'el Muelle Turístico' },
-  calle15: { ll: [-72.9044, 11.5362], name: 'la Calle 15 con Carrera 5' },
-  terminal: { ll: [-72.9122, 11.5352], name: 'la Terminal de Transportes' },
-  viva: { ll: [-72.9209, 11.5362], name: 'el C.C. Viva Wajiira' },
-  hospital: { ll: [-72.9174, 11.5381], name: 'el Hospital Nuestra Señora de los Remedios' },
-  aeropuerto: { ll: [-72.9258, 11.5264], name: 'el Aeropuerto Almirante Padilla' },
-  sur: { ll: [-72.9109, 11.5266], name: 'el sur de la ciudad' },
-};
+const PLACES = CITY.places;
 const PLACE_LIST = Object.values(PLACES).map((p) => ({ ...p, xy: toXY(p.ll) }));
-
-const FENCE = {
-  name: 'Zona segura · Casa',
-  ring: [
-    [-72.915, 11.5382], [-72.911, 11.538], [-72.9102, 11.54], [-72.9112, 11.5416],
-    [-72.914, 11.5418], [-72.9154, 11.5401], [-72.915, 11.5382],
-  ],
-};
-
+const FENCE = { name: 'Zona segura · Casa', ring: CITY.fence };
 // Puntos de policía ficticios, solo para la simulación de robo.
-const CAI = [
-  { ll: [-72.9085, 11.5432], name: 'CAI Centro · demo' },
-  { ll: [-72.919, 11.535], name: 'CAI Viva · demo' },
-  { ll: [-72.914, 11.533], name: 'CAI Terminal · demo' },
-];
+const CAI = CITY.cai;
 
 const FLEET = [
-  { id: 'main', role: 'Mi carro', name: 'Mazda 2 Sedán', short: 'Mazda 2', plate: 'ABC-123', kind: 'sedan', slug: 'mazda2-sedan', length: 4.34, icon: '🚗', color: 0x8e0f1c, cruise: 48, start: 0,
-    stops: ['casa', 'padilla', 'muelle', 'calle15', 'terminal', 'viva', 'aeropuerto', 'hospital', 'casa'] },
-  { id: 'moto', role: 'Mensajería', name: 'Bajaj Boxer CT100', short: 'moto de mensajería', plate: 'XYZ-45A', kind: 'moto', slug: 'bajaj-boxer', length: 1.95, icon: '🏍️', color: 0xb91c1c, cruise: 42, start: 0.35,
-    stops: ['padilla', 'terminal', 'sur', 'hospital', 'padilla'] },
-  { id: 'truck', role: 'Reparto', name: 'Chevrolet NHR', short: 'camión de reparto', plate: 'TRK-908', kind: 'truck', slug: 'chevrolet-nhr', length: 5.6, icon: '🚚', color: 0xf3f4f6, cruise: 36, start: 0.2,
-    stops: ['aeropuerto', 'viva', 'terminal', 'calle15', 'viva', 'aeropuerto'] },
-  { id: 'van', role: 'Ruta escolar', name: 'Toyota Hiace', short: 'van escolar', plate: 'VAN-321', kind: 'van', slug: 'toyota-hiace', length: 5.38, icon: '🚐', color: 0xf2b705, cruise: 38, start: 0.6,
-    stops: ['sur', 'hospital', 'padilla', 'muelle', 'terminal', 'sur'] },
-].map((d) => ({ ...d, city: CITY.name }));
+  { id: 'main', role: 'Mi carro', name: 'Mazda 2 Sedán', short: 'Mazda 2', plate: 'ABC-123', kind: 'sedan', slug: 'mazda2-sedan', length: 4.34, icon: '🚗', color: 0x8e0f1c, cruise: 48, start: 0 },
+  { id: 'moto', role: 'Mensajería', name: 'Bajaj Boxer CT100', short: 'moto de mensajería', plate: 'XYZ-45A', kind: 'moto', slug: 'bajaj-boxer', length: 1.95, icon: '🏍️', color: 0xb91c1c, cruise: 42, start: 0.35 },
+  { id: 'truck', role: 'Reparto', name: 'Chevrolet NHR', short: 'camión de reparto', plate: 'TRK-908', kind: 'truck', slug: 'chevrolet-nhr', length: 5.6, icon: '🚚', color: 0xf3f4f6, cruise: 36, start: 0.2 },
+  { id: 'van', role: 'Ruta escolar', name: 'Toyota Hiace', short: 'van escolar', plate: 'VAN-321', kind: 'van', slug: 'toyota-hiace', length: 5.38, icon: '🚐', color: 0xf2b705, cruise: 38, start: 0.6 },
+].map((d) => ({ ...d, city: CITY.name, stops: CITY.routes[d.id] }));
 
 // ───────────────────────── rutas ─────────────────────────
 function densify(lls, step = 25) {
@@ -522,7 +567,7 @@ function setupTiles() {
   draco.setDecoderPath('/vendor/three-tiles/draco/');
   tiles.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader: draco }));
   tiles.registerPlugin(new TileCompressionPlugin());
-  tiles.registerPlugin(new ReorientationPlugin({ lat: ORIGIN.lat * RAD, lon: ORIGIN.lng * RAD, height: 0, recenter: true }));
+  tiles.registerPlugin(new ReorientationPlugin({ lat: ORIGIN.lat * RAD, lon: ORIGIN.lng * RAD, height: CITY.elev, recenter: true }));
   // El plugin de Google pone 20 (pensado para ver la ciudad de lejos); con la cámara a nivel de calle
   // se nota borroso, y la sesión se cobra igual sin importar cuántas teselas se pidan.
   tiles.errorTarget = 12;
@@ -561,14 +606,18 @@ function groundTick() {
     if (h !== null && Math.abs(h) < 400) {
       three.tilesHolder.position.y -= h * 0.5;
       three.tilesHolder.updateMatrixWorld(true);
+      // Las alturas de los vehículos se midieron con el piso anterior: se corren lo mismo.
+      for (const v of app.vehicles) v.groundY -= h * 0.5;
     }
     return;
   }
   const v = app.vehicles[groundIdx - 1];
   const p = v.model.group.position;
   const h = groundAt(p.x + three.root.position.x, p.z + three.root.position.z);
-  // Más de 6 m sobre el piso del centro suele ser un techo o un árbol: se ignora.
-  if (h !== null && h < 6 && h > -25) v.groundY += (h - v.groundY) * 0.5;
+  if (h === null || Math.abs(h) > 400) return;
+  // Un salto de más de 6 m hacia arriba entre dos lecturas suele ser un techo o un árbol, no la
+  // calle: se ignora. Las pendientes reales suben de a poco y sí pasan.
+  if (!v.groundSet) { v.groundY = h; v.groundSet = true; } else if (h < v.groundY + 6) v.groundY += (h - v.groundY) * 0.5;
 }
 
 function tintTiles(obj) {
@@ -590,7 +639,7 @@ function setPhoto(on) {
   for (const id of OVERLAY_LAYERS) if (map.getLayer(id)) map.moveLayer(id, app.photo ? undefined : 'vehicles-3d');
   if (three.tiles) three.tiles.group.visible = app.photo;
   if (three.fence) three.fence.visible = app.photo;
-  if (!app.photo) for (const v of app.vehicles) v.groundY = 0;
+  if (!app.photo) for (const v of app.vehicles) { v.groundY = 0; v.groundSet = false; }
   $('btnPhoto').classList.toggle('on', app.photo);
   $('btnPhoto').innerHTML = app.photo ? '🌍<span> Ciudad real</span>' : '🗺️<span> Mapa</span>';
   $('gattr').hidden = !app.photo;
@@ -600,14 +649,16 @@ function setPhoto(on) {
 function buildFenceMesh() {
   const pts = FENCE.ring.map(toXY);
   const pos = [];
-  const H = 40;
+  // Más bajo y tenue que el del mapa normal: sobre la ciudad real, con el carro saliendo de casa,
+  // un muro alto lo tapaba en la vista de dron.
+  const H = 22;
   for (let i = 0; i < pts.length - 1; i++) {
     const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
     pos.push(ax, 0, -ay, bx, 0, -by, bx, H, -by, ax, 0, -ay, bx, H, -by, ax, H, -ay);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  const mat = new THREE.MeshBasicMaterial({ color: 0x38e1ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  const mat = new THREE.MeshBasicMaterial({ color: 0x38e1ff, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
   mesh.visible = false;
@@ -698,14 +749,14 @@ function updateFenceFlash(now) {
     map.setPaintProperty('fence-wall', 'fill-extrusion-color', on ? app.fenceFlashColor : '#ffffff');
     map.setPaintProperty('fence-wall', 'fill-extrusion-opacity', 0.6);
     three.fence?.material.color.set(on ? app.fenceFlashColor : '#ffffff');
-    if (three.fence) three.fence.material.opacity = 0.6;
+    if (three.fence) three.fence.material.opacity = 0.45;
     app.fenceFlashing = true;
   } else if (app.fenceFlashing) {
     app.fenceFlashing = false;
     map.setPaintProperty('fence-wall', 'fill-extrusion-color', '#38e1ff');
     map.setPaintProperty('fence-wall', 'fill-extrusion-opacity', 0.32);
     three.fence?.material.color.set('#38e1ff');
-    if (three.fence) three.fence.material.opacity = 0.28;
+    if (three.fence) three.fence.material.opacity = 0.16;
   }
 }
 
@@ -853,6 +904,8 @@ async function onRecord() {
 // ───────────────────────── arranque ─────────────────────────
 async function init() {
   $('gpsitoText').textContent = `Calculando rutas por las calles de ${CITY.name}…`;
+  $('introCity').textContent = CITY.name;
+  document.title = `TuGPS24 3D · ${CITY.name}`;
   const routes = await Promise.all(FLEET.map((f) => fetchRoute(f.stops.map((k) => PLACES[k].ll))));
   app.vehicles = FLEET.map((def, i) => {
     const route = buildRoute(routes[i], 1000 + i * 77);
