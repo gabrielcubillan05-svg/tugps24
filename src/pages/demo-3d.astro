@@ -13,7 +13,14 @@ const gkey = import.meta.env.PUBLIC_GOOGLE_MAPS_KEY ?? '';
     <title>TuGPS24 3D · Monitoreo en vivo</title>
     <meta name="description" content="Demostración del monitoreo 3D de TuGPS24: tu vehículo en la ciudad real, en tiempo real." />
     <meta name="robots" content="noindex" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/img/icon-192.png" />
+    <link rel="manifest" href="/demo-3d.webmanifest" />
+    <meta name="theme-color" content="#07090f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TuGPS24 3D" />
+    <link rel="apple-touch-icon" href="/img/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -36,6 +43,7 @@ const gkey = import.meta.env.PUBLIC_GOOGLE_MAPS_KEY ?? '';
       <button type="button" class="tb wx" id="btnWeather">🌤️</button>
       <button type="button" class="tb" id="btnTheme">🕒</button>
       <button type="button" class="tb" id="btnPhoto">🗺️<span> Mapa</span></button>
+      <button type="button" class="tb install" id="btnInstall" hidden>📲<span> Instalar</span></button>
       <button type="button" class="tb show" id="btnShow">▶<span> Presentación</span></button>
     </header>
 

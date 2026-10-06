@@ -1,0 +1,23 @@
+{
+  "name": "TuGPS24 3D · Monitoreo en vivo",
+  "short_name": "TuGPS24 3D",
+  "description": "Tu vehículo en 3D, en la ciudad real y en tiempo real.",
+  "id": "/demo-3d",
+  "start_url": "/demo-3d",
+  "scope": "/demo-3d",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#07090f",
+  "theme_color": "#07090f",
+  "lang": "es",
+  "icons": [
+    { "src": "/img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Riohacha", "url": "/demo-3d", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Medellín", "url": "/demo-3d?ciudad=medellin", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Presentación", "url": "/demo-3d?presentacion", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

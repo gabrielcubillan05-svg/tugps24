@@ -21,6 +21,19 @@
           "value": "/interno/"
         }
       ]
+    },
+    {
+      "source": "/demo-3d-sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/demo-3d"
+        }
+      ]
     }
   ],
   "crons": [

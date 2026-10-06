@@ -1578,4 +1578,25 @@ $('replaySlider').addEventListener('input', (e) => {
 });
 $('btnRecord').addEventListener('click', onRecord);
 
+// ───────────────────────── app instalable ─────────────────────────
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/demo-3d-sw.js', { scope: '/demo-3d' }).catch(() => {});
+let installPrompt = null;
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  $('btnInstall').hidden = false;
+});
+addEventListener('appinstalled', () => {
+  installPrompt = null;
+  $('btnInstall').hidden = true;
+  toast('📲 TuGPS24 3D quedó instalada: búscala en tu pantalla de inicio.', 'green', 6000);
+});
+$('btnInstall').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => null);
+  installPrompt = null;
+  $('btnInstall').hidden = true;
+});
+
 init();

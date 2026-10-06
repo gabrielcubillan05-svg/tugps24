@@ -85,6 +85,7 @@ body[data-weather=storm] .fog { opacity: 1; background: rgba(20, 26, 40, 0.35); 
 @keyframes blink { 50% { opacity: 0.2; } }
 .clock { margin-left: auto; font: 500 14px var(--mono); color: var(--ink-dim); }
 .tb { padding: 7px 12px; font-size: 13px; font-weight: 600; }
+.tb.install { border-color: var(--green); color: var(--green); }
 .tb.show { background: var(--amber); color: #07090f; border-color: var(--amber); box-shadow: 0 0 22px rgba(255, 122, 26, 0.45); }
 body.showing .tb.show { background: rgba(255, 69, 69, 0.85); border-color: var(--red); color: #fff; box-shadow: none; }
 
