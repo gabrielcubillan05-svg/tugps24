@@ -327,6 +327,11 @@ const STYLE = {
   ],
 };
 
+// En celular (sobre todo iPhone, con pantallas de densidad 3x y un tope estricto de memoria por
+// pestaña) la página se cerraba sola con la ciudad 3D: se baja la resolución del lienzo y la caché.
+const IS_MOBILE = matchMedia('(pointer: coarse)').matches || /iPhone|iPad|Android/i.test(navigator.userAgent);
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 const map = new maplibregl.Map({
   container: 'map',
   style: STYLE,
@@ -337,7 +342,8 @@ const map = new maplibregl.Map({
   maxPitch: 85,
   maxZoom: 22,
   antialias: true,
-  preserveDrawingBuffer: true,
+  preserveDrawingBuffer: !IS_MOBILE,
+  pixelRatio: Math.min(devicePixelRatio || 1, IS_MOBILE ? 1.5 : 2),
   attributionControl: { compact: true },
 });
 
@@ -572,7 +578,11 @@ function setupTiles() {
   tiles.registerPlugin(new ReorientationPlugin({ lat: ORIGIN.lat * RAD, lon: ORIGIN.lng * RAD, height: CITY.elev, recenter: true }));
   // El plugin de Google pone 20 (pensado para ver la ciudad de lejos); con la cámara a nivel de calle
   // se nota borroso, y la sesión se cobra igual sin importar cuántas teselas se pidan.
-  tiles.errorTarget = 12;
+  tiles.errorTarget = IS_MOBILE ? 20 : 12;
+  if (IS_MOBILE) {
+    tiles.lruCache.minBytesSize = 0.12e9;
+    tiles.lruCache.maxBytesSize = 0.2e9;
+  }
   tiles.setCamera(three.lodCam);
   tiles.addEventListener('load-model', ({ scene }) => {
     // Las fotos de Google ya traen la luz del día en que se tomaron; iluminarlas otra vez con las
@@ -1591,7 +1601,14 @@ addEventListener('appinstalled', () => {
   $('btnInstall').hidden = true;
   toast('📲 TuGPS24 3D quedó instalada: búscala en tu pantalla de inicio.', 'green', 6000);
 });
+// iPhone no tiene aviso de instalación: el botón explica cómo agregarla a la pantalla de inicio.
+const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone;
+if (IS_IOS && !standalone) $('btnInstall').hidden = false;
 $('btnInstall').addEventListener('click', async () => {
+  if (IS_IOS) {
+    toast('📲 En iPhone: toca <b>Compartir</b> (el cuadrado con flecha) y luego <b>Agregar a pantalla de inicio</b>. En Chrome, Compartir está junto a la barra de dirección.', 'cyan', 10000);
+    return;
+  }
   if (!installPrompt) return;
   installPrompt.prompt();
   await installPrompt.userChoice.catch(() => null);
