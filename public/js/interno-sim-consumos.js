@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', function () {
   if (!form) return;
   const filesInput = document.getElementById('simFiles');
   const planInput = document.getElementById('simPlanMb');
+  const periodStartInput = document.getElementById('simPeriodStart');
+  const periodEndInput = document.getElementById('simPeriodEnd');
   const labelInput = document.getElementById('simLabel');
   const preview = document.getElementById('simPreview');
   const uploadBtn = document.getElementById('simUploadBtn');
@@ -140,12 +142,18 @@ document.addEventListener('DOMContentLoaded', function () {
       const result = await parseFiles(Array.from(filesInput.files || []));
       if (!result.lines.length) throw new Error('Los archivos no traen líneas con número.');
       parsed = result;
+      // Periodo: primero el del nombre del archivo (CONSUMOS_DATOS_0232_2026-09-29_2026-10-06),
+      // si no, las fechas con datos. Siempre editable.
+      const names = result.files.map((f) => f.name).join(' ');
+      const fromName = names.match(/(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})/);
+      if (!periodStartInput.value) periodStartInput.value = fromName ? fromName[1] : result.period ? result.period.start : '';
+      if (!periodEndInput.value) periodEndInput.value = fromName ? fromName[2] : result.period ? result.period.end : '';
       const totalMb = result.lines.reduce((s, l) => s + l.kb, 0) / 1024;
       const sizeKb = Math.round(JSON.stringify(result.lines).length / 1024);
       preview.innerHTML = `
         <table>${result.files.map((f) => `<tr><td>${escapeHtml(f.name)}</td><td>${fmtNum(f.rows)} registros · ${fmtNum(f.lines)} líneas</td></tr>`).join('')}</table>
         <p style="margin:8px 0 0;"><b>${fmtNum(result.lines.length)}</b> líneas distintas en ${result.files.length} archivo(s) · ${fmtNum(result.rowCount)} registros · ${fmtMb(totalMb)} en total.
-        ${result.period ? `Periodo detectado: <b>${periodLabel(result.period.start, result.period.end)}</b> (${result.period.days} día(s)).` : '<b style="color:#ef4444">Sin fechas válidas.</b>'}</p>
+        ${result.period ? `Fechas con datos: <b>${periodLabel(result.period.start, result.period.end)}</b> (${result.period.days} día(s)). Revisa arriba el periodo declarado del reporte.` : '<b style="color:#ef4444">Sin fechas válidas.</b>'}</p>
         <p class="hint" style="margin:4px 0 0;">Se subirá un resumen de ${fmtNum(sizeKb)} KB, no los archivos completos.</p>`;
       uploadBtn.disabled = !result.period || sizeKb > 4000;
       if (sizeKb > 4000) preview.insertAdjacentHTML('beforeend', '<p style="color:#ef4444">El resumen pasa de 4 MB: sube los archivos en dos lotes.</p>');
@@ -157,6 +165,15 @@ document.addEventListener('DOMContentLoaded', function () {
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
     if (!parsed) return;
+    const periodStart = periodStartInput.value;
+    const periodEnd = periodEndInput.value;
+    if (!periodStart || !periodEnd || periodStart > periodEnd) {
+      uploadStatus.textContent = 'Indica el periodo del reporte: de tal fecha a tal fecha, en ese orden.';
+      return;
+    }
+    if (parsed.period && (parsed.period.start < periodStart || parsed.period.end > periodEnd)) {
+      if (!confirm(`Los archivos traen datos del ${periodLabel(parsed.period.start, parsed.period.end)}, fuera del periodo declarado (${periodLabel(periodStart, periodEnd)}). ¿Subir igual?`)) return;
+    }
     uploadBtn.disabled = true;
     uploadStatus.textContent = 'Subiendo el resumen y pidiendo el informe a GPSITO (puede tardar hasta un minuto)...';
     try {
@@ -164,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function () {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(180000),
-        body: JSON.stringify({ action: 'upload', planMb: Number(planInput.value) || 20, label: labelInput.value.trim(), files: parsed.files.map((f) => f.name), rowCount: parsed.rowCount, days: parsed.days, lines: parsed.lines }),
+        body: JSON.stringify({ action: 'upload', periodStart, periodEnd, planMb: Number(planInput.value) || 20, label: labelInput.value.trim(), files: parsed.files.map((f) => f.name), rowCount: parsed.rowCount, days: parsed.days, lines: parsed.lines }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `error ${res.status}`);
@@ -198,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
     lotesEl.innerHTML = data.lotes.map((l) => `
       <div class="sim-lote" data-id="${l.id}">
         <div>
-          <div><b>${escapeHtml(l.label)}</b> <span class="sim-tag">${periodLabel(l.periodStart, l.periodEnd)}</span></div>
+          <div><b>${escapeHtml(l.label)}</b> <span class="sim-tag">del ${periodLabel(l.periodStart, l.periodEnd)}</span></div>
           <div class="meta">${l.files.length} archivo(s) · ${l.accounts.length} cuenta(s) · subido ${fmtDateTime(l.uploadedAt)} por ${escapeHtml(l.uploadedByName)}${l.hasAnalysis ? ' · con informe' : ' · sin informe'}</div>
         </div>
         <div class="nums"><b>${fmtNum(l.lineCount)}</b> líneas · <b>${fmtMb(l.totalMb)}</b><br />${l.overCount ? `<span style="color:#f59e0b">${fmtNum(l.overCount)} sobre el plan de ${l.planMb} MB</span>` : 'ninguna sobre el plan'} · ${l.zeroCount} sin consumo</div>
@@ -266,7 +283,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="sim-detail-head">
           <div>
             <h3 style="margin:0;">${escapeHtml(lote.label)}</h3>
-            <p class="hint" style="margin:4px 0 0;">Periodo <b>${periodLabel(lote.periodStart, lote.periodEnd)}</b> (${s.days.length} día(s)) · ${lote.files.length} archivo(s): ${escapeHtml(lote.files.join(', '))} · cuentas ${escapeHtml(lote.accounts.join(', '))} · subido ${fmtDateTime(lote.uploadedAt)} por ${escapeHtml(lote.uploadedByName)}</p>
+            <p class="hint" style="margin:4px 0 0;">Periodo del reporte: <b>del ${periodLabel(lote.periodStart, lote.periodEnd)}</b>${lote.dataStart ? ` · datos del ${periodLabel(lote.dataStart, lote.dataEnd)} (${s.days.length} día(s))` : ''} · ${lote.files.length} archivo(s): ${escapeHtml(lote.files.join(', '))} · cuentas ${escapeHtml(lote.accounts.join(', '))} · subido ${fmtDateTime(lote.uploadedAt)} por ${escapeHtml(lote.uploadedByName)}</p>
           </div>
           <div class="actions">
             <label class="hint" style="margin:0;">Plan <input type="number" min="1" id="simDetailPlan" value="${lote.planMb}" /> MB/mes</label>
