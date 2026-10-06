@@ -1,0 +1,65 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, BRANCHES } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSection(session.role, 'novedades-archivadas')) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Novedades archivadas" active="novedades-archivadas" session={session}>
+  <div class="panel-card">
+    <h2>Novedades archivadas</h2>
+    <p class="hint" id="archSummary">Cargando...</p>
+    <div class="filters">
+      <input id="archSearch" type="search" placeholder="Buscar por placa, texto, sucursal o autor en todo el historial..." autocomplete="off" />
+      <select id="archBranch">
+        <option value="">Todas las sucursales</option>
+        {BRANCHES.map((b) => <option value={b}>{b}</option>)}
+      </select>
+    </div>
+    <p id="archNotice" class="hint" style="display:none;"></p>
+    <div class="reports-list" id="archResults" style="display:none;"></div>
+  </div>
+
+  <div class="panel-card" id="archListCard">
+    <div class="arch-head">
+      <div>
+        <h3>Más antiguas de la lista principal</h3>
+        <p class="hint" style="margin:4px 0 0;">Las que quedaron detrás del tope de búsqueda de la pantalla de Novedades. Siguen en la base de datos hasta cumplir un año.</p>
+      </div>
+      <div class="arch-nav">
+        <button class="btn-small" id="archPrev" type="button">‹ Más recientes</button>
+        <span id="archPageLabel" class="hint" style="margin:0;"></span>
+        <button class="btn-small" id="archNext" type="button">Más antiguas ›</button>
+      </div>
+    </div>
+    <div class="reports-list" id="archList"><div class="empty">Cargando...</div></div>
+  </div>
+
+  <div class="panel-card">
+    <h3>Archivos anuales</h3>
+    <p class="hint">Las novedades con más de un año salen de la base de datos y quedan en estos archivos. Pulsa "Ver" para consultarlas aquí mismo, o descárgalas.</p>
+    <div id="archFiles"><div class="empty">Cargando...</div></div>
+    <div class="reports-list" id="archFileItems" style="display:none;"></div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .arch-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 12px; }
+  .arch-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .arch-files { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .arch-files td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .arch-files td:last-child { text-align: right; white-space: nowrap; }
+  .arch-files tr.active td { background: var(--glow-1); }
+  .report-item .source-tag { font-size: 11.5px; color: var(--slate); border: 1px dashed var(--line); border-radius: 999px; padding: 2px 8px; margin-left: auto; }
+  .arch-more { text-align: center; margin-top: 10px; }
+</style>
+
+<script src="/js/interno-novedades-archivadas.js" defer></script>

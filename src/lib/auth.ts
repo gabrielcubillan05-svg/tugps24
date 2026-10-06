@@ -49,6 +49,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export type Section =
   | 'novedades'
+  | 'novedades-archivadas'
   | 'reportes'
   | 'crm'
   | 'cotizaciones'
@@ -76,6 +77,7 @@ export type Section =
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
+  'novedades-archivadas': 'Novedades archivadas',
   reportes: 'Reportes programados',
   crm: 'CRM',
   cotizaciones: 'Cotizaciones',
@@ -104,6 +106,7 @@ export const SECTION_LABELS: Record<Section, string> = {
 
 export const SECTION_PATHS: Record<Section, string> = {
   novedades: '/interno/novedades',
+  'novedades-archivadas': '/interno/novedades-archivadas',
   reportes: '/interno/reportes',
   crm: '/interno/crm',
   cotizaciones: '/interno/cotizaciones',
@@ -132,11 +135,11 @@ export const SECTION_PATHS: Record<Section, string> = {
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
-  operador: ['novedades', 'reportes', 'apagados-programados', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
+  operador: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
-  gerente: ['novedades', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
-  admin: ['novedades', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario'],
+  supervisor: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
+  gerente: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
+  admin: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {

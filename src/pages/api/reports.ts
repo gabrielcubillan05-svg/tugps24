@@ -17,7 +17,7 @@ async function requireNovedades(cookies: any) {
   return session;
 }
 
-const REDIS_KEY = 'internal:reports';
+export const REDIS_KEY = 'internal:reports';
 const CATEGORIES = ['Notificación', 'Salida de geocerca', 'Finalizado', 'Alarma', 'Novedad', 'Monitoreo a', 'Monitoreo en', 'Monitoreo vía', 'Monitoreo retornando', 'Otro'];
 const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico', 'Bucaramanga', 'Medellín', 'Montería'];
 const MAX_IMAGES = 4;
@@ -58,7 +58,7 @@ const SEARCH_MAX_SCAN = 10000;
 // novedades al día, 2.000 entradas cubren día y medio y se traen 5 veces más rápido que las
 // 10.000 de una búsqueda por texto. El botón "seguir buscando más atrás" amplía el tope.
 const FILTER_MAX_SCAN = 2000;
-const SEARCH_MAX_SCAN_CEILING = 30000; // tope duro para que no se pida algo descontrolado
+export const SEARCH_MAX_SCAN_CEILING = 30000; // tope duro para que no se pida algo descontrolado
 
 export const GET: APIRoute = async ({ cookies, url }) => {
   if (!(await requireNovedades(cookies))) {

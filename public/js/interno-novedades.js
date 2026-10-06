@@ -244,7 +244,9 @@ document.addEventListener('DOMContentLoaded', function () {
       if (pendingImages.length) {
         submitBtn.textContent = 'Procesando fotos...';
         for (const { file } of pendingImages) {
-          const compressed = await compressImage(file, 1600, 0.75);
+          // 1200 px y calidad 70: la mitad de peso que antes (1600/0.75) sin perder lo que se
+          // necesita leer en una captura o una foto de tablero.
+          const compressed = await compressImage(file, 1200, 0.7);
           formData.append('images', compressed, 'foto.jpg');
         }
       }
