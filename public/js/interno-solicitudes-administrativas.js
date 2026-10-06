@@ -134,6 +134,9 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
+  let listLimit = 0;
+  let serverMonths = null;
+
   function loadSolicitudes() {
     const params = new URLSearchParams();
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
@@ -141,18 +144,29 @@ document.addEventListener('DOMContentLoaded', function () {
     if (currentTab) params.set('status', currentTab);
     if (monthFilter.value) params.set('month', monthFilter.value);
 
-    fetch('/api/solicitudes-administrativas?' + params.toString())
+    if (listLimit) params.set('limit', String(listLimit));
+
+    fetch('/api/solicitudes-administrativas?' + params.toString(), { signal: AbortSignal.timeout(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.solicitudes)) {
           currentUserId = data.currentUserId || '';
           isKellyOrWilmar = Boolean(data.isKellyOrWilmar);
           allSolicitudes = data.solicitudes;
+          serverMonths = Array.isArray(data.months) ? data.months : null;
           renderStats(data.stats);
           renderList(allSolicitudes);
+          if (data.truncated) {
+            solicitudesList.insertAdjacentHTML('beforeend', `<div class="empty" style="padding:12px;">Mostrando las ${allSolicitudes.length} más recientes de ${data.total}. <button class="btn-small" type="button" id="loadMoreSolicitudes">Mostrar más</button></div>`);
+            document.getElementById('loadMoreSolicitudes').addEventListener('click', function () {
+              listLimit = (data.limit || 300) + 500;
+              loadSolicitudes();
+            });
+          }
           populateMonths();
         } else {
-          solicitudesList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
+          // El código HTTP dice si fue permiso (401), servidor (500) o un corte de Vercel (413/504).
+          solicitudesList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
         }
       })
       .catch((err) => {
@@ -161,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function populateMonths() {
-    const months = [...new Set(allSolicitudes.map((s) => (s.createdAt || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+    const months = serverMonths || [...new Set(allSolicitudes.map((s) => (s.createdAt || '').slice(0, 7)).filter(Boolean))].sort().reverse();
     const current = monthFilter.value;
     monthFilter.innerHTML = '<option value="">Todos los meses</option>' +
       months.map((m) => `<option value="${m}">${escapeHtml(monthLabel(m))}</option>`).join('');

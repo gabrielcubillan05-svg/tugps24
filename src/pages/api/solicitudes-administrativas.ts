@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { isAllowedImageFile } from '../../lib/uploads';
+import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
@@ -19,6 +20,8 @@ import {
 export const prerender = false;
 
 const REDIS_KEY = 'internal:solicitudes-administrativas';
+const DEFAULT_LIST_LIMIT = 300;
+const MAX_LIST_LIMIT = 3000;
 
 export const REQUEST_TYPES = [
   'Reactivación manual sin reconexión',
@@ -71,16 +74,7 @@ async function requireSolicitudes(cookies: any) {
 }
 
 export async function readSolicitudes(redis: any): Promise<Solicitud[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  return Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((s): s is Solicitud => s !== null)
+  return parseJsonValues<Solicitud>(await readHashValues(redis, REDIS_KEY))
     .map((s) => ({ timeline: [], dueDate: null, imagePath: null, photoPaths: [], resolvedAt: null, resolvedByName: '', ...s }))
     .map((s) => ({ ...s, photoPaths: s.photoPaths.length ? s.photoPaths : s.imagePath ? [s.imagePath] : [] }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -169,8 +163,17 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (month) items = items.filter((s) => s.createdAt.slice(0, 7) === month);
 
   const stats = computeStats(items);
+  // Meses disponibles sobre TODO lo filtrado, porque la lista de abajo va recortada.
+  const months = [...new Set(items.map((s) => String(s.createdAt || '').slice(0, 7)).filter(Boolean))].sort().reverse();
 
-  const itemsWithUrl = items.map((s) => ({
+  // La lista completa con su historial de notas pasaba de los 4,5 MB que Vercel permite en una
+  // respuesta y la pantalla quedaba en "No se pudo cargar". Se mandan las más recientes y el
+  // navegador pide más si hace falta; las estadísticas siguen siendo sobre todo.
+  const requestedLimit = parseInt(url.searchParams.get('limit') || '', 10);
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
+  const page = items.slice(0, limit);
+
+  const itemsWithUrl = page.map((s) => ({
     ...s,
     photoUrls: s.photoPaths.map((p) => '/api/blob-file?path=' + encodeURIComponent(p)),
   }));
@@ -178,6 +181,10 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   return new Response(
     JSON.stringify({
       solicitudes: itemsWithUrl,
+      total: items.length,
+      truncated: items.length > page.length,
+      limit,
+      months,
       requestTypes: REQUEST_TYPES,
       statuses: STATUSES,
       stats,
