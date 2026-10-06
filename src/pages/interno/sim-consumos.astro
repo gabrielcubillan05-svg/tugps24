@@ -1,0 +1,97 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSimConsumos, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessSimConsumos(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+---
+
+<InternoLayout title="Consumo de SIM" active="sim-consumos" session={session}>
+  <div class="panel-card">
+    <h2>Consumo de datos de las SIM</h2>
+    <p class="hint">
+      Sube los archivos CONSUMOS_DATOS del operador (uno por cuenta; pueden ser nueve o más a la vez). El sistema los une,
+      detecta el periodo, cruza las líneas sin consumo con el inventario y GPSITO entrega el informe.
+    </p>
+    <form id="simUploadForm" class="sim-upload">
+      <div class="field">
+        <label for="simFiles">Archivos del operador</label>
+        <input id="simFiles" type="file" accept=".csv,.txt" multiple required />
+        <p class="hint" style="margin:4px 0 0;">Formato CSV tal como lo entrega el operador (separado por punto y coma). Si tienes un Excel, guárdalo como CSV antes de subirlo.</p>
+      </div>
+      <div class="field">
+        <label for="simPlanMb">Plan contratado por SIM (MB al mes)</label>
+        <input id="simPlanMb" type="number" min="1" step="1" value="20" required />
+      </div>
+      <div class="field">
+        <label for="simLabel">Nombre del lote (opcional)</label>
+        <input id="simLabel" type="text" maxlength="80" placeholder="Se genera con el periodo si lo dejas vacío" />
+      </div>
+      <div id="simPreview" class="sim-preview" hidden></div>
+      <button class="btn" type="submit" id="simUploadBtn" disabled>Subir y pedir informe a GPSITO</button>
+      <p id="simUploadStatus" class="hint" style="margin:8px 0 0;"></p>
+    </form>
+  </div>
+
+  <div class="panel-card">
+    <h3>Lotes cargados</h3>
+    <div id="simLotes"><div class="empty">Cargando...</div></div>
+  </div>
+
+  <div id="simDetail" hidden></div>
+</InternoLayout>
+
+<style is:global>
+  .sim-upload .field { margin-bottom: 12px; }
+  .sim-preview { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px; margin: 6px 0 12px; font-size: 13px; }
+  .sim-preview table { width: 100%; border-collapse: collapse; }
+  .sim-preview td { padding: 3px 6px; border-bottom: 1px solid var(--line); }
+  .sim-preview td:last-child { text-align: right; white-space: nowrap; }
+  .sim-lote { display: flex; justify-content: space-between; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; background: var(--ink-800); }
+  .sim-lote:hover { border-color: var(--amber); }
+  .sim-lote .meta { color: var(--slate); font-size: 12.5px; }
+  .sim-lote .nums { text-align: right; font-size: 12.5px; color: var(--paper-dim); white-space: nowrap; }
+  .sim-lote .nums b { color: var(--paper); }
+  .sim-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+  .sim-kpi { background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .sim-kpi .n { font-size: 24px; font-weight: 800; line-height: 1.1; }
+  .sim-kpi .l { color: var(--slate); font-size: 12px; margin-top: 4px; }
+  .sim-kpi.warn .n { color: #f59e0b; }
+  .sim-kpi.bad .n { color: #ef4444; }
+  .sim-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sim-table th, .sim-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  .sim-table th:first-child, .sim-table td:first-child, .sim-table th.l, .sim-table td.l { text-align: left; }
+  .sim-table th { color: var(--slate); font-weight: 600; font-size: 12px; }
+  .sim-table td.mono { font-family: ui-monospace, monospace; font-size: 12px; }
+  .sim-section { margin-top: 18px; }
+  .sim-section h4 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; gap: 10px; }
+  .sim-section h4 .count { color: var(--slate); font-weight: 400; font-size: 12.5px; }
+  .sim-days { display: flex; gap: 6px; align-items: flex-end; height: 90px; margin: 8px 0 4px; }
+  .sim-days .bar { flex: 1; background: #3b82f6; border-radius: 4px 4px 0 0; position: relative; min-height: 2px; }
+  .sim-days .bar span { position: absolute; bottom: 100%; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--paper-dim); padding-bottom: 2px; }
+  .sim-days-labels { display: flex; gap: 6px; font-size: 11px; color: var(--slate); }
+  .sim-days-labels div { flex: 1; text-align: center; }
+  .sim-report { background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; font-size: 14px; line-height: 1.55; }
+  .sim-report h5 { margin: 14px 0 6px; font-size: 14px; }
+  .sim-report ul, .sim-report ol { margin: 6px 0 6px 20px; }
+  .sim-report p { margin: 6px 0; }
+  .sim-ask { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .sim-ask input { flex: 1; min-width: 240px; padding: 8px 10px; }
+  .sim-qa { border-left: 3px solid var(--amber); padding: 6px 12px; margin: 10px 0; font-size: 13.5px; }
+  .sim-qa .q { font-weight: 600; margin-bottom: 4px; }
+  .sim-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; border: 1px solid var(--line); color: var(--slate); }
+  .sim-tag.ok { color: #22c55e; border-color: rgba(34,197,94,.5); }
+  .sim-tag.bad { color: #ef4444; border-color: rgba(239,68,68,.5); }
+  .sim-detail-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .sim-detail-head .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .sim-detail-head .actions input { width: 90px; padding: 6px 8px; }
+</style>
+
+<script src="/js/interno-sim-consumos.js" defer></script>

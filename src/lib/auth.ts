@@ -72,6 +72,7 @@ export type Section =
   | 'garantias'
   | 'rrhh'
   | 'almacenamiento'
+  | 'sim-consumos'
   | 'inventario'
   | 'apagados-programados';
 
@@ -100,6 +101,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   garantias: 'Garantías',
   rrhh: 'Recursos Humanos',
   almacenamiento: 'Almacenamiento',
+  'sim-consumos': 'Consumo de SIM',
   inventario: 'Inventario de sucursal',
   'apagados-programados': 'Apagados programados',
 };
@@ -129,6 +131,7 @@ export const SECTION_PATHS: Record<Section, string> = {
   garantias: '/interno/garantias',
   rrhh: '/interno/rrhh',
   almacenamiento: '/interno/almacenamiento',
+  'sim-consumos': '/interno/sim-consumos',
   inventario: '/interno/inventario',
   'apagados-programados': '/interno/apagados-programados',
 };
@@ -241,6 +244,13 @@ export function canAccessRRHH(session: Pick<Session, 'role' | 'username'>): bool
   return session.role === 'admin' || RRHH_EXTRA_USERNAMES.includes(session.username);
 }
 
+// Consumo de SIM: los archivos del operador los suben y analizan Cristian (inventario nacional)
+// y Josué; el admin también lo ve.
+const SIM_CONSUMOS_USERNAMES = [JOSUE_USERNAME, 'cristianzambrano1'];
+export function canAccessSimConsumos(session: Pick<Session, 'role' | 'username'>): boolean {
+  return session.role === 'admin' || SIM_CONSUMOS_USERNAMES.includes(session.username.toLowerCase());
+}
+
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>, user?: Pick<User, 'inventoryBranches'> | null): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
@@ -254,6 +264,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>, user?: 
   if (!base.includes('garantias') && canUploadGarantias(session)) extra.push('garantias');
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
   if (canManageAiAgents(session)) extra.push('agentes-ia');
+  if (canAccessSimConsumos(session)) extra.push('sim-consumos');
   // Inventario de sucursal: lo ve el admin (todas las sucursales) y los encargados de
   // inventario, que se marcan por usuario en Usuarios. Como eso vive en el registro del
   // usuario y no en la sesión, el layout pasa el usuario cuando lo tiene a la mano.
