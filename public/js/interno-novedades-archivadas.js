@@ -83,27 +83,47 @@ document.addEventListener('DOMContentLoaded', function () {
     more();
   }
 
-  function fetchJson(params) {
-    return fetch('/api/novedades-archivadas?' + params.toString()).then(async (res) => {
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `error ${res.status}`);
-      return data;
-    });
+  function fetchJson(params, timeoutMs) {
+    // Nada se queda en "Cargando..." para siempre: pasado el tope se muestra el error.
+    return fetch('/api/novedades-archivadas?' + params.toString(), { signal: AbortSignal.timeout(timeoutMs || 30000) })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `error ${res.status}`);
+        return data;
+      })
+      .catch((err) => {
+        if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) throw new Error('el servidor no respondió a tiempo');
+        throw err;
+      });
   }
 
-  // --- Resumen y archivos ---
+  // --- Resumen (solo base de datos) y archivos (Blob), cada uno por su lado ---
   function loadSummary() {
-    fetchJson(new URLSearchParams())
+    fetchJson(new URLSearchParams({ source: 'resumen' }), 15000)
       .then((d) => {
         beyond = d.beyond || 0;
         pageSize = d.pageSize || 200;
-        archives = d.archives || [];
-        summary.textContent = `La lista principal tiene ${fmtNum(d.total)} novedades. La pantalla de Novedades busca en las ${fmtNum(d.searchable)} más recientes; las ${fmtNum(beyond)} más antiguas se consultan aquí, junto con ${fmtNum(archives.length)} archivo(s) anual(es).`;
-        renderFiles();
-        loadPage(0);
+        summary.textContent = `La lista principal tiene ${fmtNum(d.total)} novedades. La pantalla de Novedades busca en las ${fmtNum(d.searchable)} más recientes; las ${fmtNum(beyond)} más antiguas se consultan aquí, junto con los archivos anuales de abajo.`;
       })
       .catch((err) => {
-        summary.textContent = 'No se pudo cargar: ' + (err.message || 'intenta de nuevo');
+        summary.textContent = 'No se pudo cargar el resumen: ' + (err.message || 'intenta de nuevo');
+      });
+  }
+
+  function loadArchives() {
+    fetchJson(new URLSearchParams({ source: 'archivos' }), 20000)
+      .then((d) => {
+        archives = d.archives || [];
+        if (d.blobConfigured === false) {
+          filesEl.innerHTML = '<div class="empty">El almacenamiento de archivos no está configurado.</div>';
+          return;
+        }
+        renderFiles();
+      })
+      .catch((err) => {
+        filesEl.innerHTML = `<div class="empty">No se pudieron listar los archivos: ${escapeHtml(err.message || 'intenta de nuevo')}. <button class="btn-small" type="button" id="archRetryFiles">Reintentar</button></div>`;
+        const retry = document.getElementById('archRetryFiles');
+        if (retry) retry.addEventListener('click', () => { filesEl.innerHTML = '<div class="empty">Cargando...</div>'; loadArchives(); });
       });
   }
 
@@ -129,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function () {
         fileItems.innerHTML = '<div class="empty">Cargando archivo...</div>';
         const params = new URLSearchParams({ source: 'archivo', file: a.pathname });
         if (branchSelect.value) params.set('branch', branchSelect.value);
-        fetchJson(params)
+        fetchJson(params, 30000)
           .then((d) => renderInto(fileItems, d.items || [], false))
           .catch((err) => { fileItems.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(err.message)}</div>`; });
       });
@@ -142,8 +162,10 @@ document.addEventListener('DOMContentLoaded', function () {
     list.innerHTML = '<div class="empty">Cargando...</div>';
     const params = new URLSearchParams({ source: 'lista', page: String(page) });
     if (branchSelect.value) params.set('branch', branchSelect.value);
-    fetchJson(params)
+    fetchJson(params, 20000)
       .then((d) => {
+        if (typeof d.beyond === 'number') beyond = d.beyond;
+        if (d.pageSize) pageSize = d.pageSize;
         const from = page * pageSize + 1;
         pageLabel.textContent = beyond ? `${fmtNum(from)} a ${fmtNum(Math.min(from + pageSize - 1, beyond))} de ${fmtNum(beyond)}` : 'Nada por detrás del tope todavía';
         prevBtn.disabled = page === 0;
@@ -172,11 +194,13 @@ document.addEventListener('DOMContentLoaded', function () {
     listCard.style.display = 'none';
     const params = new URLSearchParams({ q });
     if (branchSelect.value) params.set('branch', branchSelect.value);
-    fetchJson(params)
+    fetchJson(params, 45000)
       .then((d) => {
         if (searchInput.value.trim() !== q) return;
         const items = d.items || [];
-        notice.textContent = `${fmtNum(items.length)} resultado(s)${d.truncated ? ' (se muestran los 500 más recientes; afina la búsqueda)' : ''} · se revisaron ${fmtNum(d.scannedList)} novedades de la lista y ${fmtNum(d.archivesSearched)} archivo(s).`;
+        const pending = d.archivesPending ? ` Quedaron ${fmtNum(d.archivesPending)} archivo(s) sin revisar por tiempo; repite la búsqueda para seguir.` : '';
+        const archErr = d.archivesError ? ` No se pudieron listar los archivos (${escapeHtml(d.archivesError)}).` : '';
+        notice.textContent = `${fmtNum(items.length)} resultado(s)${d.truncated ? ' (se muestran los 500 más recientes; afina la búsqueda)' : ''} · se revisaron ${fmtNum(d.scannedList)} novedades de la lista y ${fmtNum(d.archivesSearched)} archivo(s).${pending}${archErr}`;
         renderInto(results, items, true);
       })
       .catch((err) => { notice.textContent = 'No se pudo buscar: ' + (err.message || 'intenta de nuevo'); });
@@ -184,5 +208,10 @@ document.addEventListener('DOMContentLoaded', function () {
   searchInput.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 400); });
   branchSelect.addEventListener('change', () => { if (searchInput.value.trim().length >= 3) runSearch(); else loadPage(0); });
 
+  // Los tres bloques cargan a la vez e independientes: si Blob tarda, la lista igual aparece.
   loadSummary();
+  loadPage(0);
+  loadArchives();
+  // Si la persona escribió antes de que terminara de cargar el JS, se busca igual.
+  if (searchInput.value.trim().length >= 3) runSearch();
 });

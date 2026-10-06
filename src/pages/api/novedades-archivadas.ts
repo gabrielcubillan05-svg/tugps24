@@ -15,6 +15,16 @@ const PAGE_SIZE = 200;
 const SEARCH_CHUNK = 1000;
 const MAX_RESULTS = 500;
 const ARCHIVE_PREFIX = 'archive/novedades/';
+// Blob puede tardar: ninguna de estas llamadas debe dejar la página en "Cargando..." sin fin.
+const BLOB_LIST_TIMEOUT_MS = 10_000;
+const SEARCH_BUDGET_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: sin respuesta en ${Math.round(ms / 1000)} s`)), ms);
+    promise.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+  });
+}
 
 type Source = { kind: 'lista'; offset: number } | { kind: 'archivo'; file: string };
 type ArchivedReport = Report & { source: Source };
@@ -91,10 +101,20 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const total = Number(await redis.llen(REPORTS_KEY)) || 0;
   const beyond = Math.max(0, total - SEARCH_MAX_SCAN_CEILING);
 
-  // Resumen para la cabecera de la página.
-  if (!source && !q) {
-    const archives = token ? await listArchives(token).catch(() => []) : [];
-    return new Response(JSON.stringify({ total, searchable: SEARCH_MAX_SCAN_CEILING, beyond, pageSize: PAGE_SIZE, archives, blobConfigured: !!token }), { headers });
+  // Resumen para la cabecera de la página: solo Redis, para que salga al instante.
+  if ((!source && !q) || source === 'resumen') {
+    return new Response(JSON.stringify({ total, searchable: SEARCH_MAX_SCAN_CEILING, beyond, pageSize: PAGE_SIZE, blobConfigured: !!token }), { headers });
+  }
+
+  // Lista de archivos anuales, aparte y con tiempo límite.
+  if (source === 'archivos') {
+    if (!token) return new Response(JSON.stringify({ archives: [], blobConfigured: false }), { headers });
+    try {
+      const archives = await withTimeout(listArchives(token), BLOB_LIST_TIMEOUT_MS, 'listar archivos');
+      return new Response(JSON.stringify({ archives, blobConfigured: true }), { headers });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 504, headers });
+    }
   }
 
   // Una página de la cola de la lista principal (lo que está detrás del tope de búsqueda).
@@ -116,8 +136,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     if (!file.startsWith(ARCHIVE_PREFIX) || !isSafeBlobPath(file)) {
       return new Response(JSON.stringify({ error: 'archivo inválido' }), { status: 400 });
     }
-    const items: ArchivedReport[] = (await readArchive(token, file)).filter((r) => matches(r, q, branch)).map((r) => ({ ...r, source: { kind: 'archivo', file } }));
-    return new Response(JSON.stringify({ items, file }), { headers });
+    try {
+      const reports = await withTimeout(readArchive(token, file), BLOB_LIST_TIMEOUT_MS * 2, 'leer el archivo');
+      const items: ArchivedReport[] = reports.filter((r) => matches(r, q, branch)).map((r) => ({ ...r, source: { kind: 'archivo', file } }));
+      return new Response(JSON.stringify({ items, file }), { headers });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 504, headers });
+    }
   }
 
   // Búsqueda en todo lo archivado: cola de la lista por bloques y todos los archivos de Blob.
@@ -137,12 +162,27 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     });
   }
   let archivesSearched = 0;
+  let archivesPending = 0;
+  let archivesError = '';
   if (token) {
-    const archives = await listArchives(token).catch(() => []);
+    const startedAt = Date.now();
+    let archives: Awaited<ReturnType<typeof listArchives>> = [];
+    try {
+      archives = await withTimeout(listArchives(token), BLOB_LIST_TIMEOUT_MS, 'listar archivos');
+    } catch (err) {
+      archivesError = err instanceof Error ? err.message : String(err);
+    }
     for (let i = 0; i < archives.length && results.length < MAX_RESULTS; i += 4) {
+      // Lo que no alcance en el presupuesto de tiempo se informa como pendiente, en vez de
+      // dejar al usuario esperando sin respuesta.
+      if (Date.now() - startedAt > SEARCH_BUDGET_MS) {
+        archivesPending = archives.length - i;
+        break;
+      }
       const batch = archives.slice(i, i + 4);
-      const contents = await Promise.all(batch.map((a) => readArchive(token, a.pathname).catch(() => [])));
+      const contents = await Promise.all(batch.map((a) => withTimeout(readArchive(token, a.pathname), BLOB_LIST_TIMEOUT_MS, 'leer archivo').catch(() => null)));
       contents.forEach((reports, j) => {
+        if (!reports) { archivesPending++; return; }
         archivesSearched++;
         reports.forEach((r) => {
           if (matches(r, q, branch)) results.push({ ...r, source: { kind: 'archivo', file: batch[j].pathname } });
@@ -151,5 +191,5 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     }
   }
   results.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  return new Response(JSON.stringify({ items: results.slice(0, MAX_RESULTS), truncated: results.length > MAX_RESULTS, scannedList: beyond, archivesSearched }), { headers });
+  return new Response(JSON.stringify({ items: results.slice(0, MAX_RESULTS), truncated: results.length > MAX_RESULTS, scannedList: beyond, archivesSearched, archivesPending, archivesError }), { headers });
 };
