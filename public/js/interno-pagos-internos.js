@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const pagosList = document.getElementById('pagosList');
+  let listLimit = 0;
   if (!pagosList) return; // no autenticado o sin permiso
 
   const pagosData = document.getElementById('pagosData');
@@ -98,7 +99,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (currentTab) params.set('status', currentTab);
     if (branchFilter && branchFilter.value) params.set('branch', branchFilter.value);
 
-    fetch('/api/pagos-internos?' + params.toString())
+    if (listLimit) params.set('limit', String(listLimit));
+    fetch('/api/pagos-internos?' + params.toString(), { signal: AbortSignal.timeout(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.pagos)) {
@@ -106,8 +108,9 @@ document.addEventListener('DOMContentLoaded', function () {
           allPagos = data.pagos;
           renderStats(data.stats);
           renderList(allPagos);
+          TuGpsListMore.apply(pagosList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allPagos }, (next) => { listLimit = next; loadPagos(); });
         } else {
-          pagosList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
+          pagosList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
         }
       })
       .catch((err) => {

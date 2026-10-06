@@ -3,6 +3,8 @@ import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
+import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
+import { pageOf } from '../../lib/list-page';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { isShiftSupervisorUsername } from '../../lib/shift';
@@ -94,16 +96,7 @@ async function requireSuspensiones(cookies: any) {
 }
 
 export async function readSuspensiones(redis: any): Promise<Suspension[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  return Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((s): s is Suspension => s !== null)
+  return parseJsonValues<Suspension>(await readHashValues(redis, REDIS_KEY))
     .map((s) => ({
       timeline: [],
       clientPhone: '',
@@ -230,9 +223,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const paged = pageOf(url, casosWithUrl);
   return new Response(
     JSON.stringify({
-      casos: casosWithUrl,
+      casos: paged.page,
+      ...paged.meta,
       branches: BRANCHES,
       statuses: STATUSES,
       stats,

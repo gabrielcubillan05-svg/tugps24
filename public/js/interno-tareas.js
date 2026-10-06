@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const tasksList = document.getElementById('tasksList');
+  let listLimit = 0;
   if (!tasksList) return;
 
   const tareasData = document.getElementById('tareasData');
@@ -334,15 +335,16 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function loadTasks() {
-    fetch('/api/tasks')
-      .then((res) => res.json())
-      .then((data) => {
+    fetch('/api/tasks' + (listLimit ? '?limit=' + listLimit : ''), { signal: AbortSignal.timeout(30000) })
+      .then(async (res) => ({ status: res.status, data: await res.json().catch(() => null) }))
+      .then(({ status, data }) => {
         if (!data || !Array.isArray(data.tasks)) {
-          tasksList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
+          tasksList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
           return;
         }
         allTasks = data.tasks;
         renderCurrentView();
+        TuGpsListMore.apply(tasksList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allTasks }, (next) => { listLimit = next; loadTasks(); });
       })
       .catch(() => {
         tasksList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';

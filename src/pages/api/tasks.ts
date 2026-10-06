@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
+import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
+import { pageOf } from '../../lib/list-page';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { isOverdueInColombia, todayInColombia, addDaysToDateString, addMonthsToDateString } from '../../lib/colombia-time';
@@ -76,16 +78,7 @@ export function computeOverdue(task: Task): boolean {
 }
 
 export async function readTasks(redis: any): Promise<Task[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  return Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((t): t is Task => t !== null)
+  return parseJsonValues<Task>(await readHashValues(redis, REDIS_KEY))
     .map((t) => ({ notes: [], proof: null, completedAt: null, recurrence: null, recurrenceSeriesId: null, ...t }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
@@ -171,8 +164,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   const withOverdue = tasks.map((t) => ({ ...t, overdue: computeOverdue(t) }));
 
+  // Ordenadas por última actividad: las 300 más recientes cubren el trabajo vivo; lo viejo se
+  // pide con "Mostrar más".
+  const paged = pageOf(url, withOverdue);
   return new Response(
-    JSON.stringify({ tasks: withOverdue, statuses: STATUSES, canAssign: isManager }),
+    JSON.stringify({ tasks: paged.page, ...paged.meta, statuses: STATUSES, canAssign: isManager }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };

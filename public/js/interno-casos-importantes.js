@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const casoForm = document.getElementById('casoForm');
   const casosList = document.getElementById('casosList');
+  let listLimit = 0;
   if (!casosList) return; // no autenticado o sin permiso
 
   const searchInput = document.getElementById('searchInput');
@@ -103,11 +104,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (currentStatus) params.set('status', currentStatus);
 
-    fetch('/api/casos-importantes?' + params.toString())
+    if (listLimit) params.set('limit', String(listLimit));
+    fetch('/api/casos-importantes?' + params.toString(), { signal: AbortSignal.timeout(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        if (data && Array.isArray(data.casos)) renderCasos(data.casos);
-        else casosList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
+        if (data && Array.isArray(data.casos)) {
+          renderCasos(data.casos);
+          TuGpsListMore.apply(casosList, { truncated: data.truncated, total: data.total, limit: data.limit, items: data.casos }, (next) => { listLimit = next; loadCasos(); });
+        } else {
+          casosList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
+        }
       })
       .catch((err) => {
         casosList.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(err.message || 'error de red')}.</div>`;

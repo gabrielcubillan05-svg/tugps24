@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
+import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
+import { pageOf } from '../../lib/list-page';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import {
@@ -53,16 +55,7 @@ async function requirePagosInternos(cookies: any) {
 }
 
 export async function readPagos(redis: any): Promise<PagoInterno[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  return Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((p): p is PagoInterno => p !== null)
+  return parseJsonValues<PagoInterno>(await readHashValues(redis, REDIS_KEY))
     .map((p) => ({ timeline: [], paidAt: null, paidByName: '', ...p }))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
@@ -108,9 +101,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (status) items = items.filter((p) => p.status === status);
   if (branch && (seesAll || myBranches.includes(branch))) items = items.filter((p) => p.branch === branch);
 
+  const paged = pageOf(url, items);
   return new Response(
     JSON.stringify({
-      pagos: items,
+      pagos: paged.page,
+      ...paged.meta,
       stats: computeStats(items),
       branches: BRANCHES,
       myBranches,

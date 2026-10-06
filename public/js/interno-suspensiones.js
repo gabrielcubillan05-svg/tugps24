@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const suspensionesList = document.getElementById('suspensionesList');
+  let listLimit = 0;
   if (!suspensionesList) return; // no autenticado o sin permiso
 
   const suspensionesData = document.getElementById('suspensionesData');
@@ -215,7 +216,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (dateToFilter.value) params.set('dateTo', dateToFilter.value);
     if (assignedToFilter.value) params.set('assignedTo', assignedToFilter.value);
 
-    fetch('/api/suspensiones?' + params.toString())
+    if (listLimit) params.set('limit', String(listLimit));
+    fetch('/api/suspensiones?' + params.toString(), { signal: AbortSignal.timeout(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.casos)) {
@@ -225,6 +227,7 @@ document.addEventListener('DOMContentLoaded', function () {
           allCasos = data.casos;
           renderStats(data.stats);
           renderList(allCasos);
+          TuGpsListMore.apply(suspensionesList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allCasos }, (next) => { listLimit = next; loadSuspensiones(); });
 
           if (Array.isArray(data.assignees)) {
             const current = assignedToFilter.value;
@@ -249,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           }
         } else {
-          suspensionesList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
+          suspensionesList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
         }
       })
       .catch((err) => {

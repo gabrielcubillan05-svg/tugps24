@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const clientesList = document.getElementById('clientesList');
+  let listLimit = 0;
   if (!clientesList) return; // no autenticado o sin permiso
 
   let allClientes = [];
@@ -72,15 +73,17 @@ document.addEventListener('DOMContentLoaded', function () {
     if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
     if (branchFilter.value) params.set('branch', branchFilter.value);
 
-    fetch('/api/seguimiento-masivos?' + params.toString())
+    if (listLimit) params.set('limit', String(listLimit));
+    fetch('/api/seguimiento-masivos?' + params.toString(), { signal: AbortSignal.timeout(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.clientes)) {
           allClientes = data.clientes;
           renderStats(data.stats);
           renderList(allClientes);
+          TuGpsListMore.apply(clientesList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allClientes }, (next) => { listLimit = next; loadClientes(); });
         } else {
-          clientesList.innerHTML = `<div class="empty">No se pudo cargar${data && data.error ? ': ' + escapeHtml(data.error) : ' (revisa la conexión)'}.</div>`;
+          clientesList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
         }
       })
       .catch((err) => {

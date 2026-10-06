@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { readFirstSheetRows, SpreadsheetError } from '../../lib/spreadsheet';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
+import { readHashValues } from '../../lib/redis-hash';
+import { pageOf } from '../../lib/list-page';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessGarantias, canUploadGarantias, getUsers, verifySameOrigin } from '../../lib/auth';
 import { normalizePhone } from './leads';
@@ -95,8 +97,7 @@ function normalizeGarantia(parsed: any): Garantia {
 }
 
 export async function readGarantias(redis: any): Promise<Garantia[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  return Object.values(raw)
+  return (await readHashValues(redis, REDIS_KEY))
     .map((v) => {
       try {
         return normalizeGarantia(typeof v === 'string' ? JSON.parse(v) : v);
@@ -337,8 +338,10 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     stats = { total: all.length, period, start, end, byOperator: Object.fromEntries(byOperator) };
   }
 
+  // Van ordenadas por prioridad: las primeras son las que hay que llamar ya.
+  const paged = pageOf(url, garantias);
   return new Response(
-    JSON.stringify({ garantias, categories: CATEGORIES, branches: BRANCHES, stats }),
+    JSON.stringify({ garantias: paged.page, ...paged.meta, categories: CATEGORIES, branches: BRANCHES, stats }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };

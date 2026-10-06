@@ -3,6 +3,8 @@ import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
+import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
+import { pageOf } from '../../lib/list-page';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { SESSION_COOKIE, getSession, canAccessSection, getUsers, findUserById, branchesOf, verifySameOrigin } from '../../lib/auth';
@@ -50,16 +52,7 @@ async function requireCasos(cookies: any) {
 }
 
 export async function readCasos(redis: any): Promise<Caso[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  return Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((c): c is Caso => c !== null)
+  return parseJsonValues<Caso>(await readHashValues(redis, REDIS_KEY))
     .map((c) => ({ notes: [], finalizedAt: null, finalizedByName: '', ...c }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -105,8 +98,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (status === 'pendiente') casos = casos.filter((c) => c.status !== 'Finalizado');
   else if (status) casos = casos.filter((c) => c.status === status);
 
+  const paged = pageOf(url, casos);
   return new Response(
-    JSON.stringify({ casos, categories: CATEGORIES, branches: BRANCHES, statuses: STATUSES }),
+    JSON.stringify({ casos: paged.page, ...paged.meta, categories: CATEGORIES, branches: BRANCHES, statuses: STATUSES }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };

@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { getRedis } from '../../lib/redis';
+import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
+import { pageOf } from '../../lib/list-page';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, findUserById, branchesOf, verifySameOrigin } from '../../lib/auth';
 import { isShiftSupervisorUsername } from '../../lib/shift';
@@ -39,16 +41,7 @@ async function requireAccess(cookies: any) {
 }
 
 export async function readClientes(redis: any): Promise<ClienteMasivo[]> {
-  const raw = (await redis.hgetall<Record<string, string>>(REDIS_KEY)) || {};
-  return Object.values(raw)
-    .map((v) => {
-      try {
-        return typeof v === 'string' ? JSON.parse(v) : v;
-      } catch {
-        return null;
-      }
-    })
-    .filter((c): c is ClienteMasivo => c !== null)
+  return parseJsonValues<ClienteMasivo>(await readHashValues(redis, REDIS_KEY))
     .map((c) => ({ timeline: [], branch: '', vehicleCount: 0, monthlyRevenue: 0, ...c }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
@@ -93,8 +86,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     totalMonthlyRevenue: items.reduce((sum, c) => sum + (c.monthlyRevenue || 0), 0),
   };
 
+  const paged = pageOf(url, items);
   return new Response(
-    JSON.stringify({ clientes: items, branches: BRANCHES, stats, currentUserId: session.userId }),
+    JSON.stringify({ clientes: paged.page, ...paged.meta, branches: BRANCHES, stats, currentUserId: session.userId }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };

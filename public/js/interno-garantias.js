@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const garantiasList = document.getElementById('garantiasList');
+  let listLimit = 0;
   if (!garantiasList) return;
 
   const garantiasData = document.getElementById('garantiasData');
@@ -146,11 +147,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     }
-    fetch('/api/garantias?' + params.toString())
-      .then((res) => res.json())
-      .then((data) => {
+    if (listLimit) params.set('limit', String(listLimit));
+    fetch('/api/garantias?' + params.toString(), { signal: AbortSignal.timeout(30000) })
+      .then(async (res) => ({ status: res.status, data: await res.json().catch(() => null) }))
+      .then(({ status, data }) => {
         if (!data || !Array.isArray(data.garantias)) {
-          garantiasList.innerHTML = '<div class="empty">No se pudo cargar.</div>';
+          garantiasList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
           return;
         }
         allGarantias = data.garantias;
@@ -161,6 +163,7 @@ document.addEventListener('DOMContentLoaded', function () {
           renderStats(data.stats);
         }
         renderGarantias();
+        TuGpsListMore.apply(garantiasList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allGarantias }, (next) => { listLimit = next; loadGarantias(); });
       })
       .catch(() => {
         garantiasList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';
