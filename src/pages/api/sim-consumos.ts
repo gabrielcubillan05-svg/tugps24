@@ -24,8 +24,12 @@ const DEFAULT_PLAN_MB = 20;
 export interface SimLote {
   id: string;
   label: string;
+  // Periodo declarado al subir (el que cubre el reporte del operador).
   periodStart: string;
   periodEnd: string;
+  // Primera y última fecha que de verdad traen datos los archivos.
+  dataStart: string;
+  dataEnd: string;
   uploadedAt: string;
   uploadedByName: string;
   files: string[];
@@ -172,8 +176,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const lines = sanitizeLines(body.lines, body.days);
     if (typeof lines === 'string') return new Response(JSON.stringify({ error: lines }), { status: 400 });
     if (!lines.length) return new Response(JSON.stringify({ error: 'no se encontraron líneas en los archivos' }), { status: 400 });
-    const period = periodOf(lines);
-    if (!period.start) return new Response(JSON.stringify({ error: 'los archivos no traen fechas válidas (columna FECHA)' }), { status: 400 });
+    const dataPeriod = periodOf(lines);
+    if (!dataPeriod.start) return new Response(JSON.stringify({ error: 'los archivos no traen fechas válidas (columna FECHA)' }), { status: 400 });
+    const periodStart = String(body.periodStart || '').slice(0, 10);
+    const periodEnd = String(body.periodEnd || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodStart) || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd) || periodStart > periodEnd) {
+      return new Response(JSON.stringify({ error: 'indica el periodo del reporte (desde y hasta)' }), { status: 400 });
+    }
+    const period = { start: periodStart, end: periodEnd };
+    const periodDays = Math.round((Date.parse(periodEnd) - Date.parse(periodStart)) / 86400000) + 1;
+    if (periodDays > 366) return new Response(JSON.stringify({ error: 'el periodo no puede pasar de un año' }), { status: 400 });
     const planMb = Math.min(10000, Math.max(1, Number(body.planMb) || DEFAULT_PLAN_MB));
     const files = Array.isArray(body.files) ? body.files.map((f: unknown) => String(f).slice(0, 120)).slice(0, 40) : [];
     const rowCount = Math.max(0, Number(body.rowCount) || 0);
@@ -192,12 +204,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const blobPath = `${BLOB_PREFIX}${period.start}_a_${period.end}_${id}.json`;
     await put(blobPath, JSON.stringify(lines), { access: 'private', token, addRandomSuffix: false, contentType: 'application/json', abortSignal: AbortSignal.timeout(30_000) });
 
-    const stats = computeSimStats(lines, rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '');
+    const stats = computeSimStats(lines, rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
     const lote: SimLote = {
       id,
       label,
       periodStart: period.start,
       periodEnd: period.end,
+      dataStart: dataPeriod.start,
+      dataEnd: dataPeriod.end,
       uploadedAt: new Date().toISOString(),
       uploadedByName: byName,
       files,
@@ -257,7 +271,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       inventorySimNumbers(redis),
     ]);
     lote.planMb = planMb;
-    lote.stats = computeSimStats(lines, lote.stats.rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '');
+    const periodDays = Math.round((Date.parse(lote.periodEnd) - Date.parse(lote.periodStart)) / 86400000) + 1;
+    lote.stats = computeSimStats(lines, lote.stats.rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
     lote.analysis = null;
     await saveLote(redis, lote);
     return new Response(JSON.stringify({ lote }), { headers });

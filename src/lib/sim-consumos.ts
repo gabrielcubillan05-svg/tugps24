@@ -100,9 +100,11 @@ function summary(l: SimLine, dayCount: number): SimLineSummary {
   };
 }
 
-export function computeSimStats(lines: SimLine[], rowCount: number, planMb: number, inventorySims: Set<string>, previous: SimLine[] | null, previousPeriod: string): SimStats {
+// periodDays: días del periodo declarado al subir (la proyección a 30 días se hace sobre él,
+// no sobre los días que traen datos: una línea que solo reportó 2 de 7 días consumió eso en 7).
+export function computeSimStats(lines: SimLine[], rowCount: number, planMb: number, inventorySims: Set<string>, previous: SimLine[] | null, previousPeriod: string, periodDays?: number): SimStats {
   const { days } = periodOf(lines);
-  const dayCount = days.length || 1;
+  const dayCount = periodDays && periodDays > 0 ? periodDays : days.length || 1;
   const kbs = lines.map((l) => l.kb);
   const nonZero = kbs.filter((k) => k > 0).sort((a, b) => a - b);
   const totalKb = kbs.reduce((s, k) => s + k, 0);

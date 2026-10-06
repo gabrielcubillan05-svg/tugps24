@@ -26,6 +26,17 @@ if (!canAccessSimConsumos(session)) {
         <input id="simFiles" type="file" accept=".csv,.txt" multiple required />
         <p class="hint" style="margin:4px 0 0;">Formato CSV tal como lo entrega el operador (separado por punto y coma). Si tienes un Excel, guárdalo como CSV antes de subirlo.</p>
       </div>
+      <div class="sim-period">
+        <div class="field">
+          <label for="simPeriodStart">Periodo desde</label>
+          <input id="simPeriodStart" type="date" required />
+        </div>
+        <div class="field">
+          <label for="simPeriodEnd">Periodo hasta</label>
+          <input id="simPeriodEnd" type="date" required />
+        </div>
+      </div>
+      <p class="hint" style="margin:-6px 0 12px;">Es el periodo que cubre el reporte del operador. Se prellena con las fechas del nombre del archivo y puedes corregirlo.</p>
       <div class="field">
         <label for="simPlanMb">Plan contratado por SIM (MB al mes)</label>
         <input id="simPlanMb" type="number" min="1" step="1" value="20" required />
@@ -50,6 +61,8 @@ if (!canAccessSimConsumos(session)) {
 
 <style is:global>
   .sim-upload .field { margin-bottom: 12px; }
+  .sim-period { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .sim-period { grid-template-columns: 1fr; } }
   .sim-preview { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px; margin: 6px 0 12px; font-size: 13px; }
   .sim-preview table { width: 100%; border-collapse: collapse; }
   .sim-preview td { padding: 3px 6px; border-bottom: 1px solid var(--line); }
