@@ -188,6 +188,36 @@ async function leerTodasLasFilas(page, maxPaginas = 12) {
     console.error(`No se pudo leer cuántas páginas hay; se toma lo visible (${filas.length}) como lista INCOMPLETA`);
     return filas;
   }
+  // La grilla recuerda la última página visitada: el 2026-10-07 arrancó en la "página 2 de 2" y
+  // el robot leyó 4 filas creyendo que eran todas. Siempre se empieza por la página 1.
+  const irAPagina = async (n) => {
+    await boton.click().catch(() => {});
+    await page.waitForTimeout(400);
+    const caja = page.locator('.rowsperpage li.goTo input').first();
+    await caja.fill(String(n)).catch(() => {});
+    await page.locator('.rowsperpage li.goTo i').first().click({ force: true }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+    let ahora = (await leerTotal()) || info;
+    if (ahora.actual !== n) {
+      await boton.click().catch(() => {});
+      await caja.fill(String(n)).catch(() => {});
+      await caja.press('Enter').catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+      await page.waitForTimeout(1000);
+      ahora = (await leerTotal()) || info;
+    }
+    return ahora;
+  };
+  if (info.actual !== 1) {
+    info = await irAPagina(1);
+    if (info.actual !== 1) {
+      const filas = await leerFilas(page);
+      console.error(`No se pudo volver a la página 1 (quedó en la ${info.actual} de ${info.total}); lista INCOMPLETA`);
+      return filas;
+    }
+    console.log('De vuelta en la página 1');
+  }
   const todas = [];
   let completo = true;
   for (let p = 0; p < maxPaginas; p++) {
@@ -195,24 +225,8 @@ async function leerTodasLasFilas(page, maxPaginas = 12) {
     todas.push(...filas);
     if (info.actual >= info.total) break;
     const anterior = info.actual;
-    // Ir a la página siguiente por el cuadro "Ir a" del paginador; si no se mueve, con Enter.
-    await boton.click().catch(() => {});
-    await page.waitForTimeout(400);
-    const caja = page.locator('.rowsperpage li.goTo input').first();
-    await caja.fill(String(anterior + 1)).catch(() => {});
-    await page.locator('.rowsperpage li.goTo i').first().click({ force: true }).catch(() => {});
-    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-    await page.waitForTimeout(1000);
-    info = (await leerTotal()) || info;
-    if (info.actual === anterior) {
-      await boton.click().catch(() => {});
-      await caja.fill(String(anterior + 1)).catch(() => {});
-      await caja.press('Enter').catch(() => {});
-      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-      await page.waitForTimeout(1000);
-      info = (await leerTotal()) || info;
-    }
-    if (info.actual === anterior) {
+    info = await irAPagina(anterior + 1);
+    if (info.actual !== anterior + 1) {
       console.error(`El paginador no avanzó de la página ${anterior} de ${info.total}; lista INCOMPLETA`);
       completo = false;
       break;

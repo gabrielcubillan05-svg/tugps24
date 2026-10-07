@@ -529,7 +529,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!canResolve) return json(403, { error: 'solo Kelly, Wilmar o el administrador' });
     const desde = String(body.desde || '').trim() || new Date(Date.now() - 6 * 3600_000).toISOString();
     const cerrados = (await readPagos(redis)).filter(
-      (p) => p.source === 'optimus' && (p.applyStatus === 'aplicado' || p.applyStatus === 'manual') && /ya no estaba pendiente/i.test(p.applyDetail || '') && (p.applyAt || '') >= desde
+      // Todo lo que el robot dio por aplicado o cerrado con la lista a medias se vuelve a verificar:
+      // lo que de verdad ya no esté pendiente en Optimus se cierra otra vez solo.
+      (p) => p.source === 'optimus' && (p.applyStatus === 'aplicado' || p.applyStatus === 'manual') && (p.applyBy === 'Robot de pagos' || p.applyBy === 'Optimus') && (p.applyAt || '') >= desde
     );
     for (const p of cerrados) {
       p.applyStatus = 'pendiente';
