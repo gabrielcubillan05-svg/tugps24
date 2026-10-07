@@ -19,6 +19,12 @@ export const prerender = false;
 const REDIS_KEY = 'internal:sim-consumos';
 const BLOB_PREFIX = 'sim-consumos/';
 const MAX_LINES = 40000;
+// Subida por bloques: el navegador manda las líneas en tandas chicas a una llave temporal y al
+// final pide armar el lote. Un solo POST de más de 1 MB se cortaba a mitad de camino en
+// conexiones de oficina y el navegador solo veía "Failed to fetch".
+const STAGING_PREFIX = 'internal:sim-consumos-staging:';
+const STAGING_TTL_SECONDS = 3600;
+const MAX_CHUNKS = 60;
 const MAX_QA = 20;
 const DEFAULT_PLAN_MB = 20;
 
@@ -198,17 +204,21 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
+  // El cuerpo se lee ANTES de cualquier verificación: responder un 401 o 403 con un cuerpo
+  // grande todavía en camino hace que el servidor cierre la conexión y el navegador no vea
+  // la respuesta, solo "Failed to fetch".
+  const rawBody = await request.text();
   if (!verifySameOrigin(request)) return new Response(JSON.stringify({ error: 'invalid origin' }), { status: 403 });
   const session = await requireAccess(cookies);
   if (!session) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
   const redis = getRedis();
   if (!redis) return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
+  // El token de Blob solo hace falta al guardar el lote; los bloques se reciben sin él.
   const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
-  if (!token) return new Response(JSON.stringify({ error: 'almacenamiento de archivos no configurado' }), { status: 503 });
 
   let body: any;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return new Response(JSON.stringify({ error: 'invalid body' }), { status: 400 });
   }
@@ -216,8 +226,51 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const me = await findUserById(redis, session.userId);
   const byName = me?.name || session.username;
 
-  if (action === 'upload') {
-    const lines = sanitizeLines(body.lines, body.days);
+  if (action === 'chunk') {
+    const uploadId = String(body.uploadId || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
+    const index = Number(body.index);
+    if (!uploadId || !Number.isInteger(index) || index < 0 || index >= MAX_CHUNKS) {
+      return new Response(JSON.stringify({ error: 'bloque inválido' }), { status: 400 });
+    }
+    if (!Array.isArray(body.lines) || body.lines.length > 5000) {
+      return new Response(JSON.stringify({ error: 'bloque demasiado grande' }), { status: 400 });
+    }
+    const key = STAGING_PREFIX + uploadId;
+    // Un bloque reintentado reemplaza al anterior con el mismo índice (hash por índice).
+    await redis.hset(key, { [String(index)]: JSON.stringify(body.lines) });
+    await redis.expire(key, STAGING_TTL_SECONDS);
+    return new Response(JSON.stringify({ ok: true, index }), { headers });
+  }
+
+  if (action === 'upload' || action === 'commit') {
+    let rawLines: unknown = body.lines;
+    if (action === 'commit') {
+      const uploadId = String(body.uploadId || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
+      const total = Number(body.total);
+      if (!uploadId || !Number.isInteger(total) || total < 1 || total > MAX_CHUNKS) {
+        return new Response(JSON.stringify({ error: 'subida inválida' }), { status: 400 });
+      }
+      const key = STAGING_PREFIX + uploadId;
+      const stored = ((await redis.hgetall(key)) || {}) as Record<string, unknown>;
+      const missing: number[] = [];
+      const joined: unknown[] = [];
+      for (let i = 0; i < total; i++) {
+        const raw = stored[String(i)];
+        if (raw === undefined || raw === null) {
+          missing.push(i);
+          continue;
+        }
+        const part = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (Array.isArray(part)) joined.push(...part);
+      }
+      if (missing.length) {
+        return new Response(JSON.stringify({ error: `faltan bloques por subir (${missing.join(', ')})`, missing }), { status: 409 });
+      }
+      await redis.del(key);
+      rawLines = joined;
+    }
+    if (!token) return new Response(JSON.stringify({ error: 'almacenamiento de archivos no configurado' }), { status: 503 });
+    const lines = sanitizeLines(rawLines, body.days);
     if (typeof lines === 'string') return new Response(JSON.stringify({ error: lines }), { status: 400 });
     if (!lines.length) return new Response(JSON.stringify({ error: 'no se encontraron líneas en los archivos' }), { status: 400 });
     const dataPeriod = periodOf(lines);
@@ -276,6 +329,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ lote, analysisPending: true }), { headers });
   }
 
+  if (!token) return new Response(JSON.stringify({ error: 'almacenamiento de archivos no configurado' }), { status: 503 });
   const id = String(body.id || '');
   const lotes = await readLotes(redis);
   const lote = lotes.find((l) => l.id === id);

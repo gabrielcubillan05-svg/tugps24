@@ -175,16 +175,19 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!confirm(`Los archivos traen datos del ${periodLabel(parsed.period.start, parsed.period.end)}, fuera del periodo declarado (${periodLabel(periodStart, periodEnd)}). ¿Subir igual?`)) return;
     }
     uploadBtn.disabled = true;
-    uploadStatus.textContent = 'Subiendo el resumen y pidiendo el informe a GPSITO (puede tardar hasta un minuto)...';
     try {
-      const res = await fetch('/api/sim-consumos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(180000),
-        body: JSON.stringify({ action: 'upload', periodStart, periodEnd, planMb: Number(planInput.value) || 20, label: labelInput.value.trim(), files: parsed.files.map((f) => f.name), rowCount: parsed.rowCount, days: parsed.days, lines: parsed.lines }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `error ${res.status}`);
+      // Por bloques de 1.000 líneas (unos 120 KB cada uno) con reintento: un solo envío grande
+      // se cortaba en conexiones de oficina.
+      const CHUNK = 1000;
+      const uploadId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+      const total = Math.ceil(parsed.lines.length / CHUNK);
+      for (let i = 0; i < total; i++) {
+        uploadStatus.textContent = `Subiendo bloque ${i + 1} de ${total}...`;
+        const chunk = parsed.lines.slice(i * CHUNK, (i + 1) * CHUNK);
+        await postWithRetry({ action: 'chunk', uploadId, index: i, lines: chunk }, 3);
+      }
+      uploadStatus.textContent = 'Armando el lote y calculando los cruces...';
+      const data = await postWithRetry({ action: 'commit', uploadId, total, periodStart, periodEnd, planMb: Number(planInput.value) || 20, label: labelInput.value.trim(), files: parsed.files.map((f) => f.name), rowCount: parsed.rowCount, days: parsed.days }, 2, 120000);
       uploadStatus.textContent = 'Lote guardado. GPSITO está redactando el informe; aparecerá abajo en un momento.';
       form.reset();
       planInput.value = String(data.lote.planMb || 20);
@@ -202,6 +205,32 @@ document.addEventListener('DOMContentLoaded', function () {
       loadLotes();
     }
   });
+
+  async function postWithRetry(payload, attempts, timeoutMs) {
+    let lastErr = null;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const res = await fetch('/api/sim-consumos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(timeoutMs || 45000),
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          // Un 4xx distinto de 409 no mejora reintentando.
+          if (res.status >= 400 && res.status < 500 && res.status !== 409 && res.status !== 408) throw Object.assign(new Error(data.error || `error ${res.status}`), { final: true });
+          throw new Error(data.error || `error ${res.status}`);
+        }
+        return data;
+      } catch (err) {
+        lastErr = err;
+        if (err && err.final) throw err;
+        if (attempt < attempts) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+    throw lastErr || new Error('sin respuesta');
+  }
 
   // --- Lotes ---
   async function loadLotes() {
