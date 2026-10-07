@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const items = !currentTab
       ? pagos
       : currentTab === 'por-aplicar'
-      ? pagos.filter((p) => p.applyStatus === 'pendiente' && (p.status === 'verde' || p.status === 'aprobado'))
+      ? pagos.filter((p) => p.applyStatus === 'pendiente' && (p.status === 'verde' || p.status === 'aprobado' || p.status === 'rechazado'))
       : currentTab === 'aplicados'
       ? pagos.filter((p) => p.applyStatus === 'aplicado' || p.applyStatus === 'manual')
       : pagos.filter((p) => p.status === currentTab);

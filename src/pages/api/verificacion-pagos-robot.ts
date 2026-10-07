@@ -10,7 +10,7 @@ import { markCronOk } from '../../lib/incidents';
 import { blobTimeout } from '../../lib/blob-path';
 import { cronSecretMatches, getUsers, findUserByUsername, KELLY_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
 import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, isApplyPending, applyActionFor, formaPagoDesdeBanco, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
-import { readPagos, readPago, savePago, analyzePago, REDIS_KEY, readRobotState } from './verificacion-pagos';
+import { readPagos, readPago, savePago, analyzePago, REDIS_KEY, readRobotState, retryFailedAnalyses } from './verificacion-pagos';
 
 // Un pago de Optimus entra al panel una sola vez, por su número.
 const OPTIMUS_KEY_PREFIX = 'internal:pagos-clientes-optimus:';
@@ -110,6 +110,10 @@ export const GET: APIRoute = async ({ request, url }) => {
   const cutoff = new Date(now - 60 * 86400000).toISOString();
   const all = await readPagos(redis);
   const known = all.filter((p) => p.optimus?.numero && p.createdAt >= cutoff).map((p) => p.optimus!.numero);
+  // Las lecturas que fallaron por falta de respuesta de GPSITO se reintentan aquí, de a pocas,
+  // después de responder al robot.
+  const inline = runAfterResponse(retryFailedAnalyses(redis).catch((err) => console.error('robot-pagos: relectura automática', err instanceof Error ? err.message : String(err))));
+  if (inline) await inline;
   return json(200, { paused: false, items: pending.map(forRobot), known });
 };
 

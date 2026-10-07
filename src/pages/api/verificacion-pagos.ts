@@ -41,6 +41,8 @@ import {
   readReceipt,
   isApplyPending,
   APPLY_MAX_ATTEMPTS,
+  ANALYSIS_NO_RESPONSE,
+  ANALYSIS_AUTO_RETRIES,
   type PagoCliente,
   type PriorMatch,
 } from '../../lib/pagos-verificacion';
@@ -111,11 +113,40 @@ function toClient(p: PagoCliente) {
   const t = withTimeouts(p);
   return {
     ...t,
-    // Un rechazado de Optimus también se muestra como pendiente allá: lo deniega una persona a mano.
+    // Un rechazado de Optimus también queda pendiente allá: el robot lo deniega en la siguiente ronda.
     applyStatus: t.applyStatus || (isApplyPending(t) || (t.status === 'rechazado' && t.source === 'optimus') ? 'pendiente' : t.status === 'verde' || t.status === 'aprobado' ? 'fallo' : undefined),
     fileUrl: p.filePath ? '/api/blob-file?path=' + encodeURIComponent(p.filePath) : null,
     applyScreenshotUrl: t.applyScreenshotPath ? '/api/blob-file?path=' + encodeURIComponent(t.applyScreenshotPath) : null,
   };
+}
+
+// Relectura automática de los comprobantes que quedaron en "GPSITO no respondió": uno detrás de
+// otro, nunca en ráfaga. La llama el robot en cada ronda (cada 20 min).
+export async function retryFailedAnalyses(redis: any, max = 3): Promise<number> {
+  const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
+  if (!token) return 0;
+  const candidates = (await readPagos(redis))
+    .filter((p) => p.status === 'rojo' && p.filePath && p.fileType !== 'none')
+    .filter((p) => p.analysisError === ANALYSIS_NO_RESPONSE || p.analysisError === 'interrumpido' || (p.analysisError || '').startsWith('Falló la lectura'))
+    .filter((p) => (p.analysisRetries || 0) < ANALYSIS_AUTO_RETRIES)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(0, max);
+  let done = 0;
+  for (const pago of candidates) {
+    const stored = await fetchStoredFile(token, pago.filePath).catch(() => null);
+    if (!stored) continue;
+    pago.status = 'analizando';
+    pago.analysisStartedAt = new Date().toISOString();
+    pago.analysisError = null;
+    pago.analysisRetries = (pago.analysisRetries || 0) + 1;
+    pago.reasons = [];
+    pago.notes = [];
+    pago.duplicateOf = null;
+    await savePago(redis, pago);
+    await analyzePago(redis, pago, stored.bytes, stored.mediaType);
+    done++;
+  }
+  return done;
 }
 
 export async function readRobotState(redis: any): Promise<{ paused: boolean; lastSeenAt: string | null; lastResult: string }> {
@@ -151,13 +182,19 @@ async function notifyRed(redis: any, pago: PagoCliente): Promise<void> {
 // Lee el comprobante con GPSITO y aplica las reglas. Corre después de responder.
 export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuffer, mediaType: string): Promise<void> {
   try {
-    const result = await readReceipt(redis, pago.id, bytes, mediaType, pago.clientName);
+    let result = await readReceipt(redis, pago.id, bytes, mediaType, pago.clientName);
+    // Sin respuesta (límite por minuto o sobrecarga): se espera con un desfase aleatorio para no
+    // volver a chocar con las demás lecturas de la misma ráfaga, y se intenta dos veces más.
+    for (let i = 0; !result && i < 2; i++) {
+      await new Promise((r) => setTimeout(r, 15_000 + i * 20_000 + Math.random() * 15_000));
+      result = await readReceipt(redis, pago.id, bytes, mediaType, pago.clientName);
+    }
     const fresh = (await readPago(redis, pago.id)) || pago;
     if (!result) {
       fresh.status = 'rojo';
       fresh.analysisStartedAt = null;
-      fresh.analysisError = 'GPSITO no respondió';
-      fresh.reasons = ['GPSITO no pudo leer el comprobante en este momento; pide "Volver a leer".'];
+      fresh.analysisError = ANALYSIS_NO_RESPONSE;
+      fresh.reasons = ['GPSITO no pudo leer el comprobante en este momento; se reintentará solo en la próxima ronda del robot.'];
       await savePago(redis, fresh);
       await reportIncident(redis, 'pagos_lectura_fallida', `comprobante ${pago.id.slice(0, 8)} de ${pago.branch}`);
       return;
@@ -233,7 +270,7 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
   }
 }
 
-async function fetchStoredFile(token: string, path: string): Promise<{ bytes: ArrayBuffer; mediaType: string } | null> {
+export async function fetchStoredFile(token: string, path: string): Promise<{ bytes: ArrayBuffer; mediaType: string } | null> {
   const result = await get(path, { access: 'private', token, abortSignal: blobTimeout(30_000) });
   if (!result || result.statusCode !== 200 || !result.stream) return null;
   const bytes = await new Response(result.stream).arrayBuffer();
@@ -457,6 +494,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     pago.resolvedAt = now;
     pago.resolvedByName = byName;
     pago.resolutionNote = note;
+    // La decisión de una persona abre de nuevo el turno del robot (aprobar o denegar en Optimus),
+    // aunque intentos anteriores con la decisión contraria hayan fallado.
+    if (pago.applyStatus !== 'aplicado' && pago.applyStatus !== 'manual') {
+      pago.applyStatus = 'pendiente';
+      pago.applyAttempts = 0;
+      pago.applyClaimedAt = null;
+      pago.applyDetail = '';
+    }
     await savePago(redis, pago);
     await logAudit(redis, session, action === 'aprobar' ? 'pago_aprobado_manual' : 'pago_rechazado', pago.clientName, note);
     if (pago.createdById !== session.userId) {

@@ -449,6 +449,9 @@ async function ingestar(page, known) {
       );
       if (!data.existing) nuevos++;
       console.log('Traído', fila.numero, fila.sucursal, data.existing ? '(ya estaba)' : '(nuevo)', b64 ? '' : '· SIN COMPROBANTE');
+      // Cada ingesta nueva dispara una lectura de GPSITO; se espacian para no chocar con el
+      // límite por minuto de Anthropic cuando llegan muchas de golpe.
+      if (!data.existing && b64) await page.waitForTimeout(4000);
     } catch (err) {
       console.error('No se pudo traer', fila.numero, err instanceof Error ? err.message : err);
     }
@@ -528,6 +531,28 @@ async function aprobarEnOptimus(page, item) {
   return detalle;
 }
 
+// Deniega en Optimus un pago que una persona rechazó en el panel. No se digita nada: se abre el
+// mismo cuadro de confirmación y se pulsa Denegar, como lo hace Kelly.
+async function denegarEnOptimus(page, item) {
+  const o = item.optimus || {};
+  if (!o.paymentId) throw new Error('el pago no trae el identificador de Optimus; denegar a mano');
+  const fila = { paymentId: o.paymentId, clientId: o.clientId, numero: o.numero, sucursal: item.branch, cliente: item.clientName, fecha: o.fecha, cargadoPorCliente: !!o.cargadoPorCliente };
+  await leerConfirmacion(page, fila);
+  page.once('dialog', (d) => d.accept().catch(() => {}));
+  await page.click('#BTNDENIED');
+  await page.waitForTimeout(2500);
+  const confirmar = page.locator('button, input[type="button"]').filter({ hasText: /^(S[ií]|Aceptar|Confirmar|OK)$/ }).first();
+  if (await confirmar.count()) { await confirmar.click().catch(() => {}); await page.waitForTimeout(2000); }
+  const mensajes = await page.locator('.gx-warning-message, .ui-pnotify-text, .alert, [id*="ERROR"], .gx-message').allInnerTexts().catch(() => []);
+  const error = mensajes.map((m) => m.trim()).filter((m) => /error|no se|inválid|invalid|requerid|obligator/i.test(m));
+  if (error.length) throw new Error('Optimus respondió: ' + error.join(' ').slice(0, 200));
+  await irAPagos(page);
+  await filtrarPendientes(page);
+  const sigue = (await leerTodasLasFilas(page)).some((f) => f.paymentId === o.paymentId);
+  if (sigue) throw new Error('se pulsó Denegar pero el pago sigue pendiente en Optimus' + (mensajes.length ? ' · ' + mensajes.join(' ').slice(0, 150) : ''));
+  return `denegado en Optimus · motivo en el panel: ${String(item.resolutionNote || '').slice(0, 120) || 'sin motivo'}`;
+}
+
 async function aplicar(page, items, pendientes) {
   const pendientesIds = new Set((pendientes || []).map((f) => f.paymentId));
   for (const item of items) {
@@ -539,14 +564,14 @@ async function aplicar(page, items, pendientes) {
         console.log('Ya resuelto en Optimus a mano', item.clientName);
         continue;
       }
-      const detail = await aprobarEnOptimus(page, item);
+      const detail = item.action === 'denegar' ? await denegarEnOptimus(page, item) : await aprobarEnOptimus(page, item);
       const shot = await page.screenshot({ type: 'jpeg', quality: 70 }).catch(() => null);
-      await reportar(item.id, 'aplicado', detail || 'aprobado en Optimus', shot);
-      console.log('Aprobado', item.clientName);
+      await reportar(item.id, 'aplicado', detail || (item.action === 'denegar' ? 'denegado en Optimus' : 'aprobado en Optimus'), shot);
+      console.log(item.action === 'denegar' ? 'Denegado' : 'Aprobado', item.clientName);
     } catch (err) {
       const shot = await page.screenshot({ type: 'jpeg', quality: 70 }).catch(() => null);
       await reportar(item.id, 'fallo', err instanceof Error ? err.message : String(err), shot);
-      console.error('No se aprobó', item.clientName, '→', err instanceof Error ? err.message : err);
+      console.error(item.action === 'denegar' ? 'No se denegó' : 'No se aprobó', item.clientName, '→', err instanceof Error ? err.message : err);
     }
   }
 }
@@ -572,10 +597,11 @@ async function main() {
     if (aplica) {
       // En aplicar-manuales solo pasan los que una persona aprobó en el panel (status 'aprobado');
       // los verdes automáticos esperan a que se habilite el modo aplicar completo.
-      const porAprobar = data.items.filter((i) => i.action === 'aprobar' && (MODO === 'aplicar' || i.status === 'aprobado')).slice(0, MAX_POR_CICLO);
-      console.log(`Por aprobar en Optimus: ${porAprobar.length}` + (porAprobar.length ? ' · ' + porAprobar.map((i) => `${i.optimus?.numero || '?'} ${i.clientName}`).join(' | ') : ''));
-      if (porAprobar.length) await aplicar(page, porAprobar, pendientes);
-      else console.log('Nada por aprobar en Optimus en este modo.');
+      // Lo rechazado a mano en el panel se deniega en Optimus en ambos modos: ya lo decidió una persona.
+      const porAplicar = data.items.filter((i) => i.action === 'denegar' || (i.action === 'aprobar' && (MODO === 'aplicar' || i.status === 'aprobado'))).slice(0, MAX_POR_CICLO);
+      console.log(`Por aplicar en Optimus: ${porAplicar.length}` + (porAplicar.length ? ' · ' + porAplicar.map((i) => `${i.action === 'denegar' ? 'DENEGAR' : 'aprobar'} ${i.optimus?.numero || '?'} ${i.clientName}`).join(' | ') : ''));
+      if (porAplicar.length) await aplicar(page, porAplicar, pendientes);
+      else console.log('Nada por aplicar en Optimus en este modo.');
     }
   } catch (err) {
     await page.screenshot({ path: 'salida/error.png', fullPage: true }).catch(() => {});

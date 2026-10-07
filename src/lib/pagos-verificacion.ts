@@ -66,6 +66,8 @@ export interface PagoCliente {
   extracted: PagoExtracted | null;
   analysisStartedAt: string | null;
   analysisError: string | null;
+  // Relecturas automáticas ya hechas tras un "GPSITO no respondió" (tope ANALYSIS_AUTO_RETRIES).
+  analysisRetries?: number;
   createdAt: string;
   createdById: string;
   createdByName: string;
@@ -108,11 +110,18 @@ export interface OptimusInfo {
 // Qué debe hacer el robot en Optimus con este comprobante: aprobar (verde o aprobado a mano),
 // denegar (rechazado a mano) o nada. Denegar queda a mano por decisión de Gabriel (2026-10-07):
 // el robot solo deniega si se le pide explícitamente con allowDeny.
-export function applyActionFor(p: PagoCliente, allowDeny = false): 'aprobar' | 'denegar' | null {
+// Lo rechazado en el panel por una persona se deniega en Optimus en la siguiente corrida (pedido
+// por Gabriel el 2026-10-07); solo aplica a pagos que vinieron de Optimus, los demás no existen allá.
+export function applyActionFor(p: PagoCliente): 'aprobar' | 'denegar' | null {
   if (p.status === 'verde' || p.status === 'aprobado') return 'aprobar';
-  if (allowDeny && p.status === 'rechazado' && p.source === 'optimus') return 'denegar';
+  if (p.status === 'rechazado' && p.source === 'optimus' && p.optimus?.paymentId) return 'denegar';
   return null;
 }
+
+// Una ráfaga de ingestas (el robot trae 14 pagos en 15 s) puede chocar con el límite por minuto de
+// Anthropic; la lectura se reintenta sola, espaciada, antes de molestar a una persona.
+export const ANALYSIS_AUTO_RETRIES = 2;
+export const ANALYSIS_NO_RESPONSE = 'GPSITO no respondió';
 
 export type ApplyStatus = 'pendiente' | 'aplicado' | 'fallo' | 'manual';
 export const APPLY_MAX_ATTEMPTS = 3;
