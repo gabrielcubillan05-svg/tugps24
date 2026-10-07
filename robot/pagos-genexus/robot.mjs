@@ -121,9 +121,13 @@ async function leerFilas(page) {
   for (let i = 0; i < total; i++) {
     const tr = filas.nth(i);
     const n = (await tr.getAttribute('data-gxrow')) || String(i + 1).padStart(4, '0');
-    const estado = (await tr.locator(`#span_vPAYMENTTYPEWITHTAGS_${n} i`).first().getAttribute('data-original-title').catch(() => '')) || (await tr.locator(`#span_vPAYMENTTYPEWITHTAGS_${n} i`).first().getAttribute('title').catch(() => '')) || '';
+    // Cada pago lleva uno o dos puntos: el estado (Pendiente/Aprobado/Denegado) y, si lo subió el
+    // propio cliente, un segundo punto azul "Cargado por el cliente".
+    const etiquetas = await tr.locator(`#span_vPAYMENTTYPEWITHTAGS_${n} i`).evaluateAll((els) => els.map((e) => e.getAttribute('data-original-title') || e.getAttribute('title') || '').filter(Boolean)).catch(() => []);
+    const estado = etiquetas.find((t) => /pendiente|aprobado|denegado|reconexi/i.test(t)) || etiquetas[0] || '';
     const celdas = await tr.locator('td').allInnerTexts().catch(() => []);
     out.push({
+      cargadoPorCliente: etiquetas.some((t) => /cargado por el cliente/i.test(t)),
       paymentId: await textoDe(tr, 'PAYMENTID', n),
       numero: await textoDe(tr, 'PAYMENTNUMBER', n),
       fecha: await textoDe(tr, 'PAYMENTDATE', n),
@@ -137,6 +141,57 @@ async function leerFilas(page) {
     });
   }
   return out;
+}
+
+// Recorre las páginas de la grilla (10 filas por página) con el botón "Sig" del paginador.
+async function leerTodasLasFilas(page, maxPaginas = 6) {
+  const todas = [];
+  for (let p = 0; p < maxPaginas; p++) {
+    const filas = await leerFilas(page);
+    todas.push(...filas);
+    const sig = page.locator('a, button, span').filter({ hasText: /^Sig$/ }).first();
+    const texto = await page.locator('text=/Página \\d+ de \\d+/').first().innerText().catch(() => '');
+    const m = texto.match(/Página (\d+) de (\d+)/);
+    if (m && Number(m[1]) >= Number(m[2])) break;
+    if (!(await sig.count()) || filas.length < 10) break;
+    const antes = filas[0]?.paymentId;
+    await sig.click().catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    const despues = (await leerFilas(page))[0]?.paymentId;
+    if (!despues || despues === antes) break;
+  }
+  const vistos = new Set();
+  return todas.filter((f) => f.paymentId && !vistos.has(f.paymentId) && vistos.add(f.paymentId));
+}
+
+// Estado de la pantalla que GeneXus manda en un campo oculto: trae las listas de los combos
+// (contratos del cliente y formas de pago) aunque los combos estén ocultos para este usuario.
+async function estadoGx(page) {
+  const raw = await page.locator('#GXState').inputValue().catch(() => '');
+  try {
+    return JSON.parse(raw || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function contratosDe(estado) {
+  const data = Array.isArray(estado.vNEWCONTRACTID_DATA) ? estado.vNEWCONTRACTID_DATA : [];
+  return data.map((d) => {
+    let partes = [];
+    try {
+      partes = JSON.parse(d.T);
+    } catch {
+      partes = [String(d.T || '')];
+    }
+    return { id: String(d.ID || ''), numero: String(partes[0] || '').trim(), estado: String(partes[1] || '').trim() };
+  });
+}
+
+function formasPagoDe(estado) {
+  const data = Array.isArray(estado.vPAYMENTWAYCODE_DATA) ? estado.vPAYMENTWAYCODE_DATA : [];
+  return data.map((d) => ({ id: String(d.ID || ''), texto: String(d.T || '').trim() }));
 }
 
 function fechaParaUrl(ddmmaa) {
@@ -174,7 +229,9 @@ async function leerConfirmacion(page, fila) {
     montoActual: await valor(page, 'vPAYMENTMOUNT'),
   };
   const imagenSrc = await page.locator('#PAYMENT_PAYMENTIMAGE').getAttribute('src').catch(() => null);
-  return { info, imagenSrc };
+  const estado = await estadoGx(page);
+  const visibles = Object.fromEntries(Object.entries(estado).filter(([k]) => /_Visible$|_CELL_Class$/.test(k)));
+  return { info, imagenSrc, contratos: contratosDe(estado), formasPago: formasPagoDe(estado), visibles };
 }
 
 // Descarga la imagen dentro del navegador (misma sesión) y la reduce a 1600 px en JPEG.
@@ -237,21 +294,24 @@ async function explorarPagos() {
     await iniciarSesion(page);
     await irAPagos(page);
     await filtrarPendientes(page);
-    const filas = await leerFilas(page);
-    console.log('FILAS ' + JSON.stringify(filas.map((f) => ({ ...f, cliente: f.cliente.slice(0, 3) + '…', cedula: '…' }))));
-    const paginador = await page.locator('.WWPaginationBar, [id*="GRIDPAGING"], [class*="PaginationBar"], [id*="PAGING"]').first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 3000)).catch(() => '');
+    const paginador = await page.locator('text=/Página \\d+ de \\d+/').first().evaluate((el) => el.closest('div, td, tr')?.outerHTML.replace(/\s+/g, ' ').slice(0, 3000) || '').catch(() => '');
     console.log('PAGINADOR ' + paginador);
-    // Preferir un pago con monto 0 (lo cargó el cliente): ahí es donde Optimus pide contrato,
-    // monto y forma de pago. Los que crea una secretaria ya traen esos datos.
-    const pendiente = filas.find((f) => /pendiente/i.test(f.estado) && /^0([,.]00)?$/.test(f.monto)) || filas.find((f) => /pendiente/i.test(f.estado));
+    const filas = await leerTodasLasFilas(page);
+    console.log('FILAS ' + JSON.stringify(filas.map((f) => ({ numero: f.numero, estado: f.estado, cliente: f.cargadoPorCliente, monto: f.monto, sucursal: f.sucursal, creadoPor: f.creadoPor }))));
+    // Preferir un pago cargado por el propio cliente (punto azul): ahí es donde Optimus pide
+    // contrato, monto y forma de pago. Los que crea una secretaria ya traen esos datos.
+    const pendiente = filas.find((f) => /pendiente/i.test(f.estado) && f.cargadoPorCliente) || filas.find((f) => /pendiente/i.test(f.estado) && /^0([,.]00)?$/.test(f.monto)) || filas.find((f) => /pendiente/i.test(f.estado));
     if (!pendiente) {
       console.log('No hay pagos pendientes visibles.');
       return;
     }
-    const { info, imagenSrc } = await leerConfirmacion(page, pendiente);
+    const { info, imagenSrc, contratos, formasPago, visibles } = await leerConfirmacion(page, pendiente);
     console.log('CONFIRMACION_URL ok · info ' + JSON.stringify(info) + ' · imagen ' + (imagenSrc ? 'sí' : 'no'));
+    console.log('PAGO_EXPLORADO ' + JSON.stringify({ numero: pendiente.numero, monto: pendiente.monto, creadoPor: pendiente.creadoPor, cargadoPorCliente: pendiente.cargadoPorCliente }));
+    console.log('CONTRATOS ' + JSON.stringify(contratos));
+    console.log('FORMAS_PAGO ' + JSON.stringify(formasPago));
+    console.log('VISIBILIDAD ' + JSON.stringify(visibles));
     await page.screenshot({ path: 'salida/03-confirmacion.png', fullPage: true });
-    console.log('PAGO_EXPLORADO ' + JSON.stringify({ numero: pendiente.numero, monto: pendiente.monto, creadoPor: pendiente.creadoPor }));
     // Los contenedores de los combos pueden llenarse por JS después de cargar: se les da tiempo.
     await page.waitForTimeout(4000);
     await volcarCombo(page, 'NEWCONTRACTID');
@@ -296,13 +356,13 @@ async function explorarPagos() {
 async function ingestar(page, known) {
   await irAPagos(page);
   await filtrarPendientes(page);
-  const filas = (await leerFilas(page)).filter((f) => /pendiente/i.test(f.estado) && f.paymentId && f.numero);
+  const filas = (await leerTodasLasFilas(page)).filter((f) => /pendiente/i.test(f.estado) && f.paymentId && f.numero);
   const conocidos = new Set((known || []).map((k) => String(Number(k) || k)));
   let nuevos = 0;
   for (const fila of filas) {
     if (conocidos.has(String(Number(fila.numero)))) continue;
     try {
-      const { info, imagenSrc } = await leerConfirmacion(page, fila);
+      const { info, imagenSrc, contratos, formasPago } = await leerConfirmacion(page, fila);
       const b64 = await imagenBase64(page, imagenSrc);
       if (!b64) {
         console.log('Sin imagen en Optimus:', fila.numero, '→ no se trae (lo revisa una persona allá)');
@@ -318,8 +378,10 @@ async function ingestar(page, known) {
           cedula: fila.cedula,
           paymentId: fila.paymentId,
           clientId: fila.clientId,
-          contratos: [],
-          formasPago: ['Consignacion', 'Daviplata', 'Nequi', 'PayU', 'Transferencia'],
+          cargadoPorCliente: fila.cargadoPorCliente,
+          contratos: contratos.map((c) => `${c.numero} ${c.estado}`.trim()),
+          contratosIds: contratos.map((c) => c.id),
+          formasPago: formasPago.map((f) => f.texto),
           montoOptimus: fila.monto,
           estadoCuenta: info.estadoCuenta,
           pagoMinimo: info.pagoMinimo,
