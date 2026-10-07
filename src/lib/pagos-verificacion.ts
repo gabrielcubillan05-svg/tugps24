@@ -55,7 +55,8 @@ export interface PagoCliente {
   plate: string;
   branch: string;
   filePath: string;
-  fileType: 'image' | 'pdf';
+  // 'none': el pago llegó de Optimus sin comprobante adjunto (queda en rojo para rechazar).
+  fileType: 'image' | 'pdf' | 'none';
   sha256: string;
   phash: string | null;
   status: 'analizando' | 'verde' | 'rojo' | 'aprobado' | 'rechazado';
