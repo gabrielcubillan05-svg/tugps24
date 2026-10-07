@@ -6,6 +6,12 @@ name: Robot de pagos
 
 on:
   workflow_dispatch:
+    inputs:
+      modo:
+        description: 'latido (solo avisa al panel) · verificar-acceso (entra a GeneXus y guarda capturas del menú) · aplicar'
+        type: choice
+        default: latido
+        options: [latido, verificar-acceso, aplicar]
   # schedule:
   #   - cron: '*/15 11-23 * * 1-6'   # cada 15 min, 6 a. m. a 6 p. m. Colombia, lunes a sábado
 
@@ -33,4 +39,13 @@ jobs:
           GENEXUS_URL: ${{ secrets.GENEXUS_URL }}
           GENEXUS_USER: ${{ secrets.GENEXUS_USER }}
           GENEXUS_PASS: ${{ secrets.GENEXUS_PASS }}
+          MODO: ${{ inputs.modo || 'aplicar' }}
         run: node robot.mjs
+      - name: Guardar capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-robot
+          path: robot/pagos-genexus/salida/
+          if-no-files-found: ignore
+          retention-days: 7

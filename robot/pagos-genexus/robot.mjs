@@ -7,6 +7,7 @@
 //   GENEXUS_URL        URL de inicio de sesión del sistema de pagos
 //   GENEXUS_USER / GENEXUS_PASS  usuario exclusivo del robot
 //   MAX_POR_CICLO      opcional, cuántos comprobantes aplicar por corrida (por defecto 5)
+//   MODO               'verificar-acceso' solo entra y guarda capturas del menú en salida/
 //
 // Los pasos dentro de GeneXus (buscar al cliente, registrar el pago, confirmar) se completan en
 // aplicarEnGenexus() con los selectores reales de esa pantalla. Hasta entonces el robot solo hace
@@ -37,23 +38,67 @@ async function reportar(id, result, detail, screenshotBuffer) {
   if (!res.ok) console.error('No se pudo reportar', id, res.status, await res.text().catch(() => ''));
 }
 
-// Devuelve { ok: true, detail } cuando el pago quedó aplicado, o lanza un Error con el motivo.
+// Pantalla de acceso de GeneXus (GAM): la raíz redirige a home.aspx y esta a gamexamplelogin.aspx,
+// con los campos vUSERNAME, vUSERPASSWORD y el botón BTNENTER. Verificado el 2026-10-07.
+const LOGIN_PATH = 'gamexamplelogin.aspx';
+
+async function iniciarSesion(page) {
+  const base = (process.env.GENEXUS_URL || 'https://core.optimus.tugps24.com/').replace(/\/$/, '');
+  await page.goto(`${base}/${LOGIN_PATH}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.waitForSelector('#vUSERNAME', { timeout: 30_000 });
+  await page.fill('#vUSERNAME', process.env.GENEXUS_USER || '');
+  await page.fill('#vUSERPASSWORD', process.env.GENEXUS_PASS || '');
+  await page.click('#BTNENTER');
+  // GAM recarga la misma página con el aviso cuando la clave es incorrecta; si entra, navega al menú.
+  try {
+    await page.waitForURL((u) => !u.toString().toLowerCase().includes(LOGIN_PATH), { timeout: 20_000 });
+  } catch {
+    const aviso = await page.locator('.gx-warning-message, #gxErrorViewer, .ErrorViewer, [id*="ERROR"], .gx-message').allInnerTexts().catch(() => []);
+    throw new Error('No se pudo iniciar sesión en el sistema de pagos' + (aviso.length ? ': ' + aviso.join(' ').trim().slice(0, 160) : ''));
+  }
+  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+}
+
+// Devuelve { detail } cuando el pago quedó aplicado, o lanza un Error con el motivo.
 // Cada paso debe fallar claro (cliente no encontrado, dos clientes con el mismo nombre, campo
 // que no existe) para que el panel lo muestre y una persona lo resuelva.
 async function aplicarEnGenexus(page, pago) {
   const x = pago.extracted || {};
-  // 1) Entrar
-  await page.goto(process.env.GENEXUS_URL, { waitUntil: 'domcontentloaded' });
-  // await page.fill('#vUSERNAME', process.env.GENEXUS_USER);
-  // await page.fill('#vPASSWORD', process.env.GENEXUS_PASS);
-  // await page.click('#BTNENTER');
+  await iniciarSesion(page);
   // 2) Buscar al cliente por nombre completo (o cédula/placa, según la pantalla)
   // 3) Registrar el pago: valor x.valor, fecha x.fecha, referencia x.referencia, banco x.banco
   // 4) Confirmar y verificar que aparezca el mensaje de éxito
-  throw new Error('aplicarEnGenexus todavía no tiene los pasos de la pantalla');
+  void x;
+  throw new Error('aplicarEnGenexus todavía no tiene los pasos de la pantalla de pagos');
+}
+
+// Solo entra y guarda capturas del menú (salida/), para confirmar el usuario del robot y ver
+// la pantalla que sigue sin aplicar nada.
+async function verificarAcceso() {
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync('salida', { recursive: true });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+    try {
+      await iniciarSesion(page);
+      await page.screenshot({ path: 'salida/01-menu.png', fullPage: true });
+      const links = await page.locator('a, button, [data-gx-button]').evaluateAll((els) => els.map((e) => (e.innerText || e.value || '').trim()).filter(Boolean).slice(0, 200));
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync('salida/menu-textos.txt', links.join('\n'));
+      console.log('Acceso correcto. Capturas en salida/.');
+    } catch (err) {
+      await page.screenshot({ path: 'salida/error.png', fullPage: true }).catch(() => {});
+      console.error('Acceso fallido:', err instanceof Error ? err.message : err);
+      process.exitCode = 1;
+    }
+  } finally {
+    await browser.close();
+  }
 }
 
 async function main() {
+  if (process.env.MODO === 'verificar-acceso') return verificarAcceso();
   const pendRes = await api(GENEXUS_LISTO ? `?limit=${MAX_POR_CICLO}` : '?limit=1');
   if (!pendRes.ok) {
     console.error('El panel respondió', pendRes.status, await pendRes.text().catch(() => ''));
