@@ -238,7 +238,7 @@ ${installPromoLines}
 async function callAnthropic(apiKey: string, messages: unknown[], systemPrompt: SystemPrompt): Promise<any | null> {
   return callAnthropicMessages(
     apiKey,
-    { model: MODEL, max_tokens: 2048, system: cachedSystemBlocks(systemPrompt), messages: withCachedTail(messages), tools: TOOLS },
+    { model: MODEL, max_tokens: 8000, system: cachedSystemBlocks(systemPrompt), messages: withCachedTail(messages), tools: TOOLS },
     'sales-agent'
   );
 }

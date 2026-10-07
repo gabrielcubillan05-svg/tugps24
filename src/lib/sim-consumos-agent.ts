@@ -55,7 +55,9 @@ async function run(redis: any, lote: SimLoteContext, messages: unknown[], logPre
   if (!apiKey) return null;
   const data = await callAnthropicMessages(
     apiKey,
-    { model: MODEL, max_tokens: 1800, system: cachedSystemBlocks(systemPrompt(lote)), messages: withCachedTail(messages) },
+    // El razonamiento interno del modelo descuenta de max_tokens: con 1800 se agotaba antes de escribir
+    // el informe (stop_reason max_tokens, contenido vacío, 2026-10-07).
+    { model: MODEL, max_tokens: 16000, system: cachedSystemBlocks(systemPrompt(lote)), messages: withCachedTail(messages) },
     logPrefix,
     // El informe completo tarda más de los 45 s por defecto y se cortaba como "no respondió".
     { timeoutMs: 170_000 }

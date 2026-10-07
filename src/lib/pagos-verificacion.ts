@@ -408,7 +408,9 @@ export async function readReceipt(redis: any, pagoId: string, bytes: ArrayBuffer
     apiKey,
     {
       model: MODEL,
-      max_tokens: 600,
+      // Extracción de JSON: sin razonamiento interno (más rápido y no consume el tope) y con holgura.
+      max_tokens: 4000,
+      thinking: { type: 'disabled' },
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }, { type: 'text', text: hoy }],
       messages: [
         {
