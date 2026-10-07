@@ -402,17 +402,17 @@ export async function readReceipt(redis: any, pagoId: string, bytes: ArrayBuffer
       messages: [
         {
           role: 'user',
-          content: [fileBlock, { type: 'text', text: `Comprobante que la secretaría asocia al cliente: <cliente>${clientName}</cliente>. Extrae los datos en el JSON indicado.` }],
+          content: [fileBlock, { type: 'text', text: `Comprobante que la secretaría asocia al cliente: <cliente>${clientName}</cliente>. Extrae los datos en el JSON indicado. Responde únicamente con el objeto JSON, sin texto antes ni después.` }],
         },
-        // La respuesta se arranca con "{": así el modelo no antepone explicaciones y el JSON llega limpio.
-        { role: 'assistant', content: '{' },
       ],
     },
     'verificacion-pagos'
   );
   if (!response) return null;
   await recordAgentUsage(redis, 'gabot', usageFromResponse(response), { id: `pago:${pagoId}`, channel: 'panel' });
-  const rawText = '{' + (Array.isArray(response.content) ? response.content : [])
+  // Sin "prefill" del asistente: el modelo lo rechaza con 400 ("does not support assistant message
+  // prefill") y tumbó todas las lecturas del 2026-10-07. El JSON se pesca dentro del texto.
+  const rawText = (Array.isArray(response.content) ? response.content : [])
     .filter((b: any) => b?.type === 'text' && typeof b.text === 'string')
     .map((b: any) => b.text)
     .join('\n');
