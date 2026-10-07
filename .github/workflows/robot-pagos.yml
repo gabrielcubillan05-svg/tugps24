@@ -16,10 +16,10 @@ on:
         description: 'Cuántos pagos aprobar en esta corrida (modo aplicar)'
         type: string
         default: '5'
-  # Horario propuesto (pendiente de confirmar): cada 20 min, 6 a. m. a 9 p. m. Colombia, todos los días.
-  # schedule:
-  #   - cron: '*/20 11-23 * * *'
-  #   - cron: '*/20 0-2 * * *'
+  # Cada 20 min, 6 a. m. a 9:40 p. m. Colombia (UTC-5), todos los días. Aprobado por Gabriel el 2026-10-07.
+  schedule:
+    - cron: '*/20 11-23 * * *'
+    - cron: '*/20 0-2 * * *'
 
 concurrency:
   group: robot-pagos
@@ -51,7 +51,10 @@ jobs:
           GENEXUS_URL: ${{ secrets.GENEXUS_URL }}
           GENEXUS_USER: ${{ secrets.GENEXUS_USER }}
           GENEXUS_PASS: ${{ secrets.GENEXUS_PASS }}
-          MODO: ${{ inputs.modo || 'aplicar' }}
+          # Las corridas programadas arrancan en modo ingestar (sombra): el robot trae y GPSITO
+          # clasifica, Kelly aprueba en Optimus como siempre. Cuando se confirme que el semáforo
+          # coincide con lo que ella aprueba, se cambia aquí a 'aplicar'.
+          MODO: ${{ inputs.modo || 'ingestar' }}
           MAX_POR_CICLO: ${{ inputs.maximo || '5' }}
         run: node robot.mjs
       - name: Guardar capturas
