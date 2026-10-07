@@ -203,8 +203,14 @@ export function destinoMatches(cuentaDestino: string, destinos: string[]): boole
       // Solo el final de la cuenta suele verse: basta coincidir la cola.
       if (numbers.some((n) => confNum.endsWith(n) || n.endsWith(confNum) || n === confNum)) return true;
     }
-    // Nombre del negocio: todas las palabras de 4+ letras del destino configurado (quitando el
-    // banco y la palabra "codigo") deben aparecer en lo leído.
+  }
+  // Si el comprobante muestra un número de cuenta, llave o código y no es de la lista, es ajeno,
+  // aunque el titular diga "Digital Global": el 2026-10-07 pasó en verde una cuenta de Banco de
+  // Bogotá que no estaba configurada solo porque el nombre coincidía.
+  if (numbers.length) return false;
+  // Sin número legible (cuenta tapada con asteriscos), vale el nombre del negocio: todas las
+  // palabras de 4+ letras del destino configurado (quitando banco y "codigo") deben aparecer.
+  for (const d of destinos) {
     const words = plainText(d).split(' ').filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !['bancolombia', 'banco', 'bogota', 'ahorros', 'corriente', 'codigo', 'negocio', 'llave', 'nequi', 'daviplata', 'cuenta'].includes(w));
     if (words.length && words.every((w) => text.includes(w))) return true;
   }
@@ -265,7 +271,8 @@ export function parseExtracted(text: string): PagoExtracted | null {
       hora: str(raw.hora, 10),
       valor: num(raw.valor),
       pagador: str(raw.pagador, 80),
-      cuentaDestino: str(raw.cuentaDestino, 40),
+      // 80 y no 40: "Digital Global Corriente No. 000000000088121819" se recortaba antes del número.
+      cuentaDestino: str(raw.cuentaDestino, 80),
       tipoDestino: str(raw.tipoDestino, 30),
       editado: raw.editado === true,
       motivosEdicion: str(raw.motivosEdicion, 200),
