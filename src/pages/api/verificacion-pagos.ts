@@ -86,15 +86,17 @@ export async function savePago(redis: any, pago: PagoCliente): Promise<void> {
   await redis.hset(REDIS_KEY, { [pago.id]: JSON.stringify(pago) });
 }
 
+// Los destinos fijos de la empresa siempre valen; lo guardado desde la pantalla se suma.
 async function readDestinos(redis: any): Promise<string[]> {
   const raw = await redis.hget(CONFIG_KEY, 'destinos').catch(() => null);
-  if (!raw) return DEFAULT_DESTINOS;
+  let extra: string[] = [];
   try {
-    const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return Array.isArray(list) && list.length ? list.map((d: unknown) => String(d).slice(0, 80)) : DEFAULT_DESTINOS;
+    const list = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : [];
+    extra = Array.isArray(list) ? list.map((d: unknown) => String(d).slice(0, 80)) : [];
   } catch {
-    return DEFAULT_DESTINOS;
+    extra = [];
   }
+  return [...new Set([...DEFAULT_DESTINOS, ...extra])];
 }
 
 // Un comprobante "analizando" cuya invocación murió no debe quedarse así para siempre.

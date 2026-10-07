@@ -29,6 +29,9 @@ export const DEFAULT_DESTINOS = [
   'Bre-B DIGITAL GLOBAL código de negocio 0081992992',
   'Bre-B TUGPS24 código de negocio 0089079849',
   'Bre-B DIGITAL GLOBAL SAS código de negocio 0090640258',
+  // Autorizado por Gabriel (2026-10-07): Kelly Lara recibe pagos de clientes en su DaviPlata y Nequi.
+  'DaviPlata Kelly Lara 3012471591',
+  'Nequi Kelly Lara 3012471591',
 ];
 
 export interface PagoExtracted {
