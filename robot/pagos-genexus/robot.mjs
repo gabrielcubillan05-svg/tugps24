@@ -8,6 +8,7 @@
 //   GENEXUS_USER / GENEXUS_PASS  usuario exclusivo del robot
 //   MAX_POR_CICLO      opcional, cuántos comprobantes aplicar por corrida (por defecto 5)
 //   MODO               'verificar-acceso' solo entra y guarda capturas del menú en salida/
+//                      'explorar-pagos' recorre Pagos → detalle → Modificar sin guardar y deja capturas y HTML
 //
 // Los pasos dentro de GeneXus (buscar al cliente, registrar el pago, confirmar) se completan en
 // aplicarEnGenexus() con los selectores reales de esa pantalla. Hasta entonces el robot solo hace
@@ -97,8 +98,54 @@ async function verificarAcceso() {
   }
 }
 
+// Recorre Administrativa → Pagos → primer pago → Modificar (sin guardar) y deja capturas y el
+// HTML de cada pantalla en salida/, para escribir los selectores reales del flujo de aplicación.
+async function explorarPagos() {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  mkdirSync('salida', { recursive: true });
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  const guardar = async (nombre) => {
+    await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
+    await page.screenshot({ path: `salida/${nombre}.png`, fullPage: true }).catch(() => {});
+    writeFileSync(`salida/${nombre}.html`, await page.content());
+    writeFileSync(`salida/${nombre}.url.txt`, page.url());
+    console.log(nombre, page.url());
+  };
+  try {
+    await iniciarSesion(page);
+    await guardar('01-menu');
+    await page.getByText('Administrativa', { exact: true }).first().click();
+    await page.getByText('Pagos', { exact: true }).first().click();
+    await guardar('02-pagos-lista');
+    // Primer número de pago de la tabla (enlace con solo dígitos).
+    const primero = page.locator('table a').filter({ hasText: /^\d{6,}$/ }).first();
+    if (await primero.count()) {
+      await primero.click();
+      await guardar('03-pago-detalle');
+      const modificar = page.getByRole('button', { name: /modificar/i }).or(page.locator('input[value="Modificar"], [id*="MODIFICAR"], [id*="UPDATE"]')).first();
+      if (await modificar.count()) {
+        await modificar.click();
+        await guardar('04-pago-modificar');
+      } else {
+        console.log('No se encontró el botón Modificar.');
+      }
+    } else {
+      console.log('No se encontró ningún número de pago en la tabla.');
+    }
+  } catch (err) {
+    await page.screenshot({ path: 'salida/error.png', fullPage: true }).catch(() => {});
+    writeFileSync('salida/error.html', await page.content().catch(() => ''));
+    console.error('Exploración fallida:', err instanceof Error ? err.message : err);
+    process.exitCode = 1;
+  } finally {
+    await browser.close();
+  }
+}
+
 async function main() {
   if (process.env.MODO === 'verificar-acceso') return verificarAcceso();
+  if (process.env.MODO === 'explorar-pagos') return explorarPagos();
   const pendRes = await api(GENEXUS_LISTO ? `?limit=${MAX_POR_CICLO}` : '?limit=1');
   if (!pendRes.ok) {
     console.error('El panel respondió', pendRes.status, await pendRes.text().catch(() => ''));

@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'latido (solo avisa al panel) · verificar-acceso (entra a GeneXus y guarda capturas del menú) · aplicar'
+        description: 'latido (solo avisa al panel) · verificar-acceso (entra y guarda capturas del menú) · explorar-pagos (recorre Pagos sin guardar nada) · aplicar'
         type: choice
         default: latido
-        options: [latido, verificar-acceso, aplicar]
+        options: [latido, verificar-acceso, explorar-pagos, aplicar]
   # schedule:
   #   - cron: '*/15 11-23 * * 1-6'   # cada 15 min, 6 a. m. a 6 p. m. Colombia, lunes a sábado
 
