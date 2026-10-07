@@ -109,57 +109,62 @@ async function filtrarPendientes(page) {
   await page.waitForTimeout(800);
 }
 
-function textoDe(tr, sufijo, n) {
-  return tr.locator(`#span_${sufijo}_${n}`).innerText().then((t) => t.trim()).catch(() => '');
-}
-
-// Lee las filas visibles de la grilla.
+// Lee todas las filas visibles de una sola vez dentro de la página: la grilla se vuelve a dibujar
+// sola cada tanto y leer celda por celda desde fuera se quedaba esperando una fila que ya no existía.
 async function leerFilas(page) {
-  const filas = page.locator('tr[id^="GridContainerRow_"]');
-  const total = await filas.count();
-  const out = [];
-  for (let i = 0; i < total; i++) {
-    const tr = filas.nth(i);
-    const n = (await tr.getAttribute('data-gxrow')) || String(i + 1).padStart(4, '0');
-    // Cada pago lleva uno o dos puntos: el estado (Pendiente/Aprobado/Denegado) y, si lo subió el
-    // propio cliente, un segundo punto azul "Cargado por el cliente".
-    const etiquetas = await tr.locator(`#span_vPAYMENTTYPEWITHTAGS_${n} i`).evaluateAll((els) => els.map((e) => e.getAttribute('data-original-title') || e.getAttribute('title') || '').filter(Boolean)).catch(() => []);
-    const estado = etiquetas.find((t) => /pendiente|aprobado|denegado|reconexi/i.test(t)) || etiquetas[0] || '';
-    const celdas = await tr.locator('td').allInnerTexts().catch(() => []);
-    out.push({
-      cargadoPorCliente: etiquetas.some((t) => /cargado por el cliente/i.test(t)),
-      paymentId: await textoDe(tr, 'PAYMENTID', n),
-      numero: await textoDe(tr, 'PAYMENTNUMBER', n),
-      fecha: await textoDe(tr, 'PAYMENTDATE', n),
-      estado: estado.trim(),
-      clientId: await textoDe(tr, 'PAYMENTCLIENTID', n),
-      cliente: await textoDe(tr, 'PAYMENTCLIENTNAME', n),
-      cedula: await textoDe(tr, 'PAYMENTCLIENTFISCAL', n),
-      sucursal: await textoDe(tr, 'PAYMENTBRANCHOFFICENAME', n),
-      monto: await textoDe(tr, 'PAYMENTMOUNT', n),
-      creadoPor: (celdas.map((c) => c.trim()).filter(Boolean).pop() || '').slice(0, 60),
+  await page.waitForSelector('tr[id^="GridContainerRow_"]', { timeout: 30_000 }).catch(() => {});
+  return page.evaluate(() => {
+    const txt = (tr, suf, n) => (tr.querySelector(`#span_${suf}_${n}`)?.textContent || '').trim();
+    return [...document.querySelectorAll('tr[id^="GridContainerRow_"]')].map((tr) => {
+      const n = tr.getAttribute('data-gxrow') || tr.id.replace('GridContainerRow_', '');
+      const etiquetas = [...tr.querySelectorAll(`#span_vPAYMENTTYPEWITHTAGS_${n} i`)].map((i) => i.getAttribute('data-original-title') || i.getAttribute('title') || '').filter(Boolean);
+      const celdas = [...tr.querySelectorAll('td')].map((td) => (td.textContent || '').trim()).filter(Boolean);
+      return {
+        cargadoPorCliente: etiquetas.some((t) => /cargado por el cliente/i.test(t)),
+        paymentId: txt(tr, 'PAYMENTID', n),
+        numero: txt(tr, 'PAYMENTNUMBER', n),
+        fecha: txt(tr, 'PAYMENTDATE', n),
+        estado: etiquetas.find((t) => /pendiente|aprobado|denegado|reconexi/i.test(t)) || etiquetas[0] || '',
+        clientId: txt(tr, 'PAYMENTCLIENTID', n),
+        cliente: txt(tr, 'PAYMENTCLIENTNAME', n),
+        cedula: txt(tr, 'PAYMENTCLIENTFISCAL', n),
+        sucursal: txt(tr, 'PAYMENTBRANCHOFFICENAME', n),
+        monto: txt(tr, 'PAYMENTMOUNT', n),
+        creadoPor: (celdas[celdas.length - 1] || '').slice(0, 60),
+      };
     });
-  }
-  return out;
+  });
 }
 
-// Recorre las páginas de la grilla (10 filas por página) con el botón "Sig" del paginador.
+// Pone 50 filas por página y recorre las páginas con el cuadro "Ir a página" del paginador
+// (botón "Página X de Y" con un desplegable).
 async function leerTodasLasFilas(page, maxPaginas = 6) {
+  const boton = page.locator('.rowsperpage button.dropdown-toggle').first();
+  const leerTotal = async () => {
+    const m = ((await boton.innerText().catch(() => '')) || '').match(/Página\s+(\d+)\s+de\s+(\d+)/i);
+    return m ? { actual: Number(m[1]), total: Number(m[2]) } : { actual: 1, total: 1 };
+  };
+  if (await boton.count()) {
+    const seleccionado = await page.locator('.rowsperpage li.selected').getAttribute('val').catch(() => '');
+    if (seleccionado !== '50') {
+      await boton.click();
+      await page.locator('.rowsperpage li[val="50"] a').first().click().catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+      await page.waitForTimeout(800);
+    }
+  }
   const todas = [];
+  let { actual, total } = await leerTotal();
   for (let p = 0; p < maxPaginas; p++) {
-    const filas = await leerFilas(page);
-    todas.push(...filas);
-    const sig = page.locator('a, button, span').filter({ hasText: /^Sig$/ }).first();
-    const texto = await page.locator('text=/Página \\d+ de \\d+/').first().innerText().catch(() => '');
-    const m = texto.match(/Página (\d+) de (\d+)/);
-    if (m && Number(m[1]) >= Number(m[2])) break;
-    if (!(await sig.count()) || filas.length < 10) break;
-    const antes = filas[0]?.paymentId;
-    await sig.click().catch(() => {});
+    todas.push(...(await leerFilas(page)));
+    if (actual >= total) break;
+    await boton.click();
+    const caja = page.locator('.rowsperpage li.goTo input');
+    await caja.fill(String(actual + 1));
+    await page.locator('.rowsperpage li.goTo i').first().click();
     await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-    await page.waitForTimeout(600);
-    const despues = (await leerFilas(page))[0]?.paymentId;
-    if (!despues || despues === antes) break;
+    await page.waitForTimeout(800);
+    ({ actual, total } = await leerTotal());
   }
   const vistos = new Set();
   return todas.filter((f) => f.paymentId && !vistos.has(f.paymentId) && vistos.add(f.paymentId));
@@ -400,19 +405,56 @@ async function ingestar(page, known) {
 }
 
 // Aprueba en Optimus un comprobante que el panel dejó en verde. Lanza Error con el motivo si algo no cuadra.
+// Dos casos: el pago lo creó una secretaria con monto, contrato y forma de pago ya puestos (el
+// cuadro solo trae Aprobar/Denegar) o lo cargó el cliente con monto 0 (el cuadro pide contrato,
+// monto, forma de pago y referencia).
 async function aprobarEnOptimus(page, item) {
   const o = item.optimus || {};
   const fill = item.fill || {};
   if (!o.paymentId) throw new Error('el pago no trae el identificador de Optimus (vino de la subida manual); aplicar a mano');
   if (!fill.monto) throw new Error('GPSITO no leyó el valor del comprobante');
-  if (!fill.formaPago) throw new Error('forma de pago no reconocida desde el banco leído');
   const fila = { paymentId: o.paymentId, clientId: o.clientId, numero: o.numero, sucursal: item.branch, cliente: item.clientName, fecha: o.fecha };
-  await page.goto(urlConfirmacion(fila), { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-  await page.waitForSelector('#BTNAPROVED', { timeout: 30_000 });
-  // Los combos de Contrato y Forma de pago son controles especiales: hasta que se verifique su
-  // estructura (modo explorar-pagos), no se aprueba nada.
-  throw new Error('la selección de Contrato y Forma de pago en Optimus todavía no está verificada; aplicar a mano');
+  const { info, contratos, formasPago, visibles } = await leerConfirmacion(page, fila);
+  const pideDatos = visibles.PAYMENTMOUNT_CELL_Class !== 'Invisible' || visibles.vPAYMENTMOUNT_Visible === '1';
+  const montoOptimus = Number(String(info.totalPagar || info.montoActual || '0').replace(/\./g, '').replace(',', '.')) || 0;
+  let detalle;
+  if (pideDatos) {
+    // Cargado por el cliente: hay que digitar.
+    if (contratos.length !== 1) throw new Error(contratos.length ? `el cliente tiene ${contratos.length} contratos; elegir el de saldo pendiente a mano` : 'Optimus no muestra contratos para este cliente');
+    const forma = formasPago.find((f) => f.texto.toLowerCase() === String(fill.formaPago || 'Transferencia').toLowerCase()) || formasPago.find((f) => /transfer/i.test(f.texto));
+    if (!forma) throw new Error('no se encontró la forma de pago en la lista de Optimus');
+    const monto = Math.round(fill.monto);
+    await page.evaluate(({ contratoId, formaId, monto, referencia }) => {
+      const set = (id, v) => { const el = document.getElementById(id); if (!el) throw new Error('falta el campo ' + id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); el.dispatchEvent(new Event('blur', { bubbles: true })); };
+      set('vNEWCONTRACTID', contratoId);
+      set('vPAYMENTWAYCODE', formaId);
+      set('vPAYMENTMOUNT', monto.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      set('vPAYMENTWAYREF', referencia || '');
+    }, { contratoId: contratos[0].id, formaId: forma.id, monto, referencia: fill.referencia });
+    await page.waitForTimeout(1500);
+    detalle = `aprobado en Optimus con monto ${monto.toLocaleString('es-CO')}, contrato ${contratos[0].numero}, ${forma.texto}, ref. ${fill.referencia || 'sin referencia'}`;
+  } else {
+    // Creado por una secretaria: ya trae monto; se compara con el comprobante antes de aprobar.
+    if (montoOptimus > 0 && Math.abs(montoOptimus - fill.monto) > Math.max(100, montoOptimus * 0.01)) {
+      throw new Error(`el monto en Optimus (${montoOptimus.toLocaleString('es-CO')}) no coincide con el comprobante (${Number(fill.monto).toLocaleString('es-CO')})`);
+    }
+    detalle = `aprobado en Optimus por ${montoOptimus.toLocaleString('es-CO')} (monto ya registrado)`;
+  }
+  page.once('dialog', (d) => d.accept().catch(() => {}));
+  await page.click('#BTNAPROVED');
+  await page.waitForTimeout(2500);
+  // Algunas confirmaciones de WorkWithPlus salen como un segundo cuadro con botón de aceptar.
+  const confirmar = page.locator('button, input[type="button"]').filter({ hasText: /^(S[ií]|Aceptar|Confirmar|OK)$/ }).first();
+  if (await confirmar.count()) { await confirmar.click().catch(() => {}); await page.waitForTimeout(2000); }
+  const mensajes = await page.locator('.gx-warning-message, .ui-pnotify-text, .alert, [id*="ERROR"], .gx-message').allInnerTexts().catch(() => []);
+  const error = mensajes.map((m) => m.trim()).filter((m) => /error|no se|inválid|invalid|requerid|obligator/i.test(m));
+  if (error.length) throw new Error('Optimus respondió: ' + error.join(' ').slice(0, 200));
+  // Verificación real: el pago ya no debe aparecer entre los pendientes.
+  await irAPagos(page);
+  await filtrarPendientes(page);
+  const sigue = (await leerTodasLasFilas(page)).some((f) => f.paymentId === o.paymentId);
+  if (sigue) throw new Error('se pulsó Aprobar pero el pago sigue pendiente en Optimus' + (mensajes.length ? ' · ' + mensajes.join(' ').slice(0, 150) : ''));
+  return detalle;
 }
 
 async function aplicar(page, items) {

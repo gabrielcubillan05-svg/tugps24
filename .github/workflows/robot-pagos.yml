@@ -12,6 +12,10 @@ on:
         type: choice
         default: latido
         options: [latido, verificar-acceso, explorar-pagos, ingestar, aplicar]
+      maximo:
+        description: 'Cuántos pagos aprobar en esta corrida (modo aplicar)'
+        type: string
+        default: '5'
   # schedule:
   #   - cron: '*/15 11-23 * * 1-6'   # cada 15 min, 6 a. m. a 6 p. m. Colombia, lunes a sábado
 
@@ -40,6 +44,7 @@ jobs:
           GENEXUS_USER: ${{ secrets.GENEXUS_USER }}
           GENEXUS_PASS: ${{ secrets.GENEXUS_PASS }}
           MODO: ${{ inputs.modo || 'aplicar' }}
+          MAX_POR_CICLO: ${{ inputs.maximo || '5' }}
         run: node robot.mjs
       - name: Guardar capturas
         if: always()

@@ -235,7 +235,9 @@ export function formaPagoDesdeBanco(banco: string, tipoDestino = '', observacion
   if (/payu|pse\b|pago en linea|pagos en linea/.test(t)) return 'PayU';
   if (/efectivo|consignaci|corresponsal|baloto|efecty|sured|ventanilla|cajero|deposito/.test(t)) return 'Consignacion';
   if (/bre-?b|transferencia|bancolombia|davivienda|bbva|banco|ahorro a la mano|lulo|nu\b|movii|transfiya|llave/.test(t)) return 'Transferencia';
-  return null;
+  // Sin banco reconocible se registra como transferencia (decisión de Gabriel, 2026-10-07):
+  // casi todo lo que llega por comprobante digital lo es.
+  return 'Transferencia';
 }
 
 export interface Evaluation {
