@@ -58,6 +58,10 @@ async function iniciarSesion(page) {
     throw new Error('No se pudo iniciar sesión en el sistema de pagos' + (aviso.length ? ': ' + aviso.join(' ').trim().slice(0, 160) : ''));
   }
   await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+  // GAM deja entrar pero manda a "notauthorized" cuando el usuario no tiene rol en la aplicación.
+  if (page.url().toLowerCase().includes('notauthorized')) {
+    throw new Error('El usuario del robot entró a Optimus pero no tiene permisos (gamexamplenotauthorized): en Seguridad GAM hay que asignarle un rol con acceso a Administrativa → Pagos');
+  }
 }
 
 // Devuelve { detail } cuando el pago quedó aplicado, o lanza un Error con el motivo.
