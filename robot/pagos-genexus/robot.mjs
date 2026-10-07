@@ -241,7 +241,9 @@ async function explorarPagos() {
     console.log('FILAS ' + JSON.stringify(filas.map((f) => ({ ...f, cliente: f.cliente.slice(0, 3) + '…', cedula: '…' }))));
     const paginador = await page.locator('.WWPaginationBar, [id*="GRIDPAGING"], [class*="PaginationBar"], [id*="PAGING"]').first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 3000)).catch(() => '');
     console.log('PAGINADOR ' + paginador);
-    const pendiente = filas.find((f) => /pendiente/i.test(f.estado));
+    // Preferir un pago con monto 0 (lo cargó el cliente): ahí es donde Optimus pide contrato,
+    // monto y forma de pago. Los que crea una secretaria ya traen esos datos.
+    const pendiente = filas.find((f) => /pendiente/i.test(f.estado) && /^0([,.]00)?$/.test(f.monto)) || filas.find((f) => /pendiente/i.test(f.estado));
     if (!pendiente) {
       console.log('No hay pagos pendientes visibles.');
       return;
@@ -249,8 +251,28 @@ async function explorarPagos() {
     const { info, imagenSrc } = await leerConfirmacion(page, pendiente);
     console.log('CONFIRMACION_URL ok · info ' + JSON.stringify(info) + ' · imagen ' + (imagenSrc ? 'sí' : 'no'));
     await page.screenshot({ path: 'salida/03-confirmacion.png', fullPage: true });
+    console.log('PAGO_EXPLORADO ' + JSON.stringify({ numero: pendiente.numero, monto: pendiente.monto, creadoPor: pendiente.creadoPor }));
+    // Los contenedores de los combos pueden llenarse por JS después de cargar: se les da tiempo.
+    await page.waitForTimeout(4000);
     await volcarCombo(page, 'NEWCONTRACTID');
     await volcarCombo(page, 'PAYMENTWAYCODE');
+    const html = await page.content();
+    const recortes = [];
+    for (const clave of ['COMBO_NEWCONTRACTID', 'COMBO_PAYMENTWAYCODE', 'Consignacion', 'NEWCONTRACTID_CELL', 'PAYMENTWAYCODE_CELL']) {
+      let idx = -1;
+      let n = 0;
+      while ((idx = html.indexOf(clave, idx + 1)) >= 0 && n < 4) {
+        recortes.push(clave + ' @' + idx + ' :: ' + html.slice(Math.max(0, idx - 300), idx + 500).replace(/\s+/g, ' '));
+        n++;
+      }
+    }
+    console.log('RECORTES ' + JSON.stringify(recortes).slice(0, 12000));
+    const celdasInvisibles = await page.locator('.Invisible[id]').evaluateAll((els) => els.map((e) => e.id)).catch(() => []);
+    console.log('CELDAS_INVISIBLES ' + JSON.stringify(celdasInvisibles));
+    const montoAttrs = await page.locator('#vPAYMENTMOUNT').evaluate((e) => e.outerHTML.replace(/\s+/g, ' ')).catch(() => '');
+    console.log('CAMPO_MONTO ' + montoAttrs);
+    const scripts = await page.locator('script[src]').evaluateAll((els) => els.map((e) => e.getAttribute('src'))).catch(() => []);
+    console.log('SCRIPTS ' + JSON.stringify(scripts).slice(0, 3000));
     // Intentar abrir el combo de forma de pago para ver sus opciones desplegadas.
     const disparador = page.locator('[id*="PAYMENTWAYCODE"]').filter({ hasNot: page.locator('input') }).first();
     await disparador.click({ timeout: 5000 }).catch(() => {});
@@ -298,6 +320,7 @@ async function ingestar(page, known) {
           clientId: fila.clientId,
           contratos: [],
           formasPago: ['Consignacion', 'Daviplata', 'Nequi', 'PayU', 'Transferencia'],
+          montoOptimus: fila.monto,
           estadoCuenta: info.estadoCuenta,
           pagoMinimo: info.pagoMinimo,
           pendiente: info.pendiente,

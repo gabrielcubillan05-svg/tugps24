@@ -89,6 +89,8 @@ export interface OptimusInfo {
   paymentId?: string;
   clientId?: string;
   cedula?: string;
+  // Monto registrado en Optimus (0 cuando lo cargó el cliente sin digitarlo).
+  monto?: number | null;
   fecha: string;
   creadoPor: string;
   contratos: string[];
@@ -259,6 +261,11 @@ export function evaluate(extracted: PagoExtracted | null, clientName: string, de
   const reasons: string[] = [];
   const notes: string[] = [];
   if (optimus && extracted?.valor) {
+    // La secretaria digitó un monto en Optimus distinto al del comprobante: error de digitación o
+    // comprobante de otro pago. No se aprueba hasta que alguien lo mire.
+    if (optimus.monto && optimus.monto > 0 && Math.abs(optimus.monto - extracted.valor) > Math.max(100, optimus.monto * 0.01)) {
+      reasons.push(`El monto registrado en Optimus (${optimus.monto.toLocaleString('es-CO')}) no coincide con el del comprobante (${extracted.valor.toLocaleString('es-CO')}).`);
+    }
     if (optimus.pendiente != null && extracted.valor > optimus.pendiente * 1.5 && optimus.pendiente > 0) notes.push(`El valor pagado (${extracted.valor.toLocaleString('es-CO')}) supera bastante el saldo pendiente (${optimus.pendiente.toLocaleString('es-CO')}).`);
     if (optimus.pagoMinimo != null && extracted.valor < optimus.pagoMinimo) notes.push(`El valor pagado (${extracted.valor.toLocaleString('es-CO')}) es menor al pago mínimo (${optimus.pagoMinimo.toLocaleString('es-CO')}).`);
   }

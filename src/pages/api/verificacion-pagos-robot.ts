@@ -183,6 +183,7 @@ async function ingest(redis: any, body: any): Promise<Response> {
     paymentId: guid(get('paymentId')),
     clientId: guid(get('clientId')),
     cedula: String(get('cedula') || '').replace(/\D/g, '').slice(0, 20) || undefined,
+    monto: num(get('montoOptimus')),
     fecha: String(form.get('fecha') || '').trim().slice(0, 20),
     creadoPor: String(form.get('creadoPor') || '').trim().slice(0, 60),
     contratos: list(form.get('contratos')),
