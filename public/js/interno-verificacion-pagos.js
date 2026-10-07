@@ -178,7 +178,19 @@ document.addEventListener('DOMContentLoaded', function () {
       <span class="hint">${seen ? 'Último ciclo: ' + fmtDate(robot.lastSeenAt) : 'El robot se conecta cada 15 minutos cuando esté configurado.'}</span>
       ${robot.lastResult ? `<span class="hint">Último resultado: ${escapeHtml(robot.lastResult)}</span>` : ''}
       <button class="btn-small ${robot.paused ? '' : 'btn-delete'}" type="button" id="robotToggle">${robot.paused ? 'Reanudar robot' : 'Pausar robot'}</button>
+      ${robot.sinLeer ? `<button class="btn-small" type="button" id="robotReleer" title="Vuelve a pasar por GPSITO, uno a uno, todos los comprobantes que quedaron sin leer">Releer ${robot.sinLeer} sin leer</button>` : ''}
       ${robot.isAdmin ? '<button class="btn-small btn-delete" type="button" id="robotReset" title="Borra lo traído de Optimus para que el robot lo vuelva a traer">Reiniciar lo traído de Optimus</button>' : ''}`;
+    const releer = document.getElementById('robotReleer');
+    if (releer) releer.addEventListener('click', async () => {
+      releer.disabled = true;
+      try {
+        const res = await fetch('/api/verificacion-pagos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'releer-fallidas' }), signal: timeoutSignal(30000) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
+        alert('GPSITO está releyendo ' + data.pendientes + ' comprobantes, uno a uno. Van apareciendo en verde o rojo en los próximos minutos; si queda alguno, el robot lo retoma en su siguiente ronda.');
+        loadPagos();
+      } catch (err) { releer.disabled = false; alert('No se pudo: ' + ((err && err.message) || err)); }
+    });
     const reset = document.getElementById('robotReset');
     if (reset) reset.addEventListener('click', async () => {
       if (!confirm('Se borran del panel TODOS los comprobantes traídos de Optimus (con sus lecturas y archivos). El robot los vuelve a traer en su próximo ciclo. ¿Continuar?')) return;

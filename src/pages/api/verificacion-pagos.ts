@@ -123,20 +123,27 @@ function toClient(p: PagoCliente) {
 
 // Relectura automática de los comprobantes que quedaron en "GPSITO no respondió": uno detrás de
 // otro, nunca en ráfaga. La llama el robot en cada ronda (cada 20 min).
-export async function retryFailedAnalyses(redis: any, max = 3): Promise<number> {
+const sinRespuesta = (p: PagoCliente) => (p.analysisError || '').startsWith(ANALYSIS_NO_RESPONSE) || p.analysisError === 'interrumpido' || (p.analysisError || '').startsWith('Falló la lectura');
+
+// Rojos sin respuesta de GPSITO, y aprobados a mano cuyo valor GPSITO aún no leyó (el robot no
+// los aplica sin esa lectura y la comparación con el monto de la secretaria).
+export function failedAnalysisCandidates(pagos: PagoCliente[], ignoreRetryCap = false): PagoCliente[] {
+  return pagos
+    .filter((p) => p.filePath && p.fileType !== 'none')
+    .filter((p) => (p.status === 'rojo' && sinRespuesta(p)) || (p.status === 'aprobado' && isApplyPending(p) && !p.extracted?.valor))
+    .filter((p) => ignoreRetryCap || (p.analysisRetries || 0) < ANALYSIS_AUTO_RETRIES)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function retryFailedAnalyses(redis: any, max = 6, ignoreRetryCap = false, budgetMs = 240_000): Promise<number> {
   const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
   if (!token) return 0;
-  const sinRespuesta = (p: PagoCliente) => (p.analysisError || '').startsWith(ANALYSIS_NO_RESPONSE) || p.analysisError === 'interrumpido' || (p.analysisError || '').startsWith('Falló la lectura');
-  const candidates = (await readPagos(redis))
-    .filter((p) => p.filePath && p.fileType !== 'none')
-    // Rojos sin respuesta, y aprobados a mano cuyo valor GPSITO aún no leyó (el robot no los
-    // aplica sin esa lectura y la comparación con el monto de la secretaria).
-    .filter((p) => (p.status === 'rojo' && sinRespuesta(p)) || (p.status === 'aprobado' && isApplyPending(p) && !p.extracted?.valor))
-    .filter((p) => (p.analysisRetries || 0) < ANALYSIS_AUTO_RETRIES)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    .slice(0, max);
+  const started = Date.now();
+  const candidates = failedAnalysisCandidates(await readPagos(redis), ignoreRetryCap).slice(0, max);
   let done = 0;
   for (const pago of candidates) {
+    // Una invocación de Vercel dura como mucho 300 s: lo que no quepa lo toma la siguiente ronda.
+    if (Date.now() - started > budgetMs) break;
     const stored = await fetchStoredFile(token, pago.filePath).catch(() => null);
     if (!stored) continue;
     // Un aprobado a mano conserva su estado mientras se relee (si no, se perdería la decisión).
@@ -148,7 +155,7 @@ export async function retryFailedAnalyses(redis: any, max = 3): Promise<number> 
     }
     pago.analysisStartedAt = new Date().toISOString();
     pago.analysisError = null;
-    pago.analysisRetries = (pago.analysisRetries || 0) + 1;
+    pago.analysisRetries = ignoreRetryCap ? 1 : (pago.analysisRetries || 0) + 1;
     await savePago(redis, pago);
     await analyzePago(redis, pago, stored.bytes, stored.mediaType);
     done++;
@@ -322,7 +329,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   }
 
   // Quien entra a esta pantalla ve todas las sucursales (Kelly, Wilmar, Cristian, admin).
-  let items = await readPagos(redis);
+  const all = await readPagos(redis);
+  let items = all;
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const status = url.searchParams.get('status') || '';
   const branch = url.searchParams.get('branch') || '';
@@ -351,7 +359,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     canResolve,
     myBranches,
     destinos: canResolve ? await readDestinos(redis) : undefined,
-    robot: canResolve ? { ...(await readRobotState(redis)), isAdmin: session.role === 'admin' } : undefined,
+    robot: canResolve ? { ...(await readRobotState(redis)), isAdmin: session.role === 'admin', sinLeer: failedAnalysisCandidates(all, true).length } : undefined,
     currentUserId: session.userId,
   });
 };
@@ -470,6 +478,21 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     await redis.hset(CONFIG_KEY, { robotPaused: paused ? '1' : '0' });
     await logAudit(redis, session, paused ? 'pagos_robot_pausado' : 'pagos_robot_reanudado', 'robot de pagos', '');
     return json(200, { robot: await readRobotState(redis) });
+  }
+
+  // Relee de una vez todos los comprobantes que GPSITO no pudo leer (p. ej. tras una caída de la
+  // API): en orden, uno detrás de otro, dentro del tiempo de una invocación; lo que no quepa lo
+  // sigue tomando el robot en cada ronda. Botón del panel para Kelly, Wilmar y admin.
+  if (action === 'releer-fallidas') {
+    if (!canResolve) return json(403, { error: 'solo Kelly, Wilmar o el administrador pueden relanzar las lecturas' });
+    if (!(await checkAndIncrementRateLimit(redis, `internal:pagos-clientes-rate:releer-fallidas:${session.userId}`, 6, 3600))) {
+      return json(429, { error: 'ya se relanzó varias veces en la última hora; espera a que terminen' });
+    }
+    const pendientes = failedAnalysisCandidates(await readPagos(redis), true).length;
+    await logAudit(redis, session, 'pagos_relectura_masiva', 'verificación de pagos', `${pendientes} comprobantes`);
+    const inline = runAfterResponse(retryFailedAnalyses(redis, 40, true).catch((err) => console.error('verificacion-pagos: relectura masiva', err instanceof Error ? err.message : String(err))));
+    if (inline) await inline;
+    return json(200, { pendientes });
   }
 
   // Reinicio de pruebas: borra todo lo traído de Optimus (registros, índices y archivos) para que
