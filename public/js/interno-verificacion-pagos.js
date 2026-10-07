@@ -183,7 +183,19 @@ document.addEventListener('DOMContentLoaded', function () {
       ${robot.lastResult ? `<span class="hint">Último resultado: ${escapeHtml(robot.lastResult)}</span>` : ''}
       <button class="btn-small ${robot.paused ? '' : 'btn-delete'}" type="button" id="robotToggle">${robot.paused ? 'Reanudar robot' : 'Pausar robot'}</button>
       ${robot.sinLeer ? `<button class="btn-small" type="button" id="robotReleer" title="Vuelve a pasar por GPSITO, uno a uno, todos los comprobantes que quedaron sin leer">Releer ${robot.sinLeer} sin leer</button>` : ''}
+      <button class="btn-small" type="button" id="robotReabrir" title="Devuelve a 'por aplicar' lo que el robot cerró como resuelto a mano en las últimas 6 horas, para que lo verifique de nuevo con la lista completa">Reabrir cerrados como resueltos a mano</button>
       ${robot.isAdmin ? '<button class="btn-small btn-delete" type="button" id="robotReset" title="Borra lo traído de Optimus para que el robot lo vuelva a traer">Reiniciar lo traído de Optimus</button>' : ''}`;
+    const reabrir = document.getElementById('robotReabrir');
+    if (reabrir) reabrir.addEventListener('click', async () => {
+      if (!confirm('Los comprobantes que el robot cerró como "resuelto en Optimus a mano" en las últimas 6 horas vuelven a "por aplicar". En la siguiente ronda, los que de verdad ya no estén pendientes en Optimus se cierran otra vez solos. ¿Continuar?')) return;
+      try {
+        const res = await fetch('/api/verificacion-pagos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reabrir-cerrados' }), signal: timeoutSignal(60000) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
+        alert('Reabiertos: ' + data.reabiertos);
+        loadPagos();
+      } catch (err) { alert('No se pudo: ' + ((err && err.message) || err)); }
+    });
     const releer = document.getElementById('robotReleer');
     if (releer) releer.addEventListener('click', async () => {
       releer.disabled = true;

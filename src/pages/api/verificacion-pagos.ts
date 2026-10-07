@@ -522,6 +522,28 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return json(200, { pendientes });
   }
 
+  // Reabre lo que el robot cerró como "resuelto en Optimus a mano" desde una hora dada: el
+  // 2026-10-07 leyó la lista de pendientes a medias y cerró pagos que seguían pendientes. Vuelven
+  // a "por aplicar"; con la lista completa el robot los aprueba o los vuelve a cerrar bien.
+  if (action === 'reabrir-cerrados') {
+    if (!canResolve) return json(403, { error: 'solo Kelly, Wilmar o el administrador' });
+    const desde = String(body.desde || '').trim() || new Date(Date.now() - 6 * 3600_000).toISOString();
+    const cerrados = (await readPagos(redis)).filter(
+      (p) => p.source === 'optimus' && (p.applyStatus === 'aplicado' || p.applyStatus === 'manual') && /ya no estaba pendiente/i.test(p.applyDetail || '') && (p.applyAt || '') >= desde
+    );
+    for (const p of cerrados) {
+      p.applyStatus = 'pendiente';
+      p.applyAttempts = 0;
+      p.applyClaimedAt = null;
+      p.applyAt = null;
+      p.applyBy = '';
+      p.applyDetail = '';
+      await savePago(redis, p);
+    }
+    await logAudit(redis, session, 'pagos_reabiertos', 'verificación de pagos', `${cerrados.length} reabiertos (cerrados desde ${desde})`);
+    return json(200, { reabiertos: cerrados.length });
+  }
+
   // Reinicio de pruebas: borra todo lo traído de Optimus (registros, índices y archivos) para que
   // el robot lo vuelva a traer con las reglas nuevas. Solo admin.
   if (action === 'borrar-optimus') {

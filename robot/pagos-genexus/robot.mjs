@@ -150,36 +150,80 @@ async function leerFilas(page) {
 
 // Pone 50 filas por página y recorre las páginas con el cuadro "Ir a página" del paginador
 // (botón "Página X de Y" con un desplegable).
-async function leerTodasLasFilas(page, maxPaginas = 6) {
+// true solo si la última lectura recorrió todas las páginas del paginador. Con una lista a medias
+// el robot NO puede dar por resuelto nada (el 2026-10-07 leyó solo la primera página de 10 filas y
+// cerró como "resuelto a mano" pagos que seguían pendientes).
+let lecturaCompleta = false;
+
+async function leerTodasLasFilas(page, maxPaginas = 12) {
   const boton = page.locator('.rowsperpage button.dropdown-toggle').first();
   const leerTotal = async () => {
-    const m = ((await boton.innerText().catch(() => '')) || '').match(/Página\s+(\d+)\s+de\s+(\d+)/i);
-    return m ? { actual: Number(m[1]), total: Number(m[2]) } : { actual: 1, total: 1 };
+    const m = ((await boton.innerText().catch(() => '')) || '').match(/P[aá]gina\s+(\d+)\s+de\s+(\d+)/i);
+    return m ? { actual: Number(m[1]), total: Number(m[2]) } : null;
   };
-  if (await boton.count()) {
-    const seleccionado = await page.locator('.rowsperpage li.selected').getAttribute('val').catch(() => '');
-    if (seleccionado !== '50') {
-      await boton.click();
-      await page.locator('.rowsperpage li[val="50"] a').first().click().catch(() => {});
-      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-      await page.waitForTimeout(800);
-    }
+  const seleccionado = async () => (await page.locator('.rowsperpage li.selected').first().getAttribute('val').catch(() => '')) || '';
+  lecturaCompleta = false;
+  if (!(await boton.count())) {
+    // Sin paginador no hay más páginas: lo visible es todo.
+    const filas = await leerFilas(page);
+    console.log(`Paginador no encontrado · filas visibles ${filas.length}`);
+    lecturaCompleta = true;
+    return filas;
+  }
+  // 50 por página, verificando que de verdad cambió (el clic en el desplegable fallaba en silencio).
+  for (let intento = 0; intento < 3 && (await seleccionado()) !== '50'; intento++) {
+    await boton.click().catch(() => {});
+    await page.waitForTimeout(500);
+    const opcion = page.locator('.rowsperpage li[val="50"]').first();
+    if (intento === 0) await opcion.locator('a').first().click({ force: true }).catch(() => {});
+    else if (intento === 1) await opcion.click({ force: true }).catch(() => {});
+    else await opcion.locator('a').first().evaluate((a) => a.click()).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+  let info = await leerTotal();
+  console.log(`Paginador: filas por página ${(await seleccionado()) || '?'} · ${info ? `página ${info.actual} de ${info.total}` : 'sin texto "Página X de Y"'}`);
+  if (!info) {
+    const filas = await leerFilas(page);
+    console.error(`No se pudo leer cuántas páginas hay; se toma lo visible (${filas.length}) como lista INCOMPLETA`);
+    return filas;
   }
   const todas = [];
-  let { actual, total } = await leerTotal();
+  let completo = true;
   for (let p = 0; p < maxPaginas; p++) {
-    todas.push(...(await leerFilas(page)));
-    if (actual >= total) break;
-    await boton.click();
-    const caja = page.locator('.rowsperpage li.goTo input');
-    await caja.fill(String(actual + 1));
-    await page.locator('.rowsperpage li.goTo i').first().click();
+    const filas = await leerFilas(page);
+    todas.push(...filas);
+    if (info.actual >= info.total) break;
+    const anterior = info.actual;
+    // Ir a la página siguiente por el cuadro "Ir a" del paginador; si no se mueve, con Enter.
+    await boton.click().catch(() => {});
+    await page.waitForTimeout(400);
+    const caja = page.locator('.rowsperpage li.goTo input').first();
+    await caja.fill(String(anterior + 1)).catch(() => {});
+    await page.locator('.rowsperpage li.goTo i').first().click({ force: true }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-    await page.waitForTimeout(800);
-    ({ actual, total } = await leerTotal());
+    await page.waitForTimeout(1000);
+    info = (await leerTotal()) || info;
+    if (info.actual === anterior) {
+      await boton.click().catch(() => {});
+      await caja.fill(String(anterior + 1)).catch(() => {});
+      await caja.press('Enter').catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+      await page.waitForTimeout(1000);
+      info = (await leerTotal()) || info;
+    }
+    if (info.actual === anterior) {
+      console.error(`El paginador no avanzó de la página ${anterior} de ${info.total}; lista INCOMPLETA`);
+      completo = false;
+      break;
+    }
   }
+  if (completo && info.actual < info.total) completo = false;
+  lecturaCompleta = completo;
   const vistos = new Set();
-  return todas.filter((f) => f.paymentId && !vistos.has(f.paymentId) && vistos.add(f.paymentId));
+  const unicas = todas.filter((f) => f.paymentId && !vistos.has(f.paymentId) && vistos.add(f.paymentId));
+  console.log(`Leídas ${unicas.length} filas en ${Math.min(info.actual, info.total)} página(s)${completo ? '' : ' · INCOMPLETA'}`);
+  return unicas;
 }
 
 // Estado de la pantalla que GeneXus manda en un campo oculto: trae las listas de los combos
@@ -458,6 +502,10 @@ async function ingestar(page, known) {
   }
   console.log(`Pendientes en Optimus: ${filas.length} · nuevos en el panel: ${nuevos}`);
   // Lo que el panel tenga abierto y ya no esté aquí lo resolvió una persona en Optimus.
+  if (!lecturaCompleta) {
+    console.error('Lista de pendientes incompleta: no se sincroniza ni se cierra nada en el panel.');
+    return filas;
+  }
   try {
     const res = await api('', { method: 'POST', body: JSON.stringify({ action: 'sincronizar', pendientes: filas.map((f) => f.numero), completo: true }) });
     const data = await res.json().catch(() => ({}));
@@ -534,7 +582,9 @@ async function aprobarEnOptimus(page, item) {
   // Verificación real: el pago ya no debe aparecer entre los pendientes.
   await irAPagos(page);
   await filtrarPendientes(page);
-  const sigue = (await leerTodasLasFilas(page)).some((f) => f.paymentId === o.paymentId);
+  const despues = await leerTodasLasFilas(page);
+  if (!lecturaCompleta) throw new Error('se pulsó Aprobar pero no se pudo leer la lista completa de pendientes para confirmar; revisar en Optimus');
+  const sigue = despues.some((f) => f.paymentId === o.paymentId);
   if (sigue) throw new Error('se pulsó Aprobar pero el pago sigue pendiente en Optimus' + (mensajes.length ? ' · ' + mensajes.join(' ').slice(0, 150) : ''));
   return detalle;
 }
@@ -556,18 +606,20 @@ async function denegarEnOptimus(page, item) {
   if (error.length) throw new Error('Optimus respondió: ' + error.join(' ').slice(0, 200));
   await irAPagos(page);
   await filtrarPendientes(page);
-  const sigue = (await leerTodasLasFilas(page)).some((f) => f.paymentId === o.paymentId);
+  const despues = await leerTodasLasFilas(page);
+  if (!lecturaCompleta) throw new Error('se pulsó Denegar pero no se pudo leer la lista completa de pendientes para confirmar; revisar en Optimus');
+  const sigue = despues.some((f) => f.paymentId === o.paymentId);
   if (sigue) throw new Error('se pulsó Denegar pero el pago sigue pendiente en Optimus' + (mensajes.length ? ' · ' + mensajes.join(' ').slice(0, 150) : ''));
   return `denegado en Optimus · motivo en el panel: ${String(item.resolutionNote || '').slice(0, 120) || 'sin motivo'}`;
 }
 
-async function aplicar(page, items, pendientes) {
+async function aplicar(page, items, pendientes, listaCompleta) {
   const pendientesIds = new Set((pendientes || []).map((f) => f.paymentId));
   for (const item of items) {
     try {
       // Si el pago ya no está pendiente en Optimus (Kelly lo resolvió a mano), no se toca: se
       // cierra en el panel como resuelto a mano. Nunca se pulsa Aprobar sobre un pago ya aprobado.
-      if (item.optimus?.paymentId && !pendientesIds.has(item.optimus.paymentId)) {
+      if (listaCompleta && item.optimus?.paymentId && !pendientesIds.has(item.optimus.paymentId)) {
         await reportar(item.id, 'aplicado', 'ya no estaba pendiente en Optimus: lo resolvió una persona a mano', null);
         console.log('Ya resuelto en Optimus a mano', item.clientName);
         continue;
@@ -602,13 +654,17 @@ async function main() {
   try {
     await iniciarSesion(page);
     const pendientes = await ingestar(page, data.known);
-    if (aplica) {
+    const listaCompleta = lecturaCompleta;
+    if (aplica && !listaCompleta) {
+      console.error('No se aplica nada en esta ronda: la lista de pendientes de Optimus no se pudo leer completa.');
+      process.exitCode = 1;
+    } else if (aplica) {
       // En aplicar-manuales solo pasan los que una persona aprobó en el panel (status 'aprobado');
       // los verdes automáticos esperan a que se habilite el modo aplicar completo.
       // Lo rechazado a mano en el panel se deniega en Optimus en ambos modos: ya lo decidió una persona.
       const porAplicar = data.items.filter((i) => i.action === 'denegar' || (i.action === 'aprobar' && (MODO === 'aplicar' || i.status === 'aprobado'))).slice(0, MAX_POR_CICLO);
       console.log(`Por aplicar en Optimus: ${porAplicar.length}` + (porAplicar.length ? ' · ' + porAplicar.map((i) => `${i.action === 'denegar' ? 'DENEGAR' : 'aprobar'} ${i.optimus?.numero || '?'} ${i.clientName}`).join(' | ') : ''));
-      if (porAplicar.length) await aplicar(page, porAplicar, pendientes);
+      if (porAplicar.length) await aplicar(page, porAplicar, pendientes, listaCompleta);
       else console.log('Nada por aplicar en Optimus en este modo.');
     }
   } catch (err) {
