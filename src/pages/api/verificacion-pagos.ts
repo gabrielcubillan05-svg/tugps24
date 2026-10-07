@@ -177,12 +177,12 @@ function priorFrom(p: PagoCliente | null, kind: PriorMatch['kind']): PriorMatch 
   return { id: p.id, createdAt: p.createdAt, clientName: p.clientName, createdByName: p.createdByName, kind };
 }
 
-async function notifyRed(redis: any, pago: PagoCliente): Promise<void> {
+async function notifyRed(redis: any, pago: PagoCliente, texto?: string): Promise<void> {
   const users = await getUsers(redis);
   const targets = users.filter(
     (u) => u.active && (u.role === 'admin' || [KELLY_USERNAME, WILMAR_USERNAME].includes(u.username.toLowerCase()) || (u.role === 'gerente' && branchesOf(u).includes(pago.branch)))
   );
-  const message = `🔴 Comprobante en rojo (${pago.branch}): ${pago.clientName} — ${pago.reasons[0] || 'revisar'}`;
+  const message = texto || `🔴 Comprobante en rojo (${pago.branch}): ${pago.clientName} — ${pago.reasons[0] || 'revisar'}`;
   await Promise.allSettled(
     targets.map(async (u) => {
       await pushNotification(redis, u.id, { type: 'pago-rojo', message, link: '/interno/verificacion-pagos', key: `pago-rojo:${pago.id}`, pushBody: `Comprobante en rojo en ${pago.branch}` });
@@ -296,12 +296,26 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
       fresh.reasons = verdict.reasons;
       fresh.notes = verdict.notes;
       fresh.status = verdict.reasons.length ? 'rojo' : 'verde';
+      // Comprobante repetido con certeza (mismo archivo o misma referencia ya registrada): se
+      // rechaza solo, sin pasar por una persona, y el robot lo deniega en Optimus (regla de
+      // Gabriel, 2026-10-07). El parecido visual a secas sigue yendo a revisión.
+      const repetido = prior.find((p) => p.kind === 'archivo' || p.kind === 'referencia');
+      if (repetido && fresh.source === 'optimus') {
+        fresh.status = 'rechazado';
+        fresh.resolvedAt = new Date().toISOString();
+        fresh.resolvedByName = 'GPSITO';
+        fresh.resolutionNote = `Comprobante repetido: es el mismo del ${repetido.createdAt.slice(0, 10)} de ${repetido.clientName} (subido por ${repetido.createdByName}).`;
+        fresh.applyStatus = 'pendiente';
+        fresh.applyAttempts = 0;
+      }
     }
     if (extracted) fresh.analysisError = null;
     else fresh.notes = [...fresh.notes, fresh.analysisError || 'sin respuesta interpretable'];
     await savePago(redis, fresh);
-    await logAudit(redis, { userId: 'gpsito', username: 'GPSITO' }, 'pago_verificado', fresh.clientName, `${fresh.status}${fresh.reasons.length ? ': ' + fresh.reasons.join(' ') : ''}`.slice(0, 300));
+    const autoRechazo = fresh.status === 'rechazado' && fresh.resolvedByName === 'GPSITO';
+    await logAudit(redis, { userId: 'gpsito', username: 'GPSITO' }, autoRechazo ? 'pago_rechazado_auto' : 'pago_verificado', fresh.clientName, `${fresh.status}${fresh.reasons.length ? ': ' + fresh.reasons.join(' ') : ''}`.slice(0, 300));
     if (fresh.status === 'rojo') await notifyRed(redis, fresh);
+    if (autoRechazo) await notifyRed(redis, fresh, `⛔ Comprobante repetido rechazado solo (${fresh.branch}): ${fresh.clientName} — ${fresh.resolutionNote}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('verificacion-pagos: fallo el analisis', message);
