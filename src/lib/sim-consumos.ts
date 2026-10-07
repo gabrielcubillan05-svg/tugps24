@@ -108,8 +108,9 @@ function summary(l: SimLine, dayCount: number): SimLineSummary {
 
 // periodDays: días del periodo declarado al subir (la proyección a 30 días se hace sobre él,
 // no sobre los días que traen datos: una línea que solo reportó 2 de 7 días consumió eso en 7).
-export const DEFAULT_PLAN_MB = 10;
-export const DEFAULT_LIMIT_MB = 15;
+// Consumo normal hasta 20 MB/mes y critico por encima de 30 (Gabriel, 2026-10-07; antes 10 y 15).
+export const DEFAULT_PLAN_MB = 20;
+export const DEFAULT_LIMIT_MB = 30;
 
 export function computeSimStats(lines: SimLine[], rowCount: number, planMb: number, inventorySims: Set<string>, previous: SimLine[] | null, previousPeriod: string, periodDays?: number, limitMbInput?: number): SimStats {
   const limitMb = Math.max(planMb, limitMbInput || DEFAULT_LIMIT_MB);

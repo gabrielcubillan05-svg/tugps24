@@ -197,11 +197,11 @@ document.addEventListener('DOMContentLoaded', function () {
         await postWithRetry({ action: 'chunk', uploadId, index: i, lines: chunk }, 3);
       }
       uploadStatus.textContent = 'Armando el lote y calculando los cruces...';
-      const data = await postWithRetry({ action: 'commit', uploadId, total, periodStart, periodEnd, planMb: Number(planInput.value) || 10, limitMb: Number(limitInput.value) || 15, label: labelInput.value.trim(), files: parsed.files.map((f) => f.name), rowCount: parsed.rowCount, days: parsed.days }, 2, 120000);
+      const data = await postWithRetry({ action: 'commit', uploadId, total, periodStart, periodEnd, planMb: Number(planInput.value) || 20, limitMb: Number(limitInput.value) || 30, label: labelInput.value.trim(), files: parsed.files.map((f) => f.name), rowCount: parsed.rowCount, days: parsed.days }, 2, 120000);
       uploadStatus.textContent = data.existing ? 'Este lote ya se había creado; se muestra el existente.' : 'Lote guardado. GPSITO está redactando el informe; aparecerá abajo en un momento.';
       form.reset();
-      planInput.value = String(data.lote.planMb || 10);
-      limitInput.value = String(data.lote.limitMb || 15);
+      planInput.value = String(data.lote.planMb || 20);
+      limitInput.value = String(data.lote.limitMb || 30);
       preview.hidden = true;
       parsed = null;
       renderDetail(data.lote, '/api/blob-file?path=' + encodeURIComponent(data.lote.blobPath), !!data.analysisPending);
@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const dayKeys = Object.keys(s.perDayMb);
     const maxDay = Math.max(1, ...dayKeys.map((k) => s.perDayMb[k]));
     const accRows = Object.entries(s.perAccount).sort((a, b) => b[1].mb - a[1].mb).map(([c, a]) => `<tr><td class="l mono">${escapeHtml(c)}</td><td>${fmtNum(a.lines)}</td><td>${fmtMb(a.mb)}</td><td>${fmtNum(a.medianMb, 2)} MB</td><td>${a.over ? `<span style="color:#f59e0b">${a.over}</span>` : 0}</td><td>${a.critical ? `<span style="color:#ef4444">${a.critical}</span>` : 0}</td><td>${a.zero}</td><td>${a.multiImei}</td></tr>`);
-    const limitMb = lote.limitMb || s.limitMb || 15;
+    const limitMb = lote.limitMb || s.limitMb || 30;
     const overRows = s.over.top.map((l) => `<tr><td class="l mono">${escapeHtml(l.n)}</td><td class="l mono">${escapeHtml(l.c)}</td><td>${fmtNum(l.mb, 1)}</td><td><b style="${l.mesMb > limitMb ? 'color:#ef4444' : ''}">${fmtNum(l.mesMb, 0)}</b>${l.mesMb > limitMb ? ' <span class="sim-tag" style="color:#ef4444">crítica</span>' : ''}</td><td>${l.dias}</td><td>${fmtNum(l.picoMb, 1)} (${fmtDay(l.picoDia)})</td><td class="l mono">${escapeHtml(l.imeis.join(', '))}</td></tr>`);
     const zeroRows = s.zero.lines.map((z) => `<tr><td class="l mono">${escapeHtml(z.n)}</td><td class="l mono">${escapeHtml(z.c)}</td><td class="l mono">${escapeHtml(z.imeis.join(', '))}</td><td class="l">${z.inInventory ? '<span class="sim-tag ok">En inventario</span>' : '<span class="sim-tag bad">No está en inventario</span>'}</td></tr>`);
     const lowRows = s.lowActivity.top.map((l) => `<tr><td class="l mono">${escapeHtml(l.n)}</td><td class="l mono">${escapeHtml(l.c)}</td><td>${l.dias}</td><td>${fmtNum(l.mb, 2)}</td><td class="l mono">${escapeHtml(l.imeis.join(', '))}</td></tr>`);
@@ -386,7 +386,7 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
           <div class="actions">
             <label class="hint" style="margin:0;">Plan <input type="number" min="1" id="simDetailPlan" value="${lote.planMb}" /> MB/mes</label>
-            <label class="hint" style="margin:0;">Máximo <input type="number" min="1" id="simDetailLimit" value="${lote.limitMb || s.limitMb || 15}" /> MB/mes</label>
+            <label class="hint" style="margin:0;">Máximo <input type="number" min="1" id="simDetailLimit" value="${lote.limitMb || s.limitMb || 30}" /> MB/mes</label>
             <button class="btn-small" type="button" id="simRecalc">Recalcular</button>
             <button class="btn-small" type="button" id="simReanalyze">${lote.analysis ? 'Rehacer informe' : 'Generar informe'}</button>
             <a class="btn-small" href="/api/sim-consumos?id=${encodeURIComponent(lote.id)}&csv=1" title="Todas las líneas con consumo, proyección mensual, estado e IMEI, para abrir en Excel">Descargar Excel (CSV)</a>
@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="sim-kpi"><div class="n">${fmtMb(s.totalMb)}</div><div class="l">Consumo total del periodo</div></div>
           <div class="sim-kpi"><div class="n">${fmtNum(s.medianMb, 2)} MB</div><div class="l">Mediana por línea · p90 ${fmtNum(s.p90Mb, 1)} · máx ${fmtNum(s.maxMb, 1)}</div></div>
           <div class="sim-kpi ${s.over.count ? 'warn' : ''}"><div class="n">${fmtNum(s.over.count)}</div><div class="l">Sobre el plan de ${lote.planMb} MB/mes (proyección a 30 días)</div></div>
-          <div class="sim-kpi ${s.critical && s.critical.count ? 'bad' : ''}"><div class="n">${fmtNum(s.critical ? s.critical.count : 0)}</div><div class="l">Críticas: más de ${lote.limitMb || s.limitMb || 15} MB/mes</div></div>
+          <div class="sim-kpi ${s.critical && s.critical.count ? 'bad' : ''}"><div class="n">${fmtNum(s.critical ? s.critical.count : 0)}</div><div class="l">Críticas: más de ${lote.limitMb || s.limitMb || 30} MB/mes</div></div>
           <div class="sim-kpi ${s.zero.count - s.zero.inInventoryCount ? 'bad' : ''}"><div class="n">${fmtNum(s.zero.count)}</div><div class="l">Sin consumo · ${s.zero.inInventoryCount} en inventario</div></div>
           <div class="sim-kpi ${s.multiImei.count ? 'warn' : ''}"><div class="n">${fmtNum(s.multiImei.count)}</div><div class="l">SIM cambiadas de equipo · ${s.imeiMultiLine.count} equipos con varias SIM</div></div>
         </div>
@@ -463,7 +463,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('simReanalyze').addEventListener('click', () => action('analyze', {}, 'GPSITO está analizando el lote...'));
 
-    document.getElementById('simRecalc').addEventListener('click', () => action('plan', { planMb: Number(document.getElementById('simDetailPlan').value) || 10, limitMb: Number(document.getElementById('simDetailLimit').value) || 15 }, 'Recalculando...'));
+    document.getElementById('simRecalc').addEventListener('click', () => action('plan', { planMb: Number(document.getElementById('simDetailPlan').value) || 20, limitMb: Number(document.getElementById('simDetailLimit').value) || 30 }, 'Recalculando...'));
     document.getElementById('simAskBtn').addEventListener('click', ask);
     document.getElementById('simQuestion').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ask(); } });
     const del = document.getElementById('simDelete');
