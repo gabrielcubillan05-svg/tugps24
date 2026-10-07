@@ -137,49 +137,59 @@ async function explorarPagos() {
     await guardar('01-menu');
     await irAPagos(page);
     await guardar('02-pagos-lista');
-    // Estructura de la lista al registro: encabezados, primera fila completa y los filtros.
-    const encabezados = await page.locator('table th').allInnerTexts().catch(() => []);
-    console.log('ENCABEZADOS ' + JSON.stringify(encabezados.map((t) => t.trim()).filter(Boolean)));
-    const fila = await page.locator('table tbody tr').first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 5000)).catch(() => '');
-    console.log('FILA1 ' + fila);
-    const filtros = await page.locator('select, input[type="text"], input[type="search"]').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, tag: e.tagName, placeholder: e.placeholder, options: e.tagName === 'SELECT' ? [...e.options].map((o) => o.text.trim()).slice(0, 20) : undefined })));
-    console.log('FILTROS ' + JSON.stringify(filtros).slice(0, 4000));
-    // Menú de tres rayas de la primera fila → "Confirmación" → cuadro "Confirmación de pago".
-    // Se captura el cuadro con sus listas (Contrato, Forma de pago) y se cierra sin aprobar ni denegar.
-    const menuBtn = page.locator('table tbody tr').first().locator('button, a, [role="button"], img, span[class*="icon"], i').first();
-    if (await menuBtn.count()) {
-      await menuBtn.click();
-      await page.waitForTimeout(800);
-      await guardar('03-menu-fila');
-      const confirm = page.getByText(/^Confirmaci[oó]n$/).first();
-      if (await confirm.count()) {
-        await confirm.click();
-        await page.waitForTimeout(1500);
-        await guardar('04-confirmacion-dialogo');
-        const selects = await page.locator('select').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, options: [...e.options].map((o) => o.value + ' | ' + o.text.trim()) })));
-        writeFileSync('salida/04-listas.json', JSON.stringify(selects, null, 2));
-        const campos = await page.locator('input, textarea').evaluateAll((els) => els.filter((e) => e.type !== 'hidden').map((e) => ({ id: e.id, name: e.name, type: e.type, value: e.value, placeholder: e.placeholder })));
-        writeFileSync('salida/04-campos.json', JSON.stringify(campos, null, 2));
-        const botones = await page.locator('button, input[type="button"], input[type="submit"]').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, text: (e.innerText || e.value || '').trim() })).filter((b) => b.text));
-        writeFileSync('salida/04-botones.json', JSON.stringify(botones, null, 2));
-        // También al registro de la corrida: el artefacto no siempre se puede descargar desde fuera.
-        console.log('LISTAS ' + JSON.stringify(selects));
-        console.log('CAMPOS ' + JSON.stringify(campos));
-        console.log('BOTONES ' + JSON.stringify(botones));
-        const dialogo = await page.locator('[role="dialog"], .modal, .gx-popup, .popup, div[id*="Popup"], div[id*="popup"]').first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 6000)).catch(() => '');
-        console.log('DIALOGO ' + (dialogo || '(no se encontró el contenedor del cuadro)'));
-        await page.keyboard.press('Escape').catch(() => {});
-      } else {
-        console.log('No se encontró la opción "Confirmación" en el menú de la fila.');
+    // Estructura de la lista al registro. La grilla es la tabla que contiene el combo de acciones
+    // de la primera fila (vGRIDACTIONS_0001); la primera <table> de la página es el logo.
+    const grid = page.locator('table:has(#vGRIDACTIONS_0001)').last();
+    const encabezados = await grid.locator('th').allInnerTexts().catch(() => []);
+    console.log('ENCABEZADOS ' + JSON.stringify(encabezados.map((t) => t.trim())));
+    const thTipo = await grid.locator('th').filter({ hasText: /Tipo/ }).first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 3000)).catch(() => '');
+    console.log('TH_TIPO ' + thTipo);
+    const fila = page.locator('tr:has(#vGRIDACTIONS_0001)').first();
+    console.log('FILA1 ' + (await fila.evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 7000)).catch(() => '(sin fila)')));
+    console.log('GRID_ID ' + (await grid.evaluate((el) => el.id + ' | ' + el.className).catch(() => '')));
+    const pager = await page.locator('[id*="PAGING"], [id*="Paging"], .WWPaginationBar, [class*="Pagination"]').first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 2500)).catch(() => '');
+    console.log('PAGINADOR ' + pager);
+    // Abrir "Confirmación" de la primera fila: es un <select> de acciones (WorkWithPlus); al
+    // elegir la segunda opción se dispara el evento. El cuadro suele abrirse en un iframe.
+    const combo = page.locator('#vGRIDACTIONS_0001');
+    const opciones = await combo.locator('option').evaluateAll((els) => els.map((o) => ({ value: o.value, text: o.text })));
+    console.log('ACCIONES ' + JSON.stringify(opciones));
+    const confirmacion = opciones.find((o) => /confirmaci/i.test(o.text) || /confirmaci/i.test(o.value));
+    if (confirmacion) {
+      await combo.selectOption(confirmacion.value).catch(async () => {
+        await combo.evaluate((el, v) => { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, confirmacion.value);
+      });
+      await page.waitForTimeout(3000);
+      await guardar('04-confirmacion');
+      for (const frame of page.frames()) {
+        if (frame === page.mainFrame()) continue;
+        console.log('FRAME ' + frame.url());
+        const selects = await frame.locator('select').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, options: [...e.options].map((o) => o.value + ' | ' + o.text.trim()).slice(0, 40) }))).catch(() => []);
+        const campos = await frame.locator('input, textarea').evaluateAll((els) => els.filter((e) => e.type !== 'hidden').map((e) => ({ id: e.id, name: e.name, type: e.type, value: e.value, readonly: e.readOnly, disabled: e.disabled }))).catch(() => []);
+        const botones = await frame.locator('button, input[type="button"], input[type="submit"], a[data-gx-evt], [data-gx-button]').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, text: (e.innerText || e.value || e.title || '').trim() })).filter((b) => b.text || b.id)).catch(() => []);
+        const spans = await frame.locator('span[id^="span_"], span[id^="TEXTBLOCK"], span[id*="TEXTBLOCK"], span[id*="DESC"]').evaluateAll((els) => els.map((e) => e.id + '=' + (e.innerText || '').trim().slice(0, 60)).filter((t) => !t.endsWith('='))).catch(() => []);
+        const imgs = await frame.locator('img').evaluateAll((els) => els.map((e) => ({ id: e.id, src: (e.getAttribute('src') || '').slice(0, 200) }))).catch(() => []);
+        console.log('F_LISTAS ' + JSON.stringify(selects));
+        console.log('F_CAMPOS ' + JSON.stringify(campos));
+        console.log('F_BOTONES ' + JSON.stringify(botones));
+        console.log('F_TEXTOS ' + JSON.stringify(spans).slice(0, 4000));
+        console.log('F_IMAGENES ' + JSON.stringify(imgs).slice(0, 2000));
+        const html = await frame.content().catch(() => '');
+        writeFileSync(`salida/04-frame-${page.frames().indexOf(frame)}.html`, html);
       }
+      // Si no hubo iframe, el cuadro está en la página principal.
+      if (page.frames().length === 1) {
+        const selects = await page.locator('select').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, options: [...e.options].map((o) => o.value + ' | ' + o.text.trim()).slice(0, 40) })));
+        console.log('LISTAS ' + JSON.stringify(selects).slice(0, 6000));
+        const campos = await page.locator('input, textarea').evaluateAll((els) => els.filter((e) => e.type !== 'hidden' && !/^v(DYNAMIC|PAYMENT(NUMBER|CLIENTNAME|BRANCHOFFICENAME)\d|GRIDACTIONS|FILTERFULLTEXT|SEARCH)/.test(e.id)).map((e) => ({ id: e.id, name: e.name, type: e.type, value: e.value })));
+        console.log('CAMPOS ' + JSON.stringify(campos).slice(0, 6000));
+        const botones = await page.locator('button, input[type="button"], input[type="submit"]').evaluateAll((els) => els.map((e) => ({ id: e.id, text: (e.innerText || e.value || '').trim() })).filter((b) => b.text));
+        console.log('BOTONES ' + JSON.stringify(botones).slice(0, 3000));
+      }
+      // Cerrar sin aprobar ni denegar.
+      await page.keyboard.press('Escape').catch(() => {});
     } else {
-      console.log('No se encontró el menú de tres rayas en la primera fila.');
-    }
-    // Detalle del primer pago (enlace con solo dígitos), por si hace falta su estructura.
-    const primero = page.locator('table a').filter({ hasText: /^\d{6,}$/ }).first();
-    if (await primero.count()) {
-      await primero.click();
-      await guardar('05-pago-detalle');
+      console.log('El combo de acciones no tiene la opción Confirmación.');
     }
   } catch (err) {
     await page.screenshot({ path: 'salida/error.png', fullPage: true }).catch(() => {});
