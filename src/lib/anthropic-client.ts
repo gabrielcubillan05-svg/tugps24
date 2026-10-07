@@ -21,7 +21,9 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function callAnthropicMessages(apiKey: string, body: Record<string, unknown>, logPrefix: string): Promise<any | null> {
+// opts.timeoutMs: los informes largos (consumo de SIM, 1800 tokens de salida sobre un JSON grande)
+// no caben en los 45 s por defecto pensados para respuestas de chat.
+export async function callAnthropicMessages(apiKey: string, body: Record<string, unknown>, logPrefix: string, opts?: { timeoutMs?: number }): Promise<any | null> {
   const maxAttempts = RETRY_DELAYS_MS.length + 1;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -29,7 +31,7 @@ export async function callAnthropicMessages(apiKey: string, body: Record<string,
     try {
       res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(opts?.timeoutMs ?? 45_000),
         headers: {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',

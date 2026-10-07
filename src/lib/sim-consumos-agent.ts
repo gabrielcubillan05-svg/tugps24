@@ -56,7 +56,9 @@ async function run(redis: any, lote: SimLoteContext, messages: unknown[], logPre
   const data = await callAnthropicMessages(
     apiKey,
     { model: MODEL, max_tokens: 1800, system: cachedSystemBlocks(systemPrompt(lote)), messages: withCachedTail(messages) },
-    logPrefix
+    logPrefix,
+    // El informe completo tarda más de los 45 s por defecto y se cortaba como "no respondió".
+    { timeoutMs: 170_000 }
   );
   if (!data) return null;
   await recordAgentUsage(redis, 'gabot', usageFromResponse(data), { id: `sim:${lote.id}`, channel: 'panel' });
