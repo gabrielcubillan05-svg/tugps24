@@ -85,6 +85,10 @@ export interface PagoCliente {
 
 export interface OptimusInfo {
   numero: string;
+  // Identificadores internos de Optimus, para que el robot abra el cuadro de confirmación directo.
+  paymentId?: string;
+  clientId?: string;
+  cedula?: string;
   fecha: string;
   creadoPor: string;
   contratos: string[];

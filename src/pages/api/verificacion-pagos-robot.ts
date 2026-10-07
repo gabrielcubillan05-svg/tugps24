@@ -177,8 +177,12 @@ async function ingest(redis: any, body: any): Promise<Response> {
     return json(502, { error: 'no se pudo guardar la imagen: ' + (err instanceof Error ? err.message : String(err)) });
   }
 
+  const guid = (v: unknown) => (/^[0-9a-f-]{36}$/i.test(String(v || '')) ? String(v) : undefined);
   const optimus: OptimusInfo = {
     numero,
+    paymentId: guid(get('paymentId')),
+    clientId: guid(get('clientId')),
+    cedula: String(get('cedula') || '').replace(/\D/g, '').slice(0, 20) || undefined,
     fecha: String(form.get('fecha') || '').trim().slice(0, 20),
     creadoPor: String(form.get('creadoPor') || '').trim().slice(0, 60),
     contratos: list(form.get('contratos')),

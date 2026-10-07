@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'latido (solo avisa al panel) · verificar-acceso (entra y guarda capturas del menú) · explorar-pagos (recorre Pagos sin guardar nada) · aplicar'
+        description: 'latido · verificar-acceso · explorar-pagos (lee sin tocar) · ingestar (trae pendientes al panel, no aprueba) · aplicar (trae y aprueba)'
         type: choice
         default: latido
-        options: [latido, verificar-acceso, explorar-pagos, aplicar]
+        options: [latido, verificar-acceso, explorar-pagos, ingestar, aplicar]
   # schedule:
   #   - cron: '*/15 11-23 * * 1-6'   # cada 15 min, 6 a. m. a 6 p. m. Colombia, lunes a sábado
 
