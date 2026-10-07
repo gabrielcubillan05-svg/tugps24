@@ -32,6 +32,8 @@ export const DEFAULT_DESTINOS = [
   // Autorizado por Gabriel (2026-10-07): Kelly Lara recibe pagos de clientes en su DaviPlata y Nequi.
   'DaviPlata Kelly Lara 3012471591',
   'Nequi Kelly Lara 3012471591',
+  // Agregada por Gabriel el 2026-10-07 (comprobante de transferencia a esa cuenta).
+  'Banco de Bogotá corriente 000000000088121819 Digital Global',
 ];
 
 export interface PagoExtracted {
@@ -203,7 +205,7 @@ export function destinoMatches(cuentaDestino: string, destinos: string[]): boole
     }
     // Nombre del negocio: todas las palabras de 4+ letras del destino configurado (quitando el
     // banco y la palabra "codigo") deben aparecer en lo leído.
-    const words = plainText(d).split(' ').filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !['bancolombia', 'ahorros', 'corriente', 'codigo', 'negocio', 'llave', 'nequi', 'daviplata', 'cuenta'].includes(w));
+    const words = plainText(d).split(' ').filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !['bancolombia', 'banco', 'bogota', 'ahorros', 'corriente', 'codigo', 'negocio', 'llave', 'nequi', 'daviplata', 'cuenta'].includes(w));
     if (words.length && words.every((w) => text.includes(w))) return true;
   }
   return false;
