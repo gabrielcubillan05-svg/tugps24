@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="name">${escapeHtml(c.name)} <span class="agent-tag agent-${c.agent}">${c.agent === 'andres' ? 'Andrés' : 'Valentina'}</span></div>
         <div class="meta">
           ${escapeHtml(c.phone)}${c.city ? ' · ' + escapeHtml(c.city) : ''}${c.deuda ? ' · ' + fmtMoney(c.deuda) : ''}<br />
-          ${STAGE_LABELS[c.aiStage] || c.aiStage} · ${fmtDate(c.lastInboundAt || c.createdAt)}${c.unanswered ? ' · <span class="unanswered-tag">sin responder</span>' : ''}
+          ${STAGE_LABELS[c.aiStage] || c.aiStage} · ${fmtDate(c.lastInboundAt || c.createdAt)}${c.unanswered ? ' · <span class="unanswered-tag">sin responder</span>' : c.handedOff && c.lastInboundAt && (!c.lastOutboundAt || c.lastInboundAt > c.lastOutboundAt) ? ' · <span style="color:var(--muted,#8a8f98)">lo atiende la sucursal</span>' : ''}
         </div>
       </div>
     `).join('') + (loadingRest ? '<div class="empty">Cargando más conversaciones...</div>' : '');

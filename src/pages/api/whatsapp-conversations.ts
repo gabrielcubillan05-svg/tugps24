@@ -97,7 +97,11 @@ async function handleGet({ cookies, url }: Parameters<APIRoute>[0]): Promise<Res
     name: String(i.name || i.phone || 'Sin nombre'),
     phone: String(i.phone || ''),
     lastActivity: String(i.lastInboundAt || i.updatedAt || i.createdAt || ''),
-    unanswered: !!i.lastInboundAt && (!i.lastOutboundAt || String(i.lastInboundAt) > String(i.lastOutboundAt)),
+    // "Sin responder" solo cuando le toca al agente IA: tras entregar a la sucursal o escalar, la
+    // IA calla a propósito y la secretaria sigue la charla directo en WhatsApp, así que un
+    // "Gracias" posterior del cliente no es una conversación desatendida.
+    unanswered: !!i.lastInboundAt && (!i.lastOutboundAt || String(i.lastInboundAt) > String(i.lastOutboundAt)) && i.aiStage !== 'entregado' && i.aiStage !== 'escalado',
+    handedOff: i.aiStage === 'entregado' || i.aiStage === 'escalado',
   }));
   if (agentFilter) items = items.filter((i) => i.agent === agentFilter);
   if (q) items = items.filter((i) => i.name.toLowerCase().includes(q) || i.phone.toLowerCase().includes(q));
