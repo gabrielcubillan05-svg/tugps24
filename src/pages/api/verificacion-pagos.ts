@@ -113,7 +113,7 @@ function toClient(p: PagoCliente) {
     ...t,
     // Un rechazado de Optimus también se muestra como pendiente allá: lo deniega una persona a mano.
     applyStatus: t.applyStatus || (isApplyPending(t) || (t.status === 'rechazado' && t.source === 'optimus') ? 'pendiente' : t.status === 'verde' || t.status === 'aprobado' ? 'fallo' : undefined),
-    fileUrl: '/api/blob-file?path=' + encodeURIComponent(p.filePath),
+    fileUrl: p.filePath ? '/api/blob-file?path=' + encodeURIComponent(p.filePath) : null,
     applyScreenshotUrl: t.applyScreenshotPath ? '/api/blob-file?path=' + encodeURIComponent(t.applyScreenshotPath) : null,
   };
 }

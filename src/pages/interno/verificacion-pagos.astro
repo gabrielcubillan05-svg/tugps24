@@ -97,6 +97,7 @@ const canResolve = canResolveVerificacionPagos(session);
   .pago-body { display: grid; grid-template-columns: 150px 1fr; gap: 14px; }
   @media (max-width: 640px) { .pago-body { grid-template-columns: 1fr; } }
   .pago-thumb img { width: 150px; max-height: 190px; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
+  .pago-sin-imagen { width: 150px; height: 110px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ef4444; border-radius: 8px; color: #ef4444; font-size: 12px; text-align: center; }
   .pago-thumb a.pdf { display: inline-block; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
   .pago-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; }
   .pago-fields .k { color: var(--slate); font-size: 11px; display: block; }

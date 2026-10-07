@@ -410,12 +410,10 @@ async function ingestar(page, known) {
     try {
       const { info, imagenSrc, contratos, formasPago } = await leerConfirmacion(page, fila);
       const b64 = await imagenBase64(page, imagenSrc);
-      if (!b64) {
-        console.log('Sin imagen en Optimus:', fila.numero, '→ no se trae (lo revisa una persona allá)');
-        continue;
-      }
+      // Sin comprobante adjunto el panel lo deja en rojo de una vez, para rechazarlo.
       const data = await ingestarEnPanel(
         {
+          sinImagen: !b64,
           numero: fila.numero,
           cliente: fila.cliente,
           sucursal: fila.sucursal,
@@ -434,10 +432,10 @@ async function ingestar(page, known) {
           pendiente: info.pendiente,
           reconectar: info.reconectar,
         },
-        b64
+        b64 || ''
       );
       if (!data.existing) nuevos++;
-      console.log('Traído', fila.numero, fila.sucursal, data.existing ? '(ya estaba)' : '(nuevo)');
+      console.log('Traído', fila.numero, fila.sucursal, data.existing ? '(ya estaba)' : '(nuevo)', b64 ? '' : '· SIN COMPROBANTE');
     } catch (err) {
       console.error('No se pudo traer', fila.numero, err instanceof Error ? err.message : err);
     }

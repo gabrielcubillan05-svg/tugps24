@@ -130,6 +130,73 @@ function list(v: unknown): string[] {
   }
 }
 
+function optimusInfoDe(get: (k: string) => unknown, numero: string): OptimusInfo {
+  const guid = (v: unknown) => (/^[0-9a-f-]{36}$/i.test(String(v || '')) ? String(v) : undefined);
+  return {
+    numero,
+    paymentId: guid(get('paymentId')),
+    clientId: guid(get('clientId')),
+    cedula: String(get('cedula') || '').replace(/\D/g, '').slice(0, 20) || undefined,
+    monto: num(get('montoOptimus')),
+    fecha: String(get('fecha') || '').trim().slice(0, 20),
+    creadoPor: String(get('creadoPor') || '').trim().slice(0, 60),
+    contratos: list(get('contratos')),
+    contratosIds: list(get('contratosIds')),
+    cargadoPorCliente: get('cargadoPorCliente') === true,
+    formasPago: list(get('formasPago')),
+    estadoCuenta: num(get('estadoCuenta')),
+    pagoMinimo: num(get('pagoMinimo')),
+    pendiente: num(get('pendiente')),
+    reconectar: num(get('reconectar')),
+  };
+}
+
+async function ingestSinImagen(redis: any, get: (k: string) => unknown, numero: string, clientName: string, branch: string): Promise<Response> {
+  const existingId = await redis.get(OPTIMUS_KEY_PREFIX + numero);
+  if (existingId) {
+    const existing = await readPago(redis, String(existingId));
+    if (existing) return json(200, { pago: forRobot(existing), existing: true });
+  }
+  const id = randomUUID();
+  const claimed = await redis.set(OPTIMUS_KEY_PREFIX + numero, id, { nx: true, ex: INDEX_TTL_SECONDS });
+  if (!claimed) {
+    const other = await readPago(redis, String((await redis.get(OPTIMUS_KEY_PREFIX + numero)) || ''));
+    if (other) return json(200, { pago: forRobot(other), existing: true });
+  }
+  const optimus = optimusInfoDe(get, numero);
+  const uploader = optimus.creadoPor ? await findUserByUsername(redis, optimus.creadoPor.toLowerCase()).catch(() => null) : null;
+  const now = new Date().toISOString();
+  const pago: PagoCliente = {
+    id,
+    clientName,
+    plate: '',
+    branch,
+    filePath: '',
+    fileType: 'none',
+    sha256: `sin-imagen-${id}`,
+    phash: null,
+    status: 'rojo',
+    reasons: [optimus.cargadoPorCliente ? 'El cliente registró el pago en Optimus sin adjuntar el comprobante.' : 'El pago se registró en Optimus sin comprobante adjunto.'],
+    notes: ['Sin imagen no hay nada que verificar: rechazar aquí y denegar en Optimus, o pedirle al cliente el comprobante.'],
+    duplicateOf: null,
+    extracted: null,
+    analysisStartedAt: null,
+    analysisError: null,
+    createdAt: now,
+    createdById: uploader?.id || ACTOR.userId,
+    createdByName: uploader ? `${uploader.name} (en Optimus)` : `el cliente en Optimus (${optimus.creadoPor || 'sin usuario'})`,
+    resolvedAt: null,
+    resolvedByName: '',
+    resolutionNote: '',
+    source: 'optimus',
+    optimus,
+  };
+  await savePago(redis, pago);
+  await logAudit(redis, ACTOR, 'pago_sin_comprobante', clientName, `Optimus ${numero} · ${branch}`);
+  await notifyResolvers(redis, `🔴 Pago sin comprobante en Optimus (${branch}): ${clientName}, N.º ${numero}. Rechazar y denegar.`, `pago-rojo:${id}`);
+  return json(200, { pago: forRobot(pago), existing: false });
+}
+
 // El robot trae un pago amarillo de Optimus con la imagen del comprobante (JSON con la imagen en
 // base64: un cuerpo multipart sin cabecera Origin lo rechaza la protección CSRF de Astro). El
 // panel lo verifica como cualquier otro; el resultado vuelve al robot por GET como "aprobar".
@@ -140,6 +207,9 @@ async function ingest(redis: any, body: any): Promise<Response> {
   const branch = String(get('sucursal') || '').trim().slice(0, 40);
   if (!numero || !clientName || !branch) return json(400, { error: 'numero, cliente y sucursal son obligatorios' });
   const b64 = String(get('file') || '').replace(/^data:[^;]+;base64,/, '');
+  // Pago sin comprobante adjunto en Optimus (regla de Gabriel, 2026-10-07): entra en rojo de una
+  // vez, sin lectura, para que Kelly o Wilmar lo rechacen y lo denieguen allá.
+  if (get('sinImagen') === true) return ingestSinImagen(redis, get, numero, clientName, branch);
   if (b64.length < 200) return json(400, { error: 'falta la imagen del comprobante' });
   if (b64.length > MAX_INGEST_BYTES * 1.4) return json(400, { error: 'imagen demasiado grande' });
   const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;

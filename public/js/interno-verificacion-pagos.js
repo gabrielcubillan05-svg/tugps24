@@ -212,7 +212,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!items.length) { list.innerHTML = '<div class="empty">No hay comprobantes en esta vista.</div>'; return; }
     list.innerHTML = items.map((p) => {
       const dup = p.duplicateOf ? pagos.find((o) => o.id === p.duplicateOf) : null;
-      const thumb = p.fileType === 'pdf'
+      const thumb = !p.fileUrl
+        ? '<div class="pago-sin-imagen">Sin comprobante</div>'
+        : p.fileType === 'pdf'
         ? `<a class="pdf" href="${p.fileUrl}" target="_blank" rel="noopener">📄 Abrir PDF</a>`
         : `<a href="${p.fileUrl}" target="_blank" rel="noopener"><img src="${p.fileUrl}" alt="Comprobante" loading="lazy" /></a>`;
       const reasons = p.reasons && p.reasons.length ? `<ul class="pago-reasons">${p.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>` : '';
