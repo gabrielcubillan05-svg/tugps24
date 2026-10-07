@@ -163,6 +163,9 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
       return;
     }
     const extracted = result.extracted;
+    // Si el JSON no se pudo interpretar, la respuesta cruda queda visible en la tarjeta para
+    // entender qué pasó, en vez de un "no pudo leer" a secas.
+    if (!extracted && result.rawText) fresh.analysisError = ('respuesta: ' + result.rawText.replace(/\s+/g, ' ')).slice(0, 300);
     const prior: PriorMatch[] = [];
     if (fresh.duplicateOf) {
       const dup = priorFrom(await readPago(redis, fresh.duplicateOf), 'archivo');
@@ -213,7 +216,8 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
     fresh.notes = verdict.notes;
     fresh.status = verdict.reasons.length ? 'rojo' : 'verde';
     fresh.analysisStartedAt = null;
-    fresh.analysisError = null;
+    if (extracted) fresh.analysisError = null;
+    else fresh.notes = [...fresh.notes, fresh.analysisError || 'sin respuesta interpretable'];
     await savePago(redis, fresh);
     await logAudit(redis, { userId: 'gpsito', username: 'GPSITO' }, 'pago_verificado', fresh.clientName, `${fresh.status}${fresh.reasons.length ? ': ' + fresh.reasons.join(' ') : ''}`.slice(0, 300));
     if (fresh.status === 'rojo') await notifyRed(redis, fresh);

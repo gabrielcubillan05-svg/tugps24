@@ -196,11 +196,46 @@ export function destinoMatches(cuentaDestino: string, destinos: string[]): boole
   return false;
 }
 
+// Intenta varias formas de sacar el objeto: JSON puro, bloque ```json```, o el primer objeto
+// balanceado; antes limpia símbolos de pesos y comas colgantes que el modelo a veces cuela.
+function extractJsonObject(text: string): any | null {
+  const t = String(text || '').trim();
+  const candidates: string[] = [];
+  candidates.push(t);
+  const fenced = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) candidates.push(fenced[1]);
+  const start = t.indexOf('{');
+  if (start >= 0) {
+    let depth = 0;
+    for (let i = start; i < t.length; i++) {
+      if (t[i] === '{') depth++;
+      else if (t[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          candidates.push(t.slice(start, i + 1));
+          break;
+        }
+      }
+    }
+    candidates.push(t.slice(start, t.lastIndexOf('}') + 1));
+  }
+  for (const c of candidates) {
+    if (!c || !c.includes('{')) continue;
+    const cleaned = c.replace(/:\s*\$\s*([\d.,]+)/g, ': "$1"').replace(/,\s*([}\]])/g, '$1').replace(/\bNaN\b|\bundefined\b/g, 'null');
+    try {
+      const obj = JSON.parse(cleaned);
+      if (obj && typeof obj === 'object') return obj;
+    } catch {
+      // siguiente candidato
+    }
+  }
+  return null;
+}
+
 export function parseExtracted(text: string): PagoExtracted | null {
-  const match = String(text || '').match(/\{[\s\S]*\}/);
-  if (!match) return null;
+  const raw = extractJsonObject(text);
+  if (!raw) return null;
   try {
-    const raw = JSON.parse(match[0]);
     const num = (v: unknown) => {
       if (typeof v === 'number' && Number.isFinite(v)) return v;
       const n = Number(String(v ?? '').replace(/[^\d.,-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
@@ -308,6 +343,7 @@ Responde SOLO con un objeto JSON, sin texto antes ni después, con exactamente e
 
 Reglas:
 - Si un dato no aparece, deja la cadena vacía o null; no inventes.
+- Las tirillas de papel de CORRESPONSAL BANCOLOMBIA / REDEBAN (fotos de un recibo impreso) son consignaciones en efectivo: banco "Corresponsal Bancolombia", referencia = el número de RECIBO (o APROB si no hay recibo), valor = VALOR, cuentaDestino = el "Producto" o cuenta impresa y el TITULAR, tipoDestino "ahorros"; el pagador casi nunca aparece. Léelas aunque la foto esté oscura o torcida.
 - Identifica el banco o app también por la plantilla aunque no diga el nombre: "Comprobante No." con "Producto destino" o "Datos de la transferencia" es Bancolombia; morado con "¿Cuánto?" y "¿De dónde salió la plata?" es Nequi; rojo con "Pasaste plata" es DaviPlata; "Comprobante No. TR…" con "Punto de venta" y "Código de negocio" es Bre-B.
 - La fecha de hoy se indica abajo: una fecha de este año o de días recientes NO es futura; no comentes sobre el año.
 - Fechas en formato colombiano (día/mes/año) o en texto ("7 de octubre de 2026") se convierten a AAAA-MM-DD.
@@ -341,13 +377,15 @@ export async function readReceipt(redis: any, pagoId: string, bytes: ArrayBuffer
           role: 'user',
           content: [fileBlock, { type: 'text', text: `Comprobante que la secretaría asocia al cliente: <cliente>${clientName}</cliente>. Extrae los datos en el JSON indicado.` }],
         },
+        // La respuesta se arranca con "{": así el modelo no antepone explicaciones y el JSON llega limpio.
+        { role: 'assistant', content: '{' },
       ],
     },
     'verificacion-pagos'
   );
   if (!response) return null;
   await recordAgentUsage(redis, 'gabot', usageFromResponse(response), { id: `pago:${pagoId}`, channel: 'panel' });
-  const rawText = (Array.isArray(response.content) ? response.content : [])
+  const rawText = '{' + (Array.isArray(response.content) ? response.content : [])
     .filter((b: any) => b?.type === 'text' && typeof b.text === 'string')
     .map((b: any) => b.text)
     .join('\n');
