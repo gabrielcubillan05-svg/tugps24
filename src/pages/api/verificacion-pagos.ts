@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
-import { put, get } from '@vercel/blob';
+import { put, get, del } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
@@ -281,7 +281,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     canResolve,
     myBranches,
     destinos: canResolve ? await readDestinos(redis) : undefined,
-    robot: canResolve ? await readRobotState(redis) : undefined,
+    robot: canResolve ? { ...(await readRobotState(redis)), isAdmin: session.role === 'admin' } : undefined,
     currentUserId: session.userId,
   });
 };
@@ -400,6 +400,31 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     await redis.hset(CONFIG_KEY, { robotPaused: paused ? '1' : '0' });
     await logAudit(redis, session, paused ? 'pagos_robot_pausado' : 'pagos_robot_reanudado', 'robot de pagos', '');
     return json(200, { robot: await readRobotState(redis) });
+  }
+
+  // Reinicio de pruebas: borra todo lo traído de Optimus (registros, índices y archivos) para que
+  // el robot lo vuelva a traer con las reglas nuevas. Solo admin.
+  if (action === 'borrar-optimus') {
+    if (session.role !== 'admin') return json(403, { error: 'solo el administrador puede reiniciar lo traído de Optimus' });
+    const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
+    const todos = (await readPagos(redis)).filter((p) => p.source === 'optimus');
+    const keys: string[] = [];
+    const blobs: string[] = [];
+    for (const p of todos) {
+      keys.push(`${SHA_KEY_PREFIX}${p.sha256}`);
+      if (p.optimus?.numero) keys.push(`internal:pagos-clientes-optimus:${p.optimus.numero}`);
+      if (p.extracted?.referencia) keys.push(`${REF_KEY_PREFIX}${normalizeBank(p.extracted.banco)}:${normalizeRef(p.extracted.referencia)}`);
+      blobs.push(p.filePath);
+      if (p.applyScreenshotPath) blobs.push(p.applyScreenshotPath);
+    }
+    if (todos.length) {
+      await redis.hdel(REDIS_KEY, ...todos.map((p) => p.id));
+      await redis.hdel(PHASH_KEY, ...todos.map((p) => p.id)).catch(() => {});
+      for (let i = 0; i < keys.length; i += 100) await redis.del(...keys.slice(i, i + 100)).catch(() => {});
+      if (token && blobs.length) await del(blobs, { token, abortSignal: blobTimeout(30_000) }).catch(() => {});
+    }
+    await logAudit(redis, session, 'pagos_optimus_reinicio', `${todos.length} comprobantes`, 'borrados para que el robot los vuelva a traer');
+    return json(200, { borrados: todos.length });
   }
 
   if (action === 'config') {

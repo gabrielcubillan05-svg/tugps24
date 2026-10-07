@@ -177,7 +177,19 @@ document.addEventListener('DOMContentLoaded', function () {
     panel.innerHTML = `<span><span class="dot" style="background:${color}"></span><b>${state}</b></span>
       <span class="hint">${seen ? 'Último ciclo: ' + fmtDate(robot.lastSeenAt) : 'El robot se conecta cada 15 minutos cuando esté configurado.'}</span>
       ${robot.lastResult ? `<span class="hint">Último resultado: ${escapeHtml(robot.lastResult)}</span>` : ''}
-      <button class="btn-small ${robot.paused ? '' : 'btn-delete'}" type="button" id="robotToggle">${robot.paused ? 'Reanudar robot' : 'Pausar robot'}</button>`;
+      <button class="btn-small ${robot.paused ? '' : 'btn-delete'}" type="button" id="robotToggle">${robot.paused ? 'Reanudar robot' : 'Pausar robot'}</button>
+      ${robot.isAdmin ? '<button class="btn-small btn-delete" type="button" id="robotReset" title="Borra lo traído de Optimus para que el robot lo vuelva a traer">Reiniciar lo traído de Optimus</button>' : ''}`;
+    const reset = document.getElementById('robotReset');
+    if (reset) reset.addEventListener('click', async () => {
+      if (!confirm('Se borran del panel TODOS los comprobantes traídos de Optimus (con sus lecturas y archivos). El robot los vuelve a traer en su próximo ciclo. ¿Continuar?')) return;
+      try {
+        const res = await fetch('/api/verificacion-pagos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'borrar-optimus' }), signal: timeoutSignal(60000) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
+        alert('Borrados: ' + data.borrados);
+        loadPagos();
+      } catch (err) { alert('No se pudo: ' + ((err && err.message) || err)); }
+    });
     document.getElementById('robotToggle').addEventListener('click', async () => {
       try {
         const res = await fetch('/api/verificacion-pagos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'robot', paused: !robot.paused }), signal: timeoutSignal(20000) });
