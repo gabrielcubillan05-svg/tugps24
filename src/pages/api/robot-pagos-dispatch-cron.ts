@@ -45,15 +45,25 @@ export const GET: APIRoute = async ({ request }) => {
   const guarded = await runCronGuarded(redis, 'robot-pagos-dispatch', 300, async () => {
     const state = await readRobotState(redis);
     if (state.paused) return { skipped: 'robot en pausa desde el panel' };
+    // Desde que Gabriel guardó el workflow a su nombre, el horario propio de GitHub volvió a
+    // disparar a la misma hora (primera vez el 2026-10-07 a las 12:40). Si ya hay una corrida de
+    // los últimos minutos, no se lanza otra: la segunda solo encontraría la cola vacía.
+    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'tugps24-panel' };
+    try {
+      const recent = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=1`, { headers, signal: AbortSignal.timeout(10_000) });
+      if (recent.ok) {
+        const data = (await recent.json()) as { workflow_runs?: { created_at: string; status: string }[] };
+        const last = data.workflow_runs?.[0];
+        if (last && (last.status === 'queued' || last.status === 'in_progress' || Date.now() - Date.parse(last.created_at) < 4 * 60_000)) {
+          return { skipped: `ya hay una corrida reciente (${last.status}, ${last.created_at})` };
+        }
+      }
+    } catch (err) {
+      console.error('robot-pagos-dispatch: no se pudo consultar la última corrida', err instanceof Error ? err.message : String(err));
+    }
     const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type': 'application/json',
-        'User-Agent': 'tugps24-panel',
-      },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ref: 'main', inputs: { modo: 'aplicar', maximo: '25' } }),
       signal: AbortSignal.timeout(15_000),
     });
