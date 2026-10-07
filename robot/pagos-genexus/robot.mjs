@@ -43,25 +43,39 @@ async function reportar(id, result, detail, screenshotBuffer) {
 // con los campos vUSERNAME, vUSERPASSWORD y el botón BTNENTER. Verificado el 2026-10-07.
 const LOGIN_PATH = 'gamexamplelogin.aspx';
 
+const PAGOS_PATH = 'erp.paymentww.aspx';
+
 async function iniciarSesion(page) {
   const base = (process.env.GENEXUS_URL || 'https://core.optimus.tugps24.com/').replace(/\/$/, '');
-  await page.goto(`${base}/${LOGIN_PATH}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await page.waitForSelector('#vUSERNAME', { timeout: 30_000 });
-  await page.fill('#vUSERNAME', process.env.GENEXUS_USER || '');
-  await page.fill('#vUSERPASSWORD', process.env.GENEXUS_PASS || '');
-  await page.click('#BTNENTER');
-  // GAM recarga la misma página con el aviso cuando la clave es incorrecta; si entra, navega al menú.
-  try {
-    await page.waitForURL((u) => !u.toString().toLowerCase().includes(LOGIN_PATH), { timeout: 20_000 });
-  } catch {
-    const aviso = await page.locator('.gx-warning-message, #gxErrorViewer, .ErrorViewer, [id*="ERROR"], .gx-message').allInnerTexts().catch(() => []);
-    throw new Error('No se pudo iniciar sesión en el sistema de pagos' + (aviso.length ? ': ' + aviso.join(' ').trim().slice(0, 160) : ''));
+  // Se entra por home.aspx, como una persona: GAM redirige al login guardando la página de
+  // vuelta. Entrando directo al login, al terminar mandaba a "notauthorized" aunque el usuario
+  // sí tuviera permisos (la página por defecto del GAM no es la del rol del robot).
+  await page.goto(`${base}/home.aspx`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  if (page.url().toLowerCase().includes(LOGIN_PATH)) {
+    await page.waitForSelector('#vUSERNAME', { timeout: 30_000 });
+    await page.fill('#vUSERNAME', process.env.GENEXUS_USER || '');
+    await page.fill('#vUSERPASSWORD', process.env.GENEXUS_PASS || '');
+    await page.click('#BTNENTER');
+    try {
+      await page.waitForURL((u) => !u.toString().toLowerCase().includes(LOGIN_PATH), { timeout: 20_000 });
+    } catch {
+      const aviso = await page.locator('.gx-warning-message, #gxErrorViewer, .ErrorViewer, [id*="ERROR"], .gx-message').allInnerTexts().catch(() => []);
+      throw new Error('No se pudo iniciar sesión en el sistema de pagos' + (aviso.length ? ': ' + aviso.join(' ').trim().slice(0, 160) : ''));
+    }
   }
   await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-  // GAM deja entrar pero manda a "notauthorized" cuando el usuario no tiene rol en la aplicación.
-  if (page.url().toLowerCase().includes('notauthorized')) {
-    throw new Error('El usuario del robot entró a Optimus pero no tiene permisos (gamexamplenotauthorized): en Seguridad GAM hay que asignarle un rol con acceso a Administrativa → Pagos');
-  }
+  console.log('Tras entrar:', page.url());
+}
+
+// Va directo a la lista de pagos y comprueba que de verdad se puede ver.
+async function irAPagos(page) {
+  const base = (process.env.GENEXUS_URL || 'https://core.optimus.tugps24.com/').replace(/\/$/, '');
+  await page.goto(`${base}/${PAGOS_PATH}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+  const url = page.url().toLowerCase();
+  if (url.includes(LOGIN_PATH)) throw new Error('Optimus pidió iniciar sesión otra vez al abrir Pagos: usuario o clave del robot incorrectos');
+  if (url.includes('notauthorized')) throw new Error('El usuario del robot no tiene permiso para ver Administrativa → Pagos (gamexamplenotauthorized): revisar su rol en Seguridad GAM');
+  await page.waitForSelector('table', { timeout: 30_000 });
 }
 
 // Devuelve { detail } cuando el pago quedó aplicado, o lanza un Error con el motivo.
@@ -88,6 +102,8 @@ async function verificarAcceso() {
     try {
       await iniciarSesion(page);
       await page.screenshot({ path: 'salida/01-menu.png', fullPage: true });
+      await irAPagos(page);
+      await page.screenshot({ path: 'salida/02-pagos.png', fullPage: true });
       const links = await page.locator('a, button, [data-gx-button]').evaluateAll((els) => els.map((e) => (e.innerText || e.value || '').trim()).filter(Boolean).slice(0, 200));
       const { writeFileSync } = await import('node:fs');
       writeFileSync('salida/menu-textos.txt', links.join('\n'));
@@ -119,8 +135,7 @@ async function explorarPagos() {
   try {
     await iniciarSesion(page);
     await guardar('01-menu');
-    await page.getByText('Administrativa', { exact: true }).first().click();
-    await page.getByText('Pagos', { exact: true }).first().click();
+    await irAPagos(page);
     await guardar('02-pagos-lista');
     // Estructura de la lista al registro: encabezados, primera fila completa y los filtros.
     const encabezados = await page.locator('table th').allInnerTexts().catch(() => []);
