@@ -5,7 +5,7 @@ import { put } from '@vercel/blob';
 import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessPlanillasVehiculo, findUserById, verifySameOrigin, branchesOf } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessPlanillasVehiculo, findUserById, verifySameOrigin, planillaBranchFor, planillaBranchesFor } from '../../lib/auth';
 import { todayInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
@@ -107,7 +107,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // técnico distinto. Admin ve todas sin acotar.
   if (session.role !== 'admin') {
     const me = await findUserById(redis, session.userId);
-    const myBranches = branchesOf(me);
+    const myBranches = planillaBranchesFor(session, me);
     // Las propias siempre se ven, aunque el usuario no tenga sucursal asignada.
     planillas = planillas.filter((p) => myBranches.includes(p.branch) || p.tecnicoId === session.userId);
   }
@@ -230,7 +230,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     modelo,
     fecha,
     hora,
-    branch: branchesOf(tecnico)[0] || '',
+    branch: planillaBranchFor(session, tecnico),
     items: items.map((it) => ({
       label: String(it.label || ''),
       estado: String(it.estado || ''),
@@ -303,7 +303,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   // entrada (ver nota en GET) — se acota igual que la lectura.
   if (session.role !== 'admin') {
     const me = await findUserById(redis, session.userId);
-    const myBranches = branchesOf(me);
+    const myBranches = planillaBranchesFor(session, me);
     if (!myBranches.includes(planilla.branch) && planilla.tecnicoId !== session.userId) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
     }

@@ -250,6 +250,16 @@ export function canAccessRRHH(session: Pick<Session, 'role' | 'username'>): bool
 // Planilla de vehículo: además de técnicos, gerentes y admin, la cargan Cristian y Jhony Parra
 // (pedido de Gabriel, 2026-10-07). Ven y registran las planillas de sus propias sucursales.
 const PLANILLAS_EXTRA_USERNAMES = ['cristianzambrano1', 'jhonyparra'];
+// Sucursal fija de las planillas de estos usuarios, por encima de la sucursal de su perfil:
+// Cristian llena planillas solo del punto de Bucaramanga (Gabriel, 2026-10-07).
+const PLANILLAS_BRANCH_OVERRIDE: Record<string, string> = { cristianzambrano1: 'Bucaramanga' };
+export function planillaBranchFor(session: Pick<Session, 'username'>, user: Pick<User, 'branch' | 'branches'> | null | undefined): string {
+  return PLANILLAS_BRANCH_OVERRIDE[session.username.toLowerCase()] || branchesOf(user)[0] || '';
+}
+export function planillaBranchesFor(session: Pick<Session, 'username'>, user: Pick<User, 'branch' | 'branches'> | null | undefined): string[] {
+  const fija = PLANILLAS_BRANCH_OVERRIDE[session.username.toLowerCase()];
+  return fija ? [fija] : branchesOf(user);
+}
 export function canAccessPlanillasVehiculo(session: Pick<Session, 'role' | 'username'>): boolean {
   return canAccessSection(session.role, 'planillas-vehiculo') || PLANILLAS_EXTRA_USERNAMES.includes(session.username.toLowerCase());
 }
