@@ -465,7 +465,6 @@ async function aprobarEnOptimus(page, item) {
   const o = item.optimus || {};
   const fill = item.fill || {};
   if (!o.paymentId) throw new Error('el pago no trae el identificador de Optimus (vino de la subida manual); aplicar a mano');
-  if (!fill.monto) throw new Error('GPSITO no leyó el valor del comprobante');
   const fila = { paymentId: o.paymentId, clientId: o.clientId, numero: o.numero, sucursal: item.branch, cliente: item.clientName, fecha: o.fecha, cargadoPorCliente: !!o.cargadoPorCliente };
   const { info, contratos, formasPago, visibles } = await leerConfirmacion(page, fila);
   console.log('Cuadro abierto', fila.cargadoPorCliente ? '(cargado por el cliente)' : '(creado por secretaria)', '· campos visibles:', JSON.stringify(visibles));
@@ -477,6 +476,10 @@ async function aprobarEnOptimus(page, item) {
   if (!pideDatos && montoOptimus <= 0) {
     throw new Error('Optimus no mostró los campos de contrato, monto y forma de pago para este pago con monto 0; revisar a mano');
   }
+  // El valor leído del comprobante solo es imprescindible cuando hay que digitarlo. Si la
+  // secretaria ya registró el monto en Optimus y una persona aprobó en el panel, se aprueba con
+  // ese monto aunque GPSITO no haya podido leer el comprobante (caso Josué Martínez, 2026-10-07).
+  if (!fill.monto && pideDatos) throw new Error('GPSITO no leyó el valor del comprobante y Optimus pide digitarlo; aplicar a mano');
   let detalle;
   if (pideDatos) {
     // Cargado por el cliente: hay que digitar.
@@ -503,7 +506,7 @@ async function aprobarEnOptimus(page, item) {
     detalle = `aprobado en Optimus con monto ${monto.toLocaleString('es-CO')}, contrato ${contratos[0].numero}, ${forma.texto}, ref. ${fill.referencia || 'sin referencia'}`;
   } else {
     // Creado por una secretaria: ya trae monto; se compara con el comprobante antes de aprobar.
-    if (montoOptimus > 0 && Math.abs(montoOptimus - fill.monto) > Math.max(100, montoOptimus * 0.01)) {
+    if (fill.monto && montoOptimus > 0 && Math.abs(montoOptimus - fill.monto) > Math.max(100, montoOptimus * 0.01)) {
       throw new Error(`el monto en Optimus (${montoOptimus.toLocaleString('es-CO')}) no coincide con el comprobante (${Number(fill.monto).toLocaleString('es-CO')})`);
     }
     detalle = `aprobado en Optimus por ${montoOptimus.toLocaleString('es-CO')} (monto ya registrado)`;
