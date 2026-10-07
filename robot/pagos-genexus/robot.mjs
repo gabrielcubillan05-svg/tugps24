@@ -118,20 +118,36 @@ async function explorarPagos() {
     await page.getByText('Administrativa', { exact: true }).first().click();
     await page.getByText('Pagos', { exact: true }).first().click();
     await guardar('02-pagos-lista');
-    // Primer número de pago de la tabla (enlace con solo dígitos).
+    // Menú de tres rayas de la primera fila → "Confirmación" → cuadro "Confirmación de pago".
+    // Se captura el cuadro con sus listas (Contrato, Forma de pago) y se cierra sin aprobar ni denegar.
+    const menuBtn = page.locator('table tbody tr').first().locator('button, a, [role="button"], img, span[class*="icon"], i').first();
+    if (await menuBtn.count()) {
+      await menuBtn.click();
+      await page.waitForTimeout(800);
+      await guardar('03-menu-fila');
+      const confirm = page.getByText(/^Confirmaci[oó]n$/).first();
+      if (await confirm.count()) {
+        await confirm.click();
+        await page.waitForTimeout(1500);
+        await guardar('04-confirmacion-dialogo');
+        const selects = await page.locator('select').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, options: [...e.options].map((o) => o.value + ' | ' + o.text.trim()) })));
+        writeFileSync('salida/04-listas.json', JSON.stringify(selects, null, 2));
+        const campos = await page.locator('input, textarea').evaluateAll((els) => els.filter((e) => e.type !== 'hidden').map((e) => ({ id: e.id, name: e.name, type: e.type, value: e.value, placeholder: e.placeholder })));
+        writeFileSync('salida/04-campos.json', JSON.stringify(campos, null, 2));
+        const botones = await page.locator('button, input[type="button"], input[type="submit"]').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, text: (e.innerText || e.value || '').trim() })).filter((b) => b.text));
+        writeFileSync('salida/04-botones.json', JSON.stringify(botones, null, 2));
+        await page.keyboard.press('Escape').catch(() => {});
+      } else {
+        console.log('No se encontró la opción "Confirmación" en el menú de la fila.');
+      }
+    } else {
+      console.log('No se encontró el menú de tres rayas en la primera fila.');
+    }
+    // Detalle del primer pago (enlace con solo dígitos), por si hace falta su estructura.
     const primero = page.locator('table a').filter({ hasText: /^\d{6,}$/ }).first();
     if (await primero.count()) {
       await primero.click();
-      await guardar('03-pago-detalle');
-      const modificar = page.getByRole('button', { name: /modificar/i }).or(page.locator('input[value="Modificar"], [id*="MODIFICAR"], [id*="UPDATE"]')).first();
-      if (await modificar.count()) {
-        await modificar.click();
-        await guardar('04-pago-modificar');
-      } else {
-        console.log('No se encontró el botón Modificar.');
-      }
-    } else {
-      console.log('No se encontró ningún número de pago en la tabla.');
+      await guardar('05-pago-detalle');
     }
   } catch (err) {
     await page.screenshot({ path: 'salida/error.png', fullPage: true }).catch(() => {});
