@@ -245,6 +245,7 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
         }
       }
     }
+    let parecidoSinComparar = '';
     if (fresh.phash) {
       const all = (await redis.hgetall(PHASH_KEY)) || {};
       let best: { id: string; dist: number } | null = null;
@@ -261,15 +262,25 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
         const otherPago = await readPago(redis, best.id);
         const otherRef = normalizeRef(otherPago?.extracted?.referencia || '');
         const distinguibles = ref && otherRef && ref !== otherRef;
-        const other = distinguibles ? null : priorFrom(otherPago, 'imagen');
-        if (other) {
-          prior.push(other);
-          if (!fresh.duplicateOf) fresh.duplicateOf = other.id;
+        // Si el otro todavía no tiene lectura (está en la cola o falló), no hay con qué comparar
+        // la referencia: no se marca en rojo solo por el parecido. Si de verdad fuera el mismo
+        // comprobante, la reserva de referencia lo atrapa cuando se lea el otro.
+        if (distinguibles) {
+          // Misma plantilla, referencias distintas: pagos distintos.
+        } else if (ref && !otherPago?.extracted) {
+          parecidoSinComparar = otherPago ? `${otherPago.clientName} (${otherPago.createdByName})` : '';
+        } else {
+          const other = priorFrom(otherPago, 'imagen');
+          if (other) {
+            prior.push(other);
+            if (!fresh.duplicateOf) fresh.duplicateOf = other.id;
+          }
         }
       }
     }
     const destinos = await readDestinos(redis);
     const verdict = evaluate(extracted, fresh.clientName, destinos, prior, undefined, fresh.optimus);
+    if (parecidoSinComparar) verdict.notes.push(`La imagen se parece a la del comprobante de ${parecidoSinComparar}, que aún no tiene lectura; las referencias se comparan cuando se lea.`);
     fresh.extracted = extracted;
     fresh.analysisStartedAt = null;
     if (aprobadoAMano) {
