@@ -610,7 +610,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (current.applyStatus === 'aplicado' || current.applyStatus === 'manual') return json(409, { error: 'ya se resolvió en Optimus' });
     const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
     if (!token) return json(503, { error: 'almacenamiento de archivos no configurado' });
-    if (!(await checkAndIncrementRateLimit(redis, `internal:pagos-clientes-rate:reanalizar:${session.userId}`, 30, 86400))) {
+    // 300 al día: con 40 o 50 comprobantes diarios y relecturas tras una caída, 30 se quedaba corto.
+    if (!(await checkAndIncrementRateLimit(redis, `internal:pagos-clientes-rate:reanalizar:${session.userId}`, 300, 86400))) {
       return json(429, { error: 'demasiadas relecturas hoy' });
     }
     const stored = await fetchStoredFile(token, pago.filePath).catch(() => null);
