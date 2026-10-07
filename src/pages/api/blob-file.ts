@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { get } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
-import { SESSION_COOKIE, getSession, canAccessSection, canAccessSuspensiones, canAccessSolicitudesAdministrativas, canAccessGarantias, canAccessSimConsumos, canAccessVerificacionPagos } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessSection, canAccessSuspensiones, canAccessSolicitudesAdministrativas, canAccessGarantias, canAccessSimConsumos, canAccessVerificacionPagos, canAccessPlanillasVehiculo } from '../../lib/auth';
 import { isSafeBlobPath, cacheControlFor, downloadHeadersFor } from '../../lib/blob-path';
 
 export const prerender = false;
@@ -86,7 +86,7 @@ export const GET: APIRoute = async ({ url, cookies }) => {
       }
     }
   } else if (path.startsWith('planillas/')) {
-    if (!canAccessSection(session.role, 'planillas-vehiculo')) {
+    if (!canAccessPlanillasVehiculo(session)) {
       return new Response('forbidden', { status: 403 });
     }
     const isManager = session.role === 'gerente' || session.role === 'admin';

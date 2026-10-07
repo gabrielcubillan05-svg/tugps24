@@ -2,14 +2,14 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, canAccessPlanillasVehiculo } from '../../lib/auth';
 import { CHECKLIST_ITEMS, ESTADOS } from '../api/planillas-vehiculo';
 import { todayInColombia, timeInColombia } from '../../lib/colombia-time';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
 if (!session) return Astro.redirect(LOGIN_PATH);
 if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
-if (!canAccessSection(session.role, 'planillas-vehiculo')) {
+if (!canAccessPlanillasVehiculo(session)) {
   const fallback = firstSectionFor(session.role);
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }

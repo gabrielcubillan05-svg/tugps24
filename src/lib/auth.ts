@@ -247,6 +247,13 @@ export function canAccessRRHH(session: Pick<Session, 'role' | 'username'>): bool
   return session.role === 'admin' || RRHH_EXTRA_USERNAMES.includes(session.username);
 }
 
+// Planilla de vehículo: además de técnicos, gerentes y admin, la cargan Cristian y Jhony Parra
+// (pedido de Gabriel, 2026-10-07). Ven y registran las planillas de sus propias sucursales.
+const PLANILLAS_EXTRA_USERNAMES = ['cristianzambrano1', 'jhonyparra'];
+export function canAccessPlanillasVehiculo(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'planillas-vehiculo') || PLANILLAS_EXTRA_USERNAMES.includes(session.username.toLowerCase());
+}
+
 // Consumo de SIM: los archivos del operador los suben y analizan Cristian (inventario nacional)
 // y Josué; el admin también lo ve.
 const SIM_CONSUMOS_USERNAMES = [JOSUE_USERNAME, 'cristianzambrano1'];
@@ -280,6 +287,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>, user?: 
   if (canManageAiAgents(session)) extra.push('agentes-ia');
   if (canAccessSimConsumos(session)) extra.push('sim-consumos');
   if (!base.includes('verificacion-pagos') && canAccessVerificacionPagos(session)) extra.push('verificacion-pagos');
+  if (!base.includes('planillas-vehiculo') && canAccessPlanillasVehiculo(session)) extra.push('planillas-vehiculo');
   // Inventario de sucursal: lo ve el admin (todas las sucursales) y los encargados de
   // inventario, que se marcan por usuario en Usuarios. Como eso vive en el registro del
   // usuario y no en la sesión, el layout pasa el usuario cuando lo tiene a la mano.

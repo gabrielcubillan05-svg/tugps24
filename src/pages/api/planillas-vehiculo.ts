@@ -5,7 +5,7 @@ import { put } from '@vercel/blob';
 import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin, branchesOf } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessPlanillasVehiculo, findUserById, verifySameOrigin, branchesOf } from '../../lib/auth';
 import { todayInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
@@ -70,7 +70,7 @@ export interface PlanillaVehiculo {
 
 async function requirePlanillas(cookies: any) {
   const session = await getSession(cookies.get(SESSION_COOKIE)?.value);
-  if (!session || !canAccessSection(session.role, 'planillas-vehiculo')) return null;
+  if (!session || !canAccessPlanillasVehiculo(session)) return null;
   return session;
 }
 
@@ -105,7 +105,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // Técnico y gerente ven todas las planillas de su(s) propia(s) sucursal(es) — no solo las que
   // ellos mismos crearon, porque la entrada y la salida de un mismo vehículo las puede hacer un
   // técnico distinto. Admin ve todas sin acotar.
-  if (session.role === 'tecnico' || session.role === 'gerente') {
+  if (session.role !== 'admin') {
     const me = await findUserById(redis, session.userId);
     const myBranches = branchesOf(me);
     planillas = planillas.filter((p) => myBranches.includes(p.branch));
@@ -300,7 +300,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
 
   // La salida la puede registrar cualquier técnico de la misma sucursal, no solo quien hizo la
   // entrada (ver nota en GET) — se acota igual que la lectura.
-  if (session.role === 'tecnico' || session.role === 'gerente') {
+  if (session.role !== 'admin') {
     const me = await findUserById(redis, session.userId);
     const myBranches = branchesOf(me);
     if (!myBranches.includes(planilla.branch)) {
