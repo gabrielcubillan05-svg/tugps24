@@ -5,7 +5,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSimConsumos, findUserById, verifySameOrigin, type Session } from '../../lib/auth';
 import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
-import { computeSimStats, periodOf, normalizeSimNumber, DEFAULT_PLAN_MB, DEFAULT_LIMIT_MB, type SimLine, type SimStats } from '../../lib/sim-consumos';
+import { computeSimStats, periodOf, normalizeSimNumber, DEFAULT_PLAN_MB, DEFAULT_LIMIT_MB, KB_PER_MB, type SimLine, type SimStats } from '../../lib/sim-consumos';
 import { analyzeSimLote, askSimLote } from '../../lib/sim-consumos-agent';
 import { getLastAnthropicFailure } from '../../lib/anthropic-client';
 import { runAfterResponse } from '../../lib/background';
@@ -231,7 +231,7 @@ function linesToCsv(lote: SimLote, lines: SimLine[]): string {
   const cell = (v: unknown) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const rows = lines
     .map((l) => {
-      const mb = (l.kb || 0) / 1024;
+      const mb = (l.kb || 0) / KB_PER_MB;
       const mesMb = (mb * 30) / dias;
       const diasUso = Object.values(l.d || {}).filter((kb) => kb > 0).length;
       const imeis = Array.isArray(l.i) ? l.i : [];
@@ -250,7 +250,7 @@ function linesToCsv(lote: SimLote, lines: SimLine[]): string {
     [cell('Plan MB/mes'), planMb, cell('Máximo MB/mes'), limitMb].join(';'),
     '',
   ];
-  const body = rows.map((r) => [cell(r.l.n), cell(r.l.c), num(r.mb, 2), num(r.mesMb, 1), r.diasUso, cell(r.estado), cell(r.imeis.join(' | ')), num((r.l.u || 0) / 1024, 2), num((r.l.b || 0) / 1024, 2)].join(';'));
+  const body = rows.map((r) => [cell(r.l.n), cell(r.l.c), num(r.mb, 2), num(r.mesMb, 1), r.diasUso, cell(r.estado), cell(r.imeis.join(' | ')), num((r.l.u || 0) / KB_PER_MB, 2), num((r.l.b || 0) / KB_PER_MB, 2)].join(';'));
   return '\ufeff' + [...meta, head.join(';'), ...body].join('\n') + '\n';
 }
 

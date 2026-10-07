@@ -56,7 +56,9 @@ export interface SimStats {
   };
 }
 
-const KB_PER_MB = 1024;
+// Decimal (1 MB = 1.000 KB), como factura el operador; decisión de Gabriel el 2026-10-07.
+export const KB_PER_MB = 1000;
+export const MB_PER_GB = 1000;
 const TOP = 50;
 
 function round1(n: number): number {

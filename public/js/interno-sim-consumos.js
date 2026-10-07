@@ -26,7 +26,8 @@ document.addEventListener('DOMContentLoaded', function () {
     return Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: d === undefined ? 0 : d, minimumFractionDigits: d === undefined ? 0 : d });
   }
   function fmtMb(mb) {
-    return mb >= 1024 ? fmtNum(mb / 1024, 2) + ' GB' : fmtNum(mb, 1) + ' MB';
+    // Decimal como el operador: 1 MB = 1.000 KB, 1 GB = 1.000 MB.
+    return mb >= 1000 ? fmtNum(mb / 1000, 2) + ' GB' : fmtNum(mb, 1) + ' MB';
   }
   function fmtDateTime(iso) {
     return iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : '';
@@ -157,7 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const fromName = names.match(/(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})/);
       if (!periodStartInput.value) periodStartInput.value = fromName ? fromName[1] : result.period ? result.period.start : '';
       if (!periodEndInput.value) periodEndInput.value = fromName ? fromName[2] : result.period ? result.period.end : '';
-      const totalMb = result.lines.reduce((s, l) => s + l.kb, 0) / 1024;
+      const totalMb = result.lines.reduce((s, l) => s + l.kb, 0) / 1000;
       const sizeKb = Math.round(JSON.stringify(result.lines).length / 1024);
       preview.innerHTML = `
         <table>${result.files.map((f) => `<tr><td>${escapeHtml(f.name)}</td><td>${fmtNum(f.rows)} registros · ${fmtNum(f.lines)} líneas</td></tr>`).join('')}</table>
@@ -405,7 +406,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         <div class="sim-section">
           <h4>Consumo por día <span class="count">MB</span></h4>
-          <div class="sim-days">${dayKeys.map((k) => `<div class="bar" style="height:${Math.max(2, Math.round((s.perDayMb[k] / maxDay) * 100))}%"><span>${fmtNum(s.perDayMb[k] / 1024, 2)} GB</span></div>`).join('')}</div>
+          <div class="sim-days">${dayKeys.map((k) => `<div class="bar" style="height:${Math.max(2, Math.round((s.perDayMb[k] / maxDay) * 100))}%"><span>${fmtNum(s.perDayMb[k] / 1000, 2)} GB</span></div>`).join('')}</div>
           <div class="sim-days-labels">${dayKeys.map((k) => `<div>${fmtDay(k)}</div>`).join('')}</div>
         </div>
 
