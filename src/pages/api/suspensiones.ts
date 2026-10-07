@@ -97,7 +97,9 @@ async function requireSuspensiones(cookies: any) {
 }
 
 export async function readSuspensiones(redis: any): Promise<Suspension[]> {
-  return parseJsonValues<Suspension>(await readHashValues(redis, REDIS_KEY))
+  // Lotes grandes del HSCAN: cada viaje a Upstash cuesta decenas de ms y la lista completa se lee
+  // en cada carga de la página.
+  return parseJsonValues<Suspension>(await readHashValues(redis, REDIS_KEY, 2000))
     .map((s) => ({
       timeline: [],
       clientPhone: '',
