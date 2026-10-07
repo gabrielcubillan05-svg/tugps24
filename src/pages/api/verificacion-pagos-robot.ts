@@ -8,7 +8,7 @@ import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { markCronOk } from '../../lib/incidents';
 import { blobTimeout } from '../../lib/blob-path';
-import { cronSecretMatches, getUsers, KELLY_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
+import { cronSecretMatches, getUsers, findUserByUsername, KELLY_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
 import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, isApplyPending, applyActionFor, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
 import { readPagos, readPago, savePago, analyzePago, REDIS_KEY, readRobotState } from './verificacion-pagos';
 
@@ -184,6 +184,10 @@ async function ingest(redis: any, body: any): Promise<Response> {
     pendiente: num(form.get('pendiente')),
     reconectar: num(form.get('reconectar')),
   };
+  // Las secretarías usan en Optimus el mismo usuario que en el panel: si "creado por" es una
+  // de ellas, el comprobante queda a su nombre y recibe el aviso cuando se resuelva. Si no,
+  // lo cargó el propio cliente (punto azul en Optimus).
+  const uploader = optimus.creadoPor ? await findUserByUsername(redis, optimus.creadoPor.toLowerCase()).catch(() => null) : null;
   const now = new Date().toISOString();
   const pago: PagoCliente = {
     id,
@@ -202,8 +206,8 @@ async function ingest(redis: any, body: any): Promise<Response> {
     analysisStartedAt: now,
     analysisError: null,
     createdAt: now,
-    createdById: ACTOR.userId,
-    createdByName: `Optimus (${optimus.creadoPor || 'cliente'})`,
+    createdById: uploader?.id || ACTOR.userId,
+    createdByName: uploader ? `${uploader.name} (en Optimus)` : `el cliente en Optimus (${optimus.creadoPor || 'sin usuario'})`,
     resolvedAt: null,
     resolvedByName: '',
     resolutionNote: '',
