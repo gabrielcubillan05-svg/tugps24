@@ -360,7 +360,9 @@ export function evaluate(extracted: PagoExtracted | null, clientName: string, de
   } else {
     const dest = destinoMatches(extracted.cuentaDestino, destinos);
     if (dest === false) reasons.push(`La cuenta destino (${extracted.cuentaDestino}) no es una cuenta de la empresa.`);
-    if (dest === null) notes.push('El comprobante no muestra la cuenta destino.');
+    // Sin cuenta destino visible (p. ej. DaviPlata "compra con QR en comercio") no hay forma de
+    // saber si la plata llegó a la empresa: a revisión (Gabriel, 2026-10-07, caso Yeferson Fonseca).
+    if (dest === null) reasons.push('El comprobante no muestra a quién le llegó la plata (cuenta, llave o negocio destino); confirmar antes de aprobar.');
   }
   if (extracted.editado) reasons.push(`GPSITO ve señales de edición: ${extracted.motivosEdicion || 'sin detalle'}.`);
   const related = namesLookRelated(clientName, extracted.pagador);
