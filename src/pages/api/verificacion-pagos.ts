@@ -253,12 +253,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (id) {
     const pago = await readPago(redis, id);
     if (!pago) return json(404, { error: 'no encontrado' });
-    if (!canResolve && !myBranches.includes(pago.branch)) return json(403, { error: 'forbidden' });
     return json(200, { pago: toClient(pago) });
   }
 
+  // Quien entra a esta pantalla ve todas las sucursales (Kelly, Wilmar, Cristian, admin).
   let items = await readPagos(redis);
-  if (!canResolve) items = items.filter((p) => myBranches.includes(p.branch));
   const q = (url.searchParams.get('q') || '').trim().toLowerCase();
   const status = url.searchParams.get('status') || '';
   const branch = url.searchParams.get('branch') || '';

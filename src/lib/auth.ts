@@ -142,9 +142,9 @@ export const SECTION_PATHS: Record<Section, string> = {
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
   operador: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
-  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas', 'verificacion-pagos'],
-  supervisor: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas', 'verificacion-pagos'],
-  gerente: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas', 'verificacion-pagos'],
+  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
+  supervisor: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
+  gerente: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
   admin: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario', 'verificacion-pagos'],
 };
 
@@ -254,11 +254,12 @@ export function canAccessSimConsumos(session: Pick<Session, 'role' | 'username'>
   return session.role === 'admin' || SIM_CONSUMOS_USERNAMES.includes(session.username.toLowerCase());
 }
 
-// Verificación de pagos: las secretarías suben los comprobantes de su sucursal; Kelly, Wilmar y
-// el admin ven todas las sucursales y son los únicos que aprueban o rechazan a mano.
+// Verificación de pagos (decisión de Gabriel, 2026-10-07): la ven solo Kelly, Wilmar, Cristian y el
+// admin, todas las sucursales; Kelly, Wilmar y el admin son los únicos que aprueban o rechazan a mano.
 const PAGOS_VERIFICACION_RESOLVERS = [KELLY_USERNAME, WILMAR_USERNAME];
+const PAGOS_VERIFICACION_VIEWERS = [...PAGOS_VERIFICACION_RESOLVERS, 'cristianzambrano1'];
 export function canAccessVerificacionPagos(session: Pick<Session, 'role' | 'username'>): boolean {
-  return canAccessSection(session.role, 'verificacion-pagos') || PAGOS_VERIFICACION_RESOLVERS.includes(session.username.toLowerCase());
+  return session.role === 'admin' || PAGOS_VERIFICACION_VIEWERS.includes(session.username.toLowerCase());
 }
 export function canResolveVerificacionPagos(session: Pick<Session, 'role' | 'username'>): boolean {
   return session.role === 'admin' || PAGOS_VERIFICACION_RESOLVERS.includes(session.username.toLowerCase());

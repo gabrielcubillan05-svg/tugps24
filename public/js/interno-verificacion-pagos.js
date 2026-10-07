@@ -208,7 +208,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function render() {
-    const items = currentTab ? pagos.filter((p) => p.status === currentTab) : pagos;
+    const items = !currentTab
+      ? pagos
+      : currentTab === 'por-aplicar'
+      ? pagos.filter((p) => p.applyStatus === 'pendiente' && (p.status === 'verde' || p.status === 'aprobado'))
+      : currentTab === 'aplicados'
+      ? pagos.filter((p) => p.applyStatus === 'aplicado' || p.applyStatus === 'manual')
+      : pagos.filter((p) => p.status === currentTab);
     if (!items.length) { list.innerHTML = '<div class="empty">No hay comprobantes en esta vista.</div>'; return; }
     list.innerHTML = items.map((p) => {
       const dup = p.duplicateOf ? pagos.find((o) => o.id === p.duplicateOf) : null;
