@@ -37,10 +37,17 @@ if (!canAccessSimConsumos(session)) {
         </div>
       </div>
       <p class="hint" style="margin:-6px 0 12px;">Es el periodo que cubre el reporte del operador. Se prellena con las fechas del nombre del archivo y puedes corregirlo.</p>
-      <div class="field">
-        <label for="simPlanMb">Plan contratado por SIM (MB al mes)</label>
-        <input id="simPlanMb" type="number" min="1" step="1" value="20" required />
+      <div class="sim-period">
+        <div class="field">
+          <label for="simPlanMb">Plan por SIM (MB al mes)</label>
+          <input id="simPlanMb" type="number" min="1" step="1" value="10" required />
+        </div>
+        <div class="field">
+          <label for="simLimitMb">Máximo tolerado (MB al mes)</label>
+          <input id="simLimitMb" type="number" min="1" step="1" value="15" required />
+        </div>
       </div>
+      <p class="hint" style="margin:-6px 0 12px;">Por encima del plan la línea sale como sobreconsumo; por encima del máximo, como crítica.</p>
       <div class="field">
         <label for="simLabel">Nombre del lote (opcional)</label>
         <input id="simLabel" type="text" maxlength="80" placeholder="Se genera con el periodo si lo dejas vacío" />

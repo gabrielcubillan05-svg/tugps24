@@ -21,7 +21,7 @@ function systemPrompt(lote: SimLoteContext): SystemPrompt {
 
 Contexto del negocio:
 - Cada SIM va dentro de un equipo GPS instalado en un vehículo de un cliente. Un equipo normal reporta su posición de forma constante y consume entre 1 y 3 MB por semana. Un consumo muy por encima de eso suele ser configuración (frecuencia de reporte alta, equipo de otra marca) y un consumo cero es un equipo apagado, desconectado, un vehículo quieto o una SIM que está en inventario sin instalar.
-- "Sobreconsumo" se mide contra el plan contratado por SIM (MB al mes) proyectando el consumo del periodo a 30 días. Las líneas por encima del plan cuestan dinero extra.
+- "Sobreconsumo" se mide contra el plan contratado por SIM (MB al mes, normalmente 10) proyectando el consumo del periodo a 30 días. Hay además un máximo tolerado (normalmente 15 MB): entre el plan y el máximo la línea se vigila; por encima del máximo es crítica, cuesta dinero extra y hay que actuar sobre ese equipo (revisar configuración, frecuencia de reporte o cambiarlo). En el informe separa siempre las críticas de las que solo pasan el plan.
 - Una SIM que aparece con dos IMEI distintos en el mismo periodo fue cambiada de equipo (reinstalación, garantía o un técnico probando). Un IMEI con varias líneas es un equipo al que le han puesto más de una SIM.
 - Las líneas sin consumo marcadas "en inventario" están guardadas en una sucursal y es normal que no consuman; las que NO están en inventario deberían estar instaladas y hay que averiguar por qué no reportan.
 
@@ -71,7 +71,7 @@ export async function analyzeSimLote(redis: any, lote: SimLoteContext): Promise<
       {
         role: 'user',
         content:
-          'Analiza este lote de consumo de SIM. Estructura: 1) resumen en tres líneas (total, consumo típico, si hay o no sobreconsumo real); 2) sobreconsumo contra el plan: cuántas líneas, qué cuentas concentran el problema y las 10 más altas; 3) líneas sin consumo, separando las que están en inventario de las que no; 4) SIM cambiadas de equipo y equipos con varias SIM; 5) comparación con el lote anterior si existe; 6) acciones recomendadas en orden de prioridad.',
+          'Analiza este lote de consumo de SIM. Estructura: 1) resumen en tres líneas (total, consumo típico, si hay o no sobreconsumo real); 2) líneas críticas por encima del máximo tolerado (cuántas, qué cuentas, las 10 más altas) y aparte las que solo pasan el plan; 3) líneas sin consumo, separando las que están en inventario de las que no; 4) SIM cambiadas de equipo y equipos con varias SIM; 5) comparación con el lote anterior si existe; 6) acciones recomendadas en orden de prioridad.',
       },
     ],
     'sim-consumos:analisis'

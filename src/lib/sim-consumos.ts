@@ -34,10 +34,14 @@ export interface SimStats {
   p90Mb: number;
   maxMb: number;
   planMb: number;
-  // Sobreconsumo: proyección a 30 días por encima del plan.
+  // Máximo tolerado: por encima del plan se avisa, por encima del máximo ya es crítico.
+  limitMb: number;
+  // Sobreconsumo: proyección a 30 días por encima del plan (incluye las críticas).
   over: { count: number; top: SimLineSummary[] };
+  // Críticas: proyección por encima del máximo tolerado.
+  critical: { count: number; top: SimLineSummary[] };
   thresholds: { weekMb: number; monthMb: number; count: number }[];
-  perAccount: Record<string, { lines: number; mb: number; medianMb: number; over: number; zero: number; multiImei: number }>;
+  perAccount: Record<string, { lines: number; mb: number; medianMb: number; over: number; critical: number; zero: number; multiImei: number }>;
   zero: { count: number; lines: { n: string; c: string; imeis: string[]; inInventory: boolean }[]; inInventoryCount: number };
   lowActivity: { count: number; top: SimLineSummary[] };
   multiImei: { count: number; lines: { n: string; c: string; imeis: string[]; mb: number }[] };
@@ -102,7 +106,11 @@ function summary(l: SimLine, dayCount: number): SimLineSummary {
 
 // periodDays: días del periodo declarado al subir (la proyección a 30 días se hace sobre él,
 // no sobre los días que traen datos: una línea que solo reportó 2 de 7 días consumió eso en 7).
-export function computeSimStats(lines: SimLine[], rowCount: number, planMb: number, inventorySims: Set<string>, previous: SimLine[] | null, previousPeriod: string, periodDays?: number): SimStats {
+export const DEFAULT_PLAN_MB = 10;
+export const DEFAULT_LIMIT_MB = 15;
+
+export function computeSimStats(lines: SimLine[], rowCount: number, planMb: number, inventorySims: Set<string>, previous: SimLine[] | null, previousPeriod: string, periodDays?: number, limitMbInput?: number): SimStats {
+  const limitMb = Math.max(planMb, limitMbInput || DEFAULT_LIMIT_MB);
   const { days } = periodOf(lines);
   const dayCount = periodDays && periodDays > 0 ? periodDays : days.length || 1;
   const kbs = lines.map((l) => l.kb);
@@ -115,14 +123,18 @@ export function computeSimStats(lines: SimLine[], rowCount: number, planMb: numb
 
   const projectedMb = (l: SimLine) => ((l.kb / KB_PER_MB) * 30) / dayCount;
   const overLines = lines.filter((l) => projectedMb(l) > planMb).sort((a, b) => b.kb - a.kb);
-  const thresholds = [2.5, 5, 7, 10].map((weekMb) => ({ weekMb, monthMb: Math.round((weekMb * 30) / 7), count: lines.filter((l) => l.kb > weekMb * KB_PER_MB).length }));
+  const criticalLines = overLines.filter((l) => projectedMb(l) > limitMb);
+  // Escalera de umbrales en MB al mes (proyectados), con el plan y el máximo incluidos.
+  const monthSteps = [...new Set([5, planMb, limitMb, 20, 30, 50].map((m) => Math.round(m)))].sort((a, b) => a - b);
+  const thresholds = monthSteps.map((monthMb) => ({ weekMb: Math.round((monthMb * 7) / 30 * 10) / 10, monthMb, count: lines.filter((l) => projectedMb(l) > monthMb).length }));
 
   const perAccount: SimStats['perAccount'] = {};
   for (const l of lines) {
-    const acc = perAccount[l.c] || (perAccount[l.c] = { lines: 0, mb: 0, medianMb: 0, over: 0, zero: 0, multiImei: 0 });
+    const acc = perAccount[l.c] || (perAccount[l.c] = { lines: 0, mb: 0, medianMb: 0, over: 0, critical: 0, zero: 0, multiImei: 0 });
     acc.lines++;
     acc.mb += l.kb / KB_PER_MB;
     if (projectedMb(l) > planMb) acc.over++;
+    if (projectedMb(l) > limitMb) acc.critical++;
     if (l.kb === 0) acc.zero++;
     if ((l.i || []).length > 1) acc.multiImei++;
   }
@@ -183,7 +195,9 @@ export function computeSimStats(lines: SimLine[], rowCount: number, planMb: numb
     p90Mb: round1(percentile(nonZero, 0.9) / KB_PER_MB),
     maxMb: round1((nonZero[nonZero.length - 1] || 0) / KB_PER_MB),
     planMb,
+    limitMb,
     over: { count: overLines.length, top: overLines.slice(0, TOP).map((l) => summary(l, dayCount)) },
+    critical: { count: criticalLines.length, top: criticalLines.slice(0, TOP).map((l) => summary(l, dayCount)) },
     thresholds,
     perAccount,
     zero: { count: zeroLines.length, lines: zero, inInventoryCount: zero.filter((z) => z.inInventory).length },

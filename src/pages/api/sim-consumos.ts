@@ -5,7 +5,7 @@ import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSimConsumos, findUserById, verifySameOrigin, type Session } from '../../lib/auth';
 import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
-import { computeSimStats, periodOf, normalizeSimNumber, type SimLine, type SimStats } from '../../lib/sim-consumos';
+import { computeSimStats, periodOf, normalizeSimNumber, DEFAULT_PLAN_MB, DEFAULT_LIMIT_MB, type SimLine, type SimStats } from '../../lib/sim-consumos';
 import { analyzeSimLote, askSimLote } from '../../lib/sim-consumos-agent';
 import { runAfterResponse } from '../../lib/background';
 import { readInventory } from './inventario';
@@ -38,7 +38,6 @@ const ANALYZE_PER_DAY = 10;
 const ASK_PER_DAY = 40;
 // Un bloque de 5.000 líneas pesa menos de 1 MB; más que eso no viene del navegador propio.
 const MAX_CHUNK_BODY = 1_500_000;
-const DEFAULT_PLAN_MB = 20;
 
 export interface SimLote {
   id: string;
@@ -54,6 +53,8 @@ export interface SimLote {
   files: string[];
   accounts: string[];
   planMb: number;
+  // Máximo tolerado por SIM (MB al mes); por encima la línea es crítica.
+  limitMb?: number;
   blobPath: string;
   stats: SimStats;
   analysis: { text: string; at: string } | null;
@@ -203,7 +204,9 @@ function lightLote(l: SimLote) {
     files: l.files,
     accounts: l.accounts,
     planMb: l.planMb,
+    limitMb: l.limitMb || l.stats.limitMb || DEFAULT_LIMIT_MB,
     lineCount: l.stats.lineCount,
+    criticalCount: l.stats.critical?.count || 0,
     totalMb: l.stats.totalMb,
     overCount: l.stats.over.count,
     zeroCount: l.stats.zero.count,
@@ -228,7 +231,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     const lote = markInterruptedAnalysis(found);
     return new Response(JSON.stringify({ lote, analysisPending: analysisPending(lote), blobUrl: '/api/blob-file?path=' + encodeURIComponent(lote.blobPath) }), { headers });
   }
-  return new Response(JSON.stringify({ lotes: lotes.map(lightLote), defaultPlanMb: DEFAULT_PLAN_MB, isAdmin: session.role === 'admin' }), { headers });
+  return new Response(JSON.stringify({ lotes: lotes.map(lightLote), defaultPlanMb: DEFAULT_PLAN_MB, defaultLimitMb: DEFAULT_LIMIT_MB, isAdmin: session.role === 'admin' }), { headers });
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
@@ -334,6 +337,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const periodDays = Math.round((Date.parse(periodEnd) - Date.parse(periodStart)) / 86400000) + 1;
     if (periodDays < 1 || periodDays > 366) return bail(400, { error: 'el periodo no puede pasar de un año' });
     const planMb = Math.min(10000, Math.max(1, Number(body.planMb) || DEFAULT_PLAN_MB));
+    const limitMb = Math.min(10000, Math.max(planMb, Number(body.limitMb) || DEFAULT_LIMIT_MB));
     const files = Array.isArray(body.files) ? body.files.map((f: unknown) => String(f).slice(0, 120)).slice(0, 40) : [];
     const rowCount = Math.max(0, Number(body.rowCount) || 0);
     const accounts = [...new Set(lines.map((l) => l.c).filter(Boolean))].sort();
@@ -353,7 +357,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       const blobPath = `${BLOB_PREFIX}${period.start}_a_${period.end}_${id}.json`;
       await put(blobPath, JSON.stringify(lines), { access: 'private', token, addRandomSuffix: false, contentType: 'application/json', abortSignal: AbortSignal.timeout(30_000) });
 
-      const stats = computeSimStats(lines, rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
+      const stats = computeSimStats(lines, rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays, limitMb);
       lote = {
         id,
         label,
@@ -366,6 +370,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         files,
         accounts,
         planMb,
+        limitMb,
         blobPath,
         stats,
         analysis: null,
@@ -426,6 +431,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   if (action === 'plan') {
     const planMb = Math.min(10000, Math.max(1, Number(body.planMb) || DEFAULT_PLAN_MB));
+    const limitMb = Math.min(10000, Math.max(planMb, Number(body.limitMb) || lote.limitMb || DEFAULT_LIMIT_MB));
     const lines = await readLines(token, lote.blobPath);
     const previous = lotes.find((l) => l.periodEnd < lote.periodStart) || null;
     const [previousLines, inventorySims] = await Promise.all([
@@ -433,10 +439,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       inventorySimNumbers(redis),
     ]);
     const periodDays = Math.round((Date.parse(lote.periodEnd) - Date.parse(lote.periodStart)) / 86400000) + 1;
-    const stats = computeSimStats(lines, lote.stats.rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
+    const stats = computeSimStats(lines, lote.stats.rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays, limitMb);
     // Misma razón que en "ask": no pisar las preguntas hechas mientras se leían las líneas.
     const fresh = (await readLote(redis, lote.id)) || lote;
     fresh.planMb = planMb;
+    fresh.limitMb = limitMb;
     fresh.stats = stats;
     fresh.analysis = null;
     fresh.analysisStartedAt = null;
