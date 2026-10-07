@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
 import { pageOf } from '../../lib/list-page';
@@ -50,7 +51,7 @@ async function uploadRequestPhoto(photoFile: File): Promise<{ path?: string; err
   }
   try {
     const id = randomUUID();
-    const blob = await put(`suspensiones/${id}`, photoFile, { access: 'private', token, addRandomSuffix: false });
+    const blob = await put(`suspensiones/${id}`, photoFile, { access: 'private', token, addRandomSuffix: false, abortSignal: blobTimeout() });
     return { path: blob.pathname };
   } catch (err) {
     return { error: 'fallo al subir la foto: ' + (err instanceof Error ? err.message : String(err)), status: 500 };

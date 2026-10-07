@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import { get, list } from '@vercel/blob';
 import { getRedis } from '../../lib/redis';
 import { SESSION_COOKIE, getSession, canAccessSection } from '../../lib/auth';
-import { isSafeBlobPath } from '../../lib/blob-path';
+import { isSafeBlobPath, blobTimeout } from '../../lib/blob-path';
+import { checkAndIncrementRateLimit } from '../../lib/rate-limit';
 import { REDIS_KEY as REPORTS_KEY, SEARCH_MAX_SCAN_CEILING, type Report } from './reports';
 
 export const prerender = false;
@@ -57,7 +58,7 @@ async function listArchives(token: string) {
   const archives: { pathname: string; size: number; uploadedAt: string; label: string }[] = [];
   let cursor: string | undefined;
   do {
-    const res = await list({ token, prefix: ARCHIVE_PREFIX, limit: 1000, cursor });
+    const res = await list({ token, prefix: ARCHIVE_PREFIX, limit: 1000, cursor, abortSignal: blobTimeout(BLOB_LIST_TIMEOUT_MS) });
     for (const b of res.blobs) {
       const name = b.pathname.slice(ARCHIVE_PREFIX.length);
       // "2025-01-03_a_2025-02-10_1712345678.json" → "3 ene 2025 a 10 feb 2025"
@@ -72,7 +73,7 @@ async function listArchives(token: string) {
 }
 
 async function readArchive(token: string, pathname: string): Promise<Report[]> {
-  const result = await get(pathname, { access: 'private', token });
+  const result = await get(pathname, { access: 'private', token, abortSignal: blobTimeout(BLOB_LIST_TIMEOUT_MS * 2) });
   if (!result || result.statusCode !== 200 || !result.stream) return [];
   const text = await new Response(result.stream).text();
   try {
@@ -148,6 +149,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // Búsqueda en todo lo archivado: cola de la lista por bloques y todos los archivos de Blob.
   if (q.length < 3) {
     return new Response(JSON.stringify({ error: 'escribe al menos tres letras o números' }), { status: 400 });
+  }
+  // Cada búsqueda global recorre decenas de miles de novedades y todos los archivos de Blob:
+  // un usuario no necesita más de unas pocas cada diez minutos.
+  if (!(await checkAndIncrementRateLimit(redis, `internal:novedades-archivadas-rate:${session.userId}`, 10, 600))) {
+    return new Response(JSON.stringify({ error: 'demasiadas búsquedas seguidas; espera unos minutos' }), { status: 429, headers });
   }
   const results: ArchivedReport[] = [];
   const offsets: number[] = [];

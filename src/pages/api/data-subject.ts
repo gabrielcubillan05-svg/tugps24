@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createHash } from 'node:crypto';
 import { del } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canManageUsers, verifySameOrigin } from '../../lib/auth';
@@ -25,7 +26,8 @@ const COLLECTIONS: { key: string; blobPrefix?: string; label: string }[] = [
   { key: 'internal:seguimiento-masivos', label: 'clientes masivos' },
 ];
 const PHONE_FIELDS = ['phone', 'telefono', 'clienteTelefono', 'clientPhone'];
-const ID_FIELDS = ['cedula', 'clienteCedula', 'documento', 'numero'];
+// 'numero' no entra: en varios módulos es el número de SIM o de factura, no la cédula.
+const ID_FIELDS = ['cedula', 'clienteCedula', 'documento'];
 
 function digits(v: unknown): string {
   return String(v ?? '').replace(/\D/g, '');
@@ -119,7 +121,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       }
       const blobs = c.blobPrefix ? blobPaths(record, c.blobPrefix) : [];
       if (blobs.length && token) {
-        try { await del(blobs, { token }); } catch (err) { console.error('data-subject: fallo borrando archivos', err instanceof Error ? err.message : String(err)); }
+        try { await del(blobs, { token, abortSignal: blobTimeout(20_000) }); } catch (err) { console.error('data-subject: fallo borrando archivos', err instanceof Error ? err.message : String(err)); }
       }
     }
   }

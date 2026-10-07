@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put, del } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, canManageMediaAssets, verifySameOrigin } from '../../lib/auth';
@@ -101,6 +102,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     try {
       const blob = await put(`media/${randomUUID()}`, file, {
         access: 'private',
+        abortSignal: blobTimeout(),
         token,
         addRandomSuffix: false,
       });
@@ -191,7 +193,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
     const token = import.meta.env.BLOB_READ_WRITE_TOKEN;
     if (token) {
       try {
-        await del(asset.blobPathname, { token });
+        await del(asset.blobPathname, { token, abortSignal: blobTimeout(20_000) });
       } catch {
         // si falla el borrado del blob, igual quitamos el registro
       }

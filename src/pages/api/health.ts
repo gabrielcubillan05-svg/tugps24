@@ -8,7 +8,14 @@ export const prerender = false;
 // ni requiere sesión: solo "ok"/"fallo" y la antigüedad de cada cron en minutos.
 const CRONS: { name: string; maxAgeMinutes: number }[] = [
   { name: 'apagados', maxAgeMinutes: 10 },
+  { name: 'whatsapp-inbox', maxAgeMinutes: 20 },
   { name: 'whatsapp-followup', maxAgeMinutes: 90 },
+  { name: 'whatsapp-cold-followup', maxAgeMinutes: 26 * 60 },
+  { name: 'whatsapp-cobros-bulk', maxAgeMinutes: 90 },
+  { name: 'gabot-reminders', maxAgeMinutes: 26 * 60 },
+  { name: 'gabot-venta-reminder', maxAgeMinutes: 90 },
+  { name: 'gabot-birthday', maxAgeMinutes: 26 * 60 },
+  { name: 'gabot-garantias-reassign', maxAgeMinutes: 26 * 60 },
   { name: 'cleanup', maxAgeMinutes: 26 * 60 },
   { name: 'backup', maxAgeMinutes: 26 * 60 },
 ];

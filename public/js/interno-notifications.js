@@ -33,7 +33,8 @@ document.addEventListener('DOMContentLoaded', function () {
     return String(str || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function fmtRelative(iso) {
@@ -53,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     notifList.innerHTML = notifications.map((n) => `
-      <a class="notif-item ${n.read ? '' : 'unread'} ${n.type === 'crm-urgent' ? 'urgent' : ''}" href="${n.link || '#'}" data-id="${n.id}">
+      <a class="notif-item ${n.read ? '' : 'unread'} ${n.type === 'crm-urgent' ? 'urgent' : ''}" href="${escapeHtml(n.link || '#')}" data-id="${escapeHtml(n.id)}">
         ${escapeHtml(n.message)}
         <span class="notif-time">${fmtRelative(n.createdAt)}</span>
       </a>
@@ -73,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // fotos) la recarga lo perdería, y en las pestañas con alarma de apagados recargar
         // sin un clic dejaría el sonido bloqueado por el navegador. En esos casos, banner.
         const hasUnsavedInput = Array.from(document.querySelectorAll('input, textarea')).some((el) => {
-          if (['hidden', 'checkbox', 'radio', 'submit', 'button', 'search'].includes(el.type)) return false;
+          if (['hidden', 'checkbox', 'radio', 'submit', 'button'].includes(el.type)) return false;
           if (el.type === 'file') return !!(el.files && el.files.length);
           return !!el.value && el.value !== el.defaultValue;
         });

@@ -9,6 +9,8 @@ import { computeSimStats, periodOf, normalizeSimNumber, type SimLine, type SimSt
 import { analyzeSimLote, askSimLote } from '../../lib/sim-consumos-agent';
 import { runAfterResponse } from '../../lib/background';
 import { readInventory } from './inventario';
+import { checkAndIncrementRateLimit } from '../../lib/rate-limit';
+import { blobTimeout } from '../../lib/blob-path';
 
 export const prerender = false;
 
@@ -25,7 +27,17 @@ const MAX_LINES = 40000;
 const STAGING_PREFIX = 'internal:sim-consumos-staging:';
 const STAGING_TTL_SECONDS = 3600;
 const MAX_CHUNKS = 60;
+// Idempotencia del "armar lote": si el navegador reintenta porque no vio la respuesta, se le
+// devuelve el lote ya creado en vez de crear otro; si el primer intento sigue trabajando, 202.
+const COMMIT_LOCK_PREFIX = 'internal:sim-consumos-commit:';
+const COMMIT_DONE_PREFIX = 'internal:sim-consumos-done:';
 const MAX_QA = 20;
+// Cada informe y cada pregunta son una llamada a Anthropic: topes diarios por usuario para que
+// un botón atascado o una sesión robada no generen costo sin límite.
+const ANALYZE_PER_DAY = 10;
+const ASK_PER_DAY = 40;
+// Un bloque de 5.000 líneas pesa menos de 1 MB; más que eso no viene del navegador propio.
+const MAX_CHUNK_BODY = 1_500_000;
 const DEFAULT_PLAN_MB = 20;
 
 export interface SimLote {
@@ -56,6 +68,21 @@ const ANALYSIS_PENDING_MS = 5 * 60_000;
 
 function analysisPending(l: SimLote): boolean {
   return !l.analysis && !!l.analysisStartedAt && Date.now() - Date.parse(l.analysisStartedAt) < ANALYSIS_PENDING_MS;
+}
+
+// Un informe que se quedó "en curso" más allá del plazo es una invocación que murió a mitad
+// (no es lo mismo que "nunca se pidió"): se deja dicho para que la pantalla lo muestre y
+// permita volver a generar.
+function markInterruptedAnalysis(l: SimLote): SimLote {
+  if (!l.analysis && l.analysisStartedAt && !analysisPending(l) && !l.analysisError) {
+    return { ...l, analysisError: 'El informe se interrumpió antes de terminar; vuelve a generarlo.' };
+  }
+  return l;
+}
+
+// Fecha AAAA-MM-DD real (no basta el formato: "2026-02-31" pasa la expresión regular).
+function isValidDay(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
 }
 
 async function readLote(redis: any, id: string): Promise<SimLote | null> {
@@ -105,7 +132,7 @@ async function saveLote(redis: any, lote: SimLote): Promise<void> {
 }
 
 async function readLines(token: string, blobPath: string): Promise<SimLine[]> {
-  const result = await get(blobPath, { access: 'private', token });
+  const result = await get(blobPath, { access: 'private', token, abortSignal: blobTimeout(60_000) });
   if (!result || result.statusCode !== 200 || !result.stream) return [];
   try {
     const parsed = JSON.parse(await new Response(result.stream).text());
@@ -196,8 +223,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const lotes = await readLotes(redis);
   const id = url.searchParams.get('id');
   if (id) {
-    const lote = lotes.find((l) => l.id === id);
-    if (!lote) return new Response(JSON.stringify({ error: 'lote no encontrado' }), { status: 404 });
+    const found = lotes.find((l) => l.id === id);
+    if (!found) return new Response(JSON.stringify({ error: 'lote no encontrado' }), { status: 404 });
+    const lote = markInterruptedAnalysis(found);
     return new Response(JSON.stringify({ lote, analysisPending: analysisPending(lote), blobUrl: '/api/blob-file?path=' + encodeURIComponent(lote.blobPath) }), { headers });
   }
   return new Response(JSON.stringify({ lotes: lotes.map(lightLote), defaultPlanMb: DEFAULT_PLAN_MB, isAdmin: session.role === 'admin' }), { headers });
@@ -225,8 +253,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const action = String(body.action || '');
   const me = await findUserById(redis, session.userId);
   const byName = me?.name || session.username;
+  // Las llaves temporales llevan el usuario: nadie puede completar o pisar la subida de otro
+  // adivinando su uploadId.
+  const stagingKeyFor = (uploadId: string) => `${STAGING_PREFIX}${session.userId}:${uploadId}`;
+  const commitScope = (uploadId: string) => `${session.userId}:${uploadId}`;
 
   if (action === 'chunk') {
+    if (rawBody.length > MAX_CHUNK_BODY) return new Response(JSON.stringify({ error: 'bloque demasiado grande' }), { status: 413 });
     const uploadId = String(body.uploadId || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
     const index = Number(body.index);
     if (!uploadId || !Number.isInteger(index) || index < 0 || index >= MAX_CHUNKS) {
@@ -235,7 +268,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!Array.isArray(body.lines) || body.lines.length > 5000) {
       return new Response(JSON.stringify({ error: 'bloque demasiado grande' }), { status: 400 });
     }
-    const key = STAGING_PREFIX + uploadId;
+    const key = stagingKeyFor(uploadId);
     // Un bloque reintentado reemplaza al anterior con el mismo índice (hash por índice).
     await redis.hset(key, { [String(index)]: JSON.stringify(body.lines) });
     await redis.expire(key, STAGING_TTL_SECONDS);
@@ -245,18 +278,34 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (action === 'upload' || action === 'commit') {
     let rawLines: unknown = body.lines;
     let stagingKey = '';
+    let commitUploadId = '';
+    // Cualquier salida sin lote guardado suelta el candado del commit: si se quedara puesto, el
+    // usuario vería "en curso" cinco minutos al corregir el dato y reintentar.
+    const bail = async (status: number, payload: unknown) => {
+      if (commitUploadId) await redis.del(COMMIT_LOCK_PREFIX + commitUploadId).catch(() => {});
+      return new Response(JSON.stringify(payload), { status });
+    };
     if (action === 'commit') {
       const uploadId = String(body.uploadId || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
       const total = Number(body.total);
       if (!uploadId || !Number.isInteger(total) || total < 1 || total > MAX_CHUNKS) {
         return new Response(JSON.stringify({ error: 'subida inválida' }), { status: 400 });
       }
-      const key = STAGING_PREFIX + uploadId;
-      const stored = ((await redis.hgetall(key)) || {}) as Record<string, unknown>;
+      const doneId = await redis.get(COMMIT_DONE_PREFIX + commitScope(uploadId));
+      if (doneId) {
+        const existing = await readLote(redis, String(doneId));
+        if (existing) return new Response(JSON.stringify({ lote: existing, analysisPending: analysisPending(existing), existing: true }), { headers });
+      }
+      const locked = await redis.set(COMMIT_LOCK_PREFIX + commitScope(uploadId), '1', { nx: true, ex: 300 });
+      if (!locked) return new Response(JSON.stringify({ inProgress: true }), { status: 202, headers });
+      commitUploadId = commitScope(uploadId);
+      const key = stagingKeyFor(uploadId);
+      // Bloque por bloque (HGET), no el hash entero: 60 bloques de 5.000 líneas pasan los
+      // 10 MB por petición de Upstash. Se corta en cuanto se supera el tope de líneas.
       const missing: number[] = [];
       const joined: unknown[] = [];
-      for (let i = 0; i < total; i++) {
-        const raw = stored[String(i)];
+      for (let i = 0; i < total && joined.length <= MAX_LINES; i++) {
+        const raw = await redis.hget(key, String(i));
         if (raw === undefined || raw === null) {
           missing.push(i);
           continue;
@@ -264,67 +313,75 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         const part = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (Array.isArray(part)) joined.push(...part);
       }
-      if (missing.length) {
-        return new Response(JSON.stringify({ error: `faltan bloques por subir (${missing.join(', ')})`, missing }), { status: 409 });
-      }
+      if (missing.length) return bail(409, { error: `faltan bloques por subir (${missing.join(', ')})`, missing });
       // Los bloques se borran solo cuando el lote quedó guardado: si falla Blob o Redis, el
       // reintento de "armar lote" no obliga a volver a subir todo.
       stagingKey = key;
       rawLines = joined;
     }
-    if (!token) return new Response(JSON.stringify({ error: 'almacenamiento de archivos no configurado' }), { status: 503 });
+    if (!token) return bail(503, { error: 'almacenamiento de archivos no configurado' });
     const lines = sanitizeLines(rawLines, body.days);
-    if (typeof lines === 'string') return new Response(JSON.stringify({ error: lines }), { status: 400 });
-    if (!lines.length) return new Response(JSON.stringify({ error: 'no se encontraron líneas en los archivos' }), { status: 400 });
+    if (typeof lines === 'string') return bail(400, { error: lines });
+    if (!lines.length) return bail(400, { error: 'no se encontraron líneas en los archivos' });
     const dataPeriod = periodOf(lines);
-    if (!dataPeriod.start) return new Response(JSON.stringify({ error: 'los archivos no traen fechas válidas (columna FECHA)' }), { status: 400 });
+    if (!dataPeriod.start) return bail(400, { error: 'los archivos no traen fechas válidas (columna FECHA)' });
     const periodStart = String(body.periodStart || '').slice(0, 10);
     const periodEnd = String(body.periodEnd || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodStart) || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd) || periodStart > periodEnd) {
-      return new Response(JSON.stringify({ error: 'indica el periodo del reporte (desde y hasta)' }), { status: 400 });
+    if (!isValidDay(periodStart) || !isValidDay(periodEnd) || periodStart > periodEnd) {
+      return bail(400, { error: 'indica el periodo del reporte (desde y hasta) con fechas válidas' });
     }
     const period = { start: periodStart, end: periodEnd };
     const periodDays = Math.round((Date.parse(periodEnd) - Date.parse(periodStart)) / 86400000) + 1;
-    if (periodDays > 366) return new Response(JSON.stringify({ error: 'el periodo no puede pasar de un año' }), { status: 400 });
+    if (periodDays < 1 || periodDays > 366) return bail(400, { error: 'el periodo no puede pasar de un año' });
     const planMb = Math.min(10000, Math.max(1, Number(body.planMb) || DEFAULT_PLAN_MB));
     const files = Array.isArray(body.files) ? body.files.map((f: unknown) => String(f).slice(0, 120)).slice(0, 40) : [];
     const rowCount = Math.max(0, Number(body.rowCount) || 0);
     const accounts = [...new Set(lines.map((l) => l.c).filter(Boolean))].sort();
     const label = String(body.label || '').trim().slice(0, 80) || `Consumos ${period.start} a ${period.end}`;
 
-    // Lote anterior: el más reciente cuyo periodo termina antes de que empiece este.
-    const existing = await readLotes(redis);
-    const previous = existing.find((l) => l.periodEnd < period.start) || null;
-    const [previousLines, inventorySims] = await Promise.all([
-      previous ? readLines(token, previous.blobPath).catch(() => []) : Promise.resolve([] as SimLine[]),
-      inventorySimNumbers(redis),
-    ]);
+    let lote: SimLote;
+    try {
+      // Lote anterior: el más reciente cuyo periodo termina antes de que empiece este.
+      const existing = await readLotes(redis);
+      const previous = existing.find((l) => l.periodEnd < period.start) || null;
+      const [previousLines, inventorySims] = await Promise.all([
+        previous ? readLines(token, previous.blobPath).catch(() => []) : Promise.resolve([] as SimLine[]),
+        inventorySimNumbers(redis),
+      ]);
 
-    const id = randomUUID();
-    const blobPath = `${BLOB_PREFIX}${period.start}_a_${period.end}_${id}.json`;
-    await put(blobPath, JSON.stringify(lines), { access: 'private', token, addRandomSuffix: false, contentType: 'application/json', abortSignal: AbortSignal.timeout(30_000) });
+      const id = randomUUID();
+      const blobPath = `${BLOB_PREFIX}${period.start}_a_${period.end}_${id}.json`;
+      await put(blobPath, JSON.stringify(lines), { access: 'private', token, addRandomSuffix: false, contentType: 'application/json', abortSignal: AbortSignal.timeout(30_000) });
 
-    const stats = computeSimStats(lines, rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
-    const lote: SimLote = {
-      id,
-      label,
-      periodStart: period.start,
-      periodEnd: period.end,
-      dataStart: dataPeriod.start,
-      dataEnd: dataPeriod.end,
-      uploadedAt: new Date().toISOString(),
-      uploadedByName: byName,
-      files,
-      accounts,
-      planMb,
-      blobPath,
-      stats,
-      analysis: null,
-      qa: [],
-    };
-    lote.analysisStartedAt = new Date().toISOString();
-    await saveLote(redis, lote);
-    if (stagingKey) await redis.del(stagingKey).catch(() => {});
+      const stats = computeSimStats(lines, rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
+      lote = {
+        id,
+        label,
+        periodStart: period.start,
+        periodEnd: period.end,
+        dataStart: dataPeriod.start,
+        dataEnd: dataPeriod.end,
+        uploadedAt: new Date().toISOString(),
+        uploadedByName: byName,
+        files,
+        accounts,
+        planMb,
+        blobPath,
+        stats,
+        analysis: null,
+        qa: [],
+      };
+      lote.analysisStartedAt = new Date().toISOString();
+      await saveLote(redis, lote);
+      if (stagingKey) await redis.del(stagingKey).catch(() => {});
+      if (commitUploadId) {
+        await redis.set(COMMIT_DONE_PREFIX + commitUploadId, id, { ex: STAGING_TTL_SECONDS }).catch(() => {});
+        await redis.del(COMMIT_LOCK_PREFIX + commitUploadId).catch(() => {});
+      }
+    } catch (err) {
+      // Blob o Redis fallaron a mitad: se suelta el candado para que "armar lote" se pueda reintentar.
+      return bail(502, { error: `no se pudo guardar el lote: ${err instanceof Error ? err.message : String(err)}` });
+    }
     await logAudit(redis, session, 'sim_consumos_upload', label, `${lines.length} líneas, ${files.length} archivo(s)`);
 
     const work = analyzeInBackground(redis, lote).catch((err) => console.error('sim-consumos: fallo el analisis', err instanceof Error ? err.message : String(err)));
@@ -341,6 +398,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   if (action === 'analyze') {
     if (analysisPending(lote)) return new Response(JSON.stringify({ lote, analysisPending: true }), { headers });
+    if (!(await checkAndIncrementRateLimit(redis, `internal:sim-consumos-rate:analyze:${session.userId}`, ANALYZE_PER_DAY, 86400))) {
+      return new Response(JSON.stringify({ error: `ya se generaron ${ANALYZE_PER_DAY} informes hoy; vuelve a intentarlo mañana` }), { status: 429 });
+    }
     lote.analysis = null;
     const work = analyzeInBackground(redis, lote).catch((err) => console.error('sim-consumos: fallo el analisis', err instanceof Error ? err.message : String(err)));
     const inline = runAfterResponse(work);
@@ -351,11 +411,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (action === 'ask') {
     const question = String(body.question || '').trim().slice(0, 600);
     if (!question) return new Response(JSON.stringify({ error: 'escribe la pregunta' }), { status: 400 });
+    if (!(await checkAndIncrementRateLimit(redis, `internal:sim-consumos-rate:ask:${session.userId}`, ASK_PER_DAY, 86400))) {
+      return new Response(JSON.stringify({ error: `ya se hicieron ${ASK_PER_DAY} preguntas hoy; vuelve a intentarlo mañana` }), { status: 429 });
+    }
     const answer = await askSimLote(redis, lote, lote.qa, question);
     if (!answer) return new Response(JSON.stringify({ error: 'GPSITO no respondió; intenta de nuevo en un momento' }), { status: 502 });
-    lote.qa = [...lote.qa, { q: question, a: answer, at: new Date().toISOString() }].slice(-MAX_QA);
-    await saveLote(redis, lote);
-    return new Response(JSON.stringify({ lote }), { headers });
+    // Se relee antes de guardar: mientras GPSITO respondía pudo terminar el informe en segundo
+    // plano, y guardar la copia vieja lo borraría.
+    const fresh = (await readLote(redis, lote.id)) || lote;
+    fresh.qa = [...(fresh.qa || []), { q: question, a: answer, at: new Date().toISOString() }].slice(-MAX_QA);
+    await saveLote(redis, fresh);
+    return new Response(JSON.stringify({ lote: fresh }), { headers });
   }
 
   if (action === 'plan') {
@@ -366,12 +432,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       previous ? readLines(token, previous.blobPath).catch(() => []) : Promise.resolve([] as SimLine[]),
       inventorySimNumbers(redis),
     ]);
-    lote.planMb = planMb;
     const periodDays = Math.round((Date.parse(lote.periodEnd) - Date.parse(lote.periodStart)) / 86400000) + 1;
-    lote.stats = computeSimStats(lines, lote.stats.rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
-    lote.analysis = null;
-    await saveLote(redis, lote);
-    return new Response(JSON.stringify({ lote }), { headers });
+    const stats = computeSimStats(lines, lote.stats.rowCount, planMb, inventorySims, previousLines.length ? previousLines : null, previous ? `${previous.periodStart} a ${previous.periodEnd}` : '', periodDays);
+    // Misma razón que en "ask": no pisar las preguntas hechas mientras se leían las líneas.
+    const fresh = (await readLote(redis, lote.id)) || lote;
+    fresh.planMb = planMb;
+    fresh.stats = stats;
+    fresh.analysis = null;
+    fresh.analysisStartedAt = null;
+    fresh.analysisError = null;
+    await saveLote(redis, fresh);
+    return new Response(JSON.stringify({ lote: fresh }), { headers });
   }
 
   return new Response(JSON.stringify({ error: 'acción inválida' }), { status: 400 });
@@ -393,7 +464,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
   if (!lote) return new Response(JSON.stringify({ error: 'lote no encontrado' }), { status: 404 });
   await redis.hdel(REDIS_KEY, lote.id);
   const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
-  if (token) await del(lote.blobPath, { token }).catch(() => {});
+  if (token) await del(lote.blobPath, { token, abortSignal: blobTimeout(20_000) }).catch(() => {});
   await logAudit(redis, session, 'sim_consumos_delete', lote.label);
   return new Response(JSON.stringify({ ok: true }), { headers });
 };

@@ -56,7 +56,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!query || !value) return safe;
     const raw = String(value);
     const idx = raw.toLowerCase().indexOf(invSearch.value.trim().toLowerCase());
-    if (idx < 0 || !invSearch.value.trim()) return `<mark>${safe}</mark>`;
+    // Si el texto literal no está (coincidió por espacios o guiones) se marca entero; si no coincide, va sin marca.
+    if (idx < 0 || !invSearch.value.trim()) return normalizeForSearch(value).includes(query) ? `<mark>${safe}</mark>` : safe;
     const len = invSearch.value.trim().length;
     return escapeHtml(raw.slice(0, idx)) + '<mark>' + escapeHtml(raw.slice(idx, idx + len)) + '</mark>' + escapeHtml(raw.slice(idx + len));
   }
@@ -275,6 +276,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function request(method, body) {
+    // La sucursal se captura al pedir: si cambian el selector antes de la respuesta, la ficha
+    // actualizada es la de la sucursal donde se hizo el cambio, no la que quedó seleccionada.
+    const branch = (body && body.branch) || currentBranch();
     return fetch('/api/inventario', {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -282,7 +286,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(async (res) => {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || 'No se pudo guardar.');
-      if (d.meta) meta[currentBranch()] = d.meta;
+      if (d.meta) meta[branch] = d.meta;
       return d;
     });
   }

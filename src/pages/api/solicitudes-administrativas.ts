@@ -3,6 +3,7 @@ import { isAllowedImageFile } from '../../lib/uploads';
 import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
@@ -93,7 +94,7 @@ async function uploadSolicitudPhoto(photoFile: File): Promise<{ path?: string; e
   }
   try {
     const blobId = randomUUID();
-    const blob = await put(`solicitudes-admin/${blobId}`, photoFile, { access: 'private', token, addRandomSuffix: false });
+    const blob = await put(`solicitudes-admin/${blobId}`, photoFile, { access: 'private', token, addRandomSuffix: false, abortSignal: blobTimeout() });
     return { path: blob.pathname };
   } catch (err) {
     console.error('solicitudes-administrativas: fallo al subir la foto', err instanceof Error ? err.message : String(err));

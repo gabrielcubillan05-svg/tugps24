@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   const garantiasList = document.getElementById('garantiasList');
   let listLimit = 0;
   if (!garantiasList) return;
@@ -111,10 +113,11 @@ document.addEventListener('DOMContentLoaded', function () {
     `).join('');
   }
 
-  function populateOperatorFilter(garantias) {
+  function populateOperatorFilter(garantias, operators) {
     if (!gOperatorFilter) return;
     const seen = new Map();
-    garantias.forEach((g) => { if (g.assignedToId) seen.set(g.assignedToId, g.assignedToName); });
+    if (Array.isArray(operators)) operators.forEach((o) => seen.set(o.id, o.name));
+    else garantias.forEach((g) => { if (g.assignedToId) seen.set(g.assignedToId, g.assignedToName); });
     const current = gOperatorFilter.value;
     gOperatorFilter.innerHTML = '<option value="">Todos los operadores</option>' +
       [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
@@ -148,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
     if (listLimit) params.set('limit', String(listLimit));
-    fetch('/api/garantias?' + params.toString(), { signal: AbortSignal.timeout(30000) })
+    fetch('/api/garantias?' + params.toString(), { signal: timeoutSignal(30000) })
       .then(async (res) => ({ status: res.status, data: await res.json().catch(() => null) }))
       .then(({ status, data }) => {
         if (!data || !Array.isArray(data.garantias)) {
@@ -158,12 +161,12 @@ document.addEventListener('DOMContentLoaded', function () {
         allGarantias = data.garantias;
         window.__garantiaCategories = data.categories || [];
         if (isManager) {
-          populateOperatorFilter(data.garantias);
+          populateOperatorFilter(data.garantias, data.operators);
           populateBranchFilter(data.branches || []);
           renderStats(data.stats);
         }
         renderGarantias();
-        TuGpsListMore.apply(garantiasList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allGarantias }, (next) => { listLimit = next; loadGarantias(); });
+        if (window.TuGpsListMore) TuGpsListMore.apply(garantiasList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allGarantias }, (next) => { listLimit = next; loadGarantias(); });
       })
       .catch(() => {
         garantiasList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';

@@ -33,3 +33,9 @@ export function downloadHeadersFor(path: string, contentType: string | undefined
   }
   return { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${safeName}"` };
 }
+
+// Las llamadas al SDK de Blob no traen tiempo límite propio: una que se cuelgue deja la función
+// esperando hasta su tope. Se pasa como abortSignal en put/get/list/del.
+export function blobTimeout(ms = 30_000): AbortSignal {
+  return AbortSignal.timeout(ms);
+}

@@ -38,6 +38,8 @@ export const GET: APIRoute = async ({ request }) => {
 
   // No insistimos entre 11pm y 6am hora Colombia — que se quede callado hasta que amanezca.
   if (isQuietHoursColombia()) {
+    // El cron sí corrió (solo que no es hora de mandar): cuenta como sano para /api/health.
+    await markCronOk(redis, 'whatsapp-followup');
     return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'quiet hours' }), {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -49,15 +51,22 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const now = Date.now();
-  const leads = await readLeads(redis);
   let sent = 0;
   let retried = 0;
+  // Con Anthropic caído cada reintento puede tardar más de dos minutos (3 intentos de 45 s):
+  // 20 leads seguidos pasarían los 300 s de la función y el cron moriría a mitad sin soltar
+  // el candado. Se para a tiempo y lo que falte sale en la próxima hora.
+  const TIME_BUDGET_MS = 200_000;
+  const outOfTime = () => Date.now() - now > TIME_BUDGET_MS;
+  try {
+  const leads = await readLeads(redis);
 
   // Reintento automático de los que quedaron sin respuesta real (Anthropic caído o Meta
   // rechazó el envío): se vuelve a correr al agente con el último mensaje del cliente,
   // mientras siga abierta la ventana de 24 h. Antes dependía de que alguien pulsara el botón.
   const extraInstructions = await getExtraInstructions(redis, 'andres');
   for (const lead of leads.filter((l) => l.needsRetry && l.aiStage === 'en_conversacion' && l.lastInboundAt).slice(0, 20)) {
+    if (outOfTime()) break;
     const hoursSinceInbound = (now - new Date(lead.lastInboundAt!).getTime()) / 3600000;
     if (hoursSinceInbound >= MAX_HOURS_SINCE_LAST_INBOUND) {
       lead.needsRetry = false;
@@ -86,6 +95,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   for (const lead of leads) {
+    if (outOfTime()) break;
     if (lead.source !== 'whatsapp-ads') continue;
     // Un lead ya instalado no debe recibir más mensajes de "¿sigues por ahí?" — antes esto
     // solo se filtraba por aiStage, que no siempre pasa a 'entregado' cuando la instalación
@@ -131,8 +141,10 @@ export const GET: APIRoute = async ({ request }) => {
     sent++;
   }
 
-  await redis.del('internal:followup-lock').catch(() => {});
   await markCronOk(redis, 'whatsapp-followup');
+  } finally {
+    await redis.del('internal:followup-lock').catch(() => {});
+  }
   return new Response(JSON.stringify({ ok: true, sent, retried }), {
     headers: { 'Content-Type': 'application/json' },
   });

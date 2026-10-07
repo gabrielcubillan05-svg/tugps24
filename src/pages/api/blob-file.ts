@@ -23,7 +23,12 @@ export const GET: APIRoute = async ({ url, cookies }) => {
     return new Response('forbidden', { status: 403 });
   }
 
-  if (path.startsWith('archive/')) {
+  if (path.startsWith('archive/novedades/')) {
+    // Los archivos anuales de novedades los lee también la pantalla "Novedades archivadas".
+    if (!canAccessSection(session.role, 'novedades-archivadas') && !canAccessSection(session.role, 'almacenamiento')) {
+      return new Response('forbidden', { status: 403 });
+    }
+  } else if (path.startsWith('archive/')) {
     if (!canAccessSection(session.role, 'almacenamiento')) {
       return new Response('forbidden', { status: 403 });
     }

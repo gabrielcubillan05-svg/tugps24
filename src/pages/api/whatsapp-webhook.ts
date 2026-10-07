@@ -10,6 +10,7 @@ import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { runCollectionsAgent } from '../../lib/collections-agent';
 import { readLeads, writeLeads, normalizeLead, normalizePhone, mergeLeadIntoCurrent, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
 import { runAfterResponse } from '../../lib/background';
+import { checkAndIncrementRateLimit } from '../../lib/rate-limit';
 import { readCobros, normalizeCobro, writeCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { reportIncident } from '../../lib/incidents';
 import { readAgentMedia } from './whatsapp-agent-media';
@@ -684,6 +685,37 @@ async function withPhoneLock<T>(redis: any, phone: string, fn: () => Promise<T>,
 type StatusWork = { phone: string; note: string };
 type InboundWork = { msg: any; fromPhone: string; contacts: any[] };
 
+// Buzón de mensajes pendientes. Desde que se le responde a Meta antes de procesar, un mensaje
+// cuya invocación muera a mitad (tiempo agotado, instancia reciclada) ya no lo reenviaría Meta:
+// recibió 200. Cada mensaje entra al buzón en la primera fase y sale cuando se terminó de
+// atender; whatsapp-inbox-cron reintenta los que lleven más de unos minutos ahí.
+export const INBOX_KEY = 'internal:whatsapp-inbox';
+export const INBOX_MAX_ATTEMPTS = 3;
+export type InboxEntry = InboundWork & { queuedAt: string; attempts: number };
+
+// Un mismo número no debería mandar más que esto: por encima es un bot, un bucle o alguien
+// probando; cada mensaje cuesta una transcripción y una llamada a Anthropic.
+const PHONE_HOURLY_MAX = 30;
+const PHONE_DAILY_MAX = 80;
+const PHONE_AUDIO_HOURLY_MAX = 10;
+const RATE_NOTICE_TEXT = 'Hemos recibido muchos mensajes tuyos en poco tiempo. Un asesor revisará la conversación y te escribirá; gracias por la paciencia.';
+
+async function phoneWithinLimits(redis: any, phone: string, isAudio: boolean): Promise<boolean> {
+  const hourOk = await checkAndIncrementRateLimit(redis, `internal:whatsapp-rate:h:${phone}`, PHONE_HOURLY_MAX, 3600);
+  const dayOk = await checkAndIncrementRateLimit(redis, `internal:whatsapp-rate:d:${phone}`, PHONE_DAILY_MAX, 86400);
+  const audioOk = !isAudio || (await checkAndIncrementRateLimit(redis, `internal:whatsapp-rate:a:${phone}`, PHONE_AUDIO_HOURLY_MAX, 3600));
+  return hourOk && dayOk && audioOk;
+}
+
+async function notifyRateLimited(redis: any, phone: string): Promise<void> {
+  // Un solo aviso al día por número, para no responderle a un bucle con otro bucle.
+  const first = await redis.set(`internal:whatsapp-rate-notice:${phone}`, '1', { nx: true, ex: 86400 }).catch(() => null);
+  if (!first) return;
+  await sendWhatsappText(phone, RATE_NOTICE_TEXT).catch(() => {});
+  await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_rate_limited', `…${phone.slice(-4)}`, 'número por encima del límite de mensajes; se dejó de atender hasta que baje').catch(() => {});
+  await reportIncident(redis, 'whatsapp_rate_limited', `…${phone.slice(-4)} superó el límite de mensajes por hora o por día`);
+}
+
 async function processStatusNotes(redis: any, statuses: StatusWork[]): Promise<void> {
   for (const { phone, note } of statuses) {
     try {
@@ -706,10 +738,14 @@ async function processStatusNotes(redis: any, statuses: StatusWork[]): Promise<v
   }
 }
 
-async function processInboundMessage(redis: any, { msg, fromPhone, contacts }: InboundWork): Promise<void> {
+// Devuelve true si el mensaje quedó atendido (o descartado a propósito) y puede salir del buzón;
+// false si debe quedarse para que el cron lo reintente.
+export async function processInboundMessage(redis: any, { msg, fromPhone, contacts }: InboundWork): Promise<boolean> {
   const ctx: ReplyCtx = { replied: false };
   try {
-    await withPhoneLock(redis, fromPhone, async () => {
+    // Si tras un minuto el número sigue ocupado por otra invocación, no se procesa en paralelo
+    // (dos respuestas cruzadas al mismo cliente): se deja en el buzón y lo retoma el cron.
+    const ran = await withPhoneLock(redis, fromPhone, async () => {
       const contactName = contacts.find((c: any) => c.wa_id === msg.from)?.profile?.name || '';
 
       // Si el número corresponde a un cobro cargado en Cobranza Masiva, lo maneja la
@@ -742,25 +778,46 @@ async function processInboundMessage(redis: any, { msg, fromPhone, contacts }: I
       } else {
         await handleInboundMessage(redis, fromPhone, text, contactName, ctx);
       }
-    });
+      return true;
+    }, { skipIfBusy: true });
+    if (!ran) {
+      await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_inbox_deferred', `…${fromPhone.slice(-4)}`, 'número ocupado por otra invocación; se reintenta desde el buzón').catch(() => {});
+      return false;
+    }
+    if (msg.id) await redis.hdel(INBOX_KEY, String(msg.id)).catch(() => {});
+    return true;
   } catch (err) {
     // Un mensaje que falla (Anthropic, Redis, Meta) no debe tumbar los demás del mismo
-    // paquete ni quedar marcado como atendido: se libera su marca para que el reintento
-    // de Meta lo vuelva a procesar, y queda en auditoría con el número del cliente.
+    // paquete. Si al cliente no le llegó respuesta se queda en el buzón para el reintento;
+    // si ya se le respondió y falló algo posterior, reprocesar le mandaría otra respuesta.
     const message = err instanceof Error ? err.message : String(err);
     console.error('whatsapp-webhook: fallo procesando mensaje de …' + fromPhone.slice(-4), message);
     await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', `…${fromPhone.slice(-4)}`, message).catch(() => {});
     await reportIncident(redis, 'whatsapp_webhook_error', message);
-    // La marca solo se libera si al cliente no le llegó respuesta: si ya se le respondió
-    // y falló algo posterior, reprocesar le mandaría una segunda respuesta.
-    if (msg.id && !ctx.replied) await redis.del(`internal:whatsapp-msg-seen:${msg.id}`).catch(() => {});
+    if (ctx.replied) {
+      if (msg.id) await redis.hdel(INBOX_KEY, String(msg.id)).catch(() => {});
+      return true;
+    }
+    return false;
   }
 }
 
 async function processWebhookWork(redis: any, statuses: StatusWork[], inbound: InboundWork[]): Promise<void> {
   try {
     await processStatusNotes(redis, statuses);
-    for (const item of inbound) await processInboundMessage(redis, item);
+    // Números distintos se atienden en paralelo (cada uno con su candado); los mensajes de un
+    // mismo número van en orden, que es el que el cliente espera ver respondido.
+    const byPhone = new Map<string, InboundWork[]>();
+    for (const item of inbound) {
+      const list = byPhone.get(item.fromPhone) || [];
+      list.push(item);
+      byPhone.set(item.fromPhone, list);
+    }
+    await Promise.allSettled(
+      [...byPhone.values()].map(async (items) => {
+        for (const item of items) await processInboundMessage(redis, item);
+      })
+    );
   } catch (err) {
     await logAudit(redis, WHATSAPP_ACTOR, 'whatsapp_webhook_error', 'error', err instanceof Error ? err.message : String(err)).catch(() => {});
   }
@@ -791,6 +848,7 @@ export const POST: APIRoute = async ({ request }) => {
   // y con el tiempo da el webhook por caído. Antes se procesaba todo antes de responder.
   const statuses: StatusWork[] = [];
   const inbound: InboundWork[] = [];
+  const rateLimited = new Set<string>();
   const entries = Array.isArray(payload.entry) ? payload.entry : [];
   for (const entry of entries) {
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
@@ -821,26 +879,44 @@ export const POST: APIRoute = async ({ request }) => {
 
         // Meta puede reenviar el mismo mensaje varias veces (reintentos); nos quedamos
         // solo con el primer intento usando el id del mensaje como llave de una sola vez.
-        if (msg.id) {
-          let isNew: unknown;
-          try {
-            isNew = await redis.set(`internal:whatsapp-msg-seen:${msg.id}`, '1', { nx: true, ex: 86400 });
-          } catch (err) {
-            // Redis no respondió antes de marcar el mensaje: se contesta 503 para que Meta
-            // reintente el paquete (los ya procesados quedan protegidos por su marca). Antes
-            // se respondía 200 y el mensaje se perdía sin rastro.
-            console.error('whatsapp-webhook: Redis falló al marcar el mensaje', msg.id, err instanceof Error ? err.message : String(err));
-            return new Response('retry', { status: 503 });
+        try {
+          if (msg.id) {
+            const isNew = await redis.set(`internal:whatsapp-msg-seen:${msg.id}`, '1', { nx: true, ex: 86400 });
+            if (!isNew) continue;
           }
-          if (!isNew) continue;
+          if (!(await phoneWithinLimits(redis, fromPhone, msg.type === 'audio'))) {
+            rateLimited.add(fromPhone);
+            continue;
+          }
+          if (msg.id) {
+            const entry: InboxEntry = { msg, fromPhone, contacts, queuedAt: new Date().toISOString(), attempts: 0 };
+            await redis.hset(INBOX_KEY, { [String(msg.id)]: JSON.stringify(entry) });
+          }
+        } catch (err) {
+          // Redis no respondió antes de dejar el mensaje a salvo: se contesta 503 para que Meta
+          // reintente el paquete. Los mensajes de este mismo paquete que ya se habían marcado
+          // sueltan su marca; si no, el reintento de Meta los daría por vistos y se perderían.
+          console.error('whatsapp-webhook: Redis falló al marcar el mensaje', msg.id, err instanceof Error ? err.message : String(err));
+          const queuedIds = inbound.map((i) => String(i.msg?.id || '')).filter(Boolean);
+          if (msg.id) queuedIds.push(String(msg.id));
+          if (queuedIds.length) {
+            await redis.del(...queuedIds.map((id) => `internal:whatsapp-msg-seen:${id}`)).catch(() => {});
+            await redis.hdel(INBOX_KEY, ...queuedIds).catch(() => {});
+          }
+          return new Response('retry', { status: 503 });
         }
         inbound.push({ msg, fromPhone, contacts });
       }
     }
   }
 
-  if (statuses.length || inbound.length) {
-    const pending = runAfterResponse(processWebhookWork(redis, statuses, inbound));
+
+  if (statuses.length || inbound.length || rateLimited.size) {
+    const work = async () => {
+      await Promise.allSettled([...rateLimited].map((phone) => notifyRateLimited(redis, phone)));
+      await processWebhookWork(redis, statuses, inbound);
+    };
+    const pending = runAfterResponse(work());
     if (pending) await pending;
   }
 

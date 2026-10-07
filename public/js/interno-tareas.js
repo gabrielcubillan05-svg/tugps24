@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   const tasksList = document.getElementById('tasksList');
   let listLimit = 0;
   if (!tasksList) return;
@@ -335,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function loadTasks() {
-    fetch('/api/tasks' + (listLimit ? '?limit=' + listLimit : ''), { signal: AbortSignal.timeout(30000) })
+    fetch('/api/tasks' + (listLimit ? '?limit=' + listLimit : ''), { signal: timeoutSignal(30000) })
       .then(async (res) => ({ status: res.status, data: await res.json().catch(() => null) }))
       .then(({ status, data }) => {
         if (!data || !Array.isArray(data.tasks)) {
@@ -344,7 +346,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         allTasks = data.tasks;
         renderCurrentView();
-        TuGpsListMore.apply(tasksList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allTasks }, (next) => { listLimit = next; loadTasks(); });
+        if (window.TuGpsListMore) TuGpsListMore.apply(tasksList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allTasks }, (next) => { listLimit = next; loadTasks(); });
       })
       .catch(() => {
         tasksList.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>';

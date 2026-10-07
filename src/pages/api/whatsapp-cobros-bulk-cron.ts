@@ -4,6 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { isBulkSendWindowColombia } from '../../lib/whatsapp';
 import { sendReminderBatch, BULK_REMINDER_BATCH_SIZE } from './cobros';
 import { logAudit } from '../../lib/audit';
+import { markCronOk } from '../../lib/incidents';
 
 export const prerender = false;
 
@@ -26,6 +27,8 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   if (!isBulkSendWindowColombia()) {
+    // El cron sí corrió (solo que no es hora de mandar): cuenta como sano para /api/health.
+    await markCronOk(redis, 'whatsapp-cobros-bulk');
     return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'fuera de la ventana 8am-6pm' }), {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -42,6 +45,7 @@ export const GET: APIRoute = async ({ request }) => {
     );
   }
 
+  await markCronOk(redis, 'whatsapp-cobros-bulk');
   return new Response(JSON.stringify({ ok: true, ...result }), {
     headers: { 'Content-Type': 'application/json' },
   });

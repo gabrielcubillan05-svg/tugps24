@@ -5,6 +5,7 @@ import { readProfiles } from './employees';
 import { readSchedule } from './schedule';
 import { shiftBucketFor, SHIFT_SUPERVISORS } from '../../lib/shift';
 import { sendGabotMessage } from '../../lib/gabot';
+import { runCronGuarded, claimOnce, cronSlot } from '../../lib/cron-guard';
 import { pushNotification } from '../../lib/notifications';
 import { todayInColombia } from '../../lib/colombia-time';
 
@@ -29,16 +30,16 @@ export const GET: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
+  const guarded = await runCronGuarded(redis, 'gabot-birthday', 600, async () => {
   const [users, profiles, schedule] = await Promise.all([getUsers(redis), readProfiles(redis), readSchedule(redis)]);
   const todayMD = todayInColombia().slice(5); // "MM-DD"
+  const slot = cronSlot(false);
 
   const birthdayPeople = users.filter(
     (u) => u.active && profiles[u.id]?.fechaNacimiento && profiles[u.id].fechaNacimiento.slice(5, 10) === todayMD
   );
 
-  if (!birthdayPeople.length) {
-    return new Response(JSON.stringify({ ok: true, birthdays: 0 }), { headers: { 'Content-Type': 'application/json' } });
-  }
+  if (!birthdayPeople.length) return { birthdays: 0, sent: 0 };
 
   // recipientId -> nombres de cumpleañeros que le tocan
   const namesByRecipient = new Map<string, Set<string>>();
@@ -79,6 +80,7 @@ export const GET: APIRoute = async ({ request }) => {
       ? `🎉 Hoy es el cumpleaños de ${list[0]}.`
       : `🎉 Hoy cumplen años: ${list.join(', ')}.`;
     try {
+      if (!(await claimOnce(redis, `internal:gabot-sent:cumple:${slot}:${recipientId}`))) continue;
       await sendGabotMessage(redis, recipientId, message);
       await pushNotification(redis, recipientId, { type: 'cumpleanos', message, link: '/interno/rrhh' });
       sent++;
@@ -87,7 +89,8 @@ export const GET: APIRoute = async ({ request }) => {
     }
   }
 
-  return new Response(JSON.stringify({ ok: true, birthdays: birthdayPeople.length, sent }), {
-    headers: { 'Content-Type': 'application/json' },
+  return { birthdays: birthdayPeople.length, sent };
   });
+  const body = 'skipped' in guarded ? { ok: true, sent: 0, skipped: guarded.skipped } : { ok: true, ...guarded.result };
+  return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
 };

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   const suspensionesList = document.getElementById('suspensionesList');
   let listLimit = 0;
   if (!suspensionesList) return; // no autenticado o sin permiso
@@ -217,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (assignedToFilter.value) params.set('assignedTo', assignedToFilter.value);
 
     if (listLimit) params.set('limit', String(listLimit));
-    fetch('/api/suspensiones?' + params.toString(), { signal: AbortSignal.timeout(30000) })
+    fetch('/api/suspensiones?' + params.toString(), { signal: timeoutSignal(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.casos)) {
@@ -227,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function () {
           allCasos = data.casos;
           renderStats(data.stats);
           renderList(allCasos);
-          TuGpsListMore.apply(suspensionesList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allCasos }, (next) => { listLimit = next; loadSuspensiones(); });
+          if (window.TuGpsListMore) TuGpsListMore.apply(suspensionesList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allCasos }, (next) => { listLimit = next; loadSuspensiones(); });
 
           if (Array.isArray(data.assignees)) {
             const current = assignedToFilter.value;

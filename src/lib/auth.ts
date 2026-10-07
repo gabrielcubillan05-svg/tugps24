@@ -18,14 +18,14 @@ const SESSIONS_KEY = 'internal:sessions';
 const SESSION_CACHE_MS = 5_000;
 const sessionCache = new Map<string, { at: number; raw: string | null }>();
 
-async function readSessionRaw(redis: Redis, sessionId: string): Promise<string | null> {
+async function readSessionRaw(redis: Redis, sessionId: string): Promise<{ raw: string | null; fromCache: boolean }> {
   const cached = sessionCache.get(sessionId);
-  if (cached && Date.now() - cached.at < SESSION_CACHE_MS) return cached.raw;
+  if (cached && Date.now() - cached.at < SESSION_CACHE_MS) return { raw: cached.raw, fromCache: true };
   const raw = await redis.hget<string>(SESSIONS_KEY, sessionId);
   const text = raw == null ? null : typeof raw === 'string' ? raw : JSON.stringify(raw);
   sessionCache.set(sessionId, { at: Date.now(), raw: text });
   if (sessionCache.size > 2000) sessionCache.clear();
-  return text;
+  return { raw: text, fromCache: false };
 }
 
 function forgetSessionCache(sessionId?: string): void {
@@ -439,7 +439,7 @@ export async function getSession(cookieValue: string | undefined): Promise<Sessi
   if (!sessionId) return null;
   const redis = getRedis();
   if (!redis) return null;
-  const raw = await readSessionRaw(redis, sessionId);
+  const { raw, fromCache } = await readSessionRaw(redis, sessionId);
   if (!raw) return null;
   let session: Session;
   try {
@@ -462,8 +462,11 @@ export async function getSession(cookieValue: string | undefined): Promise<Sessi
   // desde el último uso real, no desde el login. Se escribe como mucho una vez por minuto:
   // con los sondeos automáticos del panel, escribirla en cada petición era una escritura a
   // Redis por cada lectura, y a esa precisión nadie la necesita.
+  // Solo se escribe cuando la sesión acaba de leerse de Redis: si viniera de la caché en
+  // memoria, un cierre de sesión (o borrado por el admin) hecho en otra instancia dentro de
+  // esos 5 segundos quedaría deshecho por este HSET y la sesión resucitaría.
   const lastActivity = session.lastActivityAt ? new Date(session.lastActivityAt).getTime() : 0;
-  if (now - lastActivity > 60_000) {
+  if (!fromCache && now - lastActivity > 60_000) {
     session.lastActivityAt = new Date(now).toISOString();
     const text = JSON.stringify(session);
     await redis.hset(SESSIONS_KEY, { [sessionId]: text });
@@ -513,7 +516,7 @@ export async function sessionMustChangePassword(cookieValue: string | undefined)
   const redis = getRedis();
   if (!redis) return false;
   try {
-    const raw = await readSessionRaw(redis, sessionId);
+    const { raw } = await readSessionRaw(redis, sessionId);
     if (!raw) return false;
     const session: Session = JSON.parse(raw);
     return !!session.mustChangePassword;

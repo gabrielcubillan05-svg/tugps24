@@ -166,7 +166,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
 
   // Ordenadas por última actividad: las 300 más recientes cubren el trabajo vivo; lo viejo se
   // pide con "Mostrar más".
-  const paged = pageOf(url, withOverdue);
+  // Los filtros de la pantalla (estado, responsable, vencidas) se aplican en el navegador sobre
+  // lo recibido; con 300 por defecto se escondían tareas. 3.000 abiertas caben de sobra.
+  const paged = pageOf(url, withOverdue, 3000);
   return new Response(
     JSON.stringify({ tasks: paged.page, ...paged.meta, statuses: STATUSES, canAssign: isManager }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }

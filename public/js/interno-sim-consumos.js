@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   const form = document.getElementById('simUploadForm');
   if (!form) return;
   const filesInput = document.getElementById('simFiles');
@@ -40,6 +42,16 @@ document.addEventListener('DOMContentLoaded', function () {
     return String(v || '').trim().replace(/^['"]+|['"]+$/g, '').replace(/^'/, '').trim();
   }
 
+  // FECHA llega como 20261005; si alguien la reescribió como 05/10/2026 también se entiende.
+  function parseDay(v) {
+    const s = clean(v);
+    let m = s.match(/^(\d{4})-?(\d{2})-?(\d{2})/);
+    if (m) return m[1] + m[2] + m[3];
+    m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (m) return m[3] + m[2] + m[1];
+    return '';
+  }
+
   // El operador escribe los KB con coma de miles y punto decimal ("1,612.12" = 1612,12 KB).
   // Si solo trae coma, se toma como decimal; si trae las dos, la coma es de miles.
   function num(v) {
@@ -66,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (headerIdx < 0) throw new Error(`${fileName}: no se encontró la cabecera (FECHA;NUMERO;...;TOTAL_KB)`);
     const header = rows[headerIdx].split(delim).map((h) => clean(h).toUpperCase());
     const col = (name) => header.indexOf(name);
-    const iFecha = col('FECHA'), iNum = col('NUMERO'), iCta = col('CUSTCODE_MTR'), iImei = col('IMEI_IDENTIFICADOR_MOVIL'), iUp = col('SUBIDA_KB'), iDown = col('BAJADA_KB'), iTot = col('TOTAL_KB');
+    const iFecha = col('FECHA'), iNum = col('NUMERO'), iCta = col('CUSTCODE_MTR'), iImei = col('IMEI_IDENTIFICADOR_MOVIL'), iTot = col('TOTAL_KB');
     if (iFecha < 0 || iNum < 0 || iTot < 0) throw new Error(`${fileName}: faltan columnas FECHA, NUMERO o TOTAL_KB`);
     let count = 0;
     const seen = new Set();
@@ -76,22 +88,18 @@ document.addEventListener('DOMContentLoaded', function () {
       const cells = row.split(delim);
       const numero = clean(cells[iNum]).replace(/\D/g, '');
       if (!numero) continue;
-      const fecha = clean(cells[iFecha]).replace(/\D/g, '').slice(0, 8);
+      const fecha = parseDay(cells[iFecha]);
       const total = num(cells[iTot]);
-      const up = iUp >= 0 ? num(cells[iUp]) : 0;
-      const down = iDown >= 0 ? num(cells[iDown]) : 0;
       const cuenta = iCta >= 0 ? clean(cells[iCta]) : '';
       const imei = iImei >= 0 ? clean(cells[iImei]).replace(/\D/g, '') : '';
       let line = acc.get(numero);
       if (!line) {
-        line = { n: numero, c: cuenta, i: new Set(), kb: 0, u: 0, b: 0, d: {} };
+        line = { n: numero, c: cuenta, i: new Set(), kb: 0, d: {} };
         acc.set(numero, line);
       }
       if (!line.c && cuenta) line.c = cuenta;
       if (imei) line.i.add(imei);
       line.kb += total;
-      line.u += up;
-      line.b += down;
       if (fecha.length === 8) line.d[fecha] = (line.d[fecha] || 0) + total;
       seen.add(numero);
       count++;
@@ -188,16 +196,16 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       uploadStatus.textContent = 'Armando el lote y calculando los cruces...';
       const data = await postWithRetry({ action: 'commit', uploadId, total, periodStart, periodEnd, planMb: Number(planInput.value) || 20, label: labelInput.value.trim(), files: parsed.files.map((f) => f.name), rowCount: parsed.rowCount, days: parsed.days }, 2, 120000);
-      uploadStatus.textContent = 'Lote guardado. GPSITO está redactando el informe; aparecerá abajo en un momento.';
+      uploadStatus.textContent = data.existing ? 'Este lote ya se había creado; se muestra el existente.' : 'Lote guardado. GPSITO está redactando el informe; aparecerá abajo en un momento.';
       form.reset();
       planInput.value = String(data.lote.planMb || 20);
       preview.hidden = true;
       parsed = null;
-      await loadLotes();
-      renderDetail(data.lote, '/api/blob-file?path=' + encodeURIComponent(data.lote.blobPath), true);
-      pollAnalysis(data.lote.id);
+      renderDetail(data.lote, '/api/blob-file?path=' + encodeURIComponent(data.lote.blobPath), !!data.analysisPending);
+      if (data.analysisPending) pollAnalysis(data.lote.id);
+      loadLotes();
     } catch (err) {
-      const cut = err && (err.name === 'TypeError' || /fetch/i.test(err.message || ''));
+      const cut = err && (err.name === 'TypeError' || err.name === 'TimeoutError' || err.name === 'AbortError' || /fetch|timed out/i.test(err.message || ''));
       uploadStatus.textContent = cut
         ? 'La conexión se cortó antes de recibir respuesta. Revisa en la lista de abajo si el lote quedó creado antes de volver a subirlo.'
         : 'No se pudo subir: ' + (err.message || 'intenta de nuevo');
@@ -208,15 +216,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function postWithRetry(payload, attempts, timeoutMs) {
     let lastErr = null;
+    postWithRetry.startedAt = Date.now();
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         const res = await fetch('/api/sim-consumos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(timeoutMs || 45000),
+          signal: timeoutSignal(timeoutMs || 45000),
           body: JSON.stringify(payload),
         });
         const data = await res.json().catch(() => ({}));
+        if (res.status === 202 && data.inProgress) {
+          // El servidor sigue armando el lote de un intento anterior: se espera y se vuelve a preguntar.
+          await new Promise((r) => setTimeout(r, 5000));
+          attempt--;
+          if (Date.now() - (postWithRetry.startedAt || Date.now()) > 240000) throw new Error('el servidor sigue armando el lote; revisa la lista en un momento');
+          continue;
+        }
         if (!res.ok) {
           // Un 4xx distinto de 409 no mejora reintentando.
           if (res.status >= 400 && res.status < 500 && res.status !== 409 && res.status !== 408) throw Object.assign(new Error(data.error || `error ${res.status}`), { final: true });
@@ -234,8 +250,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // --- Lotes ---
   async function loadLotes() {
-    const res = await fetch('/api/sim-consumos', { signal: AbortSignal.timeout(30000) });
-    const data = await res.json().catch(() => ({}));
+    let res;
+    let data;
+    try {
+      res = await fetch('/api/sim-consumos', { signal: timeoutSignal(30000) });
+      data = await res.json().catch(() => ({}));
+    } catch (err) {
+      lotesEl.innerHTML = `<div class="empty">No se pudo cargar la lista: ${escapeHtml(err.message || 'sin conexión')}.</div>`;
+      return;
+    }
     if (!res.ok || !Array.isArray(data.lotes)) {
       lotesEl.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
       return;
@@ -261,8 +284,15 @@ document.addEventListener('DOMContentLoaded', function () {
     detailEl.hidden = false;
     detailEl.innerHTML = '<div class="panel-card"><div class="empty">Cargando lote...</div></div>';
     detailEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const res = await fetch('/api/sim-consumos?id=' + encodeURIComponent(id), { signal: AbortSignal.timeout(30000) });
-    const data = await res.json().catch(() => ({}));
+    let res;
+    let data;
+    try {
+      res = await fetch('/api/sim-consumos?id=' + encodeURIComponent(id), { signal: timeoutSignal(30000) });
+      data = await res.json().catch(() => ({}));
+    } catch (err) {
+      detailEl.innerHTML = `<div class="panel-card"><div class="empty">No se pudo cargar: ${escapeHtml(err.message || 'sin conexión')}.</div></div>`;
+      return;
+    }
     if (!res.ok || !data.lote) {
       detailEl.innerHTML = `<div class="panel-card"><div class="empty">No se pudo cargar (HTTP ${res.status}).</div></div>`;
       return;
@@ -272,15 +302,17 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Mientras GPSITO redacta (en el servidor, después de responder), se consulta el lote cada 5 s.
-  let pollTimer = null;
+  const pollTimers = {};
   function pollAnalysis(id) {
-    clearTimeout(pollTimer);
+    clearTimeout(pollTimers[id]);
     const startedAt = Date.now();
     const tick = async () => {
       if (!currentLote || currentLote.id !== id) return;
       try {
-        const res = await fetch('/api/sim-consumos?id=' + encodeURIComponent(id), { signal: AbortSignal.timeout(20000) });
+        const res = await fetch('/api/sim-consumos?id=' + encodeURIComponent(id), { signal: timeoutSignal(20000) });
         const data = await res.json().catch(() => ({}));
+        // Si mientras respondía la persona abrió otro lote, no se pinta encima.
+        if (!currentLote || currentLote.id !== id) return;
         if (res.ok && data.lote) {
           if (data.lote.analysis || !data.analysisPending) {
             renderDetail(data.lote, data.blobUrl, false);
@@ -289,13 +321,13 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         }
       } catch { /* se reintenta */ }
-      if (Date.now() - startedAt < 4 * 60000) pollTimer = setTimeout(tick, 5000);
+      if (Date.now() - startedAt < 4 * 60000) pollTimers[id] = setTimeout(tick, 5000);
       else {
         const report = document.getElementById('simReport');
         if (report) report.innerHTML = '<p class="hint" style="margin:0;">GPSITO no terminó el informe en cuatro minutos. Pulsa "Generar informe" para intentarlo de nuevo.</p>';
       }
     };
-    pollTimer = setTimeout(tick, 4000);
+    pollTimers[id] = setTimeout(tick, 4000);
   }
 
   // Render mínimo del informe de GPSITO (títulos, negritas, listas, párrafos).
@@ -445,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const res = await fetch('/api/sim-consumos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(120000),
+        signal: timeoutSignal(120000),
         body: JSON.stringify({ action: name, id: currentLote.id, ...extra }),
       });
       const data = await res.json().catch(() => ({}));
@@ -453,9 +485,11 @@ document.addEventListener('DOMContentLoaded', function () {
       renderDetail(data.lote, '/api/blob-file?path=' + encodeURIComponent(data.lote.blobPath), !!data.analysisPending);
       if (data.analysisPending) pollAnalysis(data.lote.id);
       loadLotes();
+      return true;
     } catch (err) {
       alert(err.message || 'No se pudo completar.');
       if (currentLote) renderDetail(currentLote, '/api/blob-file?path=' + encodeURIComponent(currentLote.blobPath));
+      return false;
     }
   }
 
@@ -466,7 +500,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const qa = document.getElementById('simQa');
     qa.insertAdjacentHTML('afterbegin', `<div class="sim-qa"><div class="q">${escapeHtml(q)}</div><div class="hint">GPSITO está respondiendo...</div></div>`);
     input.value = '';
-    await action('ask', { question: q }, null);
+    const ok = await action('ask', { question: q }, null);
+    if (!ok) {
+      const again = document.getElementById('simQuestion');
+      if (again) again.value = q;
+    }
   }
 
   loadLotes();

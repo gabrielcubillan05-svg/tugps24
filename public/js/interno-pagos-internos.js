@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   const pagosList = document.getElementById('pagosList');
   let listLimit = 0;
   if (!pagosList) return; // no autenticado o sin permiso
@@ -100,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (branchFilter && branchFilter.value) params.set('branch', branchFilter.value);
 
     if (listLimit) params.set('limit', String(listLimit));
-    fetch('/api/pagos-internos?' + params.toString(), { signal: AbortSignal.timeout(30000) })
+    fetch('/api/pagos-internos?' + params.toString(), { signal: timeoutSignal(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.pagos)) {
@@ -108,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
           allPagos = data.pagos;
           renderStats(data.stats);
           renderList(allPagos);
-          TuGpsListMore.apply(pagosList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allPagos }, (next) => { listLimit = next; loadPagos(); });
+          if (window.TuGpsListMore) TuGpsListMore.apply(pagosList, { truncated: data.truncated, total: data.total, limit: data.limit, items: allPagos }, (next) => { listLimit = next; loadPagos(); });
         } else {
           pagosList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
         }

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   function escapeHtml(str) {
     return String(str || '')
       .replace(/&/g, '&amp;')
@@ -105,12 +107,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (currentStatus) params.set('status', currentStatus);
 
     if (listLimit) params.set('limit', String(listLimit));
-    fetch('/api/casos-importantes?' + params.toString(), { signal: AbortSignal.timeout(30000) })
+    fetch('/api/casos-importantes?' + params.toString(), { signal: timeoutSignal(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.casos)) {
           renderCasos(data.casos);
-          TuGpsListMore.apply(casosList, { truncated: data.truncated, total: data.total, limit: data.limit, items: data.casos }, (next) => { listLimit = next; loadCasos(); });
+          if (window.TuGpsListMore) TuGpsListMore.apply(casosList, { truncated: data.truncated, total: data.total, limit: data.limit, items: data.casos }, (next) => { listLimit = next; loadCasos(); });
         } else {
           casosList.innerHTML = `<div class="empty">No se pudo cargar (HTTP ${res.status})${data && data.error ? ': ' + escapeHtml(data.error) : ''}.</div>`;
         }

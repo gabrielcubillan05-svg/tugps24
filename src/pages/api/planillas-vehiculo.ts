@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAccessSection, findUserById, verifySameOrigin, branchesOf } from '../../lib/auth';
@@ -199,6 +200,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     const clienteBlob = await put(`planillas/${id}-cliente-${randomUUID()}`, clienteFirmaFile, {
       access: 'private',
+      abortSignal: blobTimeout(),
       token,
       addRandomSuffix: false,
     });
@@ -207,6 +209,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (tecnicoFirmaFile instanceof File && tecnicoFirmaFile.size > 0) {
       const tecnicoBlob = await put(`planillas/${id}-tecnico-${randomUUID()}`, tecnicoFirmaFile, {
         access: 'private',
+        abortSignal: blobTimeout(),
         token,
         addRandomSuffix: false,
       });
@@ -327,6 +330,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   try {
     const blob = await put(`planillas/${id}-salida-${randomUUID()}`, salidaFirmaFile, {
       access: 'private',
+      abortSignal: blobTimeout(),
       token,
       addRandomSuffix: false,
     });

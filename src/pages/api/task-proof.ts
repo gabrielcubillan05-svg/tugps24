@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { SESSION_COOKIE, getSession, canAssignTasks, verifySameOrigin } from '../../lib/auth';
@@ -61,6 +62,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     const blob = await put(`tasks/${id}-${randomUUID()}`, photo, {
       access: 'private',
+      abortSignal: blobTimeout(),
       token,
       addRandomSuffix: false,
     });

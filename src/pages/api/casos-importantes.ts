@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { put } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
 import { pageOf } from '../../lib/list-page';
@@ -172,6 +173,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       for (const file of imageFiles.slice(0, MAX_IMAGES)) {
         const blob = await put(`casos/${id}-${randomUUID()}`, file, {
           access: 'private',
+          abortSignal: blobTimeout(),
           token,
           addRandomSuffix: false,
         });

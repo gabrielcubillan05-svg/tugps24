@@ -23,6 +23,11 @@ const TRACKING_SINCE_KEY = 'internal:agent-usage-tracking-since';
 // agente y día. Cada miembro es "canal:idConversacion", así una misma conversación con 20
 // respuestas cuenta una sola vez y se puede separar WhatsApp del chat web o del panel.
 const CONVERSATIONS_KEY_PREFIX = 'internal:agent-conversations:';
+// El conjunto acumulado crecía para siempre (un miembro por conversación atendida) y se leía
+// entero en cada consulta. Ahora el acumulado es un hash de contadores por canal, y para saber
+// si una conversación es nueva se usa una marca por conversación que caduca sola.
+const CONVERSATION_COUNTS_KEY_PREFIX = 'internal:agent-conversations-count:';
+const CONVERSATION_SEEN_PREFIX = 'internal:agent-conv-seen:';
 const DAILY_CONVERSATIONS_KEY_PREFIX = 'internal:agent-conversations-daily:';
 const CONVERSATIONS_TRACKING_SINCE_KEY = 'internal:agent-conversations-tracking-since';
 const COST_CONFIG_KEY = 'internal:agent-cost-config';
@@ -101,10 +106,13 @@ export async function recordAgentUsage(
   const today = todayInColombia();
   const dailyKey = DAILY_USAGE_KEY_PREFIX + agentKey + ':' + today;
   const member = conversation ? `${conversation.channel}:${conversation.id}` : null;
+  if (member && conversation) {
+    const firstTime = await redis.set(CONVERSATION_SEEN_PREFIX + agentKey + ':' + member, '1', { nx: true, ex: DAILY_TTL_SECONDS }).catch(() => null);
+    if (firstTime) await redis.hincrby(CONVERSATION_COUNTS_KEY_PREFIX + agentKey, conversation.channel, 1).catch(() => {});
+  }
   await Promise.all([
     ...(member
       ? [
-          redis.sadd(CONVERSATIONS_KEY_PREFIX + agentKey, member),
           redis.sadd(DAILY_CONVERSATIONS_KEY_PREFIX + agentKey + ':' + today, member),
           redis.expire(DAILY_CONVERSATIONS_KEY_PREFIX + agentKey + ':' + today, DAILY_TTL_SECONDS),
           redis.set(CONVERSATIONS_TRACKING_SINCE_KEY, today, { nx: true }),
@@ -138,10 +146,25 @@ export async function getConversationsTrackingSince(redis: any): Promise<string 
   return typeof raw === 'string' ? raw : null;
 }
 
+async function lifetimeConversationCounts(redis: any, agentKey: string): Promise<ConversationCounts> {
+  const h = (await redis.hgetall<Record<string, string | number>>(CONVERSATION_COUNTS_KEY_PREFIX + agentKey)) || {};
+  if (Object.keys(h).length) {
+    return { whatsapp: Number(h.whatsapp) || 0, web: Number(h.web) || 0, panel: Number(h.panel) || 0 };
+  }
+  // Migración única desde el conjunto acumulado de antes: se cuenta, se guarda y se borra.
+  const members = await redis.smembers(CONVERSATIONS_KEY_PREFIX + agentKey);
+  const counts = countByChannel(members);
+  if (Array.isArray(members) && members.length) {
+    await redis.hset(CONVERSATION_COUNTS_KEY_PREFIX + agentKey, counts);
+    await redis.del(CONVERSATIONS_KEY_PREFIX + agentKey);
+  }
+  return counts;
+}
+
 export async function getAgentUsage(redis: any, agentKey: string): Promise<AgentUsage> {
-  const [raw, members] = await Promise.all([
+  const [raw, conversations] = await Promise.all([
     redis.hgetall<Record<string, string | number>>(USAGE_KEY_PREFIX + agentKey),
-    redis.smembers(CONVERSATIONS_KEY_PREFIX + agentKey),
+    lifetimeConversationCounts(redis, agentKey),
   ]);
   const r = raw || {};
   return {
@@ -150,12 +173,12 @@ export async function getAgentUsage(redis: any, agentKey: string): Promise<Agent
     cacheReadTokens: Number(r.cacheReadTokens) || 0,
     cacheCreationTokens: Number(r.cacheCreationTokens) || 0,
     calls: Number(r.calls) || 0,
-    conversations: countByChannel(members),
+    conversations,
   };
 }
 
 export async function resetAgentUsage(redis: any, agentKey: string): Promise<void> {
-  await Promise.all([redis.del(USAGE_KEY_PREFIX + agentKey), redis.del(CONVERSATIONS_KEY_PREFIX + agentKey)]);
+  await Promise.all([redis.del(USAGE_KEY_PREFIX + agentKey), redis.del(CONVERSATIONS_KEY_PREFIX + agentKey), redis.del(CONVERSATION_COUNTS_KEY_PREFIX + agentKey)]);
 }
 
 // Consumo entre dos fechas (inclusive, "YYYY-MM-DD" hora Colombia) para el reporte de

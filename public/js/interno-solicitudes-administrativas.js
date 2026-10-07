@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   const solicitudesList = document.getElementById('solicitudesList');
   if (!solicitudesList) return; // no autenticado o sin permiso
 
@@ -146,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (listLimit) params.set('limit', String(listLimit));
 
-    fetch('/api/solicitudes-administrativas?' + params.toString(), { signal: AbortSignal.timeout(30000) })
+    fetch('/api/solicitudes-administrativas?' + params.toString(), { signal: timeoutSignal(30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (data && Array.isArray(data.solicitudes)) {

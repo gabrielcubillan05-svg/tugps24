@@ -2,7 +2,8 @@ import { defineMiddleware } from 'astro:middleware';
 import { SESSION_COOKIE, sessionMustChangePassword } from './lib/auth';
 import { getRedis } from './lib/redis';
 import { getClientIp } from './lib/rate-limit';
-import { recordSecurityEvent } from './lib/security-events';
+import { recordSecurityEvent, securityPathLabel } from './lib/security-events';
+import { runAfterResponse } from './lib/background';
 import { recordSlowRequest, SLOW_REQUEST_MS } from './lib/perf';
 
 const CSP = [
@@ -42,7 +43,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (elapsed >= SLOW_REQUEST_MS) {
     console.warn(`lento ${elapsed}ms ${context.request.method} ${path}`);
     const redis = getRedis();
-    if (redis) await recordSlowRequest(redis, path, elapsed);
+    if (redis) {
+      const inline = runAfterResponse(recordSlowRequest(redis, path, elapsed));
+      if (inline) await inline;
+    }
   }
   // Intentos frenados que antes no dejaban rastro: rechazos por origen o firma (403), límites de
   // tasa (429) y rutas inexistentes (404, típico de escáneres). El 403 de la clave inicial de
@@ -52,7 +56,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
       const redis = getRedis();
       if (redis) {
         const kind = response.status === 403 ? 'forbidden' : response.status === 429 ? 'rate_limited' : 'not_found';
-        await recordSecurityEvent(redis, kind, getClientIp(context.request), `${response.status} ${context.request.method} ${path}`);
+        // Se cuenta después de responder: un escáner no debe conseguir que cada 404 suyo cueste
+        // una ida a Redis antes de contestarle.
+        const inline = runAfterResponse(recordSecurityEvent(redis, kind, getClientIp(context.request), securityPathLabel(response.status, context.request.method, path)));
+        if (inline) await inline;
       }
     }
   }

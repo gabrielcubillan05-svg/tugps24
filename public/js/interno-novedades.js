@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -254,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function () {
       submitBtn.textContent = 'Guardando...';
       // Con conexión muy lenta la subida de fotos puede tardar; pasado el tope se avisa en vez de
       // dejar el botón en "Guardando..." para siempre.
-      const res = await fetch('/api/reports', { method: 'POST', body: formData, signal: AbortSignal.timeout(90000) });
+      const res = await fetch('/api/reports', { method: 'POST', body: formData, signal: timeoutSignal(90000) });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || `error ${res.status}`);

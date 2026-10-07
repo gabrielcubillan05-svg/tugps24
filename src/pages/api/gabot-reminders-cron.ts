@@ -3,6 +3,8 @@ import { getRedis } from '../../lib/redis';
 import { isQuietHoursColombia } from '../../lib/whatsapp';
 import { getUsers, JOSUE_USERNAME, WILMAR_USERNAME, ROLE_LABELS, branchesOf, cronSecretMatches } from '../../lib/auth';
 import { sendGabotMessage } from '../../lib/gabot';
+import { runCronGuarded, claimOnce, cronSlot } from '../../lib/cron-guard';
+import { markCronOk } from '../../lib/incidents';
 import { collectPendingLines, type GabotData } from '../../lib/gabot-report';
 import { computePerformanceFlags, type PerformanceFlag } from '../../lib/gabot-performance';
 import { isOnShiftNow, shiftBucketFor, SHIFT_SUPERVISORS } from '../../lib/shift';
@@ -45,13 +47,31 @@ export const GET: APIRoute = async ({ request }) => {
   // Salvaguarda: aunque el horario del cron ya solo dispara en horario de oficina, nunca
   // molestamos de madrugada si algo llama a este endpoint fuera de lo programado.
   if (isQuietHoursColombia()) {
+    // El cron sí corrió (solo que no es hora de mandar): cuenta como sano para /api/health.
+    await markCronOk(redis, 'gabot-reminders');
     return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'quiet hours' }), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
+  const guarded = await runCronGuarded(redis, 'gabot-reminders', 600, () => runReminders(redis));
+  if ('skipped' in guarded) {
+    return new Response(JSON.stringify({ ok: true, sent: 0, skipped: guarded.skipped }), { headers: { 'Content-Type': 'application/json' } });
+  }
+  return new Response(JSON.stringify({ ok: true, ...guarded.result }), { headers: { 'Content-Type': 'application/json' } });
+};
+
+async function runReminders(redis: NonNullable<ReturnType<typeof getRedis>>) {
   const colombiaHour = (new Date().getUTCHours() - 5 + 24) % 24;
   const isMorningBriefing = colombiaHour === 7;
+  // Cada destinatario recibe cada tipo de mensaje una sola vez por franja, aunque la corrida
+  // se repita o se cruce con otra.
+  const slot = cronSlot(true);
+  const sendOnce = async (userId: string, kind: string, text: string) => {
+    if (!(await claimOnce(redis, `internal:gabot-sent:reminders:${slot}:${kind}:${userId}`))) return false;
+    await sendGabotMessage(redis, userId, text);
+    return true;
+  };
 
   const [users, suspensiones, solicitudes, pagos, tasks, leads, clientesMasivos, casos, scheduledReports, schedule, garantias] = await Promise.all([
     getUsers(redis),
@@ -86,8 +106,7 @@ export const GET: APIRoute = async ({ request }) => {
       const text = isMorningBriefing
         ? `Buenos días ${firstName} ☀️ Esta es tu minuta de pendientes para hoy:\n\n${lines.join('\n')}`
         : `Hola ${firstName}, este es tu recordatorio de pendientes:\n\n${lines.join('\n')}`;
-      await sendGabotMessage(redis, user.id, text);
-      sent++;
+      if (await sendOnce(user.id, 'pendientes', text)) sent++;
     }
 
     if (isMorningBriefing) {
@@ -96,11 +115,7 @@ export const GET: APIRoute = async ({ request }) => {
         flaggedWorkers.push({ user, flags });
         const firstName = user.name.trim().split(/\s+/)[0] || user.name;
         const flagLines = flags.map((f) => `  · ${f.module} (${f.kind}): ${f.detail}`).join('\n');
-        await sendGabotMessage(
-          redis,
-          user.id,
-          `⚠️ ${firstName}, noté que llevas unos días con demoras en algunos módulos — ¿necesitas ayuda con algo?\n\n${flagLines}`
-        );
+        await sendOnce(user.id, 'demoras', `⚠️ ${firstName}, noté que llevas unos días con demoras en algunos módulos — ¿necesitas ayuda con algo?\n\n${flagLines}`);
       }
     }
   }
@@ -128,7 +143,7 @@ export const GET: APIRoute = async ({ request }) => {
       ? `📊 Resumen de rendimiento de hoy — ${flaggedWorkers.length} trabajador(es) con demoras:\n\n${formatFlaggedList(flaggedWorkers, true)}`
       : '📊 Resumen de rendimiento de hoy — nadie con demoras en ningún módulo. Todo al día.';
     for (const overseer of overseers) {
-      await sendGabotMessage(redis, overseer.id, summaryText);
+      await sendOnce(overseer.id, 'resumen', summaryText);
     }
 
     // A cada gerente le llega también el resumen, pero solo de su(s) propia(s) sucursal(es) —
@@ -143,7 +158,7 @@ export const GET: APIRoute = async ({ request }) => {
       const misSummaryText = misFlagged.length
         ? `📊 Resumen de rendimiento de hoy en tu sucursal — ${misFlagged.length} trabajador(es) con demoras:\n\n${formatFlaggedList(misFlagged, true)}`
         : '📊 Resumen de rendimiento de hoy en tu sucursal — nadie con demoras. Todo al día.';
-      await sendGabotMessage(redis, gerente.id, misSummaryText);
+      await sendOnce(gerente.id, 'resumen-sucursal', misSummaryText);
     }
 
     // Cada supervisor de turno recibe el resumen de los operadores de su franja horaria.
@@ -158,12 +173,9 @@ export const GET: APIRoute = async ({ request }) => {
       const opSummaryText = misOperadores.length
         ? `📊 Resumen de rendimiento de hoy de tus operadores — ${misOperadores.length} con demoras:\n\n${formatFlaggedList(misOperadores, false)}`
         : '📊 Resumen de rendimiento de hoy de tus operadores — nadie con demoras. Todo al día.';
-      await sendGabotMessage(redis, supervisorUser.id, opSummaryText);
+      await sendOnce(supervisorUser.id, 'resumen-operadores', opSummaryText);
     }
   }
 
-  return new Response(
-    JSON.stringify({ ok: true, sent, totalUsers: users.length, isMorningBriefing, flaggedWorkers: flaggedWorkers.length }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-};
+  return { sent, totalUsers: users.length, isMorningBriefing, flaggedWorkers: flaggedWorkers.length };
+}

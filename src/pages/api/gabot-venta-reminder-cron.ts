@@ -3,6 +3,8 @@ import { getRedis } from '../../lib/redis';
 import { isQuietHoursColombia } from '../../lib/whatsapp';
 import { getUsers, branchesOf, cronSecretMatches } from '../../lib/auth';
 import { sendGabotMessage } from '../../lib/gabot';
+import { runCronGuarded, claimOnce, cronSlot } from '../../lib/cron-guard';
+import { markCronOk } from '../../lib/incidents';
 import { pushNotification } from '../../lib/notifications';
 import { readLeads } from './leads';
 
@@ -27,13 +29,17 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   if (isQuietHoursColombia()) {
+    // El cron sí corrió (solo que no es hora de mandar): cuenta como sano para /api/health.
+    await markCronOk(redis, 'gabot-venta-reminder');
     return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'quiet hours' }), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
+  const guarded = await runCronGuarded(redis, 'gabot-venta-reminder', 600, async () => {
   const [leads, users] = await Promise.all([readLeads(redis), getUsers(redis)]);
   const pendientes = leads.filter((l) => l.aiStage === 'entregado' && !l.managerAckAt);
+  const slot = cronSlot(true);
 
   let sent = 0;
   for (const lead of pendientes) {
@@ -47,6 +53,9 @@ export const GET: APIRoute = async ({ request }) => {
     for (const person of [secretaria, gerente]) {
       if (!person || notified.has(person.id)) continue;
       notified.add(person.id);
+      // El chat no se actualiza "en sitio" como la campanita: una corrida repetida en la misma
+      // hora mandaría el mismo recordatorio dos veces.
+      if (!(await claimOnce(redis, `internal:gabot-sent:venta:${slot}:${lead.id}:${person.id}`))) continue;
       await sendGabotMessage(redis, person.id, message);
       // Misma key siempre para el mismo lead+persona: cada corrida actualiza la misma
       // notificación (vuelve a quedar sin leer y a sonar) en vez de amontonar una nueva cada hora.
@@ -60,7 +69,8 @@ export const GET: APIRoute = async ({ request }) => {
     }
   }
 
-  return new Response(JSON.stringify({ ok: true, pendientes: pendientes.length, sent }), {
-    headers: { 'Content-Type': 'application/json' },
+  return { pendientes: pendientes.length, sent };
   });
+  const body = 'skipped' in guarded ? { ok: true, sent: 0, skipped: guarded.skipped } : { ok: true, ...guarded.result };
+  return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
 };

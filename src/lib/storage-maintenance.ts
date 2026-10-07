@@ -3,7 +3,8 @@
 // vive aquí, en las constantes de abajo, para que cambiarla sea un solo lugar.
 
 import { del, list, put } from '@vercel/blob';
-import { readLeads, deleteLeads, type Lead } from '../pages/api/leads';
+import { readLeads, deleteLeads, normalizePhone, type Lead } from '../pages/api/leads';
+import { blobTimeout } from './blob-path';
 import { readTasks, REDIS_KEY as TASKS_KEY, type Task } from '../pages/api/tasks';
 import { CONVERSATIONS_KEY as LEAD_CONVERSATIONS_KEY } from '../pages/api/whatsapp-webhook';
 import { purgeExpiredSessions } from './auth';
@@ -34,19 +35,57 @@ export const RETENTION = {
   // Los archivos (leads, tareas, módulos) se vacían al año: no son respaldo (viven en el mismo
   // Redis; el respaldo real es backup-cron) y solo acumulan datos personales.
   archivesPurgeAfterDays: 365,
+  // Cobranza: un cobro ya contactado hace más de un año no vuelve a usarse; su conversación de
+  // WhatsApp con Valentina se va con él.
+  cobrosArchiveAfterDays: 365,
+  // Lotes de consumo de SIM: el cruce con el periodo anterior solo mira el lote inmediato.
+  simLotesPurgeAfterDays: 365,
   // Ficha, incapacidades y solicitudes de un empleado retirado: dos años después del retiro.
   retiredEmployeesPurgeAfterDays: 730,
 };
 
-type ModuleRule = { key: string; label: string; blobPrefix?: string; closed: (r: any) => boolean; closedAt: (r: any) => string | null | undefined };
+type ModuleRule = {
+  key: string;
+  label: string;
+  blobPrefix?: string;
+  closed: (r: any) => boolean;
+  closedAt: (r: any) => string | null | undefined;
+  // Plazo propio; si falta, el general de módulos cerrados.
+  afterDays?: number;
+  // Lo que hay que soltar junto con los registros (conversaciones, índices).
+  extraCleanup?: (redis: any, old: [string, any][]) => Promise<void>;
+};
 const MODULE_RULES: ModuleRule[] = [
   { key: 'internal:suspensiones', label: 'suspensiones', blobPrefix: 'suspensiones/', closed: (r) => ['Resuelto', 'Suspendido', 'Desinstalación (se reinstalará)', 'Recompra'].includes(r.status), closedAt: (r) => r.resolvedAt || r.updatedAt || r.createdAt },
   { key: 'internal:casos-importantes', label: 'casos importantes', blobPrefix: 'casos/', closed: (r) => r.status === 'Finalizado', closedAt: (r) => r.updatedAt || r.createdAt },
   { key: 'internal:solicitudes-administrativas', label: 'solicitudes administrativas', blobPrefix: 'solicitudes-admin/', closed: (r) => ['Completada', 'No completada'].includes(r.status), closedAt: (r) => r.resolvedAt || r.updatedAt || r.createdAt },
   { key: 'internal:pagos-internos', label: 'pagos internos', closed: (r) => r.status === 'Pagado', closedAt: (r) => r.updatedAt || r.createdAt },
   { key: 'internal:planillas-vehiculo', label: 'planillas de vehículo', blobPrefix: 'planillas/', closed: () => true, closedAt: (r) => r.salidaAt || r.createdAt },
+  {
+    key: 'internal:cobros',
+    label: 'cobranza',
+    afterDays: RETENTION.cobrosArchiveAfterDays,
+    closed: (r) => r.contacted === true || r.derivedToSales === true,
+    closedAt: (r) => r.contactedAt || r.updatedAt || r.createdAt,
+    extraCleanup: async (redis, old) => {
+      const ids = old.map(([id]) => id);
+      for (let i = 0; i < ids.length; i += 500) await redis.hdel('internal:cobro-whatsapp-conversations', ...ids.slice(i, i + 500));
+      const phones = old.map(([, r]) => normalizePhone(String(r.telefono || ''))).filter(Boolean);
+      for (let i = 0; i < phones.length; i += 500) await redis.hdel('internal:whatsapp-phone-index', ...phones.slice(i, i + 500));
+    },
+  },
+  {
+    key: 'internal:garantias',
+    label: 'garantías',
+    blobPrefix: 'garantias/',
+    closed: (r) => r.called === true,
+    closedAt: (r) => (Array.isArray(r.history) && r.history[0]?.date) || r.batchUploadedAt,
+  },
+  // Los lotes no se archivan: pasado el plazo se borran con sus líneas en Blob.
+  { key: 'internal:sim-consumos', label: 'lotes de consumo de SIM', blobPrefix: 'sim-consumos/', afterDays: RETENTION.simLotesPurgeAfterDays, closed: () => true, closedAt: (r) => r.periodEnd ? `${r.periodEnd}T23:59:59.000Z` : r.uploadedAt },
 ];
-const ARCHIVE_KEYS = ['internal:leads-archive', 'internal:tasks-archive', ...MODULE_RULES.map((m) => `${m.key}-archive`)];
+const PURGE_ONLY_KEYS = new Set(['internal:sim-consumos']);
+const ARCHIVE_KEYS = ['internal:leads-archive', 'internal:tasks-archive', ...MODULE_RULES.filter((m) => !PURGE_ONLY_KEYS.has(m.key)).map((m) => `${m.key}-archive`)];
 const MAX_MODULE_PER_RUN = 500;
 
 async function scanHashAll(redis: any, key: string): Promise<[string, any][]> {
@@ -171,7 +210,7 @@ async function deleteBlobs(pathnames: string[], token: string, errors: string[])
   for (let i = 0; i < pathnames.length; i += BLOB_DEL_BATCH) {
     const batch = pathnames.slice(i, i + BLOB_DEL_BATCH);
     try {
-      await del(batch, { token });
+      await del(batch, { token, abortSignal: blobTimeout(20_000) });
       deleted += batch.length;
     } catch (err) {
       errors.push(`Blob: no se pudieron borrar ${batch.length} archivos (${err instanceof Error ? err.message : String(err)})`);
@@ -264,6 +303,7 @@ async function runCleanupUnlocked(redis: any, options: { dryRun: boolean }): Pro
       // Primero el respaldo, después el recorte: si el respaldo falla no se toca la lista.
       const file = await put(`archive/novedades/${first}_a_${last}_${Date.now()}.json`, JSON.stringify(batch), {
         access: 'private',
+        abortSignal: blobTimeout(60_000),
         token,
         addRandomSuffix: false,
         contentType: 'application/json',
@@ -378,6 +418,9 @@ async function runCleanupUnlocked(redis: any, options: { dryRun: boolean }): Pro
       await redis.hset(LEADS_ARCHIVE_KEY, Object.fromEntries(old.map((l) => [l.id, JSON.stringify(l)])));
       await deleteLeads(redis, ids);
       await redis.hdel(LEAD_CONVERSATIONS_KEY, ...ids);
+      // El índice teléfono→lead guardaba para siempre la entrada de cada lead archivado.
+      const phones = old.map((l) => normalizePhone(String(l.phone || ''))).filter(Boolean);
+      if (phones.length) await redis.hdel('internal:whatsapp-phone-index', ...phones);
     }
   } catch (err) {
     summary.errors.push(`Leads: ${err instanceof Error ? err.message : String(err)}`);
@@ -406,7 +449,7 @@ async function runCleanupUnlocked(redis: any, options: { dryRun: boolean }): Pro
   // ---- Módulos operativos cerrados: a su archivo y sin fotos ni firmas
   for (const rule of MODULE_RULES) {
     try {
-      const cutoff = daysAgoIso(RETENTION.closedModulesArchiveAfterDays);
+      const cutoff = daysAgoIso(rule.afterDays || RETENTION.closedModulesArchiveAfterDays);
       const entries = await scanHashAll(redis, rule.key);
       const old = entries
         .filter(([, r]) => rule.closed(r) && typeof rule.closedAt(r) === 'string' && (rule.closedAt(r) as string) < cutoff)
@@ -414,10 +457,13 @@ async function runCleanupUnlocked(redis: any, options: { dryRun: boolean }): Pro
       const files = rule.blobPrefix ? old.flatMap(([, r]) => blobPathsIn(r, rule.blobPrefix!)) : [];
       const item = { label: rule.label, archived: old.length, filesDeleted: files.length };
       if (old.length && !dryRun) {
-        for (let i = 0; i < old.length; i += 200) {
-          await redis.hset(`${rule.key}-archive`, Object.fromEntries(old.slice(i, i + 200).map(([id, r]) => [id, JSON.stringify({ ...r, archivedAt: new Date().toISOString() })])));
+        if (!PURGE_ONLY_KEYS.has(rule.key)) {
+          for (let i = 0; i < old.length; i += 200) {
+            await redis.hset(`${rule.key}-archive`, Object.fromEntries(old.slice(i, i + 200).map(([id, r]) => [id, JSON.stringify({ ...r, archivedAt: new Date().toISOString() })])));
+          }
         }
         for (let i = 0; i < old.length; i += 500) await redis.hdel(rule.key, ...old.slice(i, i + 500).map(([id]) => id));
+        if (rule.extraCleanup) await rule.extraCleanup(redis, old);
         item.filesDeleted = token && files.length ? await deleteBlobs(files, token, summary.errors) : 0;
       }
       summary.modules.push(item);
@@ -503,6 +549,7 @@ export interface StorageReport {
 }
 
 const MAX_KEYS = 5000;
+const EPHEMERAL_PREFIXES = ['internal:whatsapp-msg-seen:', 'internal:login-', 'internal:web-chat-rate:', 'internal:shutdown-done:', 'internal:shutdown-push:', 'internal:shutdown-late:', 'internal:whatsapp-phone-lock:', 'internal:whatsapp-rate', 'internal:agent-conv-seen:', 'internal:gabot-sent:', 'internal:survey-rate:'];
 // Por encima de esto se estima por muestra: un hgetall de un hash grande puede pasar el tope
 // de 10 MB por petición de Upstash.
 const HASH_FULL_READ_MAX = 1000;
@@ -566,7 +613,9 @@ export async function computeStorageReport(redis: any): Promise<StorageReport> {
   do {
     const [next, batch] = await redis.scan(cursor, { match: 'internal:*', count: 500 });
     cursor = next;
-    keys.push(...(batch as string[]));
+    // Las llaves efímeras (una por mensaje, por IP, por sesión de chat) pueden ser miles y
+    // dejaban el inventario truncado antes de llegar a las colecciones que sí pesan.
+    keys.push(...(batch as string[]).filter((k) => !EPHEMERAL_PREFIXES.some((p) => k.startsWith(p))));
     if (keys.length >= MAX_KEYS) {
       truncated = true;
       break;
@@ -601,7 +650,7 @@ export async function computeStorageReport(redis: any): Promise<StorageReport> {
   if (token) {
     let blobCursor: string | undefined;
     for (let page = 0; page < MAX_BLOB_PAGES; page++) {
-      const res = await list({ token, limit: 1000, cursor: blobCursor });
+      const res = await list({ token, limit: 1000, cursor: blobCursor, abortSignal: blobTimeout(20_000) });
       for (const b of res.blobs) {
         const folder = b.pathname.includes('/') ? b.pathname.slice(0, b.pathname.indexOf('/')) : '(raíz)';
         const uploaded = new Date(b.uploadedAt).toISOString();

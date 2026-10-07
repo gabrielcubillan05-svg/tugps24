@@ -4,6 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { sendWhatsappTemplate, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, writeLeads, normalizePhone } from './leads';
 import { appendHistory } from './whatsapp-webhook';
+import { markCronOk } from '../../lib/incidents';
 
 export const prerender = false;
 
@@ -35,6 +36,8 @@ export const GET: APIRoute = async ({ request }) => {
 
   // No mandamos plantillas de recordatorio entre 11pm y 6am hora Colombia.
   if (isQuietHoursColombia()) {
+    // El cron sí corrió (solo que no es hora de mandar): cuenta como sano para /api/health.
+    await markCronOk(redis, 'whatsapp-cold-followup');
     return new Response(JSON.stringify({ ok: true, sent: 0, skipped: 'quiet hours' }), {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -46,10 +49,15 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const now = Date.now();
-  const leads = await readLeads(redis);
   let sent = 0;
+  // 300 plantillas en serie con Meta lento se acercan a los 300 s de la función: se corta a
+  // tiempo y el resto sale mañana (el candado se suelta en finally aunque algo falle).
+  const TIME_BUDGET_MS = 200_000;
+  try {
+  const leads = await readLeads(redis);
 
   for (const lead of leads) {
+    if (Date.now() - now > TIME_BUDGET_MS) break;
     if (sent >= BATCH_SIZE) break; // no mandar de golpe si un día caen muchos leads fríos a la vez
     if (lead.installed || lead.status === 'Perdido' || lead.optOut) continue;
     // Solo a quienes nos escribieron primero (WhatsApp Ads o chat web): un lead manual o de un
@@ -86,7 +94,10 @@ export const GET: APIRoute = async ({ request }) => {
     sent++;
   }
 
-  await redis.del('internal:cold-followup-lock').catch(() => {});
+  await markCronOk(redis, 'whatsapp-cold-followup');
+  } finally {
+    await redis.del('internal:cold-followup-lock').catch(() => {});
+  }
   return new Response(JSON.stringify({ ok: true, sent }), {
     headers: { 'Content-Type': 'application/json' },
   });

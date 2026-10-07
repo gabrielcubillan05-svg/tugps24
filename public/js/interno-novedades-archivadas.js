@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // AbortSignal.timeout no existe en navegadores de antes de mediados de 2022: con un AbortController se logra lo mismo.
+  const timeoutSignal = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : ((c) => (setTimeout(() => c.abort(), ms), c.signal))(new AbortController()));
   const summary = document.getElementById('archSummary');
   if (!summary) return;
   const searchInput = document.getElementById('archSearch');
@@ -85,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function fetchJson(params, timeoutMs) {
     // Nada se queda en "Cargando..." para siempre: pasado el tope se muestra el error.
-    return fetch('/api/novedades-archivadas?' + params.toString(), { signal: AbortSignal.timeout(timeoutMs || 30000) })
+    return fetch('/api/novedades-archivadas?' + params.toString(), { signal: timeoutSignal(timeoutMs || 30000) })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `error ${res.status}`);
@@ -157,13 +159,20 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // --- Cola de la lista principal, por páginas ---
+  // Cada petición lleva su número: la respuesta de una anterior que llegue tarde se ignora.
+  let pageSeq = 0;
+  let searchSeq = 0;
   function loadPage(p) {
     page = p;
+    const my = ++pageSeq;
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
     list.innerHTML = '<div class="empty">Cargando...</div>';
     const params = new URLSearchParams({ source: 'lista', page: String(page) });
     if (branchSelect.value) params.set('branch', branchSelect.value);
     fetchJson(params, 20000)
       .then((d) => {
+        if (my !== pageSeq) return;
         if (typeof d.beyond === 'number') beyond = d.beyond;
         if (d.pageSize) pageSize = d.pageSize;
         const from = page * pageSize + 1;
@@ -172,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function () {
         nextBtn.disabled = !d.hasMore;
         renderInto(list, d.items || [], false);
       })
-      .catch((err) => { list.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(err.message)}</div>`; });
+      .catch((err) => { if (my !== pageSeq) return; prevBtn.disabled = page === 0; nextBtn.disabled = false; list.innerHTML = `<div class="empty">No se pudo cargar: ${escapeHtml(err.message)}</div>`; });
   }
   prevBtn.addEventListener('click', () => loadPage(Math.max(0, page - 1)));
   nextBtn.addEventListener('click', () => loadPage(page + 1));
@@ -194,16 +203,17 @@ document.addEventListener('DOMContentLoaded', function () {
     listCard.style.display = 'none';
     const params = new URLSearchParams({ q });
     if (branchSelect.value) params.set('branch', branchSelect.value);
+    const my = ++searchSeq;
     fetchJson(params, 45000)
       .then((d) => {
-        if (searchInput.value.trim() !== q) return;
+        if (my !== searchSeq || searchInput.value.trim() !== q) return;
         const items = d.items || [];
         const pending = d.archivesPending ? ` Quedaron ${fmtNum(d.archivesPending)} archivo(s) sin revisar por tiempo; repite la búsqueda para seguir.` : '';
         const archErr = d.archivesError ? ` No se pudieron listar los archivos (${escapeHtml(d.archivesError)}).` : '';
         notice.textContent = `${fmtNum(items.length)} resultado(s)${d.truncated ? ' (se muestran los 500 más recientes; afina la búsqueda)' : ''} · se revisaron ${fmtNum(d.scannedList)} novedades de la lista y ${fmtNum(d.archivesSearched)} archivo(s).${pending}${archErr}`;
         renderInto(results, items, true);
       })
-      .catch((err) => { notice.textContent = 'No se pudo buscar: ' + (err.message || 'intenta de nuevo'); });
+      .catch((err) => { if (my !== searchSeq) return; notice.textContent = 'No se pudo buscar: ' + (err.message || 'intenta de nuevo'); });
   }
   searchInput.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 400); });
   branchSelect.addEventListener('change', () => { if (searchInput.value.trim().length >= 3) runSearch(); else loadPage(0); });

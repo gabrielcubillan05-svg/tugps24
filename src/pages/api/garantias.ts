@@ -3,6 +3,7 @@ import { isAllowedImageFile } from '../../lib/uploads';
 import { randomUUID } from 'node:crypto';
 import { readFirstSheetRows, SpreadsheetError } from '../../lib/spreadsheet';
 import { put } from '@vercel/blob';
+import { blobTimeout } from '../../lib/blob-path';
 import { getRedis } from '../../lib/redis';
 import { readHashValues } from '../../lib/redis-hash';
 import { pageOf } from '../../lib/list-page';
@@ -292,6 +293,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   garantias = sortByPriority(garantias);
 
   let stats: Record<string, unknown> | null = null;
+  let operators: { id: string; name: string }[] | null = null;
   if (isManager) {
     const all = sortByPriority(await readGarantias(redis));
     const period = url.searchParams.get('period') || 'hoy';
@@ -336,12 +338,17 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     }
 
     stats = { total: all.length, period, start, end, byOperator: Object.fromEntries(byOperator) };
+    // El filtro "operador" de la pantalla se arma con todos los operadores que tienen garantías,
+    // no solo con los de la página recibida: si no, al paginar desaparecían opciones.
+    const seen = new Map<string, string>();
+    for (const g of all) if (g.assignedToId && !seen.has(g.assignedToId)) seen.set(g.assignedToId, g.assignedToName);
+    operators = [...seen.entries()].map(([id, name]) => ({ id, name }));
   }
 
   // Van ordenadas por prioridad: las primeras son las que hay que llamar ya.
   const paged = pageOf(url, garantias);
   return new Response(
-    JSON.stringify({ garantias: paged.page, ...paged.meta, categories: CATEGORIES, branches: BRANCHES, stats }),
+    JSON.stringify({ garantias: paged.page, ...paged.meta, categories: CATEGORIES, branches: BRANCHES, stats, operators }),
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
   );
 };
@@ -617,7 +624,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     try {
       for (const f of imageFiles.slice(0, MAX_IMAGES - garantia.images.length)) {
-        const blob = await put(`garantias/${id}-${randomUUID()}`, f, { access: 'private', token, addRandomSuffix: false });
+        const blob = await put(`garantias/${id}-${randomUUID()}`, f, { access: 'private', token, addRandomSuffix: false, abortSignal: blobTimeout() });
         garantia.images.push(blob.pathname);
       }
     } catch (err) {

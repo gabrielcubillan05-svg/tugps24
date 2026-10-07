@@ -10,6 +10,15 @@ export type SecurityEventKind = 'login_failed' | 'login_locked' | 'forbidden' | 
 
 const TTL_SECONDS = 35 * 86400;
 const MAX_PATH_LENGTH = 80;
+const MAX_MEMBERS = 500;
+
+// Para los 404 solo interesa el primer tramo de la ruta (/wp-admin, /.env, /api…): un escáner
+// genera miles de rutas distintas y cada una sería un miembro nuevo.
+export function securityPathLabel(status: number, method: string, path: string): string {
+  if (status !== 404) return `${status} ${method} ${path}`;
+  const first = path.split('/').filter(Boolean)[0] || '';
+  return `${status} ${method} /${first}${path.split('/').filter(Boolean).length > 1 ? '/…' : ''}`;
+}
 
 function dayKey(date: string): string {
   return `internal:security:${date}`;
@@ -30,6 +39,10 @@ export async function recordSecurityEvent(redis: any, kind: SecurityEventKind, i
       p.zincrby(`${key}:paths`, 1, path.slice(0, MAX_PATH_LENGTH));
       p.expire(`${key}:paths`, TTL_SECONDS);
     }
+    // Un escáner que prueba miles de rutas o rota IPs llenaría estos conjuntos sin tope: se
+    // conservan solo los 500 más repetidos del día.
+    p.zremrangebyrank(`${key}:ips`, 0, -(MAX_MEMBERS + 1));
+    p.zremrangebyrank(`${key}:paths`, 0, -(MAX_MEMBERS + 1));
     await p.exec();
   } catch {
     // el conteo nunca debe afectar la respuesta
