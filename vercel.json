@@ -67,6 +67,10 @@
     {
       "path": "/api/backup-cron",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/robot-pagos-dispatch-cron",
+      "schedule": "*/20 * * * *"
     }
   ]
 }

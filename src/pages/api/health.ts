@@ -20,6 +20,7 @@ const CRONS: { name: string; maxAgeMinutes: number }[] = [
   { name: 'backup', maxAgeMinutes: 26 * 60 },
   // El robot de pagos corre fuera de Vercel (GitHub Actions o VPS) y reporta su latido en cada ciclo.
   { name: 'robot-pagos', maxAgeMinutes: 60 },
+  { name: 'robot-pagos-dispatch', maxAgeMinutes: 60 },
 ];
 
 export const GET: APIRoute = async () => {
