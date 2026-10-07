@@ -1,0 +1,106 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessVerificacionPagos, canResolveVerificacionPagos, firstSectionFor, SECTION_PATHS, BRANCHES } from '../../lib/auth';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+if (!canAccessVerificacionPagos(session)) {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+const canResolve = canResolveVerificacionPagos(session);
+---
+
+<InternoLayout title="Verificación de pagos" active="verificacion-pagos" session={session}>
+  <div class="panel-card">
+    <h2>Subir comprobante</h2>
+    <p class="hint">Pega la captura con Ctrl+V o elige el archivo (imagen o PDF). GPSITO lee el comprobante, comprueba que no se haya usado antes y lo deja en <b style="color:#3ddc84">verde</b> o en <b style="color:#ef4444">rojo</b> con el motivo. Solo Kelly, Wilmar y el administrador aprueban o rechazan a mano.</p>
+    <form id="pagoForm" class="form-grid">
+      <div class="field">
+        <label for="pagoClient">Nombre completo del cliente</label>
+        <input id="pagoClient" type="text" maxlength="120" placeholder="Como aparece en el contrato" required />
+      </div>
+      <div class="field">
+        <label for="pagoPlate">Placa (opcional)</label>
+        <input id="pagoPlate" type="text" maxlength="12" placeholder="ABC123" />
+      </div>
+      {canResolve && (
+        <div class="field">
+          <label for="pagoBranch">Sucursal</label>
+          <select id="pagoBranch">{BRANCHES.map((b) => <option value={b}>{b}</option>)}</select>
+        </div>
+      )}
+      <div class="field field-full">
+        <label for="pagoFile">Comprobante — pega con Ctrl+V en cualquier parte del formulario o elige el archivo</label>
+        <input id="pagoFile" type="file" accept="image/*,application/pdf" />
+        <div class="pago-drop" id="pagoDrop">Suelta aquí la captura o pégala con Ctrl+V</div>
+        <div class="image-preview" id="pagoPreview"></div>
+      </div>
+      <button class="btn field-full" type="submit" id="pagoSubmit">Verificar comprobante</button>
+    </form>
+    <p class="hint" id="pagoMsg" style="margin-top:8px;"></p>
+  </div>
+
+  {canResolve && (
+    <div class="panel-card">
+      <h2>Cuentas y llaves de la empresa</h2>
+      <p class="hint">Una por línea (banco, tipo y número o llave). Un comprobante cuyo destino no coincida con ninguna sale en rojo.</p>
+      <textarea id="destinosInput" rows="4" style="width:100%;"></textarea>
+      <div style="margin-top:8px;"><button class="btn-small" type="button" id="destinosSave">Guardar cuentas</button> <span class="hint" id="destinosMsg"></span></div>
+    </div>
+  )}
+
+  <div class="panel-card">
+    <h2>Comprobantes</h2>
+    <div class="stats-row" id="pagoStats"></div>
+    <div class="tabs">
+      <button class="tab-btn active" data-status="" type="button">Todos</button>
+      <button class="tab-btn" data-status="verde" type="button">Verdes</button>
+      <button class="tab-btn" data-status="rojo" type="button">Rojos</button>
+      <button class="tab-btn" data-status="aprobado" type="button">Aprobados a mano</button>
+      <button class="tab-btn" data-status="rechazado" type="button">Rechazados</button>
+    </div>
+    <div class="filters">
+      <input id="pagoSearch" type="text" placeholder="Buscar por cliente, placa, referencia o pagador..." />
+      <select id="pagoBranchFilter"><option value="">Todas las sucursales</option></select>
+      <select id="pagoMonth"><option value="">Todos los meses</option></select>
+    </div>
+    <div class="pagos-list" id="pagosList"><div class="empty">Cargando...</div></div>
+  </div>
+</InternoLayout>
+
+<style is:global>
+  .pago-drop { margin-top: 8px; border: 1px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--slate); font-size: 13px; }
+  .pago-drop.over { border-color: var(--amber); color: var(--amber); }
+  .pagos-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .pago-item { background: var(--ink-800); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; border-left: 5px solid var(--line); }
+  .pago-item.verde { border-left-color: #3ddc84; }
+  .pago-item.rojo { border-left-color: #ef4444; }
+  .pago-item.aprobado { border-left-color: #7ab8ec; }
+  .pago-item.rechazado { border-left-color: #8a8a8a; opacity: 0.8; }
+  .pago-item.analizando { border-left-color: var(--amber); }
+  .pago-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .pago-client { font-weight: 700; font-size: 15px; }
+  .pago-body { display: grid; grid-template-columns: 150px 1fr; gap: 14px; }
+  @media (max-width: 640px) { .pago-body { grid-template-columns: 1fr; } }
+  .pago-thumb img { width: 150px; max-height: 190px; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
+  .pago-thumb a.pdf { display: inline-block; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+  .pago-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; font-size: 13px; }
+  .pago-fields .k { color: var(--slate); font-size: 11px; display: block; }
+  .pago-reasons { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: #fca5a5; }
+  .pago-notes { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--slate); }
+  .pago-meta { color: var(--slate); font-size: 12px; margin-top: 8px; }
+  .pago-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .pago-actions input[type="text"] { flex: 1; min-width: 180px; }
+  .badge.st-verde { background: #2f8a4f33; color: #3ddc84; }
+  .badge.st-rojo { background: #e0563f22; color: #ef4444; }
+  .badge.st-aprobado { background: #4a90d922; color: #7ab8ec; }
+  .badge.st-rechazado { background: #55555533; color: #bbb; }
+  .badge.st-analizando { background: var(--glow-1); color: var(--amber); }
+</style>
+
+<script src="/js/interno-list-more.js" defer></script>
+<script src="/js/interno-verificacion-pagos.js" defer></script>

@@ -81,6 +81,18 @@ const MODULE_RULES: ModuleRule[] = [
     closed: (r) => r.called === true,
     closedAt: (r) => (Array.isArray(r.history) && r.history[0]?.date) || r.batchUploadedAt,
   },
+  {
+    key: 'internal:pagos-clientes',
+    label: 'comprobantes de pago',
+    blobPrefix: 'pagos-clientes/',
+    closed: (r) => r.status !== 'analizando',
+    closedAt: (r) => r.createdAt,
+    // Las huellas visuales se comparan contra todas las guardadas: salen con el comprobante.
+    extraCleanup: async (redis, old) => {
+      const ids = old.map(([id]) => id);
+      for (let i = 0; i < ids.length; i += 500) await redis.hdel('internal:pagos-clientes-phash', ...ids.slice(i, i + 500));
+    },
+  },
   // Los lotes no se archivan: pasado el plazo se borran con sus líneas en Blob.
   { key: 'internal:sim-consumos', label: 'lotes de consumo de SIM', blobPrefix: 'sim-consumos/', afterDays: RETENTION.simLotesPurgeAfterDays, closed: () => true, closedAt: (r) => r.periodEnd ? `${r.periodEnd}T23:59:59.000Z` : r.uploadedAt },
 ];

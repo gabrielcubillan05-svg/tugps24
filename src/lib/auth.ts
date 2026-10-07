@@ -74,6 +74,7 @@ export type Section =
   | 'almacenamiento'
   | 'sim-consumos'
   | 'inventario'
+  | 'verificacion-pagos'
   | 'apagados-programados';
 
 export const SECTION_LABELS: Record<Section, string> = {
@@ -103,6 +104,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   almacenamiento: 'Almacenamiento',
   'sim-consumos': 'Consumo de SIM',
   inventario: 'Inventario de sucursal',
+  'verificacion-pagos': 'Verificación de pagos',
   'apagados-programados': 'Apagados programados',
 };
 
@@ -133,16 +135,17 @@ export const SECTION_PATHS: Record<Section, string> = {
   almacenamiento: '/interno/almacenamiento',
   'sim-consumos': '/interno/sim-consumos',
   inventario: '/interno/inventario',
+  'verificacion-pagos': '/interno/verificacion-pagos',
   'apagados-programados': '/interno/apagados-programados',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
   operador: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
-  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
-  gerente: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
-  admin: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario'],
+  secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas', 'verificacion-pagos'],
+  supervisor: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas', 'verificacion-pagos'],
+  gerente: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas', 'verificacion-pagos'],
+  admin: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario', 'verificacion-pagos'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {
@@ -251,6 +254,16 @@ export function canAccessSimConsumos(session: Pick<Session, 'role' | 'username'>
   return session.role === 'admin' || SIM_CONSUMOS_USERNAMES.includes(session.username.toLowerCase());
 }
 
+// Verificación de pagos: las secretarías suben los comprobantes de su sucursal; Kelly, Wilmar y
+// el admin ven todas las sucursales y son los únicos que aprueban o rechazan a mano.
+const PAGOS_VERIFICACION_RESOLVERS = [KELLY_USERNAME, WILMAR_USERNAME];
+export function canAccessVerificacionPagos(session: Pick<Session, 'role' | 'username'>): boolean {
+  return canAccessSection(session.role, 'verificacion-pagos') || PAGOS_VERIFICACION_RESOLVERS.includes(session.username.toLowerCase());
+}
+export function canResolveVerificacionPagos(session: Pick<Session, 'role' | 'username'>): boolean {
+  return session.role === 'admin' || PAGOS_VERIFICACION_RESOLVERS.includes(session.username.toLowerCase());
+}
+
 export function sectionsFor(session: Pick<Session, 'role' | 'username'>, user?: Pick<User, 'inventoryBranches'> | null): Section[] {
   const base = ROLE_SECTIONS[session.role] || [];
   const extra: Section[] = [];
@@ -265,6 +278,7 @@ export function sectionsFor(session: Pick<Session, 'role' | 'username'>, user?: 
   if (canViewWhatsappConversations(session)) extra.push('conversaciones-whatsapp');
   if (canManageAiAgents(session)) extra.push('agentes-ia');
   if (canAccessSimConsumos(session)) extra.push('sim-consumos');
+  if (!base.includes('verificacion-pagos') && canAccessVerificacionPagos(session)) extra.push('verificacion-pagos');
   // Inventario de sucursal: lo ve el admin (todas las sucursales) y los encargados de
   // inventario, que se marcan por usuario en Usuarios. Como eso vive en el registro del
   // usuario y no en la sesión, el layout pasa el usuario cuando lo tiene a la mano.

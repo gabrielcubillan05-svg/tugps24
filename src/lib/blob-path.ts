@@ -14,7 +14,7 @@ export function isSafeBlobPath(path: string): boolean {
 
 // Carpetas con datos sensibles (firmas, cédulas, fotos de casos): caché corta en el navegador
 // para que no queden un día entero en un equipo compartido de la central.
-const SHORT_CACHE_PREFIXES = ['planillas/', 'casos/', 'suspensiones/', 'solicitudes-admin/', 'garantias/'];
+const SHORT_CACHE_PREFIXES = ['planillas/', 'casos/', 'suspensiones/', 'solicitudes-admin/', 'garantias/', 'pagos-clientes/'];
 
 export function cacheControlFor(path: string): string {
   return SHORT_CACHE_PREFIXES.some((p) => path.startsWith(p)) ? 'private, max-age=300' : 'private, max-age=86400, immutable';
