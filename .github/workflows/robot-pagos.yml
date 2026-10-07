@@ -2,6 +2,7 @@
 # Se ejecuta a mano desde la pestaña Actions mientras se configura; cuando el robot tenga los
 # pasos de GeneXus y los secretos (PANEL_URL, ROBOT_PAGOS_TOKEN, GENEXUS_URL, GENEXUS_USER,
 # GENEXUS_PASS) cargados en Settings → Secrets, se quita el comentario del horario.
+# horario registrado por Gabriel
 name: Robot de pagos
 
 on:
