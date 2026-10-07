@@ -23,7 +23,7 @@ export const prerender = false;
 // aprobado a mano. Nunca recibe rojos ni puede cambiar el semáforo: solo reporta si aplicó.
 const ACTOR = { userId: 'robot-pagos', username: 'Robot de pagos' };
 // 25 por ronda (Gabriel, 2026-10-07): cada aprobación tarda unos 5 s en Optimus, caben de sobra en una corrida.
-const MAX_BATCH = 25;
+const MAX_BATCH = 50;
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
 
