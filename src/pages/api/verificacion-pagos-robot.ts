@@ -95,6 +95,8 @@ export const GET: APIRoute = async ({ request, url }) => {
   const pending = (await readPagos(redis))
     .filter(isApplyPending)
     .filter((p) => !soloManual || p.status === 'aprobado')
+    // Sin valor leído por GPSITO no se manda a aprobar (gastaría intentos): primero se relee.
+    .filter((p) => applyActionFor(p) !== 'aprobar' || !!p.extracted?.valor)
     // Un comprobante tomado por un ciclo anterior que no reportó se suelta pasado el plazo.
     .filter((p) => !p.applyClaimedAt || now - Date.parse(p.applyClaimedAt) > APPLY_CLAIM_MS)
     .sort((a, b) => (a.status === 'aprobado' ? 0 : 1) - (b.status === 'aprobado' ? 0 : 1) || a.createdAt.localeCompare(b.createdAt))

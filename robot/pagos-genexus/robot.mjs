@@ -479,10 +479,10 @@ async function aprobarEnOptimus(page, item) {
   if (!pideDatos && montoOptimus <= 0) {
     throw new Error('Optimus no mostró los campos de contrato, monto y forma de pago para este pago con monto 0; revisar a mano');
   }
-  // El valor leído del comprobante solo es imprescindible cuando hay que digitarlo. Si la
-  // secretaria ya registró el monto en Optimus y una persona aprobó en el panel, se aprueba con
-  // ese monto aunque GPSITO no haya podido leer el comprobante (caso Josué Martínez, 2026-10-07).
-  if (!fill.monto && pideDatos) throw new Error('GPSITO no leyó el valor del comprobante y Optimus pide digitarlo; aplicar a mano');
+  // Gabriel (2026-10-07): aunque una persona haya aprobado a mano, GPSITO debe leer el valor y
+  // tiene que coincidir con el que digitó la secretaria; sin lectura no se aplica. El panel lo
+  // vuelve a leer solo en cada ronda.
+  if (!fill.monto) throw new Error('GPSITO aún no leyó el valor del comprobante; el panel lo vuelve a leer antes de aplicar');
   let detalle;
   if (pideDatos) {
     // Cargado por el cliente: hay que digitar.
@@ -509,7 +509,7 @@ async function aprobarEnOptimus(page, item) {
     detalle = `aprobado en Optimus con monto ${monto.toLocaleString('es-CO')}, contrato ${contratos[0].numero}, ${forma.texto}, ref. ${fill.referencia || 'sin referencia'}`;
   } else {
     // Creado por una secretaria: ya trae monto; se compara con el comprobante antes de aprobar.
-    if (fill.monto && montoOptimus > 0 && Math.abs(montoOptimus - fill.monto) > Math.max(100, montoOptimus * 0.01)) {
+    if (montoOptimus > 0 && Math.abs(montoOptimus - fill.monto) > Math.max(100, montoOptimus * 0.01)) {
       throw new Error(`el monto en Optimus (${montoOptimus.toLocaleString('es-CO')}) no coincide con el comprobante (${Number(fill.monto).toLocaleString('es-CO')})`);
     }
     detalle = `aprobado en Optimus por ${montoOptimus.toLocaleString('es-CO')} (monto ya registrado)`;

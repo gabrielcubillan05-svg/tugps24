@@ -125,9 +125,12 @@ function toClient(p: PagoCliente) {
 export async function retryFailedAnalyses(redis: any, max = 3): Promise<number> {
   const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
   if (!token) return 0;
+  const sinRespuesta = (p: PagoCliente) => p.analysisError === ANALYSIS_NO_RESPONSE || p.analysisError === 'interrumpido' || (p.analysisError || '').startsWith('Falló la lectura');
   const candidates = (await readPagos(redis))
-    .filter((p) => p.status === 'rojo' && p.filePath && p.fileType !== 'none')
-    .filter((p) => p.analysisError === ANALYSIS_NO_RESPONSE || p.analysisError === 'interrumpido' || (p.analysisError || '').startsWith('Falló la lectura'))
+    .filter((p) => p.filePath && p.fileType !== 'none')
+    // Rojos sin respuesta, y aprobados a mano cuyo valor GPSITO aún no leyó (el robot no los
+    // aplica sin esa lectura y la comparación con el monto de la secretaria).
+    .filter((p) => (p.status === 'rojo' && sinRespuesta(p)) || (p.status === 'aprobado' && isApplyPending(p) && !p.extracted?.valor))
     .filter((p) => (p.analysisRetries || 0) < ANALYSIS_AUTO_RETRIES)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(0, max);
@@ -135,13 +138,16 @@ export async function retryFailedAnalyses(redis: any, max = 3): Promise<number> 
   for (const pago of candidates) {
     const stored = await fetchStoredFile(token, pago.filePath).catch(() => null);
     if (!stored) continue;
-    pago.status = 'analizando';
+    // Un aprobado a mano conserva su estado mientras se relee (si no, se perdería la decisión).
+    if (pago.status !== 'aprobado') {
+      pago.status = 'analizando';
+      pago.reasons = [];
+      pago.notes = [];
+      pago.duplicateOf = null;
+    }
     pago.analysisStartedAt = new Date().toISOString();
     pago.analysisError = null;
     pago.analysisRetries = (pago.analysisRetries || 0) + 1;
-    pago.reasons = [];
-    pago.notes = [];
-    pago.duplicateOf = null;
     await savePago(redis, pago);
     await analyzePago(redis, pago, stored.bytes, stored.mediaType);
     done++;
@@ -190,11 +196,18 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
       result = await readReceipt(redis, pago.id, bytes, mediaType, pago.clientName);
     }
     const fresh = (await readPago(redis, pago.id)) || pago;
+    // Relectura de un comprobante que una persona ya aprobó a mano: la aprobación se respeta
+    // salvo que el valor leído no coincida con el que digitó la secretaria (vuelve a rojo).
+    const aprobadoAMano = fresh.status === 'aprobado';
     if (!result) {
-      fresh.status = 'rojo';
       fresh.analysisStartedAt = null;
       fresh.analysisError = ANALYSIS_NO_RESPONSE;
-      fresh.reasons = ['GPSITO no pudo leer el comprobante en este momento; se reintentará solo en la próxima ronda del robot.'];
+      if (aprobadoAMano) {
+        fresh.notes = [...fresh.notes.filter((n) => !n.startsWith('GPSITO no pudo leer')), 'GPSITO no pudo leer el valor del comprobante; el robot no lo aplica hasta leerlo.'];
+      } else {
+        fresh.status = 'rojo';
+        fresh.reasons = ['GPSITO no pudo leer el comprobante en este momento; se reintentará solo en la próxima ronda del robot.'];
+      }
       await savePago(redis, fresh);
       await reportIncident(redis, 'pagos_lectura_fallida', `comprobante ${pago.id.slice(0, 8)} de ${pago.branch}`);
       return;
@@ -249,10 +262,21 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
     const destinos = await readDestinos(redis);
     const verdict = evaluate(extracted, fresh.clientName, destinos, prior, undefined, fresh.optimus);
     fresh.extracted = extracted;
-    fresh.reasons = verdict.reasons;
-    fresh.notes = verdict.notes;
-    fresh.status = verdict.reasons.length ? 'rojo' : 'verde';
     fresh.analysisStartedAt = null;
+    if (aprobadoAMano) {
+      const descuadre = verdict.reasons.filter((r) => r.startsWith('El monto registrado en Optimus'));
+      if (descuadre.length) {
+        fresh.status = 'rojo';
+        fresh.reasons = [...descuadre, `Lo había aprobado a mano ${fresh.resolvedByName || 'alguien'}; revisar antes de aplicar.`];
+        fresh.notes = verdict.notes;
+      } else {
+        fresh.notes = [...verdict.notes, ...(extracted ? [] : ['GPSITO no pudo interpretar el comprobante; el robot no lo aplica hasta leerlo.'])];
+      }
+    } else {
+      fresh.reasons = verdict.reasons;
+      fresh.notes = verdict.notes;
+      fresh.status = verdict.reasons.length ? 'rojo' : 'verde';
+    }
     if (extracted) fresh.analysisError = null;
     else fresh.notes = [...fresh.notes, fresh.analysisError || 'sin respuesta interpretable'];
     await savePago(redis, fresh);
@@ -262,10 +286,12 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
     const message = err instanceof Error ? err.message : String(err);
     console.error('verificacion-pagos: fallo el analisis', message);
     const fresh = (await readPago(redis, pago.id).catch(() => null)) || pago;
-    fresh.status = 'rojo';
     fresh.analysisStartedAt = null;
     fresh.analysisError = message.slice(0, 200);
-    fresh.reasons = ['Falló la lectura del comprobante; pide "Volver a leer".'];
+    if (fresh.status !== 'aprobado') {
+      fresh.status = 'rojo';
+      fresh.reasons = ['Falló la lectura del comprobante; pide "Volver a leer".'];
+    }
     await savePago(redis, fresh).catch(() => {});
   }
 }
