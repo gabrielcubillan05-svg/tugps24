@@ -244,6 +244,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   if (action === 'upload' || action === 'commit') {
     let rawLines: unknown = body.lines;
+    let stagingKey = '';
     if (action === 'commit') {
       const uploadId = String(body.uploadId || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
       const total = Number(body.total);
@@ -266,7 +267,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       if (missing.length) {
         return new Response(JSON.stringify({ error: `faltan bloques por subir (${missing.join(', ')})`, missing }), { status: 409 });
       }
-      await redis.del(key);
+      // Los bloques se borran solo cuando el lote quedó guardado: si falla Blob o Redis, el
+      // reintento de "armar lote" no obliga a volver a subir todo.
+      stagingKey = key;
       rawLines = joined;
     }
     if (!token) return new Response(JSON.stringify({ error: 'almacenamiento de archivos no configurado' }), { status: 503 });
@@ -321,6 +324,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     };
     lote.analysisStartedAt = new Date().toISOString();
     await saveLote(redis, lote);
+    if (stagingKey) await redis.del(stagingKey).catch(() => {});
     await logAudit(redis, session, 'sim_consumos_upload', label, `${lines.length} líneas, ${files.length} archivo(s)`);
 
     const work = analyzeInBackground(redis, lote).catch((err) => console.error('sim-consumos: fallo el analisis', err instanceof Error ? err.message : String(err)));
