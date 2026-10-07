@@ -29,7 +29,7 @@ const PANEL_URL = (process.env.PANEL_URL || '').replace(/\/$/, '');
 const TOKEN = process.env.ROBOT_PAGOS_TOKEN || '';
 const BASE = (process.env.GENEXUS_URL || 'https://core.optimus.tugps24.com/').replace(/\/$/, '');
 const MODO = process.env.MODO || 'latido';
-const MAX_POR_CICLO = Math.max(1, Number(process.env.MAX_POR_CICLO) || 5);
+const MAX_POR_CICLO = Math.max(1, Number(process.env.MAX_POR_CICLO) || 10);
 const LOGIN_PATH = 'gamexamplelogin.aspx';
 const PAGOS_PATH = 'erp.paymentww.aspx';
 const CONFIRM_PATH = 'erp.paymentstatusconfirm.aspx';
@@ -454,6 +454,7 @@ async function ingestar(page, known) {
     }
   }
   console.log(`Pendientes en Optimus: ${filas.length} · nuevos en el panel: ${nuevos}`);
+  return filas;
 }
 
 // Aprueba en Optimus un comprobante que el panel dejó en verde. Lanza Error con el motivo si algo no cuadra.
@@ -524,9 +525,17 @@ async function aprobarEnOptimus(page, item) {
   return detalle;
 }
 
-async function aplicar(page, items) {
+async function aplicar(page, items, pendientes) {
+  const pendientesIds = new Set((pendientes || []).map((f) => f.paymentId));
   for (const item of items) {
     try {
+      // Si el pago ya no está pendiente en Optimus (Kelly lo resolvió a mano), no se toca: se
+      // cierra en el panel como resuelto a mano. Nunca se pulsa Aprobar sobre un pago ya aprobado.
+      if (item.optimus?.paymentId && !pendientesIds.has(item.optimus.paymentId)) {
+        await reportar(item.id, 'aplicado', 'ya no estaba pendiente en Optimus: lo resolvió una persona a mano', null);
+        console.log('Ya resuelto en Optimus a mano', item.clientName);
+        continue;
+      }
       const detail = await aprobarEnOptimus(page, item);
       const shot = await page.screenshot({ type: 'jpeg', quality: 70 }).catch(() => null);
       await reportar(item.id, 'aplicado', detail || 'aprobado en Optimus', shot);
@@ -556,13 +565,13 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
   try {
     await iniciarSesion(page);
-    await ingestar(page, data.known);
+    const pendientes = await ingestar(page, data.known);
     if (aplica) {
       // En aplicar-manuales solo pasan los que una persona aprobó en el panel (status 'aprobado');
       // los verdes automáticos esperan a que se habilite el modo aplicar completo.
       const porAprobar = data.items.filter((i) => i.action === 'aprobar' && (MODO === 'aplicar' || i.status === 'aprobado')).slice(0, MAX_POR_CICLO);
       console.log(`Por aprobar en Optimus: ${porAprobar.length}` + (porAprobar.length ? ' · ' + porAprobar.map((i) => `${i.optimus?.numero || '?'} ${i.clientName}`).join(' | ') : ''));
-      if (porAprobar.length) await aplicar(page, porAprobar);
+      if (porAprobar.length) await aplicar(page, porAprobar, pendientes);
       else console.log('Nada por aprobar en Optimus en este modo.');
     }
   } catch (err) {

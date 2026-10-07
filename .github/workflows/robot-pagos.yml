@@ -15,7 +15,7 @@ on:
       maximo:
         description: 'Cuántos pagos aprobar en esta corrida (modo aplicar)'
         type: string
-        default: '5'
+        default: '10'
   # Cada 20 min, 6 a. m. a 9:40 p. m. Colombia (UTC-5), todos los días. Aprobado por Gabriel el 2026-10-07.
   schedule:
     - cron: '*/20 11-23 * * *'
@@ -51,11 +51,11 @@ jobs:
           GENEXUS_URL: ${{ secrets.GENEXUS_URL }}
           GENEXUS_USER: ${{ secrets.GENEXUS_USER }}
           GENEXUS_PASS: ${{ secrets.GENEXUS_PASS }}
-          # Las corridas programadas arrancan en modo aplicar-manuales: el robot trae y GPSITO
-          # clasifica, y en Optimus solo aplica lo que una persona aprobó a mano en el panel. Cuando
-          # se confirme que el semáforo coincide con lo que Kelly aprueba, se cambia aquí a 'aplicar'.
-          MODO: ${{ inputs.modo || 'aplicar-manuales' }}
-          MAX_POR_CICLO: ${{ inputs.maximo || '5' }}
+          # Modo completo desde el 2026-10-07 (decisión de Gabriel tras la prueba de punta a punta):
+          # trae los pendientes, GPSITO clasifica, y aprueba en Optimus los verdes y los aprobados a
+          # mano, hasta 10 por ronda. Denegar sigue siendo a mano.
+          MODO: ${{ inputs.modo || 'aplicar' }}
+          MAX_POR_CICLO: ${{ inputs.maximo || '10' }}
         run: node robot.mjs
       - name: Guardar capturas
         if: always()
