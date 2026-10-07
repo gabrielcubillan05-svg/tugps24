@@ -9,6 +9,7 @@ import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
 import { pageOf } from '../../lib/list-page';
 import { blobTimeout } from '../../lib/blob-path';
 import { detectImageType } from '../../lib/uploads';
+import { dHashFromImage } from '../../lib/image-hash';
 import { runAfterResponse } from '../../lib/background';
 import { checkAndIncrementRateLimit } from '../../lib/rate-limit';
 import { reportIncident } from '../../lib/incidents';
@@ -71,7 +72,7 @@ export async function readPagos(redis: any): Promise<PagoCliente[]> {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-async function readPago(redis: any, id: string): Promise<PagoCliente | null> {
+export async function readPago(redis: any, id: string): Promise<PagoCliente | null> {
   const raw = await redis.hget(REDIS_KEY, id);
   if (!raw) return null;
   try {
@@ -81,7 +82,7 @@ async function readPago(redis: any, id: string): Promise<PagoCliente | null> {
   }
 }
 
-async function savePago(redis: any, pago: PagoCliente): Promise<void> {
+export async function savePago(redis: any, pago: PagoCliente): Promise<void> {
   await redis.hset(REDIS_KEY, { [pago.id]: JSON.stringify(pago) });
 }
 
@@ -108,7 +109,8 @@ function toClient(p: PagoCliente) {
   const t = withTimeouts(p);
   return {
     ...t,
-    applyStatus: t.applyStatus || (isApplyPending(t) ? 'pendiente' : t.status === 'verde' || t.status === 'aprobado' ? 'fallo' : undefined),
+    // Un rechazado de Optimus también se muestra como pendiente allá: lo deniega una persona a mano.
+    applyStatus: t.applyStatus || (isApplyPending(t) || (t.status === 'rechazado' && t.source === 'optimus') ? 'pendiente' : t.status === 'verde' || t.status === 'aprobado' ? 'fallo' : undefined),
     fileUrl: '/api/blob-file?path=' + encodeURIComponent(p.filePath),
     applyScreenshotUrl: t.applyScreenshotPath ? '/api/blob-file?path=' + encodeURIComponent(t.applyScreenshotPath) : null,
   };
@@ -145,7 +147,7 @@ async function notifyRed(redis: any, pago: PagoCliente): Promise<void> {
 }
 
 // Lee el comprobante con GPSITO y aplica las reglas. Corre después de responder.
-async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuffer, mediaType: string): Promise<void> {
+export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuffer, mediaType: string): Promise<void> {
   try {
     const result = await readReceipt(redis, pago.id, bytes, mediaType, pago.clientName);
     const fresh = (await readPago(redis, pago.id)) || pago;
@@ -196,7 +198,7 @@ async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuffer, me
       }
     }
     const destinos = await readDestinos(redis);
-    const verdict = evaluate(extracted, fresh.clientName, destinos, prior);
+    const verdict = evaluate(extracted, fresh.clientName, destinos, prior, undefined, fresh.optimus);
     fresh.extracted = extracted;
     fresh.reasons = verdict.reasons;
     fresh.notes = verdict.notes;
@@ -316,6 +318,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const bytes = await file.arrayBuffer();
   const sha256 = createHash('sha256').update(Buffer.from(bytes)).digest('hex');
+  // Si el navegador no mandó huella (o la mandó mal), se calcula aquí.
+  const serverHash = phash || (imageType ? dHashFromImage(Buffer.from(bytes), imageType) : null);
   const id = randomUUID();
   const mediaType = isPdf ? 'application/pdf' : imageType!;
   const ext = isPdf ? 'pdf' : imageType === 'image/png' ? 'png' : imageType === 'image/webp' ? 'webp' : 'jpg';
@@ -341,8 +345,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     filePath,
     fileType: isPdf ? 'pdf' : 'image',
     sha256,
-    phash,
+    phash: serverHash,
     status: 'analizando',
+    source: 'manual',
+    optimus: null,
     reasons: [],
     notes: [],
     duplicateOf: duplicateOf && duplicateOf !== id ? duplicateOf : null,
@@ -357,7 +363,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     resolutionNote: '',
   };
   await savePago(redis, pago);
-  if (phash) await redis.hset(PHASH_KEY, { [id]: phash });
+  if (serverHash) await redis.hset(PHASH_KEY, { [id]: serverHash });
   await logAudit(redis, session, 'pago_comprobante_subido', clientName, `${branch} · ${isPdf ? 'PDF' : 'imagen'}`);
 
   const work = analyzePago(redis, pago, bytes, mediaType);

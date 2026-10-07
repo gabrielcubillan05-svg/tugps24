@@ -15,14 +15,21 @@ export const SHA_KEY_PREFIX = 'internal:pagos-clientes-sha:';
 // Las referencias y huellas se recuerdan dos años aunque el comprobante se borre antes: un
 // comprobante viejo reenviado no debe pasar por nuevo.
 export const INDEX_TTL_SECONDS = 2 * 365 * 86400;
-// Dos capturas de la misma transferencia (recortada, recomprimida, reenviada por WhatsApp)
-// difieren en pocos bits de la huella de 64; dos comprobantes distintos difieren en 25 o más.
-export const PHASH_MAX_DISTANCE = 10;
+// Medido con un comprobante Bre-B real: reenviado por WhatsApp (mitad de tamaño, calidad 35)
+// queda a 5 bits; con un recorte leve de bordes, a 15; otra imagen cualquiera, a 35. Un falso
+// positivo solo manda el comprobante a revisión humana, así que se prefiere el margen amplio.
+export const PHASH_MAX_DISTANCE = 16;
 export const MAX_AGE_DAYS = 30;
 
 // Cuentas y llaves donde la empresa recibe pagos. Se completa desde la pantalla (Kelly, Wilmar,
 // admin); esta lista es el arranque.
-export const DEFAULT_DESTINOS = ['Bancolombia ahorros 52664552906'];
+export const DEFAULT_DESTINOS = [
+  'Bancolombia ahorros 52664552906',
+  'Bre-B DIGITAL GLOBAL SAS código de negocio 0045801305',
+  'Bre-B DIGITAL GLOBAL código de negocio 0081992992',
+  'Bre-B TUGPS24 código de negocio 0089079849',
+  'Bre-B DIGITAL GLOBAL SAS código de negocio 0090640258',
+];
 
 export interface PagoExtracted {
   banco: string;
@@ -70,6 +77,31 @@ export interface PagoCliente {
   applyAttempts?: number;
   applyClaimedAt?: string | null;
   applyBy?: string;
+  // 'optimus': lo trajo el robot desde el pago pendiente del cliente en Optimus (fuente normal).
+  // 'manual': lo subió alguien desde el panel (respaldo).
+  source?: 'optimus' | 'manual';
+  optimus?: OptimusInfo | null;
+}
+
+export interface OptimusInfo {
+  numero: string;
+  fecha: string;
+  creadoPor: string;
+  contratos: string[];
+  formasPago: string[];
+  estadoCuenta: number | null;
+  pagoMinimo: number | null;
+  pendiente: number | null;
+  reconectar: number | null;
+}
+
+// Qué debe hacer el robot en Optimus con este comprobante: aprobar (verde o aprobado a mano),
+// denegar (rechazado a mano) o nada. Denegar queda a mano por decisión de Gabriel (2026-10-07):
+// el robot solo deniega si se le pide explícitamente con allowDeny.
+export function applyActionFor(p: PagoCliente, allowDeny = false): 'aprobar' | 'denegar' | null {
+  if (p.status === 'verde' || p.status === 'aprobado') return 'aprobar';
+  if (allowDeny && p.status === 'rechazado' && p.source === 'optimus') return 'denegar';
+  return null;
 }
 
 export type ApplyStatus = 'pendiente' | 'aplicado' | 'fallo' | 'manual';
@@ -79,7 +111,7 @@ export const APPLY_CLAIM_MS = 20 * 60_000;
 
 // Lo que el robot puede aplicar: verde o aprobado a mano, sin aplicar todavía, sin agotar intentos.
 export function isApplyPending(p: PagoCliente): boolean {
-  if (p.status !== 'verde' && p.status !== 'aprobado') return false;
+  if (!applyActionFor(p)) return false;
   const st = p.applyStatus || 'pendiente';
   if (st === 'aplicado' || st === 'manual') return false;
   if (st === 'fallo' && (p.applyAttempts || 0) >= APPLY_MAX_ATTEMPTS) return false;
@@ -129,14 +161,27 @@ export function namesLookRelated(clientName: string, pagador: string): boolean |
   return a.some((t) => b.includes(t));
 }
 
+function plainText(s: string): string {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// El comprobante puede mostrar la cuenta ("***4552906"), el código de negocio Bre-B
+// ("0081992992") o solo el nombre del negocio ("DIGITAL GLOBAL", "DIG*** GLO***"). Se acepta
+// cualquiera de los tres contra la lista configurada.
 export function destinoMatches(cuentaDestino: string, destinos: string[]): boolean | null {
-  const seen = digits(cuentaDestino);
-  if (seen.length < 4) return null;
+  const raw = String(cuentaDestino || '');
+  const numbers = raw.match(/\d{4,}/g) || [];
+  const text = plainText(raw);
+  if (!numbers.length && text.replace(/[^a-z]/g, '').length < 4) return null;
   for (const d of destinos) {
-    const conf = digits(d);
-    if (conf.length < 4) continue;
-    // El comprobante suele mostrar solo el final de la cuenta ("***4552906"): basta coincidir la cola.
-    if (conf.endsWith(seen) || seen.endsWith(conf) || conf === seen) return true;
+    for (const confNum of String(d).match(/\d{4,}/g) || []) {
+      // Solo el final de la cuenta suele verse: basta coincidir la cola.
+      if (numbers.some((n) => confNum.endsWith(n) || n.endsWith(confNum) || n === confNum)) return true;
+    }
+    // Nombre del negocio: todas las palabras de 4+ letras del destino configurado (quitando el
+    // banco y la palabra "codigo") deben aparecer en lo leído.
+    const words = plainText(d).split(' ').filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !['bancolombia', 'ahorros', 'corriente', 'codigo', 'negocio', 'llave', 'nequi', 'daviplata', 'cuenta'].includes(w));
+    if (words.length && words.every((w) => text.includes(w))) return true;
   }
   return false;
 }
@@ -192,9 +237,13 @@ function describePrior(p: PriorMatch): string {
 
 // Decide los motivos de rojo. prior: coincidencias ya encontradas en Redis (archivo idéntico,
 // misma referencia, imagen casi igual). Sin motivos = verde.
-export function evaluate(extracted: PagoExtracted | null, clientName: string, destinos: string[], prior: PriorMatch[], today = todayInColombia()): Evaluation {
+export function evaluate(extracted: PagoExtracted | null, clientName: string, destinos: string[], prior: PriorMatch[], today = todayInColombia(), optimus?: OptimusInfo | null): Evaluation {
   const reasons: string[] = [];
   const notes: string[] = [];
+  if (optimus && extracted?.valor) {
+    if (optimus.pendiente != null && extracted.valor > optimus.pendiente * 1.5 && optimus.pendiente > 0) notes.push(`El valor pagado (${extracted.valor.toLocaleString('es-CO')}) supera bastante el saldo pendiente (${optimus.pendiente.toLocaleString('es-CO')}).`);
+    if (optimus.pagoMinimo != null && extracted.valor < optimus.pagoMinimo) notes.push(`El valor pagado (${extracted.valor.toLocaleString('es-CO')}) es menor al pago mínimo (${optimus.pagoMinimo.toLocaleString('es-CO')}).`);
+  }
   for (const p of prior) {
     if (p.kind === 'archivo') reasons.push(`Es el mismo archivo ya subido: ${describePrior(p)}.`);
     if (p.kind === 'referencia') reasons.push(`La referencia ya está registrada en otro ${describePrior(p)}.`);
@@ -224,7 +273,7 @@ export function evaluate(extracted: PagoExtracted | null, clientName: string, de
 const SYSTEM_PROMPT = `Eres GPSITO, el asistente interno de TuGPS24 (Colombia). Lees comprobantes de pago que las secretarías reciben de los clientes (capturas de Bancolombia, Nequi, Daviplata, Transfiya, Bre-B con llaves, PSE, consignaciones en corresponsal, otros bancos) y extraes sus datos para verificar que el pago sea nuevo y real.
 
 Responde SOLO con un objeto JSON, sin texto antes ni después, con exactamente estas claves:
-{"banco": "nombre del banco o app emisora", "referencia": "número de referencia, comprobante, CUS o aprobación tal como aparece", "fecha": "AAAA-MM-DD", "hora": "HH:MM o vacío", "valor": número en pesos sin puntos ni símbolos, "pagador": "nombre de quien paga si aparece", "cuentaDestino": "número o últimos dígitos de la cuenta o llave que recibe, tal como aparece", "tipoDestino": "ahorros, corriente, nequi, llave, etc.", "editado": true o false, "motivosEdicion": "qué hace pensar que fue editado, o vacío", "confianza": número de 0 a 1 sobre la lectura completa, "observaciones": "una frase con cualquier cosa rara: comprobante parcial, estado pendiente o rechazado, moneda distinta, datos tapados"}
+{"banco": "nombre del banco o app emisora", "referencia": "número de referencia, comprobante, CUS o aprobación tal como aparece", "fecha": "AAAA-MM-DD", "hora": "HH:MM o vacío", "valor": número en pesos sin puntos ni símbolos, "pagador": "nombre de quien paga si aparece", "cuentaDestino": "quién recibe: número o últimos dígitos de la cuenta, y en Bre-B el nombre del negocio y su código de negocio, todo junto tal como aparece (ej. DIGITAL GLOBAL 0081992992 ahorros *2906)", "tipoDestino": "ahorros, corriente, nequi, llave, etc.", "editado": true o false, "motivosEdicion": "qué hace pensar que fue editado, o vacío", "confianza": número de 0 a 1 sobre la lectura completa, "observaciones": "una frase con cualquier cosa rara: comprobante parcial, estado pendiente o rechazado, moneda distinta, datos tapados"}
 
 Reglas:
 - Si un dato no aparece, deja la cadena vacía o null; no inventes.

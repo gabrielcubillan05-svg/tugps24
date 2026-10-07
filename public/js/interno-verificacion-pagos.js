@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
   let pagos = [];
   const pollTimers = {};
 
-  const APPLY_LABEL = { pendiente: 'Por aplicar en el sistema de pagos', aplicado: 'Aplicado por el robot', manual: 'Aplicado a mano', fallo: 'No se pudo aplicar' };
+  const APPLY_LABEL = { pendiente: 'Pendiente de resolver en Optimus', aplicado: 'Resuelto en Optimus por el robot', manual: 'Resuelto en Optimus a mano', fallo: 'El robot no pudo resolverlo en Optimus' };
   const STATUS_LABEL = { verde: 'Verde: nuevo y consistente', rojo: 'Rojo: revisar', aprobado: 'Aprobado a mano', rechazado: 'Rechazado', analizando: 'GPSITO está leyendo…' };
 
   function escapeHtml(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function () {
     msg.textContent = '';
   }
 
-  form.addEventListener('paste', (e) => {
+  if (form) form.addEventListener('paste', (e) => {
     const items = Array.from(e.clipboardData?.items || []);
     const item = items.find((i) => i.kind === 'file' && (i.type.startsWith('image/') || i.type === 'application/pdf'));
     if (!item) return;
@@ -207,13 +207,15 @@ document.addEventListener('DOMContentLoaded', function () {
       const notes = p.notes && p.notes.length ? `<ul class="pago-notes">${p.notes.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>` : '';
       const dupHtml = p.duplicateOf ? `<div class="pago-meta">Coincide con: ${dup ? `<a href="#pago-${dup.id}">${escapeHtml(dup.clientName)} · ${fmtDate(dup.createdAt)} · ${escapeHtml(dup.createdByName)}</a>` : 'un comprobante anterior (' + escapeHtml(p.duplicateOf.slice(0, 8)) + ')'}</div>` : '';
       const resolved = p.resolvedAt ? `<div class="pago-meta">${p.status === 'aprobado' ? 'Aprobado' : 'Rechazado'} por ${escapeHtml(p.resolvedByName)} el ${fmtDate(p.resolvedAt)}: ${escapeHtml(p.resolutionNote)}</div>` : '';
+      const o = p.optimus;
+      const optimusHtml = o ? `<div class="pago-meta">Optimus N.º ${escapeHtml(o.numero)}${o.fecha ? ' · ' + escapeHtml(o.fecha) : ''}${o.creadoPor ? ' · cargado por ' + escapeHtml(o.creadoPor) : ''}${o.contratos && o.contratos.length ? ' · contrato' + (o.contratos.length > 1 ? 's' : '') + ': ' + escapeHtml(o.contratos.join(', ')) : ''}${o.pendiente != null ? ' · saldo pendiente ' + fmtMoney(o.pendiente) : ''}${o.pagoMinimo != null ? ' · pago mínimo ' + fmtMoney(o.pagoMinimo) : ''}</div>` : '';
       const applyHtml = p.applyStatus ? `<div class="pago-meta"><span class="badge ap-${p.applyStatus}">${APPLY_LABEL[p.applyStatus] || p.applyStatus}</span>${p.applyAt ? ' ' + fmtDate(p.applyAt) : ''}${p.applyBy && p.applyStatus !== 'pendiente' ? ' · ' + escapeHtml(p.applyBy) : ''}${p.applyDetail ? ': ' + escapeHtml(p.applyDetail) : ''}${p.applyStatus === 'fallo' && p.applyAttempts ? ` (${p.applyAttempts} intento${p.applyAttempts === 1 ? '' : 's'})` : ''}${p.applyScreenshotUrl ? ` · <a href="${p.applyScreenshotUrl}" target="_blank" rel="noopener">ver captura</a>` : ''}</div>` : '';
       let actions = '';
       if (canResolve && (p.status === 'rojo' || p.status === 'verde')) {
         actions += `<input type="text" placeholder="Motivo (obligatorio)" data-note="${p.id}" maxlength="300" /><button class="btn-small" type="button" data-action="aprobar" data-id="${p.id}">Aprobar a mano</button><button class="btn-small btn-delete" type="button" data-action="rechazar" data-id="${p.id}">Rechazar</button>`;
       }
       if (p.status === 'rojo' && p.analysisError) actions += `<button class="btn-small" type="button" data-action="reanalizar" data-id="${p.id}">Volver a leer</button>`;
-      if (canResolve && (p.status === 'verde' || p.status === 'aprobado') && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual') {
+      if (canResolve && (p.status === 'verde' || p.status === 'aprobado' || (p.status === 'rechazado' && p.source === 'optimus')) && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual') {
         actions += `<button class="btn-small" type="button" data-action="aplicado-manual" data-id="${p.id}">Ya lo apliqué a mano</button>`;
         if (p.applyStatus === 'fallo') actions += `<button class="btn-small" type="button" data-action="reintentar-aplicar" data-id="${p.id}">Que el robot reintente</button>`;
       }
@@ -224,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="pago-body">
           <div class="pago-thumb">${thumb}</div>
-          <div>${fieldsHtml(p)}${reasons}${notes}${dupHtml}${resolved}${applyHtml}
+          <div>${optimusHtml}${fieldsHtml(p)}${reasons}${notes}${dupHtml}${resolved}${applyHtml}
             <div class="pago-meta">Subido ${fmtDate(p.createdAt)} por ${escapeHtml(p.createdByName)}</div>
             ${actions ? `<div class="pago-actions">${actions}</div>` : ''}
           </div>

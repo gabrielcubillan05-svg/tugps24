@@ -16,8 +16,13 @@ const canResolve = canResolveVerificacionPagos(session);
 
 <InternoLayout title="Verificación de pagos" active="verificacion-pagos" session={session}>
   <div class="panel-card">
-    <h2>Subir comprobante</h2>
-    <p class="hint">Pega la captura con Ctrl+V o elige el archivo (imagen o PDF). GPSITO lee el comprobante, comprueba que no se haya usado antes y lo deja en <b style="color:#3ddc84">verde</b> o en <b style="color:#ef4444">rojo</b> con el motivo. Solo Kelly, Wilmar y el administrador aprueban o rechazan a mano.</p>
+    <h2>Cómo funciona</h2>
+    <p class="hint">Los pagos que los clientes y las secretarías cargan en Optimus (pendientes, en amarillo) los trae el robot a esta pantalla con su comprobante. GPSITO lee el comprobante, comprueba que no se haya usado antes y lo deja en <b style="color:#3ddc84">verde</b> o en <b style="color:#ef4444">rojo</b> con el motivo. Los verdes los aprueba el robot en Optimus con el monto real del comprobante y el contrato con saldo pendiente; los rojos esperan a que Kelly, Wilmar o el administrador los aprueben o rechacen a mano, y lo rechazado lo deniega el robot en Optimus.</p>
+  </div>
+
+  <div class="panel-card" hidden={!canResolve}>
+    <h2>Subir comprobante a mano (respaldo)</h2>
+    <p class="hint">Solo para un comprobante que no exista en Optimus. Pega la captura con Ctrl+V o elige el archivo (imagen o PDF).</p>
     <form id="pagoForm" class="form-grid">
       <div class="field">
         <label for="pagoClient">Nombre completo del cliente</label>

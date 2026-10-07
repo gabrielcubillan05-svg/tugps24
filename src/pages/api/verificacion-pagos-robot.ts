@@ -1,13 +1,20 @@
 import type { APIRoute } from 'astro';
 import { put, get } from '@vercel/blob';
+import { createHash, randomUUID } from 'node:crypto';
+import { runAfterResponse } from '../../lib/background';
+import { dHashFromImage } from '../../lib/image-hash';
 import { getRedis } from '../../lib/redis';
 import { logAudit } from '../../lib/audit';
 import { pushNotification } from '../../lib/notifications';
 import { markCronOk } from '../../lib/incidents';
 import { blobTimeout } from '../../lib/blob-path';
 import { cronSecretMatches, getUsers, KELLY_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
-import { CONFIG_KEY, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, isApplyPending, type PagoCliente } from '../../lib/pagos-verificacion';
-import { readPagos, REDIS_KEY, readRobotState } from './verificacion-pagos';
+import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, isApplyPending, applyActionFor, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
+import { readPagos, readPago, savePago, analyzePago, REDIS_KEY, readRobotState } from './verificacion-pagos';
+
+// Un pago de Optimus entra al panel una sola vez, por su número.
+const OPTIMUS_KEY_PREFIX = 'internal:pagos-clientes-optimus:';
+const MAX_INGEST_BYTES = 8 * 1024 * 1024;
 
 export const prerender = false;
 
@@ -28,16 +35,6 @@ function authorized(request: Request): boolean {
   return cronSecretMatches(request.headers.get('authorization'), token);
 }
 
-async function readPago(redis: any, id: string): Promise<PagoCliente | null> {
-  const raw = await redis.hget(REDIS_KEY, id);
-  if (!raw) return null;
-  try {
-    return typeof raw === 'string' ? JSON.parse(raw) : (raw as PagoCliente);
-  } catch {
-    return null;
-  }
-}
-
 async function notifyResolvers(redis: any, message: string, key: string): Promise<void> {
   const users = await getUsers(redis);
   const targets = users.filter((u) => u.active && (u.role === 'admin' || [KELLY_USERNAME, WILMAR_USERNAME].includes(u.username.toLowerCase())));
@@ -48,6 +45,10 @@ async function notifyResolvers(redis: any, message: string, key: string): Promis
 function forRobot(p: PagoCliente) {
   return {
     id: p.id,
+    action: applyActionFor(p),
+    source: p.source || 'manual',
+    optimus: p.optimus || null,
+    resolutionNote: p.resolutionNote || '',
     clientName: p.clientName,
     plate: p.plate,
     branch: p.branch,
@@ -80,7 +81,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   // Latido: aunque esté en pausa, el robot sigue consultando y /api/health sabe que vive.
   await markCronOk(redis, 'robot-pagos');
   const state = await readRobotState(redis);
-  if (state.paused) return json(200, { paused: true, items: [] });
+  if (state.paused) return json(200, { paused: true, items: [], known: [] });
 
   const limit = Math.min(MAX_BATCH, Math.max(1, parseInt(url.searchParams.get('limit') || '5', 10) || 5));
   const now = Date.now();
@@ -96,8 +97,126 @@ export const GET: APIRoute = async ({ request, url }) => {
     p.applyStatus = p.applyStatus || 'pendiente';
     await redis.hset(REDIS_KEY, { [p.id]: JSON.stringify(p) });
   }
-  return json(200, { paused: false, items: pending.map(forRobot) });
+  // Números de Optimus que ya están en el panel (abiertos o resueltos), para que el robot no los
+  // vuelva a traer. Solo los de los últimos 60 días: los demás ya no están amarillos allá.
+  const cutoff = new Date(now - 60 * 86400000).toISOString();
+  const all = await readPagos(redis);
+  const known = all.filter((p) => p.optimus?.numero && p.createdAt >= cutoff).map((p) => p.optimus!.numero);
+  return json(200, { paused: false, items: pending.map(forRobot), known });
 };
+
+function num(v: unknown): number | null {
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  // Formato de Optimus: "98.000,00" → 98000
+  const n = Number(s.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function list(v: unknown): string[] {
+  try {
+    const arr = typeof v === 'string' ? JSON.parse(v) : v;
+    return Array.isArray(arr) ? arr.map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 50) : [];
+  } catch {
+    return [];
+  }
+}
+
+// El robot trae un pago amarillo de Optimus con la imagen del comprobante (JSON con la imagen en
+// base64: un cuerpo multipart sin cabecera Origin lo rechaza la protección CSRF de Astro). El
+// panel lo verifica como cualquier otro; el resultado vuelve al robot por GET como "aprobar".
+async function ingest(redis: any, body: any): Promise<Response> {
+  const get = (k: string) => body?.[k];
+  const numero = String(get('numero') || '').replace(/\D/g, '').slice(0, 20);
+  const clientName = String(get('cliente') || '').trim().slice(0, 120);
+  const branch = String(get('sucursal') || '').trim().slice(0, 40);
+  if (!numero || !clientName || !branch) return json(400, { error: 'numero, cliente y sucursal son obligatorios' });
+  const b64 = String(get('file') || '').replace(/^data:[^;]+;base64,/, '');
+  if (b64.length < 200) return json(400, { error: 'falta la imagen del comprobante' });
+  if (b64.length > MAX_INGEST_BYTES * 1.4) return json(400, { error: 'imagen demasiado grande' });
+  const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
+  if (!token) return json(503, { error: 'almacenamiento no configurado' });
+  const form = { get };
+
+  const existingId = await redis.get(OPTIMUS_KEY_PREFIX + numero);
+  if (existingId) {
+    const existing = await readPago(redis, String(existingId));
+    if (existing) return json(200, { pago: forRobot(existing), existing: true });
+  }
+
+  const bytes = Buffer.from(b64, 'base64');
+  if (bytes.length < 100) return json(400, { error: 'imagen vacía o mal codificada' });
+  const isPdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+  const isJpg = bytes[0] === 0xff && bytes[1] === 0xd8;
+  const isWebp = bytes.length > 12 && bytes.toString('ascii', 8, 12) === 'WEBP';
+  if (!isPdf && !isPng && !isJpg && !isWebp) return json(400, { error: 'la imagen debe ser JPG, PNG, WebP o PDF' });
+  const mediaType = isPdf ? 'application/pdf' : isPng ? 'image/png' : isWebp ? 'image/webp' : 'image/jpeg';
+  const ext = isPdf ? 'pdf' : isPng ? 'png' : isWebp ? 'webp' : 'jpg';
+
+  const id = randomUUID();
+  const claimed = await redis.set(OPTIMUS_KEY_PREFIX + numero, id, { nx: true, ex: INDEX_TTL_SECONDS });
+  if (!claimed) {
+    const other = await readPago(redis, String((await redis.get(OPTIMUS_KEY_PREFIX + numero)) || ''));
+    if (other) return json(200, { pago: forRobot(other), existing: true });
+  }
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const shaOwner = await redis.set(`${SHA_KEY_PREFIX}${sha256}`, id, { nx: true, ex: INDEX_TTL_SECONDS });
+  const duplicateOf = shaOwner ? null : String((await redis.get(`${SHA_KEY_PREFIX}${sha256}`)) || '') || null;
+  const phash = isPng || isJpg ? dHashFromImage(bytes, mediaType) : null;
+  const filePath = `pagos-clientes/${id}.${ext}`;
+  try {
+    await put(filePath, bytes, { access: 'private', token, addRandomSuffix: false, contentType: mediaType, abortSignal: blobTimeout() });
+  } catch (err) {
+    await redis.del(OPTIMUS_KEY_PREFIX + numero).catch(() => {});
+    if (shaOwner) await redis.del(`${SHA_KEY_PREFIX}${sha256}`).catch(() => {});
+    return json(502, { error: 'no se pudo guardar la imagen: ' + (err instanceof Error ? err.message : String(err)) });
+  }
+
+  const optimus: OptimusInfo = {
+    numero,
+    fecha: String(form.get('fecha') || '').trim().slice(0, 20),
+    creadoPor: String(form.get('creadoPor') || '').trim().slice(0, 60),
+    contratos: list(form.get('contratos')),
+    formasPago: list(form.get('formasPago')),
+    estadoCuenta: num(form.get('estadoCuenta')),
+    pagoMinimo: num(form.get('pagoMinimo')),
+    pendiente: num(form.get('pendiente')),
+    reconectar: num(form.get('reconectar')),
+  };
+  const now = new Date().toISOString();
+  const pago: PagoCliente = {
+    id,
+    clientName,
+    plate: '',
+    branch,
+    filePath,
+    fileType: isPdf ? 'pdf' : 'image',
+    sha256,
+    phash,
+    status: 'analizando',
+    reasons: [],
+    notes: [],
+    duplicateOf: duplicateOf && duplicateOf !== id ? duplicateOf : null,
+    extracted: null,
+    analysisStartedAt: now,
+    analysisError: null,
+    createdAt: now,
+    createdById: ACTOR.userId,
+    createdByName: `Optimus (${optimus.creadoPor || 'cliente'})`,
+    resolvedAt: null,
+    resolvedByName: '',
+    resolutionNote: '',
+    source: 'optimus',
+    optimus,
+  };
+  await savePago(redis, pago);
+  if (phash) await redis.hset(PHASH_KEY, { [id]: phash });
+  await logAudit(redis, ACTOR, 'pago_comprobante_optimus', clientName, `Optimus ${numero} · ${branch}`);
+  const inline = runAfterResponse(analyzePago(redis, pago, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, mediaType));
+  if (inline) await inline;
+  return json(200, { pago: forRobot(pago), existing: false });
+}
 
 export const POST: APIRoute = async ({ request }) => {
   if (!authorized(request)) return json(401, { error: 'unauthorized' });
@@ -109,13 +228,15 @@ export const POST: APIRoute = async ({ request }) => {
   } catch {
     return json(400, { error: 'invalid body' });
   }
+  if (body?.action === 'ingest') return ingest(redis, body);
   const id = String(body.id || '');
   const result = String(body.result || '');
   const detail = String(body.detail || '').trim().slice(0, 400);
   if (!id || (result !== 'aplicado' && result !== 'fallo')) return json(400, { error: 'id y result (aplicado | fallo) son obligatorios' });
   const pago = await readPago(redis, id);
   if (!pago) return json(404, { error: 'no encontrado' });
-  if (pago.status !== 'verde' && pago.status !== 'aprobado') return json(409, { error: 'el comprobante ya no está en verde ni aprobado' });
+  const action = applyActionFor(pago);
+  if (!action) return json(409, { error: 'el comprobante ya no está para aprobar ni denegar' });
   if (pago.applyStatus === 'aplicado' || pago.applyStatus === 'manual') return json(409, { error: 'ya estaba aplicado' });
 
   const now = new Date().toISOString();
@@ -141,18 +262,18 @@ export const POST: APIRoute = async ({ request }) => {
   pago.applyClaimedAt = null;
   pago.applyAt = now;
   pago.applyBy = 'Robot de pagos';
-  pago.applyDetail = detail;
+  pago.applyDetail = detail || (result === 'aplicado' ? (action === 'denegar' ? 'denegado en Optimus' : 'aprobado en Optimus') : '');
   pago.applyScreenshotPath = screenshotPath;
   pago.applyStatus = result === 'aplicado' ? 'aplicado' : 'fallo';
   await redis.hset(REDIS_KEY, { [pago.id]: JSON.stringify(pago) });
   await redis.hset(CONFIG_KEY, { robotLastResult: `${now} · ${pago.clientName}: ${result}${detail ? ' — ' + detail : ''}`.slice(0, 200) }).catch(() => {});
-  await logAudit(redis, ACTOR, result === 'aplicado' ? 'pago_aplicado_robot' : 'pago_aplicacion_fallida', pago.clientName, detail || (result === 'aplicado' ? 'aplicado en el sistema de pagos' : 'sin detalle'));
+  await logAudit(redis, ACTOR, result === 'aplicado' ? (action === 'denegar' ? 'pago_denegado_robot' : 'pago_aplicado_robot') : 'pago_aplicacion_fallida', pago.clientName, pago.applyDetail || 'sin detalle');
 
   if (result === 'fallo') {
     const exhausted = pago.applyAttempts >= APPLY_MAX_ATTEMPTS;
     await notifyResolvers(
       redis,
-      `🤖 ${exhausted ? 'El robot no pudo aplicar' : 'El robot falló al aplicar'} el pago de ${pago.clientName} (${pago.branch})${detail ? ': ' + detail : ''}${exhausted ? '. Hay que aplicarlo a mano.' : `. Reintenta (${pago.applyAttempts}/${APPLY_MAX_ATTEMPTS}).`}`,
+      `🤖 ${exhausted ? 'El robot no pudo' : 'El robot falló al'} ${action === 'denegar' ? 'denegar' : 'aprobar'} el pago de ${pago.clientName} (${pago.branch})${detail ? ': ' + detail : ''}${exhausted ? '. Hay que aplicarlo a mano.' : `. Reintenta (${pago.applyAttempts}/${APPLY_MAX_ATTEMPTS}).`}`,
       `pago-robot:${pago.id}`
     );
   }

@@ -14,11 +14,13 @@
   "dependencies": {
     "@astrojs/vercel": "^11.0.4",
     "@upstash/redis": "^1.38.2",
-    "@vercel/functions": "^3.9.11",
     "@vercel/blob": "^2.6.1",
+    "@vercel/functions": "^3.9.11",
     "astro": "^7.1.6",
     "exceljs": "^4.4.0",
+    "jpeg-js": "^0.4.4",
     "pdf-lib": "^1.17.1",
+    "pngjs": "^7.0.0",
     "web-push": "^3.6.7"
   },
   "overrides": {
