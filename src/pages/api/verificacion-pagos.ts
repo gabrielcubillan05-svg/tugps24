@@ -190,7 +190,14 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
         if (dist <= PHASH_MAX_DISTANCE && (!best || dist < best.dist)) best = { id, dist };
       }
       if (best && !prior.some((p) => p.id === best!.id)) {
-        const other = priorFrom(await readPago(redis, best.id), 'imagen');
+        // Los comprobantes de una misma app (Nequi, Bre-B) comparten plantilla y quedan a pocos
+        // bits aunque sean pagos distintos. Si los dos traen referencia legible y distinta, no es
+        // el mismo comprobante y la parecido visual no cuenta; solo cuenta cuando alguna
+        // referencia no se pudo leer o cuando coinciden.
+        const otherPago = await readPago(redis, best.id);
+        const otherRef = normalizeRef(otherPago?.extracted?.referencia || '');
+        const distinguibles = ref && otherRef && ref !== otherRef;
+        const other = distinguibles ? null : priorFrom(otherPago, 'imagen');
         if (other) {
           prior.push(other);
           if (!fresh.duplicateOf) fresh.duplicateOf = other.id;
@@ -463,6 +470,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     const current = withTimeouts(pago);
     if (current.status === 'analizando') return json(409, { error: 'ya se está leyendo' });
     if (current.status === 'aprobado' || current.status === 'rechazado') return json(409, { error: 'ya fue resuelto a mano' });
+    if (current.applyStatus === 'aplicado' || current.applyStatus === 'manual') return json(409, { error: 'ya se resolvió en Optimus' });
     const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
     if (!token) return json(503, { error: 'almacenamiento de archivos no configurado' });
     if (!(await checkAndIncrementRateLimit(redis, `internal:pagos-clientes-rate:reanalizar:${session.userId}`, 30, 86400))) {
@@ -475,6 +483,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     pago.analysisError = null;
     pago.reasons = [];
     pago.notes = [];
+    pago.duplicateOf = null;
     await savePago(redis, pago);
     const inline = runAfterResponse(analyzePago(redis, pago, stored.bytes, stored.mediaType));
     if (inline) await inline;

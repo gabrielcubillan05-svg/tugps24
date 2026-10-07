@@ -187,6 +187,8 @@ async function ingest(redis: any, body: any): Promise<Response> {
     fecha: String(form.get('fecha') || '').trim().slice(0, 20),
     creadoPor: String(form.get('creadoPor') || '').trim().slice(0, 60),
     contratos: list(form.get('contratos')),
+    contratosIds: list(form.get('contratosIds')),
+    cargadoPorCliente: form.get('cargadoPorCliente') === true,
     formasPago: list(form.get('formasPago')),
     estadoCuenta: num(form.get('estadoCuenta')),
     pagoMinimo: num(form.get('pagoMinimo')),

@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (canResolve && (p.status === 'rojo' || p.status === 'verde')) {
         actions += `<input type="text" placeholder="Motivo (obligatorio)" data-note="${p.id}" maxlength="300" /><button class="btn-small" type="button" data-action="aprobar" data-id="${p.id}">Aprobar a mano</button><button class="btn-small btn-delete" type="button" data-action="rechazar" data-id="${p.id}">Rechazar</button>`;
       }
-      if (p.status === 'rojo' && p.analysisError) actions += `<button class="btn-small" type="button" data-action="reanalizar" data-id="${p.id}">Volver a leer</button>`;
+      if (p.status === 'rojo' && (p.analysisError || canResolve)) actions += `<button class="btn-small" type="button" data-action="reanalizar" data-id="${p.id}">Volver a leer</button>`;
       if (canResolve && (p.status === 'verde' || p.status === 'aprobado' || (p.status === 'rechazado' && p.source === 'optimus')) && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual') {
         actions += `<button class="btn-small" type="button" data-action="aplicado-manual" data-id="${p.id}">Ya lo apliqué a mano</button>`;
         if (p.applyStatus === 'fallo') actions += `<button class="btn-small" type="button" data-action="reintentar-aplicar" data-id="${p.id}">Que el robot reintente</button>`;

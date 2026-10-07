@@ -1,6 +1,6 @@
 import { callAnthropicMessages, usageFromResponse } from './anthropic-client';
 import { recordAgentUsage } from './agent-usage';
-import { todayInColombia, addDaysToDateString } from './colombia-time';
+import { todayInColombia, addDaysToDateString, describeNowInColombia } from './colombia-time';
 
 // Verificación de comprobantes de pago. La secretaria sube la captura o el PDF con el nombre del
 // cliente; GPSITO lee los datos del comprobante y aquí se cruzan con lo ya guardado para decidir
@@ -176,7 +176,8 @@ function plainText(s: string): string {
 // cualquiera de los tres contra la lista configurada.
 export function destinoMatches(cuentaDestino: string, destinos: string[]): boolean | null {
   const raw = String(cuentaDestino || '');
-  const numbers = raw.match(/\d{4,}/g) || [];
+  // "526-645529-06" y "526 645529 06" son la cuenta 52664552906: se compara también todo junto.
+  const numbers = [...(raw.match(/\d{4,}/g) || []), ...(raw.match(/\d[\d\s.-]{6,}\d/g) || []).map((n) => n.replace(/\D/g, ''))].filter((n) => n.length >= 4);
   const text = plainText(raw);
   if (!numbers.length && text.replace(/[^a-z]/g, '').length < 4) return null;
   for (const d of destinos) {
@@ -302,6 +303,8 @@ Responde SOLO con un objeto JSON, sin texto antes ni después, con exactamente e
 
 Reglas:
 - Si un dato no aparece, deja la cadena vacía o null; no inventes.
+- Identifica el banco o app también por la plantilla aunque no diga el nombre: "Comprobante No." con "Producto destino" o "Datos de la transferencia" es Bancolombia; morado con "¿Cuánto?" y "¿De dónde salió la plata?" es Nequi; rojo con "Pasaste plata" es DaviPlata; "Comprobante No. TR…" con "Punto de venta" y "Código de negocio" es Bre-B.
+- La fecha de hoy se indica abajo: una fecha de este año o de días recientes NO es futura; no comentes sobre el año.
 - Fechas en formato colombiano (día/mes/año) o en texto ("7 de octubre de 2026") se convierten a AAAA-MM-DD.
 - "editado" es true solo con señales claras: tipografías o tamaños que no cuadran en el mismo campo, cifras desalineadas, fondos con parches, texto superpuesto, bordes recortados sobre un dato clave.
 - Un comprobante "pendiente", "rechazado" o "en proceso" no es un pago aplicado: dilo en observaciones.
@@ -316,6 +319,8 @@ export async function readReceipt(redis: any, pagoId: string, bytes: ArrayBuffer
   const apiKey = import.meta.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
   const data = await fileToBase64(bytes);
+  // La fecha va en un bloque aparte para no invalidar la caché del prompt fijo.
+  const hoy = `Hoy es ${describeNowInColombia()}.`;
   const fileBlock =
     mediaType === 'application/pdf'
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
@@ -325,7 +330,7 @@ export async function readReceipt(redis: any, pagoId: string, bytes: ArrayBuffer
     {
       model: MODEL,
       max_tokens: 600,
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }, { type: 'text', text: hoy }],
       messages: [
         {
           role: 'user',
