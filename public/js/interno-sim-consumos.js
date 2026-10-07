@@ -495,6 +495,15 @@ document.addEventListener('DOMContentLoaded', function () {
       loadLotes();
       return true;
     } catch (err) {
+      // Un corte de red a mitad de la petición no significa que el servidor no la recibiera:
+      // el informe puede estar generándose. Se vuelve a leer el lote en vez de dar por fallido.
+      const redTemporal = /failed to fetch|network|abort/i.test(String(err && err.message));
+      if (redTemporal && currentLote && (name === 'analyze' || name === 'plan')) {
+        const id = currentLote.id;
+        await new Promise((r) => setTimeout(r, 1500));
+        await openLote(id);
+        return true;
+      }
       alert(err.message || 'No se pudo completar.');
       if (currentLote) renderDetail(currentLote, '/api/blob-file?path=' + encodeURIComponent(currentLote.blobPath));
       return false;
