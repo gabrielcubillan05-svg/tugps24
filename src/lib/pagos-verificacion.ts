@@ -61,6 +61,29 @@ export interface PagoCliente {
   resolvedAt: string | null;
   resolvedByName: string;
   resolutionNote: string;
+  // Aplicación en el sistema de pagos (GeneXus) por el robot o a mano. 'pendiente' mientras el
+  // comprobante esté en verde o aprobado y nadie lo haya aplicado.
+  applyStatus?: ApplyStatus;
+  applyAt?: string | null;
+  applyDetail?: string;
+  applyScreenshotPath?: string | null;
+  applyAttempts?: number;
+  applyClaimedAt?: string | null;
+  applyBy?: string;
+}
+
+export type ApplyStatus = 'pendiente' | 'aplicado' | 'fallo' | 'manual';
+export const APPLY_MAX_ATTEMPTS = 3;
+// Si el robot tomó un comprobante y no reportó en este tiempo, otro ciclo puede volver a tomarlo.
+export const APPLY_CLAIM_MS = 20 * 60_000;
+
+// Lo que el robot puede aplicar: verde o aprobado a mano, sin aplicar todavía, sin agotar intentos.
+export function isApplyPending(p: PagoCliente): boolean {
+  if (p.status !== 'verde' && p.status !== 'aprobado') return false;
+  const st = p.applyStatus || 'pendiente';
+  if (st === 'aplicado' || st === 'manual') return false;
+  if (st === 'fallo' && (p.applyAttempts || 0) >= APPLY_MAX_ATTEMPTS) return false;
+  return true;
 }
 
 export function normalizeRef(ref: string): string {

@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
   let pagos = [];
   const pollTimers = {};
 
+  const APPLY_LABEL = { pendiente: 'Por aplicar en el sistema de pagos', aplicado: 'Aplicado por el robot', manual: 'Aplicado a mano', fallo: 'No se pudo aplicar' };
   const STATUS_LABEL = { verde: 'Verde: nuevo y consistente', rojo: 'Rojo: revisar', aprobado: 'Aprobado a mano', rechazado: 'Rechazado', analizando: 'GPSITO está leyendo…' };
 
   function escapeHtml(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -162,7 +163,29 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderStats(stats) {
     if (!statsEl || !stats) return;
     const item = (n, l, color) => `<div class="stat-box"><span class="n" style="${color ? 'color:' + color : ''}">${n}</span><span class="l">${l}</span></div>`;
-    statsEl.innerHTML = item(stats.total || 0, 'Total') + item(stats.verde || 0, 'Verdes', '#3ddc84') + item(stats.rojo || 0, 'Rojos', '#ef4444') + item(stats.aprobado || 0, 'Aprobados a mano', '#7ab8ec') + item(stats.rechazado || 0, 'Rechazados') + item(stats.analizando || 0, 'Leyendo', '#f59e0b');
+    statsEl.innerHTML = item(stats.total || 0, 'Total') + item(stats.verde || 0, 'Verdes', '#3ddc84') + item(stats.rojo || 0, 'Rojos', '#ef4444') + item(stats.aprobado || 0, 'Aprobados a mano', '#7ab8ec') + item(stats.porAplicar || 0, 'Por aplicar', '#f59e0b') + item(stats.aplicados || 0, 'Aplicados', '#3ddc84');
+  }
+
+  function renderRobot(robot) {
+    const panel = document.getElementById('robotPanel');
+    if (!panel || !robot) return;
+    const seen = robot.lastSeenAt ? new Date(robot.lastSeenAt) : null;
+    const minutes = seen ? Math.round((Date.now() - seen.getTime()) / 60000) : null;
+    const alive = minutes !== null && minutes <= 60;
+    const color = robot.paused ? '#f59e0b' : alive ? '#3ddc84' : '#ef4444';
+    const state = robot.paused ? 'En pausa' : alive ? 'Activo' : seen ? 'Sin señal hace ' + minutes + ' min' : 'Todavía no se ha conectado';
+    panel.innerHTML = `<span><span class="dot" style="background:${color}"></span><b>${state}</b></span>
+      <span class="hint">${seen ? 'Último ciclo: ' + fmtDate(robot.lastSeenAt) : 'El robot se conecta cada 15 minutos cuando esté configurado.'}</span>
+      ${robot.lastResult ? `<span class="hint">Último resultado: ${escapeHtml(robot.lastResult)}</span>` : ''}
+      <button class="btn-small ${robot.paused ? '' : 'btn-delete'}" type="button" id="robotToggle">${robot.paused ? 'Reanudar robot' : 'Pausar robot'}</button>`;
+    document.getElementById('robotToggle').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/verificacion-pagos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'robot', paused: !robot.paused }), signal: timeoutSignal(20000) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
+        renderRobot(data.robot);
+      } catch (err) { alert('No se pudo: ' + ((err && err.message) || err)); }
+    });
   }
 
   function fieldsHtml(p) {
@@ -184,11 +207,16 @@ document.addEventListener('DOMContentLoaded', function () {
       const notes = p.notes && p.notes.length ? `<ul class="pago-notes">${p.notes.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>` : '';
       const dupHtml = p.duplicateOf ? `<div class="pago-meta">Coincide con: ${dup ? `<a href="#pago-${dup.id}">${escapeHtml(dup.clientName)} · ${fmtDate(dup.createdAt)} · ${escapeHtml(dup.createdByName)}</a>` : 'un comprobante anterior (' + escapeHtml(p.duplicateOf.slice(0, 8)) + ')'}</div>` : '';
       const resolved = p.resolvedAt ? `<div class="pago-meta">${p.status === 'aprobado' ? 'Aprobado' : 'Rechazado'} por ${escapeHtml(p.resolvedByName)} el ${fmtDate(p.resolvedAt)}: ${escapeHtml(p.resolutionNote)}</div>` : '';
+      const applyHtml = p.applyStatus ? `<div class="pago-meta"><span class="badge ap-${p.applyStatus}">${APPLY_LABEL[p.applyStatus] || p.applyStatus}</span>${p.applyAt ? ' ' + fmtDate(p.applyAt) : ''}${p.applyBy && p.applyStatus !== 'pendiente' ? ' · ' + escapeHtml(p.applyBy) : ''}${p.applyDetail ? ': ' + escapeHtml(p.applyDetail) : ''}${p.applyStatus === 'fallo' && p.applyAttempts ? ` (${p.applyAttempts} intento${p.applyAttempts === 1 ? '' : 's'})` : ''}${p.applyScreenshotUrl ? ` · <a href="${p.applyScreenshotUrl}" target="_blank" rel="noopener">ver captura</a>` : ''}</div>` : '';
       let actions = '';
       if (canResolve && (p.status === 'rojo' || p.status === 'verde')) {
         actions += `<input type="text" placeholder="Motivo (obligatorio)" data-note="${p.id}" maxlength="300" /><button class="btn-small" type="button" data-action="aprobar" data-id="${p.id}">Aprobar a mano</button><button class="btn-small btn-delete" type="button" data-action="rechazar" data-id="${p.id}">Rechazar</button>`;
       }
       if (p.status === 'rojo' && p.analysisError) actions += `<button class="btn-small" type="button" data-action="reanalizar" data-id="${p.id}">Volver a leer</button>`;
+      if (canResolve && (p.status === 'verde' || p.status === 'aprobado') && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual') {
+        actions += `<button class="btn-small" type="button" data-action="aplicado-manual" data-id="${p.id}">Ya lo apliqué a mano</button>`;
+        if (p.applyStatus === 'fallo') actions += `<button class="btn-small" type="button" data-action="reintentar-aplicar" data-id="${p.id}">Que el robot reintente</button>`;
+      }
       return `<div class="pago-item ${p.status}" id="pago-${p.id}">
         <div class="pago-top">
           <div><span class="pago-client">${escapeHtml(p.clientName)}</span>${p.plate ? ` <span class="sim-tag">${escapeHtml(p.plate)}</span>` : ''} <span class="hint">· ${escapeHtml(p.branch)}</span></div>
@@ -196,7 +224,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="pago-body">
           <div class="pago-thumb">${thumb}</div>
-          <div>${fieldsHtml(p)}${reasons}${notes}${dupHtml}${resolved}
+          <div>${fieldsHtml(p)}${reasons}${notes}${dupHtml}${resolved}${applyHtml}
             <div class="pago-meta">Subido ${fmtDate(p.createdAt)} por ${escapeHtml(p.createdByName)}</div>
             ${actions ? `<div class="pago-actions">${actions}</div>` : ''}
           </div>
@@ -246,6 +274,7 @@ document.addEventListener('DOMContentLoaded', function () {
       monthFilter.innerHTML = '<option value="">Todos los meses</option>' + (data.months || []).map((m) => `<option value="${m}">${monthLabel(m)}</option>`).join('');
       monthFilter.value = curM;
       if (destinosInput && data.destinos && !destinosInput.dataset.loaded) { destinosInput.value = data.destinos.join('\n'); destinosInput.dataset.loaded = '1'; }
+      renderRobot(data.robot);
       render();
       if (window.TuGpsListMore) TuGpsListMore.apply(list, { truncated: data.truncated, total: data.total, limit: data.limit, items: pagos }, (next) => { listLimit = next; loadPagos(); });
       pagos.filter((p) => p.status === 'analizando').forEach((p) => { if (!pollTimers[p.id]) pollPago(p.id); });

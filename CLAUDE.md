@@ -10,6 +10,7 @@ Astro v7 (`output:'server'`), `@astrojs/vercel` adapter, Upstash Redis (todos lo
 - `public/js/interno-*.js` — JS del panel, un archivo por página, sin build step (vanilla).
 - `src/components/` + `src/layouts/BaseLayout.astro` — sitio público (marketing).
 - `.claude/launch.json` — config para levantar `astro dev` desde el Browser tool.
+- `robot/pagos-genexus/` — robot Playwright (corre en GitHub Actions, no en Vercel) que aplica en el sistema de pagos GeneXus los comprobantes en verde; habla con `/api/verificacion-pagos-robot` usando `ROBOT_PAGOS_TOKEN`.
 
 ## Comandos
 dev: en Bash, `cd` explícito primero (el shell resetea el cwd a otra carpeta entre comandos) → `npx astro dev --port 4321` en background, o usar preview_start con "tugps24-dev".

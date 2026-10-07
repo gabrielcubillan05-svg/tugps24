@@ -38,6 +38,8 @@ import {
   normalizeBank,
   normalizeRef,
   readReceipt,
+  isApplyPending,
+  APPLY_MAX_ATTEMPTS,
   type PagoCliente,
   type PriorMatch,
 } from '../../lib/pagos-verificacion';
@@ -103,7 +105,22 @@ function withTimeouts(p: PagoCliente): PagoCliente {
 }
 
 function toClient(p: PagoCliente) {
-  return { ...withTimeouts(p), fileUrl: '/api/blob-file?path=' + encodeURIComponent(p.filePath) };
+  const t = withTimeouts(p);
+  return {
+    ...t,
+    applyStatus: t.applyStatus || (isApplyPending(t) ? 'pendiente' : t.status === 'verde' || t.status === 'aprobado' ? 'fallo' : undefined),
+    fileUrl: '/api/blob-file?path=' + encodeURIComponent(p.filePath),
+    applyScreenshotUrl: t.applyScreenshotPath ? '/api/blob-file?path=' + encodeURIComponent(t.applyScreenshotPath) : null,
+  };
+}
+
+export async function readRobotState(redis: any): Promise<{ paused: boolean; lastSeenAt: string | null; lastResult: string }> {
+  const [paused, lastSeen, lastResult] = await Promise.all([
+    redis.hget(CONFIG_KEY, 'robotPaused').catch(() => null),
+    redis.get('internal:cron-ok:robot-pagos').catch(() => null),
+    redis.hget(CONFIG_KEY, 'robotLastResult').catch(() => null),
+  ]);
+  return { paused: String(paused || '') === '1', lastSeenAt: lastSeen ? String(lastSeen) : null, lastResult: lastResult ? String(lastResult) : '' };
 }
 
 function priorFrom(p: PagoCliente | null, kind: PriorMatch['kind']): PriorMatch | null {
@@ -235,8 +252,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (branch) items = items.filter((p) => p.branch === branch);
   if (month) items = items.filter((p) => p.createdAt.slice(0, 7) === month);
   const withStatus = items.map(withTimeouts);
-  const stats = { total: withStatus.length, verde: 0, rojo: 0, aprobado: 0, rechazado: 0, analizando: 0 } as Record<string, number>;
-  for (const p of withStatus) stats[p.status] = (stats[p.status] || 0) + 1;
+  const stats = { total: withStatus.length, verde: 0, rojo: 0, aprobado: 0, rechazado: 0, analizando: 0, porAplicar: 0, aplicados: 0, fallosAplicar: 0 } as Record<string, number>;
+  for (const p of withStatus) {
+    stats[p.status] = (stats[p.status] || 0) + 1;
+    if (isApplyPending(p)) stats.porAplicar++;
+    if (p.applyStatus === 'aplicado' || p.applyStatus === 'manual') stats.aplicados++;
+    if (p.applyStatus === 'fallo' && !isApplyPending(p)) stats.fallosAplicar++;
+  }
   const filtered = status ? withStatus.filter((p) => p.status === status) : withStatus;
   const months = [...new Set(items.map((p) => p.createdAt.slice(0, 7)))].sort().reverse();
   const branches = [...new Set(items.map((p) => p.branch))].sort();
@@ -250,6 +272,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     canResolve,
     myBranches,
     destinos: canResolve ? await readDestinos(redis) : undefined,
+    robot: canResolve ? await readRobotState(redis) : undefined,
     currentUserId: session.userId,
   });
 };
@@ -358,6 +381,14 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const action = String(body.action || '');
   const canResolve = canResolveVerificacionPagos(session);
 
+  if (action === 'robot') {
+    if (!canResolve) return json(403, { error: 'solo Kelly, Wilmar o el administrador pausan el robot' });
+    const paused = body.paused === true;
+    await redis.hset(CONFIG_KEY, { robotPaused: paused ? '1' : '0' });
+    await logAudit(redis, session, paused ? 'pagos_robot_pausado' : 'pagos_robot_reanudado', 'robot de pagos', '');
+    return json(200, { robot: await readRobotState(redis) });
+  }
+
   if (action === 'config') {
     if (!canResolve) return json(403, { error: 'solo Kelly, Wilmar o el administrador cambian las cuentas' });
     const destinos = Array.isArray(body.destinos) ? body.destinos.map((d: unknown) => String(d).trim().slice(0, 80)).filter(Boolean).slice(0, 30) : [];
@@ -393,6 +424,32 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
         key: `pago-resuelto:${pago.id}`,
       }).catch(() => {});
     }
+    return json(200, { pago: toClient(pago) });
+  }
+
+  // Alguien aplicó el pago en el sistema de pagos por su cuenta: el robot no debe repetirlo.
+  if (action === 'aplicado-manual') {
+    if (!canResolve) return json(403, { error: 'solo Kelly, Wilmar o el administrador marcan aplicado a mano' });
+    if (pago.status !== 'verde' && pago.status !== 'aprobado') return json(409, { error: 'solo se aplica un comprobante en verde o aprobado' });
+    pago.applyStatus = 'manual';
+    pago.applyAt = now;
+    pago.applyBy = byName;
+    pago.applyDetail = String(body.note || '').trim().slice(0, 300);
+    await savePago(redis, pago);
+    await logAudit(redis, session, 'pago_aplicado_manual', pago.clientName, pago.applyDetail);
+    return json(200, { pago: toClient(pago) });
+  }
+
+  // Tras corregir algo en el sistema de pagos, se le da otra oportunidad al robot.
+  if (action === 'reintentar-aplicar') {
+    if (!canResolve) return json(403, { error: 'solo Kelly, Wilmar o el administrador reintentan la aplicación' });
+    if (pago.status !== 'verde' && pago.status !== 'aprobado') return json(409, { error: 'solo se aplica un comprobante en verde o aprobado' });
+    pago.applyStatus = 'pendiente';
+    pago.applyAttempts = 0;
+    pago.applyClaimedAt = null;
+    pago.applyDetail = '';
+    await savePago(redis, pago);
+    await logAudit(redis, session, 'pago_aplicacion_reintento', pago.clientName, `antes: ${APPLY_MAX_ATTEMPTS} intentos agotados`);
     return json(200, { pago: toClient(pago) });
   }
 

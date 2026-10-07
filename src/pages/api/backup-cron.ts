@@ -29,7 +29,7 @@ const SKIP_PREFIXES = [
   'internal:cold-followup-lock', 'internal:whatsapp-inbox-lock', 'internal:whatsapp-phone-lock:', 'internal:whatsapp-rate', 'internal:whatsapp-phone-index:rebuilt',
   'internal:reports-photos-purged-count', 'internal:security:', 'internal:perf:', 'internal:sim-consumos-staging:', 'internal:sim-consumos-commit:',
   'internal:sim-consumos-done:', 'internal:sim-consumos-rate:', 'internal:novedades-archivadas-rate:', 'internal:gabot-sent:', 'internal:agent-conv-seen:',
-  'internal:backup-lock',
+  'internal:backup-lock', 'internal:pagos-clientes-rate:',
 ];
 // Además de internal:*, la encuesta de la nueva sucursal vive bajo otro prefijo.
 const SCAN_PATTERNS = ['internal:*', 'survey:*'];

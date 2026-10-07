@@ -1,0 +1,36 @@
+# Robot de pagos: aplica en el sistema de pagos (GeneXus) los comprobantes en verde del panel.
+# Se ejecuta a mano desde la pestaña Actions mientras se configura; cuando el robot tenga los
+# pasos de GeneXus y los secretos (PANEL_URL, ROBOT_PAGOS_TOKEN, GENEXUS_URL, GENEXUS_USER,
+# GENEXUS_PASS) cargados en Settings → Secrets, se quita el comentario del horario.
+name: Robot de pagos
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '*/15 11-23 * * 1-6'   # cada 15 min, 6 a. m. a 6 p. m. Colombia, lunes a sábado
+
+concurrency:
+  group: robot-pagos
+  cancel-in-progress: false
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Playwright
+        working-directory: robot/pagos-genexus
+        run: npm install && npx playwright install --with-deps chromium
+      - name: Correr el robot
+        working-directory: robot/pagos-genexus
+        env:
+          PANEL_URL: ${{ secrets.PANEL_URL }}
+          ROBOT_PAGOS_TOKEN: ${{ secrets.ROBOT_PAGOS_TOKEN }}
+          GENEXUS_URL: ${{ secrets.GENEXUS_URL }}
+          GENEXUS_USER: ${{ secrets.GENEXUS_USER }}
+          GENEXUS_PASS: ${{ secrets.GENEXUS_PASS }}
+        run: node robot.mjs

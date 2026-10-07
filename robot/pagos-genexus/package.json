@@ -1,0 +1,11 @@
+{
+  "name": "tugps24-robot-pagos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node robot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}

@@ -31,6 +31,7 @@ Se configuran en Vercel (Project → Settings → Environment Variables). En loc
 | `META_APP_SECRET` | Meta | sí para WhatsApp | Verifica la firma HMAC de cada webhook |
 | `META_WEBHOOK_VERIFY_TOKEN` | Meta | sí para WhatsApp | Verificación inicial del webhook (GET) |
 | `META_PAGE_ACCESS_TOKEN` | Meta | sí para formularios de anuncios | Lee los leads del webhook de Lead Ads |
+| `ROBOT_PAGOS_TOKEN` | robot de pagos | sí para el robot | Autoriza al robot externo (`/api/verificacion-pagos-robot`) a leer los comprobantes por aplicar y reportar el resultado; sin ella el endpoint responde 401 |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push | sí para notificaciones push | Firma de los avisos push del panel |
 | `VERCEL_GIT_COMMIT_SHA` / `VERCEL_DEPLOYMENT_ID` | Vercel (automáticas) | no | Identificador de versión para avisar al navegador de un deploy nuevo |
 

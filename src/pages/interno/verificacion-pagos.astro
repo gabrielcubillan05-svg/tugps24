@@ -46,6 +46,14 @@ const canResolve = canResolveVerificacionPagos(session);
 
   {canResolve && (
     <div class="panel-card">
+      <h2>Robot de aplicación en el sistema de pagos</h2>
+      <p class="hint">El robot toma solo los comprobantes en verde o aprobados a mano, los aplica en el sistema de pagos y deja aquí el resultado con captura. Si falla tres veces, avisa y queda para hacerlo a mano.</p>
+      <div class="pago-robot" id="robotPanel"><span class="hint">Cargando estado…</span></div>
+    </div>
+  )}
+
+  {canResolve && (
+    <div class="panel-card">
       <h2>Cuentas y llaves de la empresa</h2>
       <p class="hint">Una por línea (banco, tipo y número o llave). Un comprobante cuyo destino no coincida con ninguna sale en rojo.</p>
       <textarea id="destinosInput" rows="4" style="width:100%;"></textarea>
@@ -100,6 +108,11 @@ const canResolve = canResolveVerificacionPagos(session);
   .badge.st-aprobado { background: #4a90d922; color: #7ab8ec; }
   .badge.st-rechazado { background: #55555533; color: #bbb; }
   .badge.st-analizando { background: var(--glow-1); color: var(--amber); }
+  .pago-robot { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+  .pago-robot .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .badge.ap-pendiente { background: var(--glow-1); color: var(--amber); }
+  .badge.ap-aplicado, .badge.ap-manual { background: #2f8a4f33; color: #3ddc84; }
+  .badge.ap-fallo { background: #e0563f22; color: #ef4444; }
 </style>
 
 <script src="/js/interno-list-more.js" defer></script>

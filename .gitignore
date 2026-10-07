@@ -25,3 +25,4 @@ pnpm-debug.log*
 
 # vercel
 .vercel/
+robot/pagos-genexus/node_modules/
