@@ -224,7 +224,9 @@ const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store
 // Una fila por línea, ordenadas por consumo, con el mismo criterio de estado del informe. Excel
 // en español: separador ";", coma decimal y BOM para las tildes.
 function linesToCsv(lote: SimLote, lines: SimLine[]): string {
-  const dias = (lote.stats.days && lote.stats.days.length) || Math.max(1, Math.round((Date.parse(lote.periodEnd) - Date.parse(lote.periodStart)) / 86400000) + 1);
+  // Misma base que las estadísticas del panel (días del periodo declarado), para que el CSV y la
+  // pantalla den la misma proyección mensual.
+  const dias = Math.max(1, Math.round((Date.parse(lote.periodEnd) - Date.parse(lote.periodStart)) / 86400000) + 1);
   const planMb = lote.planMb || DEFAULT_PLAN_MB;
   const limitMb = lote.limitMb || lote.stats.limitMb || DEFAULT_LIMIT_MB;
   const num = (v: number, d: number) => Number(v || 0).toFixed(d).replace('.', ',');
