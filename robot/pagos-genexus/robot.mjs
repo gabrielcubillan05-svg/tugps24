@@ -266,6 +266,41 @@ async function imagenBase64(page, src) {
   }, url);
 }
 
+// Elige una opción en un combo de WorkWithPlus: primero el <select> pintado dentro del contenedor
+// (por valor, y si no por texto), si no existe se asigna el campo oculto y se dispara el cambio.
+async function elegirEnCombo(page, containerId, inputId, valor, texto) {
+  const select = page.locator(`#${containerId} select`).first();
+  if (await select.count()) {
+    try {
+      await select.selectOption({ value: valor });
+    } catch {
+      await select.selectOption({ label: texto });
+    }
+    await select.dispatchEvent('change');
+    await page.waitForTimeout(800);
+    return;
+  }
+  // Variante con botón desplegable (bootstrap-select) sin <select> accesible.
+  const boton = page.locator(`#${containerId} button, #${containerId} .dropdown-toggle`).first();
+  if (await boton.count()) {
+    await boton.click();
+    await page.waitForTimeout(400);
+    const opcion = page.locator(`#${containerId} li a, #${containerId} .dropdown-menu a, body > .dropdown-menu li a`).filter({ hasText: texto }).first();
+    if (await opcion.count()) {
+      await opcion.click();
+      await page.waitForTimeout(800);
+      return;
+    }
+  }
+  await page.evaluate(({ inputId, valor }) => {
+    const el = document.getElementById(inputId);
+    if (!el) throw new Error('falta el campo ' + inputId);
+    el.value = valor;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { inputId, valor });
+  await page.waitForTimeout(800);
+}
+
 // Opciones de un combo especial de Optimus (Contrato, Forma de pago): no es un <select>, es un
 // control con un input oculto (#vNEWCONTRACTID, #vPAYMENTWAYCODE) y una lista que se despliega.
 async function volcarCombo(page, nombre) {
@@ -323,6 +358,10 @@ async function explorarPagos() {
     await page.waitForTimeout(4000);
     await volcarCombo(page, 'NEWCONTRACTID');
     await volcarCombo(page, 'PAYMENTWAYCODE');
+    for (const id of ['COMBO_NEWCONTRACTIDContainer', 'COMBO_PAYMENTWAYCODEContainer', 'PAYMENTMOUNT_CELL', 'PAYMENTWAYREF_CELL']) {
+      const inner = await page.locator('#' + id).evaluate((el) => `${el.className} | style=${el.getAttribute('style')} | ${el.innerHTML.replace(/\s+/g, ' ').slice(0, 3500)}`).catch(() => '(no está)');
+      console.log(`CONTENEDOR_${id} ` + inner);
+    }
     const html = await page.content();
     const recortes = [];
     for (const clave of ['COMBO_NEWCONTRACTID', 'COMBO_PAYMENTWAYCODE', 'Consignacion', 'NEWCONTRACTID_CELL', 'PAYMENTWAYCODE_CELL']) {
@@ -426,14 +465,22 @@ async function aprobarEnOptimus(page, item) {
     const forma = formasPago.find((f) => f.texto.toLowerCase() === String(fill.formaPago || 'Transferencia').toLowerCase()) || formasPago.find((f) => /transfer/i.test(f.texto));
     if (!forma) throw new Error('no se encontró la forma de pago en la lista de Optimus');
     const monto = Math.round(fill.monto);
-    await page.evaluate(({ contratoId, formaId, monto, referencia }) => {
-      const set = (id, v) => { const el = document.getElementById(id); if (!el) throw new Error('falta el campo ' + id); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); el.dispatchEvent(new Event('blur', { bubbles: true })); };
-      set('vNEWCONTRACTID', contratoId);
-      set('vPAYMENTWAYCODE', formaId);
-      set('vPAYMENTMOUNT', monto.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-      set('vPAYMENTWAYREF', referencia || '');
-    }, { contratoId: contratos[0].id, formaId: forma.id, monto, referencia: fill.referencia });
+    // Los combos son controles de WorkWithPlus que pintan un <select> dentro de su contenedor;
+    // hay que elegir ahí (asignar el campo oculto por JS no cuenta: Optimus respondió
+    // "No existe 'Payment Way'"). Si no hay <select> pintado, se intenta por el campo oculto.
+    await elegirEnCombo(page, 'COMBO_NEWCONTRACTIDContainer', 'vNEWCONTRACTID', contratos[0].id, contratos[0].numero);
+    await elegirEnCombo(page, 'COMBO_PAYMENTWAYCODEContainer', 'vPAYMENTWAYCODE', forma.id, forma.texto);
+    const montoTxt = monto.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const montoInput = page.locator('#vPAYMENTMOUNT');
+    await montoInput.click({ timeout: 5000 }).catch(() => {});
+    await montoInput.fill(montoTxt);
+    await montoInput.press('Tab');
+    const refInput = page.locator('#vPAYMENTWAYREF');
+    await refInput.fill(String(fill.referencia || '').slice(0, 40));
+    await refInput.press('Tab');
     await page.waitForTimeout(1500);
+    const montoLeido = await montoInput.inputValue().catch(() => '');
+    console.log('Campos digitados → monto', montoLeido, '| contrato', await page.locator('#vNEWCONTRACTID').inputValue().catch(() => '?'), '| forma', await page.locator('#vPAYMENTWAYCODE').inputValue().catch(() => '?'));
     detalle = `aprobado en Optimus con monto ${monto.toLocaleString('es-CO')}, contrato ${contratos[0].numero}, ${forma.texto}, ref. ${fill.referencia || 'sin referencia'}`;
   } else {
     // Creado por una secretaria: ya trae monto; se compara con el comprobante antes de aprobar.
