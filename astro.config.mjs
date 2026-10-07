@@ -6,7 +6,8 @@ import vercel from '@astrojs/vercel';
 export default defineConfig({
   site: 'https://www.tugps24.com',
   output: 'server',
-  adapter: vercel(),
+  // Hasta 5 minutos: cargas grandes (consumo de SIM, cotizaciones) y los agentes de IA.
+  adapter: vercel({ maxDuration: 300 }),
   redirects: {
     '/inicio': '/',
     '/operadores': '/interno/novedades',

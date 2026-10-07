@@ -7,6 +7,7 @@ import { SESSION_COOKIE, getSession, canAccessSimConsumos, findUserById, verifyS
 import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
 import { computeSimStats, periodOf, normalizeSimNumber, type SimLine, type SimStats } from '../../lib/sim-consumos';
 import { analyzeSimLote, askSimLote } from '../../lib/sim-consumos-agent';
+import { runAfterResponse } from '../../lib/background';
 import { readInventory } from './inventario';
 
 export const prerender = false;
@@ -38,7 +39,49 @@ export interface SimLote {
   blobPath: string;
   stats: SimStats;
   analysis: { text: string; at: string } | null;
+  // Marca de informe en curso: el informe se redacta después de responder (waitUntil) y la
+  // pantalla consulta el lote hasta que aparezca.
+  analysisStartedAt?: string | null;
+  analysisError?: string | null;
   qa: { q: string; a: string; at: string }[];
+}
+
+const ANALYSIS_PENDING_MS = 5 * 60_000;
+
+function analysisPending(l: SimLote): boolean {
+  return !l.analysis && !!l.analysisStartedAt && Date.now() - Date.parse(l.analysisStartedAt) < ANALYSIS_PENDING_MS;
+}
+
+async function readLote(redis: any, id: string): Promise<SimLote | null> {
+  const raw = await redis.hget(REDIS_KEY, id);
+  if (!raw) return null;
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : (raw as SimLote);
+  } catch {
+    return null;
+  }
+}
+
+// Redacta el informe fuera de la petición: subir, guardar en Blob, calcular y además esperar a
+// Anthropic en una sola llamada superaba el tiempo de la función y el navegador veía
+// "Failed to fetch". Al terminar se relee el lote para no pisar preguntas hechas mientras tanto.
+async function analyzeInBackground(redis: any, lote: SimLote): Promise<void> {
+  lote.analysisStartedAt = new Date().toISOString();
+  lote.analysisError = null;
+  await saveLote(redis, lote);
+  let text: string | null = null;
+  let error = '';
+  try {
+    text = await analyzeSimLote(redis, lote);
+    if (!text) error = 'GPSITO no respondió';
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+  const fresh = (await readLote(redis, lote.id)) || lote;
+  fresh.analysisStartedAt = null;
+  if (text) fresh.analysis = { text, at: new Date().toISOString() };
+  else fresh.analysisError = error || 'sin respuesta';
+  await saveLote(redis, fresh);
 }
 
 async function requireAccess(cookies: any): Promise<Session | null> {
@@ -132,6 +175,7 @@ function lightLote(l: SimLote) {
     overCount: l.stats.over.count,
     zeroCount: l.stats.zero.count,
     hasAnalysis: !!l.analysis,
+    analysisPending: analysisPending(l),
   };
 }
 
@@ -148,7 +192,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (id) {
     const lote = lotes.find((l) => l.id === id);
     if (!lote) return new Response(JSON.stringify({ error: 'lote no encontrado' }), { status: 404 });
-    return new Response(JSON.stringify({ lote, blobUrl: '/api/blob-file?path=' + encodeURIComponent(lote.blobPath) }), { headers });
+    return new Response(JSON.stringify({ lote, analysisPending: analysisPending(lote), blobUrl: '/api/blob-file?path=' + encodeURIComponent(lote.blobPath) }), { headers });
   }
   return new Response(JSON.stringify({ lotes: lotes.map(lightLote), defaultPlanMb: DEFAULT_PLAN_MB, isAdmin: session.role === 'admin' }), { headers });
 };
@@ -222,21 +266,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       analysis: null,
       qa: [],
     };
+    lote.analysisStartedAt = new Date().toISOString();
     await saveLote(redis, lote);
     await logAudit(redis, session, 'sim_consumos_upload', label, `${lines.length} líneas, ${files.length} archivo(s)`);
 
-    // El informe de GPSITO se intenta de una vez; si Anthropic no responde, la ficha queda
-    // guardada y la pantalla ofrece "Generar informe" para reintentar.
-    try {
-      const text = await analyzeSimLote(redis, lote);
-      if (text) {
-        lote.analysis = { text, at: new Date().toISOString() };
-        await saveLote(redis, lote);
-      }
-    } catch (err) {
-      console.error('sim-consumos: fallo el analisis', err instanceof Error ? err.message : String(err));
-    }
-    return new Response(JSON.stringify({ lote }), { headers });
+    const work = analyzeInBackground(redis, lote).catch((err) => console.error('sim-consumos: fallo el analisis', err instanceof Error ? err.message : String(err)));
+    const inline = runAfterResponse(work);
+    if (inline) await inline;
+    return new Response(JSON.stringify({ lote, analysisPending: true }), { headers });
   }
 
   const id = String(body.id || '');
@@ -245,11 +282,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!lote) return new Response(JSON.stringify({ error: 'lote no encontrado' }), { status: 404 });
 
   if (action === 'analyze') {
-    const text = await analyzeSimLote(redis, lote);
-    if (!text) return new Response(JSON.stringify({ error: 'GPSITO no respondió; intenta de nuevo en un momento' }), { status: 502 });
-    lote.analysis = { text, at: new Date().toISOString() };
-    await saveLote(redis, lote);
-    return new Response(JSON.stringify({ lote }), { headers });
+    if (analysisPending(lote)) return new Response(JSON.stringify({ lote, analysisPending: true }), { headers });
+    lote.analysis = null;
+    const work = analyzeInBackground(redis, lote).catch((err) => console.error('sim-consumos: fallo el analisis', err instanceof Error ? err.message : String(err)));
+    const inline = runAfterResponse(work);
+    if (inline) await inline;
+    return new Response(JSON.stringify({ lote, analysisPending: true }), { headers });
   }
 
   if (action === 'ask') {

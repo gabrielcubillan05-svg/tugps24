@@ -185,16 +185,21 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `error ${res.status}`);
-      uploadStatus.textContent = data.lote && data.lote.analysis ? 'Lote guardado con informe de GPSITO.' : 'Lote guardado. GPSITO no alcanzó a responder; usa "Generar informe" en el lote.';
+      uploadStatus.textContent = 'Lote guardado. GPSITO está redactando el informe; aparecerá abajo en un momento.';
       form.reset();
       planInput.value = String(data.lote.planMb || 20);
       preview.hidden = true;
       parsed = null;
       await loadLotes();
-      renderDetail(data.lote);
+      renderDetail(data.lote, '/api/blob-file?path=' + encodeURIComponent(data.lote.blobPath), true);
+      pollAnalysis(data.lote.id);
     } catch (err) {
-      uploadStatus.textContent = 'No se pudo subir: ' + (err.message || 'intenta de nuevo');
+      const cut = err && (err.name === 'TypeError' || /fetch/i.test(err.message || ''));
+      uploadStatus.textContent = cut
+        ? 'La conexión se cortó antes de recibir respuesta. Revisa en la lista de abajo si el lote quedó creado antes de volver a subirlo.'
+        : 'No se pudo subir: ' + (err.message || 'intenta de nuevo');
       uploadBtn.disabled = false;
+      loadLotes();
     }
   });
 
@@ -216,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="sim-lote" data-id="${l.id}">
         <div>
           <div><b>${escapeHtml(l.label)}</b> <span class="sim-tag">del ${periodLabel(l.periodStart, l.periodEnd)}</span></div>
-          <div class="meta">${l.files.length} archivo(s) · ${l.accounts.length} cuenta(s) · subido ${fmtDateTime(l.uploadedAt)} por ${escapeHtml(l.uploadedByName)}${l.hasAnalysis ? ' · con informe' : ' · sin informe'}</div>
+          <div class="meta">${l.files.length} archivo(s) · ${l.accounts.length} cuenta(s) · subido ${fmtDateTime(l.uploadedAt)} por ${escapeHtml(l.uploadedByName)}${l.hasAnalysis ? ' · con informe' : l.analysisPending ? ' · informe en curso' : ' · sin informe'}</div>
         </div>
         <div class="nums"><b>${fmtNum(l.lineCount)}</b> líneas · <b>${fmtMb(l.totalMb)}</b><br />${l.overCount ? `<span style="color:#f59e0b">${fmtNum(l.overCount)} sobre el plan de ${l.planMb} MB</span>` : 'ninguna sobre el plan'} · ${l.zeroCount} sin consumo</div>
       </div>`).join('');
@@ -233,7 +238,35 @@ document.addEventListener('DOMContentLoaded', function () {
       detailEl.innerHTML = `<div class="panel-card"><div class="empty">No se pudo cargar (HTTP ${res.status}).</div></div>`;
       return;
     }
-    renderDetail(data.lote, data.blobUrl);
+    renderDetail(data.lote, data.blobUrl, data.analysisPending);
+    if (data.analysisPending) pollAnalysis(data.lote.id);
+  }
+
+  // Mientras GPSITO redacta (en el servidor, después de responder), se consulta el lote cada 5 s.
+  let pollTimer = null;
+  function pollAnalysis(id) {
+    clearTimeout(pollTimer);
+    const startedAt = Date.now();
+    const tick = async () => {
+      if (!currentLote || currentLote.id !== id) return;
+      try {
+        const res = await fetch('/api/sim-consumos?id=' + encodeURIComponent(id), { signal: AbortSignal.timeout(20000) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.lote) {
+          if (data.lote.analysis || !data.analysisPending) {
+            renderDetail(data.lote, data.blobUrl, false);
+            loadLotes();
+            return;
+          }
+        }
+      } catch { /* se reintenta */ }
+      if (Date.now() - startedAt < 4 * 60000) pollTimer = setTimeout(tick, 5000);
+      else {
+        const report = document.getElementById('simReport');
+        if (report) report.innerHTML = '<p class="hint" style="margin:0;">GPSITO no terminó el informe en cuatro minutos. Pulsa "Generar informe" para intentarlo de nuevo.</p>';
+      }
+    };
+    pollTimer = setTimeout(tick, 4000);
   }
 
   // Render mínimo del informe de GPSITO (títulos, negritas, listas, párrafos).
@@ -264,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return `<div class="table-scroll"><table class="sim-table"><thead><tr>${headers.map((h) => `<th class="${h.left ? 'l' : ''}">${escapeHtml(h.label)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
   }
 
-  function renderDetail(lote, blobUrl) {
+  function renderDetail(lote, blobUrl, pending) {
     currentLote = lote;
     const s = lote.stats;
     const dayKeys = Object.keys(s.perDayMb);
@@ -311,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         <div class="sim-section">
           <h4>Informe de GPSITO <span class="count">${lote.analysis ? 'generado ' + fmtDateTime(lote.analysis.at) : 'sin generar'}</span></h4>
-          <div class="sim-report" id="simReport">${lote.analysis ? renderReport(lote.analysis.text) : '<p class="hint" style="margin:0;">Pulsa "Generar informe" para que GPSITO analice este lote.</p>'}</div>
+          <div class="sim-report" id="simReport">${lote.analysis ? renderReport(lote.analysis.text) : pending ? '<p class="hint" style="margin:0;">GPSITO está redactando el informe... suele tardar entre 30 segundos y 2 minutos. Esta página se actualiza sola.</p>' : lote.analysisError ? `<p class="hint" style="margin:0;color:#ef4444">El informe no se pudo generar (${escapeHtml(lote.analysisError)}). Pulsa "Generar informe" para reintentar.</p>` : '<p class="hint" style="margin:0;">Pulsa "Generar informe" para que GPSITO analice este lote.</p>'}</div>
           <div class="sim-ask">
             <input type="text" id="simQuestion" maxlength="600" placeholder="Pregúntale a GPSITO sobre este lote (ej. ¿qué pasa con la cuenta 0232?)" />
             <button class="btn-small" type="button" id="simAskBtn">Preguntar</button>
@@ -388,7 +421,8 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `error ${res.status}`);
-      renderDetail(data.lote, '/api/blob-file?path=' + encodeURIComponent(data.lote.blobPath));
+      renderDetail(data.lote, '/api/blob-file?path=' + encodeURIComponent(data.lote.blobPath), !!data.analysisPending);
+      if (data.analysisPending) pollAnalysis(data.lote.id);
       loadLotes();
     } catch (err) {
       alert(err.message || 'No se pudo completar.');
