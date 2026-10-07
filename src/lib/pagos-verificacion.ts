@@ -221,7 +221,7 @@ function extractJsonObject(text: string): any | null {
   }
   for (const c of candidates) {
     if (!c || !c.includes('{')) continue;
-    const cleaned = c.replace(/:\s*\$\s*([\d.,]+)/g, ': "$1"').replace(/,\s*([}\]])/g, '$1').replace(/\bNaN\b|\bundefined\b/g, 'null');
+    const cleaned = c.replace(/:\s*\$\s*([\d.]+(?:,\d{1,2})?)(?=\s*[,}\]])/g, ': "$1"').replace(/,\s*([}\]])/g, '$1').replace(/\bNaN\b|\bundefined\b/g, 'null');
     try {
       const obj = JSON.parse(cleaned);
       if (obj && typeof obj === 'object') return obj;
