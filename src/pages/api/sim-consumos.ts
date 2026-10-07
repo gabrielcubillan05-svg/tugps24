@@ -221,6 +221,39 @@ function lightLote(l: SimLote) {
 
 const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
 
+// Una fila por línea, ordenadas por consumo, con el mismo criterio de estado del informe. Excel
+// en español: separador ";", coma decimal y BOM para las tildes.
+function linesToCsv(lote: SimLote, lines: SimLine[]): string {
+  const dias = (lote.stats.days && lote.stats.days.length) || Math.max(1, Math.round((Date.parse(lote.periodEnd) - Date.parse(lote.periodStart)) / 86400000) + 1);
+  const planMb = lote.planMb || DEFAULT_PLAN_MB;
+  const limitMb = lote.limitMb || lote.stats.limitMb || DEFAULT_LIMIT_MB;
+  const num = (v: number, d: number) => Number(v || 0).toFixed(d).replace('.', ',');
+  const cell = (v: unknown) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const rows = lines
+    .map((l) => {
+      const mb = (l.kb || 0) / 1024;
+      const mesMb = (mb * 30) / dias;
+      const diasUso = Object.values(l.d || {}).filter((kb) => kb > 0).length;
+      const imeis = Array.isArray(l.i) ? l.i : [];
+      let estado = 'Normal';
+      if (mb <= 0) estado = 'Sin consumo';
+      else if (mesMb > limitMb) estado = `Crítico (más de ${limitMb} MB/mes)`;
+      else if (mesMb > planMb) estado = `Sobre el plan (${planMb} MB/mes)`;
+      else if (imeis.length > 1) estado = 'Varios IMEI';
+      return { l, mb, mesMb, diasUso, imeis, estado };
+    })
+    .sort((a, b) => b.mb - a.mb);
+  const head = ['Línea', 'Cuenta', 'MB en el periodo', 'MB/mes proyectado', 'Días con consumo', 'Estado', 'IMEI', 'Subida MB', 'Bajada MB'];
+  const meta = [
+    [cell('Lote'), cell(lote.label)].join(';'),
+    [cell('Periodo'), cell(`${lote.periodStart} a ${lote.periodEnd}`)].join(';'),
+    [cell('Plan MB/mes'), planMb, cell('Máximo MB/mes'), limitMb].join(';'),
+    '',
+  ];
+  const body = rows.map((r) => [cell(r.l.n), cell(r.l.c), num(r.mb, 2), num(r.mesMb, 1), r.diasUso, cell(r.estado), cell(r.imeis.join(' | ')), num((r.l.u || 0) / 1024, 2), num((r.l.b || 0) / 1024, 2)].join(';'));
+  return '\ufeff' + [...meta, head.join(';'), ...body].join('\n') + '\n';
+}
+
 export const GET: APIRoute = async ({ cookies, url }) => {
   const session = await requireAccess(cookies);
   if (!session) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
@@ -233,6 +266,21 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     const found = lotes.find((l) => l.id === id);
     if (!found) return new Response(JSON.stringify({ error: 'lote no encontrado' }), { status: 404 });
     const lote = markInterruptedAnalysis(found);
+    // CSV para Excel armado en el servidor: el JSON de líneas de un lote grande pasa de los 4,5 MB
+    // que Vercel deja responder y el navegador lo veía como "Failed to fetch".
+    if (url.searchParams.get('csv') === '1') {
+      const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
+      if (!token) return new Response(JSON.stringify({ error: 'almacenamiento no configurado' }), { status: 503 });
+      const lines = await readLines(token, lote.blobPath);
+      const csv = linesToCsv(lote, lines);
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="consumo-sim_${lote.periodStart}_a_${lote.periodEnd}.csv"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
     return new Response(JSON.stringify({ lote, analysisPending: analysisPending(lote), blobUrl: '/api/blob-file?path=' + encodeURIComponent(lote.blobPath) }), { headers });
   }
   return new Response(JSON.stringify({ lotes: lotes.map(lightLote), defaultPlanMb: DEFAULT_PLAN_MB, defaultLimitMb: DEFAULT_LIMIT_MB, isAdmin: session.role === 'admin' }), { headers });

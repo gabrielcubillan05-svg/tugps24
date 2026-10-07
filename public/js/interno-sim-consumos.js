@@ -361,56 +361,6 @@ document.addEventListener('DOMContentLoaded', function () {
     return `<div class="table-scroll"><table class="sim-table"><thead><tr>${headers.map((h) => `<th class="${h.left ? 'l' : ''}">${escapeHtml(h.label)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
   }
 
-  // Excel en español: separador ";", coma decimal y BOM para que abra con tildes. Una fila por
-  // línea, con el mismo criterio de estado que el informe (plan y máximo del lote).
-  async function descargarCsv(lote, blobUrl, btn) {
-    btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = 'Preparando...';
-    try {
-      const res = await fetch(blobUrl, { signal: timeoutSignal ? timeoutSignal(60000) : undefined });
-      if (!res.ok) throw new Error('No se pudo leer el archivo de líneas (' + res.status + ')');
-      const lines = await res.json();
-      const s = lote.stats;
-      const dias = (s.days && s.days.length) || Math.max(1, Math.round((Date.parse(lote.periodEnd) - Date.parse(lote.periodStart)) / 86400000) + 1);
-      const planMb = lote.planMb || 10;
-      const limitMb = lote.limitMb || s.limitMb || 15;
-      const num = (v, d) => Number(v || 0).toFixed(d).replace('.', ',');
-      const cell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-      const rows = lines.map((l) => {
-        const mb = (l.kb || 0) / 1024;
-        const mesMb = (mb * 30) / dias;
-        const diasUso = Object.values(l.d || {}).filter((kb) => kb > 0).length;
-        const imeis = Array.isArray(l.i) ? l.i : [];
-        let estado = 'Normal';
-        if (mb <= 0) estado = 'Sin consumo';
-        else if (mesMb > limitMb) estado = 'Crítico (más de ' + limitMb + ' MB/mes)';
-        else if (mesMb > planMb) estado = 'Sobre el plan (' + planMb + ' MB/mes)';
-        else if (imeis.length > 1) estado = 'Varios IMEI';
-        return { l, mb, mesMb, diasUso, imeis, estado };
-      });
-      rows.sort((a, b) => b.mb - a.mb);
-      const head = ['Línea', 'Cuenta', 'MB en el periodo', 'MB/mes proyectado', 'Días con consumo', 'Estado', 'IMEI', 'Subida MB', 'Bajada MB'];
-      const body = rows.map((r) => [cell(r.l.n), cell(r.l.c), num(r.mb, 2), num(r.mesMb, 1), r.diasUso, cell(r.estado), cell(r.imeis.join(' | ')), num((r.l.u || 0) / 1024, 2), num((r.l.b || 0) / 1024, 2)].join(';'));
-      const meta = [
-        cell('Lote'), cell(lote.label),
-      ].join(';') + '\n' + [cell('Periodo'), cell(periodLabel(lote.periodStart, lote.periodEnd))].join(';') + '\n' + [cell('Plan MB/mes'), planMb, cell('Máximo MB/mes'), limitMb].join(';') + '\n\n';
-      const csv = '\ufeff' + meta + head.join(';') + '\n' + body.join('\n') + '\n';
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `consumo-sim_${lote.periodStart}_a_${lote.periodEnd}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    } catch (err) {
-      alert('No se pudo descargar: ' + ((err && err.message) || err));
-    } finally {
-      btn.disabled = false;
-      btn.textContent = original;
-    }
-  }
-
   function renderDetail(lote, blobUrl, pending) {
     currentLote = lote;
     const s = lote.stats;
@@ -438,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <label class="hint" style="margin:0;">Máximo <input type="number" min="1" id="simDetailLimit" value="${lote.limitMb || s.limitMb || 15}" /> MB/mes</label>
             <button class="btn-small" type="button" id="simRecalc">Recalcular</button>
             <button class="btn-small" type="button" id="simReanalyze">${lote.analysis ? 'Rehacer informe' : 'Generar informe'}</button>
-            ${blobUrl ? `<button class="btn-small" type="button" id="simCsv" title="Todas las líneas con consumo, proyección mensual, estado e IMEI, para abrir en Excel">Descargar Excel (CSV)</button>` : ''}
+            <a class="btn-small" href="/api/sim-consumos?id=${encodeURIComponent(lote.id)}&csv=1" title="Todas las líneas con consumo, proyección mensual, estado e IMEI, para abrir en Excel">Descargar Excel (CSV)</a>
             ${isAdmin ? '<button class="btn-small btn-delete" type="button" id="simDelete">Eliminar lote</button>' : ''}
           </div>
         </div>
@@ -511,8 +461,7 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>`;
 
     document.getElementById('simReanalyze').addEventListener('click', () => action('analyze', {}, 'GPSITO está analizando el lote...'));
-    const csvBtn = document.getElementById('simCsv');
-    if (csvBtn) csvBtn.addEventListener('click', () => descargarCsv(lote, blobUrl, csvBtn));
+
     document.getElementById('simRecalc').addEventListener('click', () => action('plan', { planMb: Number(document.getElementById('simDetailPlan').value) || 10, limitMb: Number(document.getElementById('simDetailLimit').value) || 15 }, 'Recalculando...'));
     document.getElementById('simAskBtn').addEventListener('click', ask);
     document.getElementById('simQuestion').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ask(); } });
