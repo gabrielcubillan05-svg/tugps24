@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, canAccessPlanillasVehiculo } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessSection, firstSectionFor, SECTION_PATHS, canAccessPlanillasVehiculo, canFillPlanillaVehiculo } from '../../lib/auth';
 import { CHECKLIST_ITEMS, ESTADOS } from '../api/planillas-vehiculo';
 import { todayInColombia, timeInColombia } from '../../lib/colombia-time';
 
@@ -14,13 +14,13 @@ if (!canAccessPlanillasVehiculo(session)) {
   return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
 }
 
-const isManager = session.role === 'gerente' || session.role === 'admin';
+const puedeLlenar = canFillPlanillaVehiculo(session);
 const defaultFecha = todayInColombia();
 const defaultHora = timeInColombia();
 ---
 
 <InternoLayout title="Planilla de vehículo" active="planillas-vehiculo" session={session}>
-  {!isManager && (
+  {puedeLlenar && (
     <div class="panel-card">
       <h2>Nueva planilla de ingreso de vehículo</h2>
       <form id="planillaForm">

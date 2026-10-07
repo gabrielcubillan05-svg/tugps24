@@ -253,6 +253,11 @@ const PLANILLAS_EXTRA_USERNAMES = ['cristianzambrano1', 'jhonyparra'];
 export function canAccessPlanillasVehiculo(session: Pick<Session, 'role' | 'username'>): boolean {
   return canAccessSection(session.role, 'planillas-vehiculo') || PLANILLAS_EXTRA_USERNAMES.includes(session.username.toLowerCase());
 }
+// Quién llena planillas (el formulario de ingreso): los técnicos y los dos nombrados arriba,
+// aunque su rol sea gerente. Gerente y admin solo consultan.
+export function canFillPlanillaVehiculo(session: Pick<Session, 'role' | 'username'>): boolean {
+  return session.role === 'tecnico' || PLANILLAS_EXTRA_USERNAMES.includes(session.username.toLowerCase());
+}
 
 // Consumo de SIM: los archivos del operador los suben y analizan Cristian (inventario nacional)
 // y Josué; el admin también lo ve.

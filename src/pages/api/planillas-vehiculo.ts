@@ -108,7 +108,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (session.role !== 'admin') {
     const me = await findUserById(redis, session.userId);
     const myBranches = branchesOf(me);
-    planillas = planillas.filter((p) => myBranches.includes(p.branch));
+    // Las propias siempre se ven, aunque el usuario no tenga sucursal asignada.
+    planillas = planillas.filter((p) => myBranches.includes(p.branch) || p.tecnicoId === session.userId);
   }
 
   if (q) {
@@ -303,7 +304,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (session.role !== 'admin') {
     const me = await findUserById(redis, session.userId);
     const myBranches = branchesOf(me);
-    if (!myBranches.includes(planilla.branch)) {
+    if (!myBranches.includes(planilla.branch) && planilla.tecnicoId !== session.userId) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
     }
   }
