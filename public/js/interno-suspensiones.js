@@ -127,12 +127,29 @@ document.addEventListener('DOMContentLoaded', function () {
     return parts.join('');
   }
 
+  // Paginación en el navegador: la lista crece con los meses y una sola página se hacía kilométrica.
+  const PAGE_SIZE = 20;
+  let currentPage = 1;
+  let lastCasos = [];
+
   function renderList(casos) {
+    lastCasos = casos;
     if (!casos.length) {
       suspensionesList.innerHTML = '<div class="empty">No hay casos con esos filtros.</div>';
       return;
     }
-    suspensionesList.innerHTML = casos.map((c) => `
+    const totalPages = Math.max(1, Math.ceil(casos.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    const from = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = casos.slice(from, from + PAGE_SIZE);
+    const pager = totalPages > 1
+      ? `<div class="list-pager"><span class="hint">Mostrando ${from + 1}–${from + pageItems.length} de ${casos.length}</span>
+          <button class="btn-small" type="button" data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>‹ Anterior</button>
+          <span>Página ${currentPage} de ${totalPages}</span>
+          <button class="btn-small" type="button" data-page="${currentPage + 1}" ${currentPage >= totalPages ? 'disabled' : ''}>Siguiente ›</button></div>`
+      : '';
+    suspensionesList.innerHTML = pager + pageItems.map((c) => `
       <div class="suspension-item ${!OPEN_STATUSES.includes(c.status) ? 'closed' : ''}" data-id="${c.id}">
         <div class="suspension-top">
           <span class="suspension-client">${c.clientName ? escapeHtml(c.clientName) : 'Cliente sin nombre'}${c.plate ? ' · ' + escapeHtml(c.plate) : ''} · ${escapeHtml(c.branch)}</span>
@@ -172,7 +189,12 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         ` : ''}
       </div>
-    `).join('');
+    `).join('') + pager;
+    suspensionesList.querySelectorAll('[data-page]').forEach((b) => b.addEventListener('click', () => {
+      currentPage = Number(b.getAttribute('data-page')) || 1;
+      renderList(lastCasos);
+      suspensionesList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
   }
 
   let allCasos = [];
@@ -270,19 +292,22 @@ document.addEventListener('DOMContentLoaded', function () {
   const tabButtons = document.querySelectorAll('.tab-btn[data-status]');
 
   let debounceTimer;
+  const recargarDesdeElInicio = () => { currentPage = 1; loadSuspensiones(); };
   searchInput.addEventListener('input', function () {
     clearTimeout(debounceTimer);
+    currentPage = 1;
     debounceTimer = setTimeout(loadSuspensiones, 250);
   });
-  branchFilter.addEventListener('change', loadSuspensiones);
-  dateFromFilter.addEventListener('change', loadSuspensiones);
-  dateToFilter.addEventListener('change', loadSuspensiones);
-  assignedToFilter.addEventListener('change', loadSuspensiones);
+  branchFilter.addEventListener('change', recargarDesdeElInicio);
+  dateFromFilter.addEventListener('change', recargarDesdeElInicio);
+  dateToFilter.addEventListener('change', recargarDesdeElInicio);
+  assignedToFilter.addEventListener('change', recargarDesdeElInicio);
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', function () {
       tabButtons.forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       currentTab = btn.getAttribute('data-status') || '';
+      currentPage = 1;
       loadSuspensiones();
     });
   });
