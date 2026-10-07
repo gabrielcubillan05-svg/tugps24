@@ -88,12 +88,16 @@ export const GET: APIRoute = async ({ request, url }) => {
   if (state.paused) return json(200, { paused: true, items: [], known: [] });
 
   const limit = Math.min(MAX_BATCH, Math.max(1, parseInt(url.searchParams.get('limit') || '5', 10) || 5));
+  // only=manual: solo lo aprobado a mano en el panel (modo aplicar-manuales). Lo aprobado a mano
+  // va siempre primero: una persona ya decidió y está esperando.
+  const soloManual = url.searchParams.get('only') === 'manual';
   const now = Date.now();
   const pending = (await readPagos(redis))
     .filter(isApplyPending)
+    .filter((p) => !soloManual || p.status === 'aprobado')
     // Un comprobante tomado por un ciclo anterior que no reportó se suelta pasado el plazo.
     .filter((p) => !p.applyClaimedAt || now - Date.parse(p.applyClaimedAt) > APPLY_CLAIM_MS)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .sort((a, b) => (a.status === 'aprobado' ? 0 : 1) - (b.status === 'aprobado' ? 0 : 1) || a.createdAt.localeCompare(b.createdAt))
     .slice(0, limit);
   const nowIso = new Date(now).toISOString();
   for (const p of pending) {

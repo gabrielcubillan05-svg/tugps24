@@ -48,8 +48,8 @@ const api = (path, init = {}) =>
     signal: AbortSignal.timeout(90_000),
   });
 
-async function pendientesDelPanel(limit) {
-  const res = await api(`?limit=${limit}`);
+async function pendientesDelPanel(limit, soloManual = false) {
+  const res = await api(`?limit=${limit}${soloManual ? '&only=manual' : ''}`);
   if (!res.ok) throw new Error(`El panel respondió ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   return res.json();
 }
@@ -478,7 +478,7 @@ async function main() {
   if (MODO === 'verificar-acceso') return verificarAcceso();
   if (MODO === 'explorar-pagos') return explorarPagos();
   const aplica = MODO === 'aplicar' || MODO === 'aplicar-manuales';
-  const data = await pendientesDelPanel(aplica ? MAX_POR_CICLO * 3 : 1);
+  const data = await pendientesDelPanel(aplica ? MAX_POR_CICLO : 1, MODO === 'aplicar-manuales');
   if (data.paused) {
     console.log('Robot en pausa desde el panel; nada que hacer.');
     return;
@@ -496,6 +496,7 @@ async function main() {
       // En aplicar-manuales solo pasan los que una persona aprobó en el panel (status 'aprobado');
       // los verdes automáticos esperan a que se habilite el modo aplicar completo.
       const porAprobar = data.items.filter((i) => i.action === 'aprobar' && (MODO === 'aplicar' || i.status === 'aprobado')).slice(0, MAX_POR_CICLO);
+      console.log(`Por aprobar en Optimus: ${porAprobar.length}` + (porAprobar.length ? ' · ' + porAprobar.map((i) => `${i.optimus?.numero || '?'} ${i.clientName}`).join(' | ') : ''));
       if (porAprobar.length) await aplicar(page, porAprobar);
       else console.log('Nada por aprobar en Optimus en este modo.');
     }
