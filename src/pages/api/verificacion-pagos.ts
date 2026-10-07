@@ -11,6 +11,7 @@ import { blobTimeout } from '../../lib/blob-path';
 import { detectImageType } from '../../lib/uploads';
 import { dHashFromImage } from '../../lib/image-hash';
 import { runAfterResponse } from '../../lib/background';
+import { getLastAnthropicFailure } from '../../lib/anthropic-client';
 import { checkAndIncrementRateLimit } from '../../lib/rate-limit';
 import { reportIncident } from '../../lib/incidents';
 import {
@@ -125,7 +126,7 @@ function toClient(p: PagoCliente) {
 export async function retryFailedAnalyses(redis: any, max = 3): Promise<number> {
   const token = import.meta.env.BLOB_READ_WRITE_TOKEN as string | undefined;
   if (!token) return 0;
-  const sinRespuesta = (p: PagoCliente) => p.analysisError === ANALYSIS_NO_RESPONSE || p.analysisError === 'interrumpido' || (p.analysisError || '').startsWith('Falló la lectura');
+  const sinRespuesta = (p: PagoCliente) => (p.analysisError || '').startsWith(ANALYSIS_NO_RESPONSE) || p.analysisError === 'interrumpido' || (p.analysisError || '').startsWith('Falló la lectura');
   const candidates = (await readPagos(redis))
     .filter((p) => p.filePath && p.fileType !== 'none')
     // Rojos sin respuesta, y aprobados a mano cuyo valor GPSITO aún no leyó (el robot no los
@@ -200,16 +201,17 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
     // salvo que el valor leído no coincida con el que digitó la secretaria (vuelve a rojo).
     const aprobadoAMano = fresh.status === 'aprobado';
     if (!result) {
+      const motivo = getLastAnthropicFailure();
       fresh.analysisStartedAt = null;
-      fresh.analysisError = ANALYSIS_NO_RESPONSE;
+      fresh.analysisError = ANALYSIS_NO_RESPONSE + (motivo ? ` (${motivo})` : '');
       if (aprobadoAMano) {
         fresh.notes = [...fresh.notes.filter((n) => !n.startsWith('GPSITO no pudo leer')), 'GPSITO no pudo leer el valor del comprobante; el robot no lo aplica hasta leerlo.'];
       } else {
         fresh.status = 'rojo';
-        fresh.reasons = ['GPSITO no pudo leer el comprobante en este momento; se reintentará solo en la próxima ronda del robot.'];
+        fresh.reasons = [`GPSITO no pudo leer el comprobante en este momento${motivo ? ' (' + motivo + ')' : ''}; se reintentará solo en la próxima ronda del robot.`];
       }
       await savePago(redis, fresh);
-      await reportIncident(redis, 'pagos_lectura_fallida', `comprobante ${pago.id.slice(0, 8)} de ${pago.branch}`);
+      await reportIncident(redis, 'pagos_lectura_fallida', `comprobante ${pago.id.slice(0, 8)} de ${pago.branch}${motivo ? ' · ' + motivo : ''}`);
       return;
     }
     const extracted = result.extracted;

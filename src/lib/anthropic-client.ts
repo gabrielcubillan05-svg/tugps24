@@ -9,6 +9,14 @@
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 529]);
 const RETRY_DELAYS_MS = [1000, 2500];
 
+// Último fallo de la API en esta instancia, para que quien reciba un null pueda mostrar el
+// motivo real (429, créditos, modelo) en vez de un "no respondió" a secas.
+let lastFailure: { status: number | null; detail: string; at: number } | null = null;
+export function getLastAnthropicFailure(): string {
+  if (!lastFailure || Date.now() - lastFailure.at > 60_000) return '';
+  return lastFailure.status ? `Anthropic respondió ${lastFailure.status}: ${lastFailure.detail}` : `sin conexión con Anthropic: ${lastFailure.detail}`;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -31,6 +39,7 @@ export async function callAnthropicMessages(apiKey: string, body: Record<string,
       });
     } catch (err) {
       console.error(`${logPrefix}: fetch failed (intento ${attempt + 1}/${maxAttempts})`, err instanceof Error ? err.message : String(err));
+      lastFailure = { status: null, detail: (err instanceof Error ? err.message : String(err)).slice(0, 160), at: Date.now() };
       if (attempt < maxAttempts - 1) {
         await sleep(RETRY_DELAYS_MS[attempt]);
         continue;
@@ -49,6 +58,7 @@ export async function callAnthropicMessages(apiKey: string, body: Record<string,
 
     const detail = await res.text().catch(() => '');
     console.error(`${logPrefix}: Anthropic respondió (intento ${attempt + 1}/${maxAttempts})`, res.status, detail.slice(0, 200));
+    lastFailure = { status: res.status, detail: detail.replace(/\s+/g, ' ').slice(0, 160), at: Date.now() };
     if (RETRYABLE_STATUS.has(res.status) && attempt < maxAttempts - 1) {
       await sleep(RETRY_DELAYS_MS[attempt]);
       continue;
