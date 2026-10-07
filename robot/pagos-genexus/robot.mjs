@@ -122,6 +122,13 @@ async function explorarPagos() {
     await page.getByText('Administrativa', { exact: true }).first().click();
     await page.getByText('Pagos', { exact: true }).first().click();
     await guardar('02-pagos-lista');
+    // Estructura de la lista al registro: encabezados, primera fila completa y los filtros.
+    const encabezados = await page.locator('table th').allInnerTexts().catch(() => []);
+    console.log('ENCABEZADOS ' + JSON.stringify(encabezados.map((t) => t.trim()).filter(Boolean)));
+    const fila = await page.locator('table tbody tr').first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 5000)).catch(() => '');
+    console.log('FILA1 ' + fila);
+    const filtros = await page.locator('select, input[type="text"], input[type="search"]').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, tag: e.tagName, placeholder: e.placeholder, options: e.tagName === 'SELECT' ? [...e.options].map((o) => o.text.trim()).slice(0, 20) : undefined })));
+    console.log('FILTROS ' + JSON.stringify(filtros).slice(0, 4000));
     // Menú de tres rayas de la primera fila → "Confirmación" → cuadro "Confirmación de pago".
     // Se captura el cuadro con sus listas (Contrato, Forma de pago) y se cierra sin aprobar ni denegar.
     const menuBtn = page.locator('table tbody tr').first().locator('button, a, [role="button"], img, span[class*="icon"], i').first();
@@ -140,6 +147,12 @@ async function explorarPagos() {
         writeFileSync('salida/04-campos.json', JSON.stringify(campos, null, 2));
         const botones = await page.locator('button, input[type="button"], input[type="submit"]').evaluateAll((els) => els.map((e) => ({ id: e.id, name: e.name, text: (e.innerText || e.value || '').trim() })).filter((b) => b.text));
         writeFileSync('salida/04-botones.json', JSON.stringify(botones, null, 2));
+        // También al registro de la corrida: el artefacto no siempre se puede descargar desde fuera.
+        console.log('LISTAS ' + JSON.stringify(selects));
+        console.log('CAMPOS ' + JSON.stringify(campos));
+        console.log('BOTONES ' + JSON.stringify(botones));
+        const dialogo = await page.locator('[role="dialog"], .modal, .gx-popup, .popup, div[id*="Popup"], div[id*="popup"]').first().evaluate((el) => el.outerHTML.replace(/\s+/g, ' ').slice(0, 6000)).catch(() => '');
+        console.log('DIALOGO ' + (dialogo || '(no se encontró el contenedor del cuadro)'));
         await page.keyboard.press('Escape').catch(() => {});
       } else {
         console.log('No se encontró la opción "Confirmación" en el menú de la fila.');
