@@ -101,14 +101,24 @@ async function irAPagos(page) {
 // Deja el filtro de la columna Tipo en "Pendiente" (WorkWithPlus recuerda el filtro por usuario;
 // se comprueba y solo se toca si hace falta).
 async function filtrarPendientes(page) {
-  const th = page.locator('#GridContainerTbl th').filter({ hasText: /Tipo/ }).first();
-  const yaFiltrado = await th.locator('.FilterOptions a[sel="T"] span[dsc="Pendiente"]').count().catch(() => 0);
-  if (yaFiltrado) return;
-  await th.locator('button.dropdown-toggle').first().click();
-  await page.waitForTimeout(500);
-  await th.locator('.FilterOptions a:has(span[dsc="Pendiente"])').first().click();
-  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
-  await page.waitForTimeout(800);
+  for (let intento = 0; intento < 2; intento++) {
+    const th = page.locator('#GridContainerTbl th').filter({ hasText: /Tipo/ }).first();
+    const yaFiltrado = await th.locator('.FilterOptions a[sel="T"] span[dsc="Pendiente"]').count().catch(() => 0);
+    if (!yaFiltrado) {
+      await th.locator('button.dropdown-toggle').first().click();
+      await page.waitForTimeout(500);
+      await th.locator('.FilterOptions a:has(span[dsc="Pendiente"])').first().click();
+      await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+      await page.waitForTimeout(800);
+    }
+    // Comprobación real: todas las filas visibles deben ser pendientes; si no, se reintenta una vez.
+    const filas = await leerFilas(page);
+    const otras = filas.filter((f) => f.estado && !/pendiente/i.test(f.estado)).length;
+    console.log(`Filtro Tipo=Pendiente ${yaFiltrado ? 'ya estaba' : 'aplicado'} · filas ${filas.length} · no pendientes ${otras}`);
+    if (!otras) return;
+    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+  }
 }
 
 // Lee todas las filas visibles de una sola vez dentro de la página: la grilla se vuelve a dibujar
@@ -456,6 +466,12 @@ async function aprobarEnOptimus(page, item) {
   const { info, contratos, formasPago, visibles } = await leerConfirmacion(page, fila);
   const pideDatos = visibles.PAYMENTMOUNT_CELL_Class !== 'Invisible' || visibles.vPAYMENTMOUNT_Visible === '1';
   const montoOptimus = Number(String(info.totalPagar || info.montoActual || '0').replace(/\./g, '').replace(',', '.')) || 0;
+  // Pago cargado por el cliente (monto 0) y Optimus no le muestra al robot los campos para
+  // digitar: el usuario del robot no tiene el permiso que sí tiene Kelly. Sin eso, Optimus
+  // rechaza la aprobación ("No existe 'Payment Way'").
+  if (!pideDatos && montoOptimus <= 0) {
+    throw new Error('Optimus no le muestra al usuario del robot los campos de contrato, monto y forma de pago para este pago (cargado por el cliente): falta darle al robot el mismo rol o permiso que a Kelly en Seguridad GAM');
+  }
   let detalle;
   if (pideDatos) {
     // Cargado por el cliente: hay que digitar.
