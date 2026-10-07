@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'latido · verificar-acceso · explorar-pagos (lee sin tocar) · ingestar (trae pendientes al panel, no aprueba) · aplicar (trae y aprueba)'
+        description: 'latido · verificar-acceso · explorar-pagos (lee sin tocar) · ingestar (trae, no aprueba) · aplicar-manuales (aprueba en Optimus solo lo aprobado a mano en el panel) · aplicar (verdes y manuales)'
         type: choice
         default: latido
-        options: [latido, verificar-acceso, explorar-pagos, ingestar, aplicar]
+        options: [latido, verificar-acceso, explorar-pagos, ingestar, aplicar-manuales, aplicar]
       maximo:
         description: 'Cuántos pagos aprobar en esta corrida (modo aplicar)'
         type: string
@@ -51,10 +51,10 @@ jobs:
           GENEXUS_URL: ${{ secrets.GENEXUS_URL }}
           GENEXUS_USER: ${{ secrets.GENEXUS_USER }}
           GENEXUS_PASS: ${{ secrets.GENEXUS_PASS }}
-          # Las corridas programadas arrancan en modo ingestar (sombra): el robot trae y GPSITO
-          # clasifica, Kelly aprueba en Optimus como siempre. Cuando se confirme que el semáforo
-          # coincide con lo que ella aprueba, se cambia aquí a 'aplicar'.
-          MODO: ${{ inputs.modo || 'ingestar' }}
+          # Las corridas programadas arrancan en modo aplicar-manuales: el robot trae y GPSITO
+          # clasifica, y en Optimus solo aplica lo que una persona aprobó a mano en el panel. Cuando
+          # se confirme que el semáforo coincide con lo que Kelly aprueba, se cambia aquí a 'aplicar'.
+          MODO: ${{ inputs.modo || 'aplicar-manuales' }}
           MAX_POR_CICLO: ${{ inputs.maximo || '5' }}
         run: node robot.mjs
       - name: Guardar capturas

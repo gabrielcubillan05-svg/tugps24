@@ -7,7 +7,9 @@
 // Variables de entorno:
 //   PANEL_URL, ROBOT_PAGOS_TOKEN   panel y su clave para /api/verificacion-pagos-robot
 //   GENEXUS_URL, GENEXUS_USER, GENEXUS_PASS   Optimus y el usuario exclusivo del robot
-//   MODO   latido | verificar-acceso | explorar-pagos | ingestar (solo trae, no aprueba) | aplicar (trae y aprueba)
+//   MODO   latido | verificar-acceso | explorar-pagos | ingestar (solo trae, no aprueba)
+//          | aplicar-manuales (trae y aprueba en Optimus solo lo que una persona aprobó a mano en el panel)
+//          | aplicar (trae y aprueba verdes y aprobados a mano)
 //   MAX_POR_CICLO   cuántos pagos aprobar por corrida (por defecto 5)
 //
 // Estructura de Optimus verificada el 2026-10-07 (modo explorar-pagos):
@@ -475,7 +477,8 @@ async function aplicar(page, items) {
 async function main() {
   if (MODO === 'verificar-acceso') return verificarAcceso();
   if (MODO === 'explorar-pagos') return explorarPagos();
-  const data = await pendientesDelPanel(MODO === 'aplicar' ? MAX_POR_CICLO : 1);
+  const aplica = MODO === 'aplicar' || MODO === 'aplicar-manuales';
+  const data = await pendientesDelPanel(aplica ? MAX_POR_CICLO * 3 : 1);
   if (data.paused) {
     console.log('Robot en pausa desde el panel; nada que hacer.');
     return;
@@ -489,10 +492,12 @@ async function main() {
   try {
     await iniciarSesion(page);
     await ingestar(page, data.known);
-    if (MODO === 'aplicar') {
-      const porAprobar = data.items.filter((i) => i.action === 'aprobar');
+    if (aplica) {
+      // En aplicar-manuales solo pasan los que una persona aprobó en el panel (status 'aprobado');
+      // los verdes automáticos esperan a que se habilite el modo aplicar completo.
+      const porAprobar = data.items.filter((i) => i.action === 'aprobar' && (MODO === 'aplicar' || i.status === 'aprobado')).slice(0, MAX_POR_CICLO);
       if (porAprobar.length) await aplicar(page, porAprobar);
-      else console.log('Nada por aprobar en Optimus.');
+      else console.log('Nada por aprobar en Optimus en este modo.');
     }
   } catch (err) {
     await page.screenshot({ path: 'salida/error.png', fullPage: true }).catch(() => {});
