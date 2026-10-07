@@ -224,7 +224,9 @@ function urlConfirmacion(fila) {
     PaymentBranchOfficeName: fila.sucursal,
     PaymentClientName: fila.cliente,
     PaymentDate: fechaParaUrl(fila.fecha),
-    PaymentIsUser: 'false',
+    // true cuando el pago lo cargó el propio cliente: así Optimus muestra contrato, monto, forma de
+    // pago y referencia para digitarlos. Con false (pago creado por secretaria) solo Aprobar/Denegar.
+    PaymentIsUser: fila.cargadoPorCliente ? 'true' : 'false',
   });
   return `${BASE}/${CONFIRM_PATH}?${q.toString()}&gxPopupLevel%3D0%3B`;
 }
@@ -368,6 +370,7 @@ async function explorarPagos() {
     await page.waitForTimeout(4000);
     await volcarCombo(page, 'NEWCONTRACTID');
     await volcarCombo(page, 'PAYMENTWAYCODE');
+    await page.waitForTimeout(1500);
     for (const id of ['COMBO_NEWCONTRACTIDContainer', 'COMBO_PAYMENTWAYCODEContainer', 'PAYMENTMOUNT_CELL', 'PAYMENTWAYREF_CELL']) {
       const inner = await page.locator('#' + id).evaluate((el) => `${el.className} | style=${el.getAttribute('style')} | ${el.innerHTML.replace(/\s+/g, ' ').slice(0, 3500)}`).catch(() => '(no está)');
       console.log(`CONTENEDOR_${id} ` + inner);
@@ -462,15 +465,16 @@ async function aprobarEnOptimus(page, item) {
   const fill = item.fill || {};
   if (!o.paymentId) throw new Error('el pago no trae el identificador de Optimus (vino de la subida manual); aplicar a mano');
   if (!fill.monto) throw new Error('GPSITO no leyó el valor del comprobante');
-  const fila = { paymentId: o.paymentId, clientId: o.clientId, numero: o.numero, sucursal: item.branch, cliente: item.clientName, fecha: o.fecha };
+  const fila = { paymentId: o.paymentId, clientId: o.clientId, numero: o.numero, sucursal: item.branch, cliente: item.clientName, fecha: o.fecha, cargadoPorCliente: !!o.cargadoPorCliente };
   const { info, contratos, formasPago, visibles } = await leerConfirmacion(page, fila);
+  console.log('Cuadro abierto', fila.cargadoPorCliente ? '(cargado por el cliente)' : '(creado por secretaria)', '· campos visibles:', JSON.stringify(visibles));
   const pideDatos = visibles.PAYMENTMOUNT_CELL_Class !== 'Invisible' || visibles.vPAYMENTMOUNT_Visible === '1';
   const montoOptimus = Number(String(info.totalPagar || info.montoActual || '0').replace(/\./g, '').replace(',', '.')) || 0;
   // Pago cargado por el cliente (monto 0) y Optimus no le muestra al robot los campos para
   // digitar: el usuario del robot no tiene el permiso que sí tiene Kelly. Sin eso, Optimus
   // rechaza la aprobación ("No existe 'Payment Way'").
   if (!pideDatos && montoOptimus <= 0) {
-    throw new Error('Optimus no le muestra al usuario del robot los campos de contrato, monto y forma de pago para este pago (cargado por el cliente): falta darle al robot el mismo rol o permiso que a Kelly en Seguridad GAM');
+    throw new Error('Optimus no mostró los campos de contrato, monto y forma de pago para este pago con monto 0; revisar a mano');
   }
   let detalle;
   if (pideDatos) {
