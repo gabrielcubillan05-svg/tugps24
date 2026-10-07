@@ -9,7 +9,7 @@ import { pushNotification } from '../../lib/notifications';
 import { markCronOk } from '../../lib/incidents';
 import { blobTimeout } from '../../lib/blob-path';
 import { cronSecretMatches, getUsers, findUserByUsername, KELLY_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
-import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, isApplyPending, applyActionFor, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
+import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, isApplyPending, applyActionFor, formaPagoDesdeBanco, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
 import { readPagos, readPago, savePago, analyzePago, REDIS_KEY, readRobotState } from './verificacion-pagos';
 
 // Un pago de Optimus entra al panel una sola vez, por su número.
@@ -46,6 +46,10 @@ function forRobot(p: PagoCliente) {
   return {
     id: p.id,
     action: applyActionFor(p),
+    // Lo que el robot debe escribir en el cuadro de confirmación de Optimus.
+    fill: p.extracted
+      ? { monto: p.extracted.valor, referencia: p.extracted.referencia, formaPago: formaPagoDesdeBanco(p.extracted.banco, p.extracted.tipoDestino, p.extracted.observaciones), fecha: p.extracted.fecha }
+      : null,
     source: p.source || 'manual',
     optimus: p.optimus || null,
     resolutionNote: p.resolutionNote || '',

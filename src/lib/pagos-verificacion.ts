@@ -217,6 +217,20 @@ export function parseExtracted(text: string): PagoExtracted | null {
   }
 }
 
+// Lista "Forma de pago" de Optimus (capturada el 2026-10-07): (Ninguno), Consignacion, Daviplata,
+// Nequi, PayU, Transferencia. Se deduce del banco o app que GPSITO leyó en el comprobante; si no
+// se reconoce, el robot no adivina y lo deja para una persona.
+export const OPTIMUS_FORMAS_PAGO = ['Consignacion', 'Daviplata', 'Nequi', 'PayU', 'Transferencia'];
+export function formaPagoDesdeBanco(banco: string, tipoDestino = '', observaciones = ''): string | null {
+  const t = `${banco} ${tipoDestino} ${observaciones}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/nequi/.test(t)) return 'Nequi';
+  if (/daviplata/.test(t)) return 'Daviplata';
+  if (/payu|pse\b|pago en linea|pagos en linea/.test(t)) return 'PayU';
+  if (/efectivo|consignaci|corresponsal|baloto|efecty|sured|ventanilla|cajero|deposito/.test(t)) return 'Consignacion';
+  if (/bre-?b|transferencia|bancolombia|davivienda|bbva|banco|ahorro a la mano|lulo|nu\b|movii|transfiya|llave/.test(t)) return 'Transferencia';
+  return null;
+}
+
 export interface Evaluation {
   reasons: string[];
   notes: string[];
