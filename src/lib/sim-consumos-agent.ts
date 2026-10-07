@@ -1,4 +1,4 @@
-import { callAnthropicMessages, cachedSystemBlocks, withCachedTail, usageFromResponse, type SystemPrompt } from './anthropic-client';
+import { callAnthropicMessages, cachedSystemBlocks, withCachedTail, usageFromResponse, getLastAnthropicFailure, type SystemPrompt } from './anthropic-client';
 import { recordAgentUsage } from './agent-usage';
 import { describeNowInColombia } from './colombia-time';
 import { statsForModel, type SimStats } from './sim-consumos';
@@ -60,9 +60,16 @@ async function run(redis: any, lote: SimLoteContext, messages: unknown[], logPre
     // El informe completo tarda más de los 45 s por defecto y se cortaba como "no respondió".
     { timeoutMs: 170_000 }
   );
-  if (!data) return null;
+  if (!data) {
+    const motivo = getLastAnthropicFailure();
+    throw new Error('GPSITO no respondió' + (motivo ? ` (${motivo})` : ' (sin detalle del error; revisar los logs de Vercel)'));
+  }
   await recordAgentUsage(redis, 'gabot', usageFromResponse(data), { id: `sim:${lote.id}`, channel: 'panel' });
-  return extractText(data) || null;
+  const text = extractText(data);
+  // Una respuesta 200 sin texto (parada por max_tokens antes de escribir, filtro, etc.) se
+  // reporta con su motivo en vez de un "no respondió" a secas.
+  if (!text) throw new Error(`GPSITO devolvió una respuesta vacía (stop_reason: ${String(data?.stop_reason || '?')}, contenido: ${JSON.stringify(data?.content || []).slice(0, 160)})`);
+  return text;
 }
 
 export async function analyzeSimLote(redis: any, lote: SimLoteContext): Promise<string | null> {

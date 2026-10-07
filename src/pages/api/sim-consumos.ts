@@ -7,7 +7,6 @@ import { SESSION_COOKIE, getSession, canAccessSimConsumos, findUserById, verifyS
 import { readHashValues, parseJsonValues } from '../../lib/redis-hash';
 import { computeSimStats, periodOf, normalizeSimNumber, DEFAULT_PLAN_MB, DEFAULT_LIMIT_MB, KB_PER_MB, type SimLine, type SimStats } from '../../lib/sim-consumos';
 import { analyzeSimLote, askSimLote } from '../../lib/sim-consumos-agent';
-import { getLastAnthropicFailure } from '../../lib/anthropic-client';
 import { runAfterResponse } from '../../lib/background';
 import { readInventory } from './inventario';
 import { checkAndIncrementRateLimit } from '../../lib/rate-limit';
@@ -108,10 +107,7 @@ async function analyzeInBackground(redis: any, lote: SimLote): Promise<void> {
   let error = '';
   try {
     text = await analyzeSimLote(redis, lote);
-    if (!text) {
-      const motivo = getLastAnthropicFailure();
-      error = 'GPSITO no respondió' + (motivo ? ' (' + motivo + ')' : '');
-    }
+    if (!text) error = 'GPSITO no respondió';
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }

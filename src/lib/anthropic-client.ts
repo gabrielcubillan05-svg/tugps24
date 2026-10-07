@@ -54,6 +54,7 @@ export async function callAnthropicMessages(apiKey: string, body: Record<string,
         return await res.json();
       } catch (err) {
         console.error(`${logPrefix}: respuesta inválida`, err instanceof Error ? err.message : String(err));
+        lastFailure = { status: res.status, detail: 'respuesta no legible: ' + (err instanceof Error ? err.message : String(err)).slice(0, 120), at: Date.now() };
         return null;
       }
     }
