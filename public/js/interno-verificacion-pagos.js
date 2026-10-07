@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let pendingFile = null;
   let currentTab = '';
+  // La lista crece 40 o 50 comprobantes al día: se pagina en el navegador para no hacer una
+  // página kilométrica (pedido de Gabriel, 2026-10-07).
+  const PAGE_SIZE = 20;
+  let currentPage = 1;
   let listLimit = 0;
   let canResolve = false;
   let pagos = [];
@@ -228,7 +232,18 @@ document.addEventListener('DOMContentLoaded', function () {
       ? pagos.filter((p) => p.applyStatus === 'aplicado' || p.applyStatus === 'manual')
       : pagos.filter((p) => p.status === currentTab);
     if (!items.length) { list.innerHTML = '<div class="empty">No hay comprobantes en esta vista.</div>'; return; }
-    list.innerHTML = items.map((p) => {
+    const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    const from = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = items.slice(from, from + PAGE_SIZE);
+    const pager = totalPages > 1
+      ? `<div class="pago-pager"><span class="hint">Mostrando ${from + 1}–${from + pageItems.length} de ${items.length}</span>
+          <button class="btn-small" type="button" data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>‹ Anterior</button>
+          <span>Página ${currentPage} de ${totalPages}</span>
+          <button class="btn-small" type="button" data-page="${currentPage + 1}" ${currentPage >= totalPages ? 'disabled' : ''}>Siguiente ›</button></div>`
+      : '';
+    list.innerHTML = pager + pageItems.map((p) => {
       const dup = p.duplicateOf ? pagos.find((o) => o.id === p.duplicateOf) : null;
       const thumb = !p.fileUrl
         ? '<div class="pago-sin-imagen">Sin comprobante</div>'
@@ -264,7 +279,12 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
         </div>
       </div>`;
-    }).join('');
+    }).join('') + pager;
+    list.querySelectorAll('[data-page]').forEach((b) => b.addEventListener('click', () => {
+      currentPage = Number(b.getAttribute('data-page')) || 1;
+      render();
+      list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
   }
 
   list.addEventListener('click', async (e) => {
@@ -321,12 +341,13 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.tab-btn').forEach((x) => x.classList.remove('active'));
     b.classList.add('active');
     currentTab = b.getAttribute('data-status') || '';
+    currentPage = 1;
     render();
   }));
   let searchTimer;
-  searchInput.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadPagos, 350); });
-  branchFilter.addEventListener('change', loadPagos);
-  monthFilter.addEventListener('change', loadPagos);
+  searchInput.addEventListener('input', () => { clearTimeout(searchTimer); currentPage = 1; searchTimer = setTimeout(loadPagos, 350); });
+  branchFilter.addEventListener('change', () => { currentPage = 1; loadPagos(); });
+  monthFilter.addEventListener('change', () => { currentPage = 1; loadPagos(); });
 
   const destinosSave = document.getElementById('destinosSave');
   if (destinosSave) destinosSave.addEventListener('click', async () => {

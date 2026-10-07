@@ -10,7 +10,7 @@
 //   MODO   latido | verificar-acceso | explorar-pagos | ingestar (solo trae, no aprueba)
 //          | aplicar-manuales (trae y aprueba en Optimus solo lo que una persona aprobó a mano en el panel)
 //          | aplicar (trae y aprueba verdes y aprobados a mano)
-//   MAX_POR_CICLO   cuántos pagos aprobar por corrida (por defecto 5)
+//   MAX_POR_CICLO   cuántos pagos aprobar o denegar por corrida (por defecto 25)
 //
 // Estructura de Optimus verificada el 2026-10-07 (modo explorar-pagos):
 //   lista   erp.paymentww.aspx, grilla #GridContainerTbl, filas tr#GridContainerRow_NNNN con
@@ -29,7 +29,7 @@ const PANEL_URL = (process.env.PANEL_URL || '').replace(/\/$/, '');
 const TOKEN = process.env.ROBOT_PAGOS_TOKEN || '';
 const BASE = (process.env.GENEXUS_URL || 'https://core.optimus.tugps24.com/').replace(/\/$/, '');
 const MODO = process.env.MODO || 'latido';
-const MAX_POR_CICLO = Math.max(1, Number(process.env.MAX_POR_CICLO) || 10);
+const MAX_POR_CICLO = Math.max(1, Number(process.env.MAX_POR_CICLO) || 25);
 const LOGIN_PATH = 'gamexamplelogin.aspx';
 const PAGOS_PATH = 'erp.paymentww.aspx';
 const CONFIRM_PATH = 'erp.paymentstatusconfirm.aspx';

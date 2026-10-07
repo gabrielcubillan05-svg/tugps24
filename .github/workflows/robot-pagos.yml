@@ -16,7 +16,7 @@ on:
       maximo:
         description: 'Cuántos pagos aprobar en esta corrida (modo aplicar)'
         type: string
-        default: '10'
+        default: '25'
   # Cada 20 min, 6 a. m. a 9:40 p. m. Colombia (UTC-5), todos los días. Aprobado por Gabriel el 2026-10-07.
   schedule:
     - cron: '*/20 11-23 * * *'
@@ -56,7 +56,7 @@ jobs:
           # trae los pendientes, GPSITO clasifica, y aprueba en Optimus los verdes y los aprobados a
           # mano, hasta 10 por ronda. Denegar sigue siendo a mano.
           MODO: ${{ inputs.modo || 'aplicar' }}
-          MAX_POR_CICLO: ${{ inputs.maximo || '10' }}
+          MAX_POR_CICLO: ${{ inputs.maximo || '25' }}
         run: node robot.mjs
       - name: Guardar capturas
         if: always()

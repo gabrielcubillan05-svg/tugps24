@@ -54,7 +54,7 @@ export const GET: APIRoute = async ({ request }) => {
         'Content-Type': 'application/json',
         'User-Agent': 'tugps24-panel',
       },
-      body: JSON.stringify({ ref: 'main', inputs: { modo: 'aplicar', maximo: '10' } }),
+      body: JSON.stringify({ ref: 'main', inputs: { modo: 'aplicar', maximo: '25' } }),
       signal: AbortSignal.timeout(15_000),
     });
     if (res.status !== 204) {
