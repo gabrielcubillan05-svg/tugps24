@@ -366,7 +366,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const withStatus = items.map(withTimeouts);
   const stats = { total: withStatus.length, verde: 0, rojo: 0, aprobado: 0, rechazado: 0, analizando: 0, porAplicar: 0, aplicados: 0, fallosAplicar: 0 } as Record<string, number>;
   for (const p of withStatus) {
-    stats[p.status] = (stats[p.status] || 0) + 1;
+    // Un rojo que alguien ya resolvió directo en Optimus no es un rojo por revisar.
+    const cerrado = p.applyStatus === 'aplicado' || p.applyStatus === 'manual';
+    if (!(p.status === 'rojo' && cerrado)) stats[p.status] = (stats[p.status] || 0) + 1;
     if (isApplyPending(p)) stats.porAplicar++;
     if (p.applyStatus === 'aplicado' || p.applyStatus === 'manual') stats.aplicados++;
     if (p.applyStatus === 'fallo' && !isApplyPending(p)) stats.fallosAplicar++;

@@ -457,6 +457,14 @@ async function ingestar(page, known) {
     }
   }
   console.log(`Pendientes en Optimus: ${filas.length} · nuevos en el panel: ${nuevos}`);
+  // Lo que el panel tenga abierto y ya no esté aquí lo resolvió una persona en Optimus.
+  try {
+    const res = await api('', { method: 'POST', body: JSON.stringify({ action: 'sincronizar', pendientes: filas.map((f) => f.numero), completo: true }) });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.cerrados) console.log(`Cerrados en el panel por resolverse a mano en Optimus: ${data.cerrados}`);
+  } catch (err) {
+    console.error('No se pudo sincronizar la lista de pendientes', err instanceof Error ? err.message : err);
+  }
   return filas;
 }
 

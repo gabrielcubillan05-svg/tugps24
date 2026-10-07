@@ -204,6 +204,31 @@ async function ingestSinImagen(redis: any, get: (k: string) => unknown, numero: 
   return json(200, { pago: forRobot(pago), existing: false });
 }
 
+// El robot manda en cada ronda la lista completa de pagos pendientes (amarillos) en Optimus. Lo
+// que el panel tenga abierto de Optimus y ya no esté pendiente allá lo resolvió una persona
+// directo en Optimus (Kelly aprueba o deniega a mano mientras GPSITO lee): se cierra aquí como
+// "resuelto en Optimus a mano" para que no quede en rojo para siempre. Solo pagos con más de
+// 10 minutos en el panel, por si la lista se leyó a medias mientras uno entraba.
+async function sincronizar(redis: any, body: any): Promise<Response> {
+  const pendientes = new Set(list(body?.pendientes).map((n) => String(Number(n.replace(/\D/g, '')) || n)));
+  if (body?.completo !== true) return json(400, { error: 'lista incompleta' });
+  const cutoff = Date.now() - 10 * 60_000;
+  const abiertos = (await readPagos(redis)).filter(
+    (p) => p.source === 'optimus' && p.optimus?.numero && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual' && Date.parse(p.createdAt) < cutoff && !pendientes.has(String(Number(p.optimus.numero)))
+  );
+  const now = new Date().toISOString();
+  for (const p of abiertos) {
+    p.applyStatus = 'manual';
+    p.applyAt = now;
+    p.applyBy = 'Optimus';
+    p.applyDetail = 'ya no estaba pendiente en Optimus: lo resolvió una persona allá';
+    p.applyClaimedAt = null;
+    await redis.hset(REDIS_KEY, { [p.id]: JSON.stringify(p) });
+  }
+  if (abiertos.length) await logAudit(redis, ACTOR, 'pagos_cerrados_optimus', 'robot de pagos', `${abiertos.length} resueltos a mano en Optimus`);
+  return json(200, { cerrados: abiertos.length });
+}
+
 // El robot trae un pago amarillo de Optimus con la imagen del comprobante (JSON con la imagen en
 // base64: un cuerpo multipart sin cabecera Origin lo rechaza la protección CSRF de Astro). El
 // panel lo verifica como cualquier otro; el resultado vuelve al robot por GET como "aprobar".
@@ -325,6 +350,7 @@ export const POST: APIRoute = async ({ request }) => {
     return json(400, { error: 'invalid body' });
   }
   if (body?.action === 'ingest') return ingest(redis, body);
+  if (body?.action === 'sincronizar') return sincronizar(redis, body);
   const id = String(body.id || '');
   const result = String(body.result || '');
   const detail = String(body.detail || '').trim().slice(0, 400);

@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function () {
       ? pagos.filter((p) => p.applyStatus === 'pendiente' && (p.status === 'verde' || p.status === 'aprobado' || p.status === 'rechazado'))
       : currentTab === 'aplicados'
       ? pagos.filter((p) => p.applyStatus === 'aplicado' || p.applyStatus === 'manual')
-      : pagos.filter((p) => p.status === currentTab);
+      : pagos.filter((p) => p.status === currentTab && !(currentTab === 'rojo' && (p.applyStatus === 'aplicado' || p.applyStatus === 'manual')));
     if (!items.length) { list.innerHTML = '<div class="empty">No hay comprobantes en esta vista.</div>'; return; }
     const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
     if (currentPage > totalPages) currentPage = totalPages;
