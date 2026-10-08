@@ -1097,32 +1097,35 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
       });
   }
 
-  if (exportBtn) exportBtn.addEventListener('click', function () {
+  if (exportBtn) exportBtn.addEventListener('click', async function () {
     const leads = getFilteredLeads();
-    // Queda en auditoría quién exportó cuántos leads (la descarga se arma en el navegador).
-    fetch('/api/leads-export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count: leads.length, filters: location.search || '' }),
-    }).catch(() => {});
-    const headers = ['Nombre', 'Teléfono', 'Ciudad', 'Campaña', 'Secretaria', 'Estado', 'Próximo seguimiento', 'Sucursal conversión', 'Tipo de cliente', 'Motos', 'Carros', 'Creado', 'Notas'];
-    const rows = leads.map((l) => [
-      l.name, l.phone, l.city, l.campaign, l.secretary, l.status,
-      l.nextFollowUp || '', l.convertedBranch || '', l.vehicleType || '', l.motosCount || 0, l.carrosCount || 0, l.createdAt,
-      (l.notes || []).map((n) => `[${n.date}] ${n.text}`).join(' | '),
-    ]);
-    const csv = [headers, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `leads-tugps24-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    // El Excel se arma en el servidor con los leads que están filtrados en pantalla; antes era
+    // un CSV con comas que Excel en Colombia abría todo en una sola columna.
+    exportBtn.disabled = true;
+    try {
+      const res = await fetch('/api/leads-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: leads.map((l) => l.id), filters: location.search || '' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Error ' + res.status);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads-tugps24_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('No se pudo exportar: ' + ((err && err.message) || err));
+    } finally {
+      exportBtn.disabled = false;
+    }
   });
 
   const mediaGallery = document.getElementById('mediaGallery');

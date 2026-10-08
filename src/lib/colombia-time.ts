@@ -13,6 +13,14 @@ export function dateInColombia(iso: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(iso));
 }
 
+// "08/10/2026 11:23" para hojas de cálculo y listados; vacío si la fecha no sirve.
+export function dateTimeInColombia(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('es-CO', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 export function timeInColombia(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
 }
