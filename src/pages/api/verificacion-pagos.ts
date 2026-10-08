@@ -41,6 +41,7 @@ import {
   normalizeRef,
   readReceipt,
   isApplyPending,
+  esPagoPayU,
   APPLY_MAX_ATTEMPTS,
   ANALYSIS_NO_RESPONSE,
   ANALYSIS_AUTO_RETRIES,
@@ -204,8 +205,9 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
       result = await readReceipt(redis, pago.id, bytes, mediaType, pago.clientName);
     }
     const fresh = (await readPago(redis, pago.id)) || pago;
-    // Relectura de un comprobante que una persona ya aprobó a mano: la aprobación se respeta
-    // salvo que el valor leído no coincida con el que digitó la secretaria (vuelve a rojo).
+    // Relectura de un comprobante que una persona ya aprobó a mano: la aprobación se respeta;
+    // un descuadre con el monto de Optimus queda como nota, no vuelve a rojo (Gabriel, 2026-10-08,
+    // caso Alemar: la persona ya vio la diferencia y decidió).
     const aprobadoAMano = fresh.status === 'aprobado';
     if (!result) {
       const motivo = getLastAnthropicFailure();
@@ -285,13 +287,7 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
     fresh.analysisStartedAt = null;
     if (aprobadoAMano) {
       const descuadre = verdict.reasons.filter((r) => r.startsWith('El monto registrado en Optimus'));
-      if (descuadre.length) {
-        fresh.status = 'rojo';
-        fresh.reasons = [...descuadre, `Lo había aprobado a mano ${fresh.resolvedByName || 'alguien'}; revisar antes de aplicar.`];
-        fresh.notes = verdict.notes;
-      } else {
-        fresh.notes = [...verdict.notes, ...(extracted ? [] : ['GPSITO no pudo interpretar el comprobante; el robot no lo aplica hasta leerlo.'])];
-      }
+      fresh.notes = [...descuadre, ...verdict.notes, ...(extracted ? [] : ['GPSITO no pudo interpretar el comprobante; el robot no lo aplica hasta leerlo.'])];
     } else {
       fresh.reasons = verdict.reasons;
       fresh.notes = verdict.notes;
@@ -592,6 +588,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     const note = String(body.note || '').trim().slice(0, 300);
     if (!note) return json(400, { error: 'escribe el motivo' });
     if (pago.status === 'analizando' && !withTimeouts(pago).reasons.length) return json(409, { error: 'GPSITO todavía está leyendo este comprobante' });
+    if (action === 'aprobar' && esPagoPayU(pago)) return json(409, { error: 'Es un pago en línea (PayU / TuGPS24.com): el robot no lo aprueba en Optimus. Aplícalo allá a mano; el panel lo cierra solo cuando deje de estar pendiente.' });
     pago.status = action === 'aprobar' ? 'aprobado' : 'rechazado';
     pago.resolvedAt = now;
     pago.resolvedByName = byName;

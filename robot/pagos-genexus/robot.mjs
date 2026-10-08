@@ -549,10 +549,16 @@ async function aprobarEnOptimus(page, item) {
   if (!pideDatos && montoOptimus <= 0) {
     throw new Error('Optimus no mostró los campos de contrato, monto y forma de pago para este pago con monto 0; revisar a mano');
   }
-  // Gabriel (2026-10-07): aunque una persona haya aprobado a mano, GPSITO debe leer el valor y
-  // tiene que coincidir con el que digitó la secretaria; sin lectura no se aplica. El panel lo
-  // vuelve a leer solo en cada ronda.
+  // Gabriel (2026-10-07): aunque una persona haya aprobado a mano, GPSITO debe leer el valor;
+  // sin lectura no se aplica. El panel lo vuelve a leer solo en cada ronda.
   if (!fill.monto) throw new Error('GPSITO aún no leyó el valor del comprobante; el panel lo vuelve a leer antes de aplicar');
+  // Pago en línea (PayU / TuGPS24.com): Optimus lo deja pendiente al pulsar Aprobar (caso Eider
+  // Torrijos, 2026-10-08). El panel ya no los manda; esto es por si llega uno viejo.
+  if (fill.formaPago === 'PayU') throw new Error('pago en línea (PayU): el robot no lo aprueba; lo aplica Kelly a mano en Optimus');
+  // Una aprobación hecha a mano en el panel manda sobre el descuadre de monto: la persona ya vio
+  // la diferencia en rojo y decidió (Gabriel, 2026-10-08, caso Alemar). Lo que GPSITO puso en verde
+  // sí exige que coincida.
+  const aprobadoAMano = item.status === 'aprobado';
   let detalle;
   if (pideDatos) {
     // Cargado por el cliente: hay que digitar.
@@ -579,10 +585,12 @@ async function aprobarEnOptimus(page, item) {
     detalle = `aprobado en Optimus con monto ${monto.toLocaleString('es-CO')}, contrato ${contratos[0].numero}, ${forma.texto}, ref. ${fill.referencia || 'sin referencia'}`;
   } else {
     // Creado por una secretaria: ya trae monto; se compara con el comprobante antes de aprobar.
-    if (montoOptimus > 0 && Math.abs(montoOptimus - fill.monto) > Math.max(100, montoOptimus * 0.01)) {
+    const descuadre = montoOptimus > 0 && Math.abs(montoOptimus - fill.monto) > Math.max(100, montoOptimus * 0.01);
+    if (descuadre && !aprobadoAMano) {
       throw new Error(`el monto en Optimus (${montoOptimus.toLocaleString('es-CO')}) no coincide con el comprobante (${Number(fill.monto).toLocaleString('es-CO')})`);
     }
-    detalle = `aprobado en Optimus por ${montoOptimus.toLocaleString('es-CO')} (monto ya registrado)`;
+    detalle = `aprobado en Optimus por ${montoOptimus.toLocaleString('es-CO')} (monto ya registrado)` +
+      (descuadre ? ` · el comprobante dice ${Number(fill.monto).toLocaleString('es-CO')}; se aplicó porque lo aprobó a mano ${item.resolvedByName || 'una persona'}` : '');
   }
   page.once('dialog', (d) => d.accept().catch(() => {}));
   await page.click('#BTNAPROVED');

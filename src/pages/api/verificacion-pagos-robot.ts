@@ -9,7 +9,7 @@ import { pushNotification } from '../../lib/notifications';
 import { markCronOk } from '../../lib/incidents';
 import { blobTimeout } from '../../lib/blob-path';
 import { cronSecretMatches, getUsers, findUserByUsername, KELLY_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
-import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, isApplyPending, applyActionFor, formaPagoDesdeBanco, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
+import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, PAYU_RAZON, isApplyPending, applyActionFor, esPagoPayU, formaPagoDesdeBanco, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
 import { readPagos, readPago, savePago, analyzePago, REDIS_KEY, readRobotState, retryFailedAnalyses } from './verificacion-pagos';
 
 // Un pago de Optimus entra al panel una sola vez, por su número.
@@ -54,6 +54,7 @@ function forRobot(p: PagoCliente) {
     source: p.source || 'manual',
     optimus: p.optimus || null,
     resolutionNote: p.resolutionNote || '',
+    resolvedByName: p.resolvedByName || '',
     clientName: p.clientName,
     plate: p.plate,
     branch: p.branch,
@@ -93,7 +94,9 @@ export const GET: APIRoute = async ({ request, url }) => {
   // va siempre primero: una persona ya decidió y está esperando.
   const soloManual = url.searchParams.get('only') === 'manual';
   const now = Date.now();
-  const pending = (await readPagos(redis))
+  const todos = await readPagos(redis);
+  await devolverPayUARojo(redis, todos);
+  const pending = todos
     .filter(isApplyPending)
     .filter((p) => !soloManual || p.status === 'aprobado')
     // Sin valor leído por GPSITO no se manda a aprobar (gastaría intentos): primero se relee.
@@ -111,14 +114,29 @@ export const GET: APIRoute = async ({ request, url }) => {
   // Números de Optimus que ya están en el panel (abiertos o resueltos), para que el robot no los
   // vuelva a traer. Solo los de los últimos 60 días: los demás ya no están amarillos allá.
   const cutoff = new Date(now - 60 * 86400000).toISOString();
-  const all = await readPagos(redis);
-  const known = all.filter((p) => p.optimus?.numero && p.createdAt >= cutoff).map((p) => p.optimus!.numero);
+  const known = todos.filter((p) => p.optimus?.numero && p.createdAt >= cutoff).map((p) => p.optimus!.numero);
   // Las lecturas que fallaron por falta de respuesta de GPSITO se reintentan aquí, de a pocas,
   // después de responder al robot.
   const inline = runAfterResponse(retryFailedAnalyses(redis).catch((err) => console.error('robot-pagos: relectura automática', err instanceof Error ? err.message : String(err))));
   if (inline) await inline;
   return json(200, { paused: false, items: pending.map(forRobot), known });
 };
+
+// Un pago en línea (PayU) que alguien aprobó a mano en el panel vuelve a rojo para Kelly: el robot
+// no lo aplica (ver applyActionFor) y, si se quedara en "aprobado", nadie lo vería pendiente.
+async function devolverPayUARojo(redis: any, pagos: PagoCliente[]): Promise<void> {
+  const afectados = pagos.filter((p) => p.status === 'aprobado' && esPagoPayU(p) && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual');
+  for (const p of afectados) {
+    p.status = 'rojo';
+    p.reasons = [PAYU_RAZON, `Lo había aprobado a mano ${p.resolvedByName || 'alguien'}.`];
+    p.applyStatus = 'pendiente';
+    p.applyClaimedAt = null;
+    p.applyDetail = '';
+    await redis.hset(REDIS_KEY, { [p.id]: JSON.stringify(p) });
+    await logAudit(redis, ACTOR, 'pago_payu_a_rojo', p.clientName, 'pago en línea aprobado a mano: vuelve a rojo para aplicarlo en Optimus');
+    await notifyResolvers(redis, `🤖 El pago de ${p.clientName} (${p.branch}) es por PayU / TuGPS24.com: el robot no lo aprueba. Pasó a rojo para aplicarlo a mano en Optimus.`, `pago-robot-payu:${p.id}`);
+  }
+}
 
 function num(v: unknown): number | null {
   const s = String(v ?? '').trim();

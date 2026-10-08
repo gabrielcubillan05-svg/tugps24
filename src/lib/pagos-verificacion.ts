@@ -118,9 +118,21 @@ export interface OptimusInfo {
 // Lo rechazado en el panel por una persona se deniega en Optimus en la siguiente corrida (pedido
 // por Gabriel el 2026-10-07); solo aplica a pagos que vinieron de Optimus, los demás no existen allá.
 export function applyActionFor(p: PagoCliente): 'aprobar' | 'denegar' | null {
-  if (p.status === 'verde' || p.status === 'aprobado') return 'aprobar';
+  // Los pagos en línea (PayU / TuGPS24.com) no los aprueba el robot ni aunque alguien los haya
+  // aprobado a mano: Optimus los dejó pendientes al pulsar Aprobar (caso Eider Torrijos,
+  // 2026-10-08) y Gabriel decidió que los aplica Kelly directo en Optimus.
+  if ((p.status === 'verde' || p.status === 'aprobado') && !esPagoPayU(p)) return 'aprobar';
   if (p.status === 'rechazado' && p.source === 'optimus' && p.optimus?.paymentId) return 'denegar';
   return null;
+}
+
+export const PAYU_RAZON = 'Es un pago en línea (PayU / TuGPS24.com): el robot no lo aprueba en Optimus. Lo aplica Kelly a mano allá y el panel lo cierra solo cuando deje de estar pendiente.';
+
+// Lo que GPSITO leyó indica pago por la pasarela de la web o PayU.
+export function esPagoPayU(p: PagoCliente): boolean {
+  const e = p.extracted;
+  if (!e) return false;
+  return e.pagoEnLinea === true || formaPagoDesdeBanco(e.banco, e.tipoDestino, e.observaciones) === 'PayU';
 }
 
 // Una ráfaga de ingestas (el robot trae 14 pagos en 15 s) puede chocar con el límite por minuto de
@@ -356,7 +368,7 @@ export function evaluate(extracted: PagoExtracted | null, clientName: string, de
   else if (extracted.fecha < addDaysToDateString(today, -MAX_AGE_DAYS)) reasons.push(`El comprobante tiene más de ${MAX_AGE_DAYS} días (${extracted.fecha}).`);
   if (!extracted.valor) reasons.push('No se pudo leer el valor pagado.');
   if (extracted.pagoEnLinea) {
-    reasons.push('Es un pago en línea por la web (TuGPS24.com): verificar que la pasarela no lo haya aplicado ya antes de aprobarlo.');
+    reasons.push(PAYU_RAZON);
   } else {
     const dest = destinoMatches(extracted.cuentaDestino, destinos);
     if (dest === false) reasons.push(`La cuenta destino (${extracted.cuentaDestino}) no es una cuenta de la empresa.`);
