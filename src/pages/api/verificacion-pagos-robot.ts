@@ -125,6 +125,16 @@ export const GET: APIRoute = async ({ request, url }) => {
 // Un pago en línea (PayU) que alguien aprobó a mano en el panel vuelve a rojo para Kelly: el robot
 // no lo aplica (ver applyActionFor) y, si se quedara en "aprobado", nadie lo vería pendiente.
 async function devolverPayUARojo(redis: any, pagos: PagoCliente[]): Promise<void> {
+  // Aprobados a mano que el robot rechazó por descuadre de monto antes del cambio de regla del
+  // 2026-10-08 (caso Alemar, 3 intentos agotados): se les devuelve el turno.
+  const descuadres = pagos.filter((p) => p.status === 'aprobado' && p.applyStatus === 'fallo' && /no coincide con el comprobante/.test(p.applyDetail || ''));
+  for (const p of descuadres) {
+    p.applyStatus = 'pendiente';
+    p.applyAttempts = 0;
+    p.applyClaimedAt = null;
+    p.applyDetail = '';
+    await redis.hset(REDIS_KEY, { [p.id]: JSON.stringify(p) });
+  }
   const afectados = pagos.filter((p) => p.status === 'aprobado' && esPagoPayU(p) && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual');
   for (const p of afectados) {
     p.status = 'rojo';
