@@ -13,6 +13,7 @@ import {
   SESSION_COOKIE,
   getSession,
   canAccessSuspensiones,
+  canAdministerSuspensiones,
   findUserById,
   findUserByUsername,
   getUsers,
@@ -184,7 +185,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // acciones de escalar/finalizar más abajo) — antes este filtro solo miraba el rol, así que
   // si cualquiera de los dos tuviera rol "operador" o "secretaria" le llegaría una lista
   // incompleta pese a tener permiso total sobre los casos.
-  const seesAllOverride = isJosueSession(session) || isTesoreriaSession(session) || isShiftSupervisorUsername(session.username);
+  const seesAllOverride = isJosueSession(session) || isTesoreriaSession(session) || isShiftSupervisorUsername(session.username) || canAdministerSuspensiones(session);
   if (!seesAllOverride && session.role === 'operador') {
     casos = casos.filter((c) => c.createdById === session.userId);
   } else if (!seesAllOverride && (session.role === 'secretaria' || session.role === 'gerente' || session.role === 'supervisor')) {
@@ -238,6 +239,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       currentUserId: session.userId,
       isTesoreria: isTesoreriaSession(session),
       isJosue: isJosueSession(session),
+      isOverride: canAdministerSuspensiones(session),
       viewerRole: session.role,
       viewerBranches,
     }),
@@ -393,7 +395,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   const actor = await findUserById(redis, session.userId);
   const actorName = actor?.name || session.username;
   const now = new Date().toISOString();
-  const isOverride = session.role === 'admin' || session.role === 'supervisor';
+  const isOverride = canAdministerSuspensiones(session);
   const isCurrentAssignee = session.userId === caso.assignedToId;
   const isCreator = session.userId === caso.createdById;
   const isJosue = isJosueSession(session);

@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const suspensionesData = document.getElementById('suspensionesData');
   const currentRole = (suspensionesData && suspensionesData.dataset.role) || '';
-  const isOverrideRole = currentRole === 'admin' || currentRole === 'supervisor';
+  // Admin y supervisor por rol; el API también marca a quien administra las suspensiones sin
+  // importar su rol (Kelly), y eso llega con la primera lista.
+  let isOverrideRole = currentRole === 'admin' || currentRole === 'supervisor';
   let currentUserId = '';
   let isJosue = false;
   let isTesoreria = false;
@@ -248,6 +250,7 @@ document.addEventListener('DOMContentLoaded', function () {
           currentUserId = data.currentUserId || '';
           isJosue = Boolean(data.isJosue);
           isTesoreria = Boolean(data.isTesoreria);
+          isOverrideRole = isOverrideRole || Boolean(data.isOverride);
           allCasos = data.casos;
           renderStats(data.stats);
           renderList(allCasos);
@@ -262,7 +265,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
           const notice = document.getElementById('viewerBranchNotice');
           if (notice) {
-            if (data.viewerRole === 'secretaria' && !(data.viewerBranches && data.viewerBranches.length)) {
+            if (data.isOverride) {
+              notice.style.display = 'none';
+            } else if (data.viewerRole === 'secretaria' && !(data.viewerBranches && data.viewerBranches.length)) {
               notice.style.display = '';
               notice.textContent = 'Tu usuario no tiene una sucursal asignada, así que no puedes ver casos. Pide al administrador que te asigne una sucursal en Usuarios.';
             } else if (data.viewerRole === 'secretaria') {

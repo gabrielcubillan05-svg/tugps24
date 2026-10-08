@@ -186,7 +186,14 @@ export function shouldRingShutdownAlarms(role: Role): boolean {
 }
 
 export function canAccessSuspensiones(session: Pick<Session, 'role' | 'username'>): boolean {
-  return canAccessSection(session.role, 'suspensiones') || SUSPENSIONES_EXTRA_USERNAMES.includes(session.username);
+  return canAccessSection(session.role, 'suspensiones') || SUSPENSIONES_EXTRA_USERNAMES.includes(session.username) || canAdministerSuspensiones(session);
+}
+
+// Quién administra las suspensiones: ve los casos de todas las sucursales y puede actuar sobre
+// cualquiera (reasignar, cambiar estado, finalizar). Admin y supervisor por rol; Kelly por
+// decisión de Gabriel (2026-10-08), sin importar el rol que tenga su usuario.
+export function canAdministerSuspensiones(session: Pick<Session, 'role' | 'username'>): boolean {
+  return session.role === 'admin' || session.role === 'supervisor' || session.username === KELLY_USERNAME;
 }
 
 // Kelly y Wilmar son quienes atienden las Solicitudes Administrativas sin importar su rol.
