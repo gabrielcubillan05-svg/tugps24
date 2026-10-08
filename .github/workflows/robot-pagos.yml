@@ -35,15 +35,30 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+      - name: Instalar dependencias
+        working-directory: robot/pagos-genexus
+        run: npm install
+      # Sin package-lock, `^1.50.0` trae la versión más nueva de Playwright en cada corrida, y cada
+      # versión pide su propia revisión de Chromium. Si la llave del caché solo mira package.json,
+      # guarda un navegador viejo y cada ronda vuelve a bajar 120 MB; por eso la llave usa la versión
+      # que realmente quedó instalada.
+      - name: Versión de Playwright instalada
+        id: pw-version
+        working-directory: robot/pagos-genexus
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Caché del navegador
         id: cache-pw
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('robot/pagos-genexus/package.json') }}
-      - name: Instalar Playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+      - name: Descargar el navegador
+        if: steps.cache-pw.outputs.cache-hit != 'true'
         working-directory: robot/pagos-genexus
-        run: npm install && npx playwright install --with-deps chromium
+        run: npx playwright install chromium
+      - name: Librerías del sistema para el navegador
+        working-directory: robot/pagos-genexus
+        run: npx playwright install-deps chromium
       - name: Correr el robot
         working-directory: robot/pagos-genexus
         env:
