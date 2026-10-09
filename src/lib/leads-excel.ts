@@ -39,7 +39,7 @@ export async function buildLeadsWorkbook(leads: Lead[], sheetName: string): Prom
   ];
   for (const l of leads) {
     const notas = (l.notes || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    const linea = (n: { date: string; text: string }) => `${dateTimeInColombia(n.date)} · ${n.text}`;
+    const linea = (n: { date: string; text: string; by?: string }) => `${dateTimeInColombia(n.date)}${n.by ? ' · ' + n.by : ''} · ${n.text}`;
     ws.addRow({
       nombre: l.name,
       telefono: l.phone,

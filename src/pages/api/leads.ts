@@ -21,6 +21,8 @@ export const STATUSES = ['Nuevo', 'Contactado', 'Cotizado', 'Concretado por el a
 interface Note {
   text: string;
   date: string;
+  // Nombre de quien la escribió (las notas del agente IA y del sistema no lo traen).
+  by?: string;
 }
 
 export interface Lead {
@@ -374,7 +376,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     source: 'manual',
     metaLeadId: null,
     createdByName: creator?.name || session.username,
-    notes: initialNote ? [{ text: initialNote, date: now }] : [],
+    notes: initialNote ? [{ text: initialNote, date: now, by: creator?.name || session.username }] : [],
     createdAt: now,
     updatedAt: now,
   };
@@ -552,14 +554,15 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     }
     lead.aiStage = 'en_conversacion';
     lead.aiHandoffAt = null;
-    lead.notes = [{ text: `${session.username} reinició la conversación con el agente IA.`, date: new Date().toISOString() }, ...lead.notes];
+    lead.notes = [{ text: 'Reinició la conversación con el agente IA.', date: new Date().toISOString(), by: (await findUserById(redis, session.userId))?.name || session.username }, ...lead.notes];
   }
   if (body.confirmVenta) {
     lead.managerAckAt = new Date().toISOString();
     lead.managerAckBy = (await findUserById(redis, session.userId))?.name || session.username;
   }
   if (body.addNote) {
-    lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString() }, ...lead.notes];
+    const byName = (await findUserById(redis, session.userId))?.name || session.username;
+    lead.notes = [{ text: String(body.addNote).trim(), date: new Date().toISOString(), by: byName }, ...lead.notes];
     if (lead.status === 'Nuevo') {
       lead.status = 'Contactado';
     }

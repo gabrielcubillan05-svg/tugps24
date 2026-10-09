@@ -468,7 +468,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         </div>
         ${l.notes && l.notes.length ? `
           <div class="notes-list">
-            ${l.notes.map((n) => `<div class="note-item"><span class="note-date">${fmtDate(n.date)}</span>${escapeHtml(n.text)}</div>`).join('')}
+            ${l.notes.map((n) => `<div class="note-item"><span class="note-date">${fmtDate(n.date)}</span>${n.by ? `<span class="note-by">${escapeHtml(n.by)}:</span>` : ''}${escapeHtml(n.text)}</div>`).join('')}
           </div>
         ` : ''}
       </div>
