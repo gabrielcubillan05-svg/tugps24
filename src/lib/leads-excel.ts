@@ -30,6 +30,7 @@ export async function buildLeadsWorkbook(leads: Lead[], sheetName: string): Prom
     { header: 'Carros', key: 'carros', width: 7 },
     { header: 'Concretado por Andrés el', key: 'concretado', width: 20 },
     { header: 'Instalación agendada', key: 'agendada', width: 14 },
+    { header: 'Agendó (venta a su nombre)', key: 'agendo', width: 22 },
     { header: 'Instalado', key: 'instalado', width: 10 },
     { header: 'Instalado el', key: 'instaladoEl', width: 18 },
     { header: 'Creado el', key: 'creado', width: 18 },
@@ -55,6 +56,7 @@ export async function buildLeadsWorkbook(leads: Lead[], sheetName: string): Prom
       carros: l.carrosCount || 0,
       concretado: esConcretadoPorAndres(l) ? dateTimeInColombia(l.aiHandoffAt) : '',
       agendada: l.scheduledInstallDate || '',
+      agendo: l.scheduledByName || '',
       instalado: l.installed ? 'Sí' : 'No',
       instaladoEl: dateTimeInColombia(l.installedAt),
       creado: dateTimeInColombia(l.createdAt),
@@ -69,7 +71,7 @@ export async function buildLeadsWorkbook(leads: Lead[], sheetName: string): Prom
   ws.getColumn('notas').alignment = { wrapText: true, vertical: 'top' };
   ws.getColumn('telefono').numFmt = '@';
   ws.views = [{ state: 'frozen', ySplit: 1 }];
-  ws.autoFilter = { from: 'A1', to: `T${Math.max(1, leads.length + 1)}` };
+  ws.autoFilter = { from: 'A1', to: `U${Math.max(1, leads.length + 1)}` };
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer as ArrayBuffer);
 }

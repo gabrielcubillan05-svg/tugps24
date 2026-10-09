@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getRedis } from '../../lib/redis';
 import { SESSION_COOKIE, getSession, canAccessEstadisticas, findUserById, branchesOf, getUsers, JOSUE_USERNAME } from '../../lib/auth';
-import { readLeads, STATUSES } from './leads';
+import { readLeads, soldByName, STATUSES } from './leads';
 import { SHIFT_SUPERVISORS, shiftBucketFor } from '../../lib/shift';
 import { readSchedule } from './schedule';
 
@@ -193,7 +193,17 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const verifiedConversionRate = leads.length ? Math.round((verifiedInstalledCount / leads.length) * 1000) / 10 : 0;
 
   const cityRanking = conversionRanking(leads, (l) => l.city, (l) => l.installed);
-  const secretaryRanking = conversionRanking(leads, (l) => l.secretary, (l) => l.installed);
+  // Los leads se cuentan por la secretaria asignada; la venta, por quien lo agendó por última
+  // vez (soldByName), aunque otra persona haya marcado el instalado.
+  const secretaryGroups: Record<string, { total: number; installed: number }> = {};
+  const secretaryGroup = (k: string) => secretaryGroups[k] || (secretaryGroups[k] = { total: 0, installed: 0 });
+  for (const l of leads) {
+    secretaryGroup(l.secretary || 'Sin definir').total++;
+    if (l.installed) secretaryGroup(soldByName(l) || 'Sin definir').installed++;
+  }
+  const secretaryRanking = Object.entries(secretaryGroups)
+    .map(([name, g]) => ({ name, total: g.total, installed: g.installed, rate: g.total ? Math.round((g.installed / g.total) * 1000) / 10 : 0 }))
+    .sort((a, b) => b.rate - a.rate || b.total - a.total);
 
   const ageCurve = conversionByAge(leads);
   const approxInstallDatesCount = leads.filter((l) => l.installed && !l.installedAt).length;

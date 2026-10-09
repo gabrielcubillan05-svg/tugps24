@@ -43,6 +43,10 @@ export interface Lead {
   verifiedInstalled: boolean;
   verifiedInstalledAt: string | null;
   scheduledInstallDate: string | null;
+  // Último que lo puso en "Agendado": a esa persona se le acredita la venta cuando se instale,
+  // aunque otra lo marque instalado (Gabriel, 2026-10-09).
+  scheduledByName?: string | null;
+  scheduledByAt?: string | null;
   source: 'manual' | 'meta-leadgen' | 'whatsapp-ads' | 'web-chat';
   metaLeadId: string | null;
   createdByName: string;
@@ -104,6 +108,12 @@ function isPhoneLike(value: string): boolean {
   return /^[\d\s+().-]+$/.test(v) && v.replace(/\D/g, '').length >= 7;
 }
 
+// A quién se le cuenta la venta: quien lo agendó por última vez; si nunca pasó por "Agendado",
+// la secretaria asignada (como se contaba antes).
+export function soldByName(lead: Lead): string {
+  return lead.scheduledByName || lead.secretary || '';
+}
+
 export function computeOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUp) return false;
   if (lead.status === 'Instalado' || lead.status === 'Perdido') return false;
@@ -113,7 +123,7 @@ export function computeOverdue(lead: Lead): boolean {
 // Rellena los campos que se fueron agregando con el tiempo, para que un lead viejo leído
 // suelto (hget) se comporte igual que uno de la lista completa.
 export function normalizeLead(l: any): Lead {
-  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, needsRetry: false, aiPreferredDate: null, appointmentReminderAt: null, handoffNudgeAt: null, aiLostReason: null, aiLostDetail: null, consentAt: null, consentSource: null, optOut: false, ...l };
+  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, needsRetry: false, scheduledByName: null, scheduledByAt: null, aiPreferredDate: null, appointmentReminderAt: null, handoffNudgeAt: null, aiLostReason: null, aiLostDetail: null, consentAt: null, consentSource: null, optOut: false, ...l };
 }
 
 // El hash de leads pesa ~3 MB y se lee en el CRM (varias veces por carga), en el inicio de
@@ -547,6 +557,10 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
       // "Agendado" — vuelve a "Contactado" para que se note que hay que volver a gestionarlo.
       lead.status = 'Contactado';
     }
+  }
+  if (lead.status === 'Agendado' && (body.status === 'Agendado' || (body.scheduledInstallDate !== undefined && lead.scheduledInstallDate))) {
+    lead.scheduledByName = (await findUserById(redis, session.userId))?.name || session.username;
+    lead.scheduledByAt = new Date().toISOString();
   }
   if (body.resetAiStage) {
     if (!canManageUsers(session.role)) {

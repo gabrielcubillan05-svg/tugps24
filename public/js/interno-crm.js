@@ -419,6 +419,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
         <div class="lead-meta">
           ${escapeHtml(l.phone)} ${l.city ? '· ' + escapeHtml(l.city) : ''} ${l.campaign ? '· ' + escapeHtml(l.campaign) : ''}
           ${l.secretary ? '· Secretaria: ' + escapeHtml(l.secretary) : ''}
+          ${l.scheduledByName && l.scheduledByName !== l.secretary ? '· Agendó: ' + escapeHtml(l.scheduledByName) : ''}
           ${l.vehicleType ? '· ' + escapeHtml(l.vehicleType) + (l.motosCount || l.carrosCount ? ' (' + [l.motosCount ? l.motosCount + ' moto(s)' : '', l.carrosCount ? l.carrosCount + ' carro(s)' : ''].filter(Boolean).join(', ') + ')' : '') : ''}
         </div>
         ${l.createdByName ? `<div class="lead-added-by">Agregado por: ${escapeHtml(l.createdByName)}${l.createdAt ? ' · ' + new Date(l.createdAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : ''}</div>` : ''}
@@ -547,12 +548,13 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
   function renderResults(leads) {
     if (!resultsPanel) return;
 
+    // Los leads se cuentan por la secretaria asignada; la venta se le acredita a quien lo
+    // agendó por última vez (scheduledByName), aunque otra persona lo haya marcado instalado.
     const bySecretary = {};
+    const groupOf = (key) => bySecretary[key] || (bySecretary[key] = { total: 0, installed: 0 });
     leads.forEach((l) => {
-      const key = l.secretary || 'Sin asignar';
-      const s = bySecretary[key] || (bySecretary[key] = { total: 0, installed: 0 });
-      s.total++;
-      if (l.status === 'Instalado') s.installed++;
+      groupOf(l.secretary || 'Sin asignar').total++;
+      if (l.status === 'Instalado') groupOf(l.scheduledByName || l.secretary || 'Sin asignar').installed++;
     });
     const secretaryRows = Object.entries(bySecretary)
       .map(([name, s]) => ({ name, ...s, rate: s.total ? Math.round((s.installed / s.total) * 1000) / 10 : 0 }))
@@ -572,7 +574,7 @@ Te comparto unas fotos de nuestro trabajo. *¡Instala hoy y protege tu inversió
           <h3>Por secretaria — ranking de conversión</h3>
           <div class="table-scroll">
             <table class="results-table">
-              <thead><tr><th>Secretaria</th><th>Leads</th><th>Instalados</th><th>% conversión</th></tr></thead>
+              <thead><tr><th>Secretaria</th><th>Leads asignados</th><th>Vendidos (los agendó)</th><th>% conversión</th></tr></thead>
               <tbody>${secretaryRows || '<tr><td colspan="4">Sin datos</td></tr>'}</tbody>
             </table>
           </div>
