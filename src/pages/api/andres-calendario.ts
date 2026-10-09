@@ -105,7 +105,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         else if (l.aiStage === 'escalado') handed.escalados++;
       }
     }
-    const installedAt = l.installedAt || l.verifiedInstalledAt;
+    // La fecha es la de la marca "Instalado" que pone la secretaria en el CRM; los leads
+    // marcados antes de que existiera installedAt caen a su última actualización, como en el CRM.
+    const installedAt = l.installedAt || l.verifiedInstalledAt || (l.installed ? l.updatedAt : null);
     if (installedAt && (l.installed || l.verifiedInstalled)) {
       const inst = byDate.get(dateInColombia(installedAt));
       if (inst) inst.instalados++;
