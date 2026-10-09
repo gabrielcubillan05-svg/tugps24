@@ -132,8 +132,8 @@ export const GET: APIRoute = async ({ request }) => {
     // refuerza con el video de la central y una recuperación real — sin ser invasivos, solo
     // si no se le ha mandado antes por ningún otro medio.
     if (followUpCount === 1 && !lead.mediaSentAt) {
-      await sendReinforcementMedia(redis, lead, lead.phone);
-      lead.mediaSentAt = nowIso;
+      const r = await sendReinforcementMedia(redis, lead, lead.phone);
+      if (r.sent + r.failed > 0) lead.mediaSentAt = nowIso;
     }
 
     await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });

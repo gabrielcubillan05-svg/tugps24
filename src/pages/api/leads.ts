@@ -213,6 +213,11 @@ export interface SalesAgentStats {
   // Lo de hoy (hora Colombia): leads nuevos que atendió y cuántos entregó a sucursal hoy.
   nuevosHoy: number;
   concretadosHoy: number;
+  // Material (video de la central, recuperación, foto de sucursal) enviado al menos una vez.
+  conMaterial: number;
+  conMaterialHoy: number;
+  // Ya conversaron (o se entregaron) y nunca recibieron el material.
+  sinMaterial: number;
 }
 
 // Resultados del agente IA (Andrés) — cuenta los leads de los canales donde él conversa de
@@ -220,9 +225,15 @@ export interface SalesAgentStats {
 export function computeSalesAgentStats(leads: Lead[]): SalesAgentStats {
   const touched = leads.filter((l) => l.source === 'whatsapp-ads' || l.source === 'web-chat');
   const today = todayInColombia();
-  const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0, nuevosHoy: 0, concretadosHoy: 0 };
+  const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0, nuevosHoy: 0, concretadosHoy: 0, conMaterial: 0, conMaterialHoy: 0, sinMaterial: 0 };
   for (const l of touched) {
     if (dateInColombia(l.createdAt) === today) stats.nuevosHoy++;
+    if (l.mediaSentAt) {
+      stats.conMaterial++;
+      if (dateInColombia(l.mediaSentAt) === today) stats.conMaterialHoy++;
+    } else if (l.aiStage === 'en_conversacion' || l.aiStage === 'entregado') {
+      stats.sinMaterial++;
+    }
     if (l.aiStage === 'entregado' && l.aiHandoffAt && dateInColombia(l.aiHandoffAt) === today) stats.concretadosHoy++;
     switch (l.aiStage) {
       case 'en_conversacion':

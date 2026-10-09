@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="agent-usage-row">
           <div class="agent-usage-stat"><span class="n">${fmtTokens(r.nuevosHoy || 0)}</span><span class="l">Leads nuevos hoy</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(r.concretadosHoy || 0)}</span><span class="l">Concretados hoy</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.conMaterial || 0)}</span><span class="l">Recibieron fotos/videos</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.conMaterialHoy || 0)}</span><span class="l">Fotos/videos hoy</span></div>
+          <div class="agent-usage-stat"><span class="n">${fmtTokens(r.sinMaterial || 0)}</span><span class="l">Conversaron sin material</span></div>
         </div>
       `;
     }

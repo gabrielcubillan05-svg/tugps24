@@ -14,6 +14,7 @@ import { checkAndIncrementRateLimit } from '../../lib/rate-limit';
 import { readCobros, normalizeCobro, writeCobros, REDIS_KEY as COBROS_KEY, type Cobro } from './cobros';
 import { reportIncident } from '../../lib/incidents';
 import { readAgentMedia } from './whatsapp-agent-media';
+import { branchForCityName } from '../../lib/pricing';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { sendGabotMessage } from '../../lib/gabot';
 
@@ -447,8 +448,9 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
         await notifyJosue(redis, `${lead.name} (${lead.phone}) dice ser cliente actual con un pago pendiente, pero no está en Cobranza especial: ${resumen}`);
       }
     } else if (call.name === 'reforzar_con_material' && !lead.mediaSentAt) {
-      await sendReinforcementMedia(redis, lead, fromPhone);
-      lead.mediaSentAt = new Date().toISOString();
+      const r = await sendReinforcementMedia(redis, lead, fromPhone);
+      // Sin material cargado no se marca: en cuanto alguien suba los videos se le mandan.
+      if (r.sent + r.failed > 0) lead.mediaSentAt = new Date().toISOString();
     }
   }
 
@@ -479,9 +481,11 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
   // En cuanto sabemos tipo de vehículo y ciudad, reforzamos con el video de la central de
   // monitoreo (siempre), una recuperación real, y la foto de la sucursal — una sola vez por lead.
   if (!lead.mediaSentAt && lead.vehicleType && lead.city) {
-    await sendReinforcementMedia(redis, lead, fromPhone);
-    lead.mediaSentAt = new Date().toISOString();
-    await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
+    const r = await sendReinforcementMedia(redis, lead, fromPhone);
+    if (r.sent + r.failed > 0) {
+      lead.mediaSentAt = new Date().toISOString();
+      await writeLeads(redis, { [lead.id]: JSON.stringify(lead) });
+    }
   }
 }
 
@@ -627,27 +631,48 @@ async function handleCollectionsMessage(redis: any, cobro: Cobro, text: string, 
   }
 }
 
-export async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: string): Promise<void> {
+// Devuelve cuántos archivos salieron y cuántos rechazó Meta. Cada envío queda como nota de
+// estado en el historial (visible en Conversaciones, invisible para el agente) y un rechazo
+// genera incidente: antes el resultado se ignoraba y no había forma de saber si el cliente
+// recibió los videos (Gabriel pidió evaluarlo el 2026-10-08).
+export async function sendReinforcementMedia(redis: any, lead: Lead, toPhone: string): Promise<{ sent: number; failed: number }> {
+  let sent = 0;
+  let failed = 0;
   try {
     const media = await readAgentMedia(redis);
-
-    if (media.central_video) {
-      await sendWhatsappMedia(toPhone, 'video', media.central_video, 'Así funciona nuestra central de monitoreo 24/7 — esto es lo que nos diferencia.');
-    }
-    if (media.recuperacion_video_1) {
-      await sendWhatsappMedia(toPhone, 'video', media.recuperacion_video_1, 'Una recuperación real de uno de nuestros clientes.');
-    }
-    if (media.recuperacion_foto_1) {
-      await sendWhatsappMedia(toPhone, 'image', media.recuperacion_foto_1, 'Uno de los vehículos que hemos recuperado.');
-    }
-    const mediaBranch = lead.convertedBranch || lead.city;
+    // La foto de la sucursal se busca por la sucursal que atiende la ciudad del lead: antes se
+    // buscaba por el nombre de la ciudad ("Barranquilla") y casi nunca coincidía con la lista.
+    const mediaBranch = lead.convertedBranch || branchForCityName(lead.city) || lead.city;
     const branchKey = BRANCH_MEDIA_KEY[mediaBranch];
-    if (branchKey && media[branchKey]) {
-      await sendWhatsappMedia(toPhone, 'image', media[branchKey], `Nuestra sucursal en ${mediaBranch}.`);
+    const items: { key: string; type: 'image' | 'video'; label: string; caption: string }[] = [
+      { key: 'central_video', type: 'video', label: 'video de la central de monitoreo', caption: 'Así funciona nuestra central de monitoreo 24/7 — esto es lo que nos diferencia.' },
+      { key: 'recuperacion_video_1', type: 'video', label: 'video de una recuperación', caption: 'Una recuperación real de uno de nuestros clientes.' },
+      { key: 'recuperacion_foto_1', type: 'image', label: 'foto de una recuperación', caption: 'Uno de los vehículos que hemos recuperado.' },
+      ...(branchKey ? [{ key: branchKey, type: 'image' as const, label: `foto de la sucursal ${mediaBranch}`, caption: `Nuestra sucursal en ${mediaBranch}.` }] : []),
+    ];
+    const notes: AgentMessage[] = [];
+    for (const item of items) {
+      const link = media[item.key];
+      if (!link) continue;
+      const result = await sendWhatsappMedia(toPhone, item.type, link, item.caption);
+      if (result.ok) {
+        sent++;
+        notes.push({ role: 'assistant', content: `${STATUS_NOTE_PREFIX} 📎 enviado: ${item.label}` });
+      } else {
+        failed++;
+        notes.push({ role: 'assistant', content: `${STATUS_NOTE_PREFIX} falló el envío del ${item.label} — ${result.error || 'error'}` });
+        await reportIncident(redis, 'whatsapp_media_failed', `${item.key} a …${toPhone.slice(-4)}: ${result.error || 'error'}`);
+      }
     }
-  } catch {
+    if (!items.some((i) => media[i.key])) {
+      notes.push({ role: 'assistant', content: `${STATUS_NOTE_PREFIX} sin material para enviar: no hay videos ni fotos cargados en Agentes IA → Material` });
+    }
+    if (notes.length) await appendHistory(redis, lead.id, notes);
+  } catch (err) {
     // no debe tumbar el flujo si falla el envío de material adicional
+    await reportIncident(redis, 'whatsapp_media_failed', `…${toPhone.slice(-4)}: ${err instanceof Error ? err.message : String(err)}`).catch(() => {});
   }
+  return { sent, failed };
 }
 
 // Candado por número de cliente. Dos mensajes seguidos del mismo cliente llegan como dos
