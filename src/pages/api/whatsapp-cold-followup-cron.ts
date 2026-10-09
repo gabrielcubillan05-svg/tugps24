@@ -5,6 +5,7 @@ import { sendWhatsappTemplate, isQuietHoursColombia } from '../../lib/whatsapp';
 import { readLeads, writeLeads, normalizePhone } from './leads';
 import { appendHistory } from './whatsapp-webhook';
 import { markCronOk } from '../../lib/incidents';
+import { todayInColombia } from '../../lib/colombia-time';
 
 export const prerender = false;
 
@@ -13,6 +14,9 @@ const TEMPLATE_LANGUAGE = 'es_CO'; // crear la plantilla como "Español (COL)" e
 const COLD_INTERVAL_DAYS = 7; // cada cuánto se reintenta un lead frío
 const MAX_COLD_FOLLOW_UPS = 8; // ~2 meses de intentos semanales, luego se deja en paz
 const MIN_INACTIVE_DAYS = 7; // no tocar a alguien que sigue escribiendo activamente
+// El primer reenganche sale a los 2 días de silencio, no a los 7 (Gabriel, 2026-10-08): entre
+// las 24 h de texto libre y la semana se perdía el momento en que el cliente aún se acordaba.
+const FIRST_COLD_DAYS = 2;
 const BATCH_SIZE = 300; // mismo tope que la cobranza masiva, por si un día caen muchos leads fríos a la vez
 
 // Vercel llama esto una vez al día (ver vercel.json). Reengancha, con la plantilla ya
@@ -68,16 +72,19 @@ export const GET: APIRoute = async ({ request }) => {
 
     const coldCount = lead.coldFollowUpCount || 0;
     if (coldCount >= MAX_COLD_FOLLOW_UPS) continue;
+    // Ya concretó con una fecha que aún no llega: no preguntarle si sigue interesado.
+    if (lead.aiStage === 'entregado' && lead.aiPreferredDate && lead.aiPreferredDate >= todayInColombia()) continue;
+    const minDays = coldCount === 0 ? FIRST_COLD_DAYS : MIN_INACTIVE_DAYS;
 
     // Si escribió hace poco, está activo — que lo atienda la conversación normal, no la plantilla.
     if (lead.lastInboundAt) {
       const daysSinceInbound = (now - new Date(lead.lastInboundAt).getTime()) / 86400000;
-      if (daysSinceInbound < MIN_INACTIVE_DAYS) continue;
+      if (daysSinceInbound < minDays) continue;
     }
 
     const anchor = lead.lastColdFollowUpAt || lead.lastInboundAt || lead.lastOutboundAt || lead.createdAt;
     const daysSinceAnchor = (now - new Date(anchor).getTime()) / 86400000;
-    if (daysSinceAnchor < COLD_INTERVAL_DAYS) continue;
+    if (daysSinceAnchor < (coldCount === 0 ? FIRST_COLD_DAYS : COLD_INTERVAL_DAYS)) continue;
 
     const firstName = lead.name.trim().split(/\s+/)[0] || lead.name;
     const result = await sendWhatsappTemplate(phone, TEMPLATE_NAME, TEMPLATE_LANGUAGE, [firstName]);

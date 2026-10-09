@@ -67,6 +67,14 @@ export interface Lead {
   // Andrés no pudo contestar de verdad (Anthropic caído, Meta rechazó el envío): el cron de
   // seguimiento lo reintenta solo mientras siga abierta la ventana de 24 h.
   needsRetry?: boolean;
+  // Fecha concreta (AAAA-MM-DD) que dio el cliente al concretar; recordatorio el día anterior.
+  aiPreferredDate?: string | null;
+  appointmentReminderAt?: string | null;
+  // Aviso a la sucursal cuando a las 2 h de entregado nadie lo ha contactado.
+  handoffNudgeAt?: string | null;
+  // Por qué no cerró, según Andrés (ver LOST_REASON_LABEL en sales-agent).
+  aiLostReason?: string | null;
+  aiLostDetail?: string | null;
   // Autorización de tratamiento de datos (Ley 1581): cuándo y por qué canal la dio.
   consentAt?: string | null;
   consentSource?: string | null;
@@ -103,7 +111,7 @@ export function computeOverdue(lead: Lead): boolean {
 // Rellena los campos que se fueron agregando con el tiempo, para que un lead viejo leído
 // suelto (hget) se comporte igual que uno de la lista completa.
 export function normalizeLead(l: any): Lead {
-  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, needsRetry: false, consentAt: null, consentSource: null, optOut: false, ...l };
+  return { notes: [], nextFollowUp: null, convertedBranch: null, campaign: '', vehicleType: '', motosCount: 0, carrosCount: 0, installed: false, installedAt: null, verifiedInstalled: false, verifiedInstalledAt: null, scheduledInstallDate: null, source: 'manual', metaLeadId: null, createdByName: '', aiStage: 'sin_iniciar', aiHandoffAt: null, lastInboundAt: null, lastOutboundAt: null, followUpCount: 0, lastFollowUpAt: null, mediaSentAt: null, coldFollowUpCount: 0, lastColdFollowUpAt: null, managerAckAt: null, managerAckBy: null, promoNoticeSentAt: null, needsRetry: false, aiPreferredDate: null, appointmentReminderAt: null, handoffNudgeAt: null, aiLostReason: null, aiLostDetail: null, consentAt: null, consentSource: null, optOut: false, ...l };
 }
 
 // El hash de leads pesa ~3 MB y se lee en el CRM (varias veces por carga), en el inicio de
@@ -218,6 +226,8 @@ export interface SalesAgentStats {
   conMaterialHoy: number;
   // Ya conversaron (o se entregaron) y nunca recibieron el material.
   sinMaterial: number;
+  // Motivos de no cierre registrados por Andrés, por clave.
+  motivosNoCierre: Record<string, number>;
 }
 
 // Resultados del agente IA (Andrés) — cuenta los leads de los canales donde él conversa de
@@ -225,8 +235,9 @@ export interface SalesAgentStats {
 export function computeSalesAgentStats(leads: Lead[]): SalesAgentStats {
   const touched = leads.filter((l) => l.source === 'whatsapp-ads' || l.source === 'web-chat');
   const today = todayInColombia();
-  const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0, nuevosHoy: 0, concretadosHoy: 0, conMaterial: 0, conMaterialHoy: 0, sinMaterial: 0 };
+  const stats: SalesAgentStats = { total: touched.length, sinIniciar: 0, enConversacion: 0, concretados: 0, escalados: 0, sinInteres: 0, nuevosHoy: 0, concretadosHoy: 0, conMaterial: 0, conMaterialHoy: 0, sinMaterial: 0, motivosNoCierre: {} };
   for (const l of touched) {
+    if (l.aiLostReason) stats.motivosNoCierre[l.aiLostReason] = (stats.motivosNoCierre[l.aiLostReason] || 0) + 1;
     if (dateInColombia(l.createdAt) === today) stats.nuevosHoy++;
     if (l.mediaSentAt) {
       stats.conMaterial++;

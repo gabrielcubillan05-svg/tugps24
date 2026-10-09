@@ -17,6 +17,17 @@ const BRANCH_ADDRESSES: Record<string, string> = {
   Montería: 'Cra 5 #39-69, Local 3 · WhatsApp 320 250 7432',
 };
 
+// Motivos de no cierre que Andrés registra con registrar_motivo_no_cierre.
+export const LOST_REASON_LABEL: Record<string, string> = {
+  precio: 'precio',
+  desconfianza: 'desconfianza',
+  lo_pensara: 'lo va a pensar',
+  ya_tiene_gps: 'ya tiene GPS',
+  fuera_de_cobertura: 'fuera de cobertura',
+  sin_vehiculo_aun: 'aún no tiene el vehículo',
+  otro: 'otro',
+};
+
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -71,8 +82,9 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        fecha_preferida: { type: 'string', description: 'Fecha o preferencia de fecha que dio el cliente' },
-        resumen: { type: 'string', description: 'Resumen corto de la conversación para la secretaria que lo va a atender' },
+        fecha_preferida: { type: 'string', description: 'Fecha o preferencia de fecha que dio el cliente, tal como la dijo' },
+        fecha_iso: { type: 'string', description: 'La misma fecha en formato AAAA-MM-DD cuando es concreta o deducible (mañana, el sábado, el 16); vacío si fue vaga ("la otra semana", "la quincena")' },
+        resumen: { type: 'string', description: 'Resumen corto de la conversación para la secretaria que lo va a atender (incluye placa o modelo del vehículo si los dio)' },
       },
       required: ['resumen'],
     },
@@ -105,6 +117,19 @@ const TOOLS = [
       type: 'object',
       properties: { resumen: { type: 'string', description: 'Qué dijo el cliente sobre su pago pendiente' } },
       required: ['resumen'],
+    },
+  },
+  {
+    name: 'registrar_motivo_no_cierre',
+    description:
+      'Llamar cuando el cliente se despide o cierra sin agendar (dice que no, que lo piensa, que ya tiene GPS, que es caro, que no está en su ciudad, que todavía no tiene el vehículo). Registra el motivo real para mejorar el guion. No detiene nada: en ese mismo mensaje sigue intentando con amabilidad.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        motivo: { type: 'string', enum: Object.keys(LOST_REASON_LABEL) },
+        detalle: { type: 'string', description: 'En una frase, lo que dijo el cliente' },
+      },
+      required: ['motivo'],
     },
   },
   {
@@ -162,7 +187,8 @@ Mantén siempre un registro serio pero cálido, propio de un asesor de una empre
 2. Saluda, agradece el interés, y pregunta si es para moto, carro, flota o máquina amarilla (equipo pesado/de construcción) — usa la herramienta set_tipo_vehiculo en cuanto lo sepas.
 3. Pregunta la ciudad (usa set_ciudad en cuanto la sepas) y brevemente el motivo de interés (seguridad, ya le robaron uno, exigencia de aseguradora, etc.).
 4. Presenta el precio (ver abajo) y refuerza los diferenciadores si hay cualquier duda u objeción.
-5. Cierra pidiendo una fecha o preferencia de fecha para instalar. Cuando el cliente diga explícitamente que SÍ quiere instalar Y dé una fecha o preferencia, llama a marcar_calificado con un resumen claro. Nunca confirmes la fecha como agendada en firme — dile que la sucursal le confirma disponibilidad.
+5. Cierra con alternativa cerrada: no preguntes "¿cuándo quieres instalar?", ofrece dos opciones concretas ("¿te queda mejor mañana en la mañana o el sábado?"). Pide también la placa o el modelo del vehículo "para ir adelantando la orden": cuando el cliente da ese dato, ya se comprometió. Cuando diga explícitamente que SÍ quiere instalar Y dé una fecha o preferencia, llama a marcar_calificado con un resumen claro (con placa o modelo si los dio) y, si la fecha es concreta o deducible, con fecha_iso. Nunca confirmes la fecha como agendada en firme — dile que la sucursal le confirma disponibilidad.
+6. Si el cliente se despide o cierra sin agendar (que no, que lo piensa, que ya tiene GPS, que es caro, que no está en su ciudad), llama a registrar_motivo_no_cierre con el motivo real. Eso no detiene nada: en ese mismo mensaje responde la objeción y deja una puerta abierta.
 
 ## Precios (COP)
 - Equipo + instalación: ${money(INSTALACION_UNIT)} en todas las sucursales (es el precio de promoción vigente; no digas que terminó ni le pongas fecha de cierre).

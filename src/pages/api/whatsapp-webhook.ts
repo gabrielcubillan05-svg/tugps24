@@ -6,7 +6,7 @@ import { pushNotification } from '../../lib/notifications';
 import { getUsers, findUserByUsername, JOSUE_USERNAME, branchesOf } from '../../lib/auth';
 import { sendWhatsappText, sendWhatsappMedia, verifyMetaSignature } from '../../lib/whatsapp';
 import { transcribeWhatsappAudio } from '../../lib/transcribe';
-import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
+import { runSalesAgent, LOST_REASON_LABEL, type AgentMessage } from '../../lib/sales-agent';
 import { runCollectionsAgent } from '../../lib/collections-agent';
 import { readLeads, writeLeads, normalizeLead, normalizePhone, mergeLeadIntoCurrent, REDIS_KEY as LEADS_KEY, type Lead } from './leads';
 import { runAfterResponse } from '../../lib/background';
@@ -381,6 +381,10 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
       lead.managerAckBy = null;
       if (lead.status !== 'Instalado') lead.status = 'Concretado por el agente';
       if (call.input?.fecha_preferida) lead.scheduledInstallDate = String(call.input.fecha_preferida);
+      const fechaIso = String(call.input?.fecha_iso || '').trim();
+      lead.aiPreferredDate = /^\d{4}-\d{2}-\d{2}$/.test(fechaIso) ? fechaIso : null;
+      lead.appointmentReminderAt = null;
+      lead.handoffNudgeAt = null;
       const summary = String(call.input?.resumen || 'Lead calificado por el agente IA.');
       lead.notes = [{ text: `[Agente IA] ${summary}`, date: now }, ...lead.notes];
 
@@ -447,6 +451,12 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
       } else {
         await notifyJosue(redis, `${lead.name} (${lead.phone}) dice ser cliente actual con un pago pendiente, pero no está en Cobranza especial: ${resumen}`);
       }
+    } else if (call.name === 'registrar_motivo_no_cierre') {
+      const motivo = String(call.input?.motivo || 'otro');
+      const detalle = String(call.input?.detalle || '').trim().slice(0, 200);
+      lead.aiLostReason = LOST_REASON_LABEL[motivo] ? motivo : 'otro';
+      lead.aiLostDetail = detalle;
+      lead.notes = [{ text: `[Agente IA] No cerró por ${LOST_REASON_LABEL[lead.aiLostReason] || motivo}${detalle ? ': ' + detalle : ''}`, date: now }, ...lead.notes];
     } else if (call.name === 'reforzar_con_material' && !lead.mediaSentAt) {
       const r = await sendReinforcementMedia(redis, lead, fromPhone);
       // Sin material cargado no se marca: en cuanto alguien suba los videos se le mandan.

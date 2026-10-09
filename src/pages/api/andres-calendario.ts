@@ -17,6 +17,7 @@ export interface CalendarDay {
   atendidos: number; // conversaciones distintas con respuesta de Andrés ese día
   nuevos: number; // leads de WhatsApp/chat web creados ese día
   concretados: number; // entregados a sucursal ese día
+  instalados: number; // leads de Andrés marcados como instalados ese día (la conversión real)
   escalados: number;
   usd: number; // gasto en Anthropic ese día, con los precios configurados en el menú de IA
   cop: number;
@@ -90,7 +91,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       },
       costConfig
     );
-    byDate.set(date, { date, atendidos: Number(attended[i]) || 0, nuevos: 0, concretados: 0, escalados: 0, usd: cost.usd, cop: cost.cop });
+    byDate.set(date, { date, atendidos: Number(attended[i]) || 0, nuevos: 0, concretados: 0, instalados: 0, escalados: 0, usd: cost.usd, cop: cost.cop });
   });
 
   for (const l of leads) {
@@ -104,6 +105,11 @@ export const GET: APIRoute = async ({ cookies, url }) => {
         else if (l.aiStage === 'escalado') handed.escalados++;
       }
     }
+    const installedAt = l.installedAt || l.verifiedInstalledAt;
+    if (installedAt && (l.installed || l.verifiedInstalled)) {
+      const inst = byDate.get(dateInColombia(installedAt));
+      if (inst) inst.instalados++;
+    }
   }
 
   const days = dates.map((d) => byDate.get(d)!);
@@ -112,12 +118,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       acc.atendidos += d.atendidos;
       acc.nuevos += d.nuevos;
       acc.concretados += d.concretados;
+      acc.instalados += d.instalados;
       acc.escalados += d.escalados;
       acc.usd += d.usd;
       acc.cop += d.cop;
       return acc;
     },
-    { atendidos: 0, nuevos: 0, concretados: 0, escalados: 0, usd: 0, cop: 0 }
+    { atendidos: 0, nuevos: 0, concretados: 0, instalados: 0, escalados: 0, usd: 0, cop: 0 }
   );
   // Día de la semana del 1.º (0 = domingo) para alinear la cuadrícula.
   const firstWeekday = new Date(`${month}-01T12:00:00Z`).getUTCDay();

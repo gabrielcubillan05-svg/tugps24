@@ -38,10 +38,16 @@ document.addEventListener('DOMContentLoaded', function () {
     return Number(n || 0).toLocaleString('es-CO');
   }
 
+  const LOST_LABELS = { precio: 'precio', desconfianza: 'desconfianza', lo_pensara: 'lo va a pensar', ya_tiene_gps: 'ya tiene GPS', fuera_de_cobertura: 'fuera de cobertura', sin_vehiculo_aun: 'aún no tiene el vehículo', otro: 'otro' };
+
   function renderResults(a) {
     if (!a.results) return '';
     const r = a.results;
     if (a.key === 'andres') {
+      const motivos = Object.entries(r.motivosNoCierre || {}).sort((x, y) => y[1] - x[1]);
+      const motivosHtml = motivos.length
+        ? `<div class="agent-usage-row"><div class="agent-usage-stat" style="flex:1 1 100%;align-items:flex-start"><span class="l">Por qué no cierran (según Andrés)</span><span class="n" style="font-size:13px;font-weight:500">${motivos.map(([k, v]) => `${escapeHtml(LOST_LABELS[k] || k)}: ${v}`).join(' · ')}</span></div></div>`
+        : '';
       return `
         <div class="agent-usage-row">
           <div class="agent-usage-stat"><span class="n">${fmtTokens(r.total)}</span><span class="l">Leads por WhatsApp</span></div>
@@ -58,6 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="agent-usage-stat"><span class="n">${fmtTokens(r.conMaterialHoy || 0)}</span><span class="l">Fotos/videos hoy</span></div>
           <div class="agent-usage-stat"><span class="n">${fmtTokens(r.sinMaterial || 0)}</span><span class="l">Conversaron sin material</span></div>
         </div>
+        ${motivosHtml}
       `;
     }
     return `
@@ -370,6 +377,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   <div class="v"><span>Atend.</span><span class="a">${d.atendidos}</span></div>
                   <div class="v"><span>Nuevos</span><span class="n">${d.nuevos}</span></div>
                   <div class="v"><span>Concr.</span><span class="c">${d.concretados}</span></div>
+                  <div class="v"><span>Instal.</span><span class="i">${d.instalados || 0}</span></div>
                   ${filtered ? '' : `<div class="v cost"><span>Gasto</span><span>${d.cop ? '$' + Math.round(d.cop).toLocaleString('es-CO') : '—'}</span></div>`}`}
               </div>`;
           }).join('');
@@ -380,8 +388,10 @@ document.addEventListener('DOMContentLoaded', function () {
             <span>Atendidos: <b style="color:#3b82f6">${fmtTokens(t.atendidos || 0)}</b></span>
             <span>Leads nuevos: <b style="color:#f59e0b">${fmtTokens(t.nuevos || 0)}</b></span>
             <span>Concretados: <b style="color:#22c55e">${fmtTokens(t.concretados || 0)}</b></span>
+            <span>Instalados: <b style="color:#8b5cf6">${fmtTokens(t.instalados || 0)}</b></span>
             <span>Escalados: <b>${fmtTokens(t.escalados || 0)}</b></span>
             <span>% concretado sobre nuevos: <b>${rate}%</b></span>
+            <span>% instalado sobre concretados: <b>${t.concretados ? Math.round(((t.instalados || 0) / t.concretados) * 100) : 0}%</b></span>
             ${filtered ? '<span style="color:var(--slate)">El gasto solo se muestra con todas las sucursales.</span>' : `<span>Gasto del mes: <b>$${Math.round(t.cop || 0).toLocaleString('es-CO')} COP</b> · ${(t.usd || 0).toFixed(2)} USD</span>`}`;
         })
         .catch(() => { calGrid.innerHTML = '<div class="empty">No se pudo cargar (revisa la conexión).</div>'; });
