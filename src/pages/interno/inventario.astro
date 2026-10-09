@@ -80,6 +80,10 @@ if (!scope.length) {
   .inv-table th { color: var(--slate); font-size: 12px; font-weight: 600; white-space: nowrap; }
   .inv-table td input { width: 100%; min-width: 90px; padding: 6px 8px; font-size: 13px; }
   .inv-table td.actions { white-space: nowrap; text-align: right; }
+  /* El estilo global pone los <select> a ancho completo: en la celda de acciones eso estiraba
+     la tabla y aparecía una barra horizontal. */
+  .inv-table td.actions select { width: auto; max-width: 180px; display: inline-block; padding: 5px 6px; font-size: 12.5px; margin-right: 4px; vertical-align: middle; }
+  .inv-table td.actions .btn-small { vertical-align: middle; }
   .inv-table tr.new-row td { background: var(--glow-1); }
   .inv-table .who { color: var(--slate); font-size: 11.5px; white-space: nowrap; }
   @media (max-width: 720px) {
