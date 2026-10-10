@@ -75,7 +75,8 @@ export type Section =
   | 'sim-consumos'
   | 'inventario'
   | 'verificacion-pagos'
-  | 'apagados-programados';
+  | 'apagados-programados'
+  | 'pool-secretarias';
 
 export const SECTION_LABELS: Record<Section, string> = {
   novedades: 'Novedades',
@@ -106,6 +107,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   inventario: 'Inventario de sucursal',
   'verificacion-pagos': 'Verificación de pagos',
   'apagados-programados': 'Apagados programados',
+  'pool-secretarias': 'Pool de secretarias',
 };
 
 export const SECTION_PATHS: Record<Section, string> = {
@@ -137,15 +139,16 @@ export const SECTION_PATHS: Record<Section, string> = {
   inventario: '/interno/inventario',
   'verificacion-pagos': '/interno/verificacion-pagos',
   'apagados-programados': '/interno/apagados-programados',
+  'pool-secretarias': '/interno/pool-secretarias',
 };
 
 export const ROLE_SECTIONS: Record<Role, Section[]> = {
   tecnico: ['tareas', 'chat', 'planillas-vehiculo'],
   operador: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'garantias'],
   secretaria: ['crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'suspensiones', 'solicitudes-administrativas'],
-  supervisor: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas'],
-  gerente: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas'],
-  admin: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario', 'verificacion-pagos'],
+  supervisor: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'chat', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'estadisticas', 'pool-secretarias'],
+  gerente: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'chat', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'estadisticas', 'pool-secretarias'],
+  admin: ['novedades', 'novedades-archivadas', 'reportes', 'apagados-programados', 'crm', 'cotizaciones', 'tareas', 'auditoria', 'usuarios', 'chat', 'estadisticas', 'cobros', 'cuadrantes', 'casos-importantes', 'suspensiones', 'solicitudes-administrativas', 'seguimiento-masivos', 'pagos-internos', 'planillas-vehiculo', 'esquemas-apagado', 'garantias', 'rrhh', 'almacenamiento', 'inventario', 'verificacion-pagos', 'pool-secretarias'],
 };
 
 export function canAccessSection(role: Role, section: Section): boolean {

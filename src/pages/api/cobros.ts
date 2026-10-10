@@ -608,6 +608,8 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (cobro.contacted) {
       cobro.contactedAt = new Date().toISOString();
       cobro.contactedByName = userName;
+      // Queda en auditoría para el Pool de secretarias (gestiones de cobranza por persona).
+      await logAudit(redis, session, 'cobro_contactado', cobro.nombre, cobro.sucursal);
     } else {
       cobro.contactedAt = null;
       cobro.contactedByName = '';
