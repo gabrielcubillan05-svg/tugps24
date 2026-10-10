@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="report-item">
         <div class="report-top">
           <span class="plate">${escapeHtml(r.plate)} · ${escapeHtml(r.branch)}</span>
-          <span class="badge">${escapeHtml(r.category)}</span>${r.shutdown ? '<span class="badge shutdown" style="background:var(--danger);color:#fff;font-weight:700;margin-left:6px;">🔴 APAGADO</span>' : ''}
+          <span class="badge">${escapeHtml(r.category)}</span>${r.shutdown ? '<span class="badge shutdown" style="background:var(--danger);color:#fff;font-weight:700;margin-left:6px;">🔴 APAGADO</span>' : ''}${r.powerOn ? '<span class="badge poweron" style="background:var(--ok);color:#fff;font-weight:700;margin-left:6px;">🟢 ENCENDIDO</span>' : ''}
           ${withSource ? `<span class="source-tag">${sourceLabel(r.source)}</span>` : ''}
         </div>
         <p class="note">${escapeHtml(r.note)}</p>

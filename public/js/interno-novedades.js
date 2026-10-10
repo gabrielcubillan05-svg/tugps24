@@ -50,12 +50,21 @@ document.addEventListener('DOMContentLoaded', function () {
   const employeeFilter = document.getElementById('employeeFilter');
   const shutdownFilter = document.getElementById('shutdownFilter');
   const shutdownToggle = document.getElementById('shutdownToggle');
-  const setShutdown = (on) => {
-    if (!shutdownToggle) return;
-    shutdownToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
-    shutdownToggle.querySelector('.txt').textContent = on ? 'VEHÍCULO APAGADO · toca para quitar' : 'No lo apagué · toca aquí si lo apagaste';
+  const powerOnToggle = document.getElementById('powerOnToggle');
+  // Apagado y encendido son excluyentes: marcar uno quita el otro.
+  const setPower = (state) => {
+    if (shutdownToggle) {
+      shutdownToggle.setAttribute('aria-pressed', state === 'off' ? 'true' : 'false');
+      shutdownToggle.querySelector('.txt').textContent = state === 'off' ? 'VEHÍCULO APAGADO · toca para quitar' : 'Lo apagué';
+    }
+    if (powerOnToggle) {
+      powerOnToggle.setAttribute('aria-pressed', state === 'on' ? 'true' : 'false');
+      powerOnToggle.querySelector('.txt').textContent = state === 'on' ? 'VEHÍCULO ENCENDIDO · toca para quitar' : 'Lo encendí';
+    }
   };
-  if (shutdownToggle) shutdownToggle.addEventListener('click', () => setShutdown(shutdownToggle.getAttribute('aria-pressed') !== 'true'));
+  const powerState = () => (shutdownToggle && shutdownToggle.getAttribute('aria-pressed') === 'true' ? 'off' : powerOnToggle && powerOnToggle.getAttribute('aria-pressed') === 'true' ? 'on' : '');
+  if (shutdownToggle) shutdownToggle.addEventListener('click', () => setPower(powerState() === 'off' ? '' : 'off'));
+  if (powerOnToggle) powerOnToggle.addEventListener('click', () => setPower(powerState() === 'on' ? '' : 'on'));
   const truncatedNotice = document.getElementById('truncatedNotice');
   let loadAll = false;
   let scanLimit = null;
@@ -85,7 +94,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="report-item">
         <div class="report-top">
           <span class="plate">${escapeHtml(r.plate)} · ${escapeHtml(r.branch)}</span>
-          <span><span class="badge">${escapeHtml(r.category)}</span>${r.shutdown ? '<span class="badge shutdown">🔴 APAGADO</span>' : ''}</span>
+          <span><span class="badge">${escapeHtml(r.category)}</span>${r.shutdown ? '<span class="badge shutdown">🔴 APAGADO</span>' : ''}${r.powerOn ? '<span class="badge poweron">🟢 ENCENDIDO</span>' : ''}</span>
         </div>
         <p class="note">${escapeHtml(r.note)}</p>
         ${Array.isArray(r.images) && r.images.length ? `
@@ -252,7 +261,8 @@ document.addEventListener('DOMContentLoaded', function () {
       formData.set('branch', branch);
       formData.set('category', category);
       formData.set('note', note);
-      formData.set('shutdown', shutdownToggle && shutdownToggle.getAttribute('aria-pressed') === 'true' ? '1' : '0');
+      formData.set('shutdown', powerState() === 'off' ? '1' : '0');
+      formData.set('powerOn', powerState() === 'on' ? '1' : '0');
 
       if (pendingImages.length) {
         submitBtn.textContent = 'Procesando fotos...';
@@ -273,7 +283,7 @@ document.addEventListener('DOMContentLoaded', function () {
         throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || `error ${res.status}`);
       }
       reportForm.reset();
-      setShutdown(false);
+      setPower('');
       pendingImages.forEach((p) => URL.revokeObjectURL(p.url));
       pendingImages = [];
       renderImagePreview();

@@ -36,6 +36,8 @@ export interface Report {
   // El operador apagó el vehículo en esta novedad: queda marcado para que cualquier operador
   // filtre los que tienen orden de apagado (Gabriel, 2026-10-10).
   shutdown?: boolean;
+  // El operador volvió a encender el vehículo: cierra la orden de apagado de esa placa.
+  powerOn?: boolean;
 }
 
 // Versión liviana para GPSITO — solo trae las más recientes (la lista completa tiene
@@ -132,6 +134,13 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     .filter((r): r is Report => r !== null)
     .map((r) => ({ images: [], createdByName: '', createdById: '', ...r }));
 
+  // Último encendido por placa (sobre todo lo leído, antes de filtrar): una orden de apagado
+  // está vigente si no hay un encendido posterior de la misma placa.
+  const lastPowerOn = new Map<string, string>();
+  for (const r of reports) {
+    if (r.powerOn && (!lastPowerOn.has(r.plate) || lastPowerOn.get(r.plate)! < r.createdAt)) lastPowerOn.set(r.plate, r.createdAt);
+  }
+
   if (q) {
     reports = reports.filter((r) =>
       r.plate.toLowerCase().includes(q) ||
@@ -142,7 +151,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (branch) reports = reports.filter((r) => r.branch === branch);
   if (category) reports = reports.filter((r) => r.category === category);
   if (employee) reports = reports.filter((r) => r.createdById === employee);
-  if (shutdownOnly) reports = reports.filter((r) => r.shutdown === true);
+  if (shutdownOnly) reports = reports.filter((r) => r.shutdown === true && !((lastPowerOn.get(r.plate) || '') > r.createdAt));
 
   return new Response(
     JSON.stringify({
@@ -180,6 +189,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   let category = '';
   let note = '';
   let shutdown = false;
+  let powerOn = false;
   let imageFiles: File[] = [];
 
   if (contentType.includes('multipart/form-data')) {
@@ -189,6 +199,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     category = String(form.get('category') || '').trim();
     note = String(form.get('note') || '').trim();
     shutdown = String(form.get('shutdown') || '') === '1';
+    powerOn = String(form.get('powerOn') || '') === '1';
     imageFiles = form.getAll('images').filter((v): v is File => v instanceof File && v.size > 0);
   } else {
     let body: Partial<Report>;
@@ -202,7 +213,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     category = String(body.category || '').trim();
     note = String(body.note || '').trim();
     shutdown = body.shutdown === true;
+    powerOn = body.powerOn === true;
   }
+  if (powerOn) shutdown = false;
 
   if (!plate || !branch || !category || !note) {
     return new Response(JSON.stringify({ error: 'missing fields' }), { status: 400 });
@@ -254,11 +267,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     createdByName: creator?.name || session.username,
     createdById: session.userId,
     shutdown,
+    powerOn,
   };
 
   await redis.lpush(REDIS_KEY, JSON.stringify(report));
   await bumpVersion(redis, REPORTS_VERSION_KEY);
-  await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category + (shutdown ? ' · vehículo apagado' : ''));
+  await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category + (shutdown ? ' · vehículo apagado' : powerOn ? ' · vehículo encendido' : ''));
 
   // Los avisos a supervisores y gerentes van en paralelo. Antes iban uno por uno, y cada uno
   // incluye un push real al navegador del destinatario (una llamada externa de varios cientos
