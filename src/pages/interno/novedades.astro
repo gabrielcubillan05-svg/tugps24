@@ -42,6 +42,12 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
           <textarea id="note" name="note" placeholder="Ej: fuera de área vía Masinga, llamado al principal, confirma todo en orden" required></textarea>
         </div>
         <div class="field field-note">
+          <label>¿Apagaste el vehículo en esta novedad?</label>
+          <button type="button" class="shutdown-toggle" id="shutdownToggle" aria-pressed="false">
+            <span class="dot"></span><span class="txt">No lo apagué · toca aquí si lo apagaste</span>
+          </button>
+        </div>
+        <div class="field field-note">
           <label for="images">Fotos (opcional, máx. 4) — puedes pegar una captura con Ctrl+V dentro de la nota</label>
           <input id="images" name="images" type="file" accept="image/*" multiple />
           <div class="image-preview" id="imagePreview"></div>
@@ -66,6 +72,7 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
       <select id="employeeFilter">
         <option value="">Todos los empleados</option>
       </select>
+      <label class="shutdown-filter"><input id="shutdownFilter" type="checkbox" /> 🔴 Solo vehículos apagados</label>
     </div>
     <p id="truncatedNotice" class="hint" style="display:none;"></p>
     <div class="reports-list" id="reportsList">
@@ -78,4 +85,14 @@ const BRANCHES = ['Riohacha', 'Valledupar', 'Santa Marta', 'Maicao', 'Atlántico
   #truncatedNotice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 </style>
 
+
+<style>
+  .shutdown-toggle { display: inline-flex; align-items: center; gap: 10px; width: auto; padding: 10px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--ink-800); color: var(--paper-dim); font-size: 14px; cursor: pointer; }
+  .shutdown-toggle .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--slate); }
+  .shutdown-toggle[aria-pressed="true"] { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 700; }
+  .shutdown-toggle[aria-pressed="true"] .dot { background: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,0.25); }
+  .shutdown-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--paper-dim); white-space: nowrap; cursor: pointer; }
+  .shutdown-filter input { width: auto; margin: 0; }
+  .report-item .badge.shutdown { background: var(--danger); color: #fff; font-weight: 700; margin-left: 6px; }
+</style>
 <script src="/js/interno-novedades.js" defer></script>

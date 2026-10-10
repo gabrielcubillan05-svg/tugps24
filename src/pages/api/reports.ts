@@ -33,6 +33,9 @@ export interface Report {
   createdAt: string;
   createdByName: string;
   createdById: string;
+  // El operador apagó el vehículo en esta novedad: queda marcado para que cualquier operador
+  // filtre los que tienen orden de apagado (Gabriel, 2026-10-10).
+  shutdown?: boolean;
 }
 
 // Versión liviana para GPSITO — solo trae las más recientes (la lista completa tiene
@@ -75,6 +78,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const category = url.searchParams.get('category') || '';
   const employee = url.searchParams.get('employee') || '';
   const all = url.searchParams.get('all') === '1';
+  const shutdownOnly = url.searchParams.get('shutdown') === '1';
   const requestedScanLimit = parseInt(url.searchParams.get('scanLimit') || '', 10);
   const scanLimit = Number.isFinite(requestedScanLimit) && requestedScanLimit > 0
     ? Math.min(requestedScanLimit, SEARCH_MAX_SCAN_CEILING)
@@ -86,7 +90,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   // filtros activos solo se traen las más recientes; al buscar/filtrar se trae en
   // bloques hasta un tope (ampliable con scanLimit si el operador pide seguir
   // buscando más atrás), no el historial completo de golpe.
-  const needsFullScan = Boolean(q || branch || category || employee || all);
+  const needsFullScan = Boolean(q || branch || category || employee || all || shutdownOnly);
   // Vista normal (las 200 más recientes): cada pestaña de la central la refresca cada 2
   // minutos; si no entró ninguna novedad desde la última vez, no se relee ni se serializa.
   let listVersion: string | undefined;
@@ -138,6 +142,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (branch) reports = reports.filter((r) => r.branch === branch);
   if (category) reports = reports.filter((r) => r.category === category);
   if (employee) reports = reports.filter((r) => r.createdById === employee);
+  if (shutdownOnly) reports = reports.filter((r) => r.shutdown === true);
 
   return new Response(
     JSON.stringify({
@@ -174,6 +179,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   let branch = '';
   let category = '';
   let note = '';
+  let shutdown = false;
   let imageFiles: File[] = [];
 
   if (contentType.includes('multipart/form-data')) {
@@ -182,6 +188,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     branch = String(form.get('branch') || '').trim();
     category = String(form.get('category') || '').trim();
     note = String(form.get('note') || '').trim();
+    shutdown = String(form.get('shutdown') || '') === '1';
     imageFiles = form.getAll('images').filter((v): v is File => v instanceof File && v.size > 0);
   } else {
     let body: Partial<Report>;
@@ -194,6 +201,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     branch = String(body.branch || '').trim();
     category = String(body.category || '').trim();
     note = String(body.note || '').trim();
+    shutdown = body.shutdown === true;
   }
 
   if (!plate || !branch || !category || !note) {
@@ -245,11 +253,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     createdAt: new Date().toISOString(),
     createdByName: creator?.name || session.username,
     createdById: session.userId,
+    shutdown,
   };
 
   await redis.lpush(REDIS_KEY, JSON.stringify(report));
   await bumpVersion(redis, REPORTS_VERSION_KEY);
-  await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category);
+  await logAudit(redis, session, 'report_create', `${report.plate} · ${report.branch}`, report.category + (shutdown ? ' · vehículo apagado' : ''));
 
   // Los avisos a supervisores y gerentes van en paralelo. Antes iban uno por uno, y cada uno
   // incluye un push real al navegador del destinatario (una llamada externa de varios cientos

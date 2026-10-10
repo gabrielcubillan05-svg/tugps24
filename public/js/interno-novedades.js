@@ -48,6 +48,14 @@ document.addEventListener('DOMContentLoaded', function () {
   const branchFilter = document.getElementById('branchFilter');
   const categoryFilter = document.getElementById('categoryFilter');
   const employeeFilter = document.getElementById('employeeFilter');
+  const shutdownFilter = document.getElementById('shutdownFilter');
+  const shutdownToggle = document.getElementById('shutdownToggle');
+  const setShutdown = (on) => {
+    if (!shutdownToggle) return;
+    shutdownToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+    shutdownToggle.querySelector('.txt').textContent = on ? 'VEHÍCULO APAGADO · toca para quitar' : 'No lo apagué · toca aquí si lo apagaste';
+  };
+  if (shutdownToggle) shutdownToggle.addEventListener('click', () => setShutdown(shutdownToggle.getAttribute('aria-pressed') !== 'true'));
   const truncatedNotice = document.getElementById('truncatedNotice');
   let loadAll = false;
   let scanLimit = null;
@@ -77,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="report-item">
         <div class="report-top">
           <span class="plate">${escapeHtml(r.plate)} · ${escapeHtml(r.branch)}</span>
-          <span class="badge">${escapeHtml(r.category)}</span>
+          <span><span class="badge">${escapeHtml(r.category)}</span>${r.shutdown ? '<span class="badge shutdown">🔴 APAGADO</span>' : ''}</span>
         </div>
         <p class="note">${escapeHtml(r.note)}</p>
         ${Array.isArray(r.images) && r.images.length ? `
@@ -100,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
   let lastSignature = '';
 
   function hasActiveFilters() {
-    return Boolean(searchInput.value.trim() || branchFilter.value || categoryFilter.value || employeeFilter.value || loadAll);
+    return Boolean(searchInput.value.trim() || branchFilter.value || categoryFilter.value || employeeFilter.value || (shutdownFilter && shutdownFilter.checked) || loadAll);
   }
 
   let reportsVersion = '';
@@ -114,6 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (branchFilter.value) params.set('branch', branchFilter.value);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (employeeFilter.value) params.set('employee', employeeFilter.value);
+    if (shutdownFilter && shutdownFilter.checked) params.set('shutdown', '1');
     if (loadAll) params.set('all', '1');
     if (scanLimit) params.set('scanLimit', String(scanLimit));
     const plainView = params.toString() === '';
@@ -175,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
   branchFilter.addEventListener('change', loadWithResetScan);
   categoryFilter.addEventListener('change', loadWithResetScan);
   employeeFilter.addEventListener('change', loadWithResetScan);
+  if (shutdownFilter) shutdownFilter.addEventListener('change', loadWithResetScan);
 
   loadEmployeeFilter();
 
@@ -242,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
       formData.set('branch', branch);
       formData.set('category', category);
       formData.set('note', note);
+      formData.set('shutdown', shutdownToggle && shutdownToggle.getAttribute('aria-pressed') === 'true' ? '1' : '0');
 
       if (pendingImages.length) {
         submitBtn.textContent = 'Procesando fotos...';
@@ -262,6 +273,7 @@ document.addEventListener('DOMContentLoaded', function () {
         throw new Error([data.error, data.detail].filter(Boolean).join(' — ') || `error ${res.status}`);
       }
       reportForm.reset();
+      setShutdown(false);
       pendingImages.forEach((p) => URL.revokeObjectURL(p.url));
       pendingImages = [];
       renderImagePreview();
