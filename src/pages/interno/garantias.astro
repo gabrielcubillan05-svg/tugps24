@@ -32,15 +32,6 @@ const canLevel = session.username === WILMAR_USERNAME;
     <p id="uploadResult" style="display:none; margin-top:12px; font-size:13.5px;"></p>
   </div>
 
-  {canLevel && (
-  <div class="panel-card">
-    <h2>Nivelar llamadas pendientes</h2>
-    <p class="hint">Reparte parejo las llamadas que aún no se han hecho entre los operadores de garantías que están hoy (activos y sin día libre en Horarios). Cada uno conserva las suyas hasta su cupo; el sobrante y lo de quien no está pasa a quien tenga menos. Queda anotado en el historial de cada garantía movida.</p>
-    <button class="btn" id="levelBtn" type="button">Nivelar entre los que están hoy</button>
-    <p id="levelResult" style="display:none; margin-top:12px; font-size:13.5px;"></p>
-  </div>
-  )}
-
   <div class="panel-card">
     <h2>Estadísticas por operador</h2>
     <div class="filters">
@@ -55,6 +46,15 @@ const canLevel = session.username === WILMAR_USERNAME;
       <input id="statsTo" type="date" hidden />
     </div>
     <div class="list-col" id="garantiasStats"></div>
+  </div>
+  )}
+
+  {canLevel && (
+  <div class="panel-card">
+    <h2>Nivelar llamadas pendientes</h2>
+    <p class="hint">Reparte parejo las llamadas que aún no se han hecho entre los operadores de garantías que están hoy (activos y sin día libre en Horarios). Cada uno conserva las suyas hasta su cupo; el sobrante y lo de quien no está pasa a quien tenga menos. Queda anotado en el historial de cada garantía movida.</p>
+    <button class="btn" id="levelBtn" type="button">Nivelar entre los que están hoy</button>
+    <p id="levelResult" style="display:none; margin-top:12px; font-size:13.5px;"></p>
   </div>
   )}
 
