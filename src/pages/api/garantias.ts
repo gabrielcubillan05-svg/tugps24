@@ -8,7 +8,7 @@ import { getRedis } from '../../lib/redis';
 import { readHashValues } from '../../lib/redis-hash';
 import { pageOf } from '../../lib/list-page';
 import { logAudit } from '../../lib/audit';
-import { SESSION_COOKIE, getSession, canAccessGarantias, canUploadGarantias, getUsers, verifySameOrigin } from '../../lib/auth';
+import { SESSION_COOKIE, getSession, canAccessGarantias, canUploadGarantias, getUsers, verifySameOrigin, WILMAR_USERNAME } from '../../lib/auth';
 import { normalizePhone } from './leads';
 import { readProfiles } from './employees';
 import { readSchedule } from './schedule';
@@ -195,6 +195,63 @@ function resolveTodayAssignee(
     return coveringOperators[cursor % coveringOperators.length];
   }
   return homeOperator;
+}
+
+// Nivela las llamadas pendientes (aún no llamadas) entre los operadores de garantías que están
+// hoy (activos, marcados como Operador de Garantías y sin día libre hoy en Horarios). Cada uno
+// conserva las suyas hasta su cupo; el sobrante y lo de quien no está se reparte a quien tenga
+// menos. Cambia también el titular, para que el cron diario no las devuelva. Botón solo de
+// Wilmar (Gabriel, 2026-10-12).
+export async function nivelarPendientes(redis: any, actorName: string): Promise<{ moved: number; presentes: string[]; antes: Record<string, number>; despues: Record<string, number> }> {
+  const [garantias, users, profiles, schedule] = await Promise.all([readGarantias(redis), getUsers(redis), readProfiles(redis), readSchedule(redis)]);
+  const { day: todayDayName } = colombiaDayAndMinutes(new Date());
+  const presentes = users
+    .filter((u) => u.active && profiles[u.id]?.esOperadorGarantias && !getFreeDays(schedule, u.name).has(todayDayName))
+    .map((u) => ({ id: u.id, name: u.name }));
+  if (!presentes.length) throw new Error('hoy no hay ningún operador de garantías disponible (todos libran o ninguno está marcado como Operador de Garantías)');
+
+  const pendientes = sortByPriority(garantias.filter((g) => !g.called));
+  const antes: Record<string, number> = {};
+  for (const g of pendientes) antes[g.assignedToName || 'Sin asignar'] = (antes[g.assignedToName || 'Sin asignar'] || 0) + 1;
+
+  const presentIds = new Set(presentes.map((p) => p.id));
+  const base = Math.floor(pendientes.length / presentes.length);
+  const extra = pendientes.length % presentes.length;
+  const cupo = new Map<string, number>();
+  presentes.forEach((p, i) => cupo.set(p.id, base + (i < extra ? 1 : 0)));
+
+  const keep = new Map<string, number>();
+  const pool: Garantia[] = [];
+  for (const g of pendientes) {
+    const kept = keep.get(g.assignedToId) || 0;
+    if (presentIds.has(g.assignedToId) && kept < (cupo.get(g.assignedToId) || 0)) keep.set(g.assignedToId, kept + 1);
+    else pool.push(g);
+  }
+
+  const now = new Date().toISOString();
+  const toSave: Record<string, string> = {};
+  let moved = 0;
+  for (const p of presentes) {
+    let faltan = (cupo.get(p.id) || 0) - (keep.get(p.id) || 0);
+    while (faltan > 0 && pool.length) {
+      const g = pool.shift()!;
+      const desde = g.assignedToName || 'sin asignar';
+      g.assignedToId = p.id;
+      g.assignedToName = p.name;
+      g.homeAssignedToId = p.id;
+      g.homeAssignedToName = p.name;
+      g.updatedAt = now;
+      g.history = [{ category: g.category, note: `Reasignada por nivelación: de ${desde} a ${p.name}`, date: now, by: actorName, system: true }, ...g.history];
+      toSave[g.id] = JSON.stringify(g);
+      moved++;
+      faltan--;
+    }
+  }
+  if (moved) await redis.hset(REDIS_KEY, toSave);
+
+  const despues: Record<string, number> = {};
+  for (const g of pendientes) despues[g.assignedToName || 'Sin asignar'] = (despues[g.assignedToName || 'Sin asignar'] || 0) + 1;
+  return { moved, presentes: presentes.map((p) => p.name), antes, despues };
 }
 
 // Revisa TODAS las garantías pendientes y las mueve entre el titular y quien cubre según el día
@@ -578,6 +635,18 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     imageFiles = form.getAll('images').filter((v): v is File => v instanceof File && v.size > 0);
   } else {
     const body = await request.json().catch(() => ({}));
+    if (body?.action === 'nivelar') {
+      if (session.username !== WILMAR_USERNAME) {
+        return new Response(JSON.stringify({ error: 'solo Wilmar puede nivelar las llamadas' }), { status: 403 });
+      }
+      try {
+        const result = await nivelarPendientes(redis, (session as any).name || session.username);
+        await logAudit(redis, session, 'garantias_nivelar', `${result.moved} reasignadas`, `entre ${result.presentes.join(', ')}`);
+        return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 400 });
+      }
+    }
     id = String(body?.id || '');
     category = body?.category !== undefined ? String(body.category) : undefined;
     note = body?.note !== undefined ? String(body.note) : undefined;

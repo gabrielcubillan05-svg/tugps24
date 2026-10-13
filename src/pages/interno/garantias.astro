@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import InternoLayout from '../../layouts/InternoLayout.astro';
-import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessGarantias, canUploadGarantias, firstSectionFor, SECTION_PATHS } from '../../lib/auth';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, canAccessGarantias, canUploadGarantias, firstSectionFor, SECTION_PATHS, WILMAR_USERNAME } from '../../lib/auth';
 import { CATEGORIES } from '../api/garantias';
 
 const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
@@ -14,6 +14,8 @@ if (!canAccessGarantias(session)) {
 }
 
 const isManager = canUploadGarantias(session);
+// El botón de nivelar es solo de Wilmar (Gabriel, 2026-10-12): ni siquiera el administrador lo ve.
+const canLevel = session.username === WILMAR_USERNAME;
 ---
 
 <InternoLayout title="Garantías" active="garantias" session={session}>
@@ -29,6 +31,15 @@ const isManager = canUploadGarantias(session);
     </div>
     <p id="uploadResult" style="display:none; margin-top:12px; font-size:13.5px;"></p>
   </div>
+
+  {canLevel && (
+  <div class="panel-card">
+    <h2>Nivelar llamadas pendientes</h2>
+    <p class="hint">Reparte parejo las llamadas que aún no se han hecho entre los operadores de garantías que están hoy (activos y sin día libre en Horarios). Cada uno conserva las suyas hasta su cupo; el sobrante y lo de quien no está pasa a quien tenga menos. Queda anotado en el historial de cada garantía movida.</p>
+    <button class="btn" id="levelBtn" type="button">Nivelar entre los que están hoy</button>
+    <p id="levelResult" style="display:none; margin-top:12px; font-size:13.5px;"></p>
+  </div>
+  )}
 
   <div class="panel-card">
     <h2>Estadísticas por operador</h2>

@@ -232,6 +232,25 @@ document.addEventListener('DOMContentLoaded', function () {
       .finally(() => { uploadBtn.disabled = false; });
   });
 
+  const levelBtn = document.getElementById('levelBtn');
+  const levelResult = document.getElementById('levelResult');
+  if (levelBtn) levelBtn.addEventListener('click', function () {
+    if (!confirm('¿Nivelar las llamadas pendientes entre los operadores que están hoy? Las garantías movidas cambian de titular.')) return;
+    levelBtn.disabled = true;
+    levelResult.style.display = 'block';
+    levelResult.textContent = 'Nivelando...';
+    fetch('/api/garantias', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'nivelar' }), signal: timeoutSignal(60000) })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo nivelar.');
+        const fmt = (obj) => Object.entries(obj || {}).map(([n, c]) => `${n}: ${c}`).join(' · ') || 'nadie';
+        levelResult.textContent = `${data.moved} reasignada(s). Antes — ${fmt(data.antes)}. Ahora — ${fmt(data.despues)}. Presentes hoy: ${(data.presentes || []).join(', ')}.`;
+        loadGarantias();
+      })
+      .catch((err) => { levelResult.textContent = err.message || 'No se pudo nivelar.'; })
+      .finally(() => { levelBtn.disabled = false; });
+  });
+
   garantiasList.addEventListener('click', function (e) {
     const saveBtn = e.target.closest('button[data-action="save-note"]');
     if (!saveBtn) return;
