@@ -332,6 +332,23 @@ export interface PriorMatch {
   clientName: string;
   createdByName: string;
   kind: 'archivo' | 'referencia' | 'imagen';
+  // Lo leído en el otro comprobante, para no dar por repetido lo que tiene otro valor o fecha.
+  valor?: number | null;
+  fecha?: string | null;
+  // El otro ya había sido rechazado solo por GPSITO como repetido: puede ser una nueva subida
+  // del mismo cliente tras un rechazo equivocado.
+  autoRechazado?: boolean;
+  clientId?: string | null;
+}
+
+// Una referencia que en realidad es la cuenta destino de la empresa (todos los comprobantes a
+// Digital Global la traen) no identifica un pago: no sirve para detectar repetidos. Caso Karen
+// Gómez / Isabel Araujo (2026-10-14): dos pagos distintos rechazados como uno solo.
+export function referenciaUtil(ref: string, cuentaDestino: string, destinos: string[]): boolean {
+  const r = normalizeRef(ref);
+  if (r.length < 4) return false;
+  const cuentas = [cuentaDestino, ...destinos].map((d) => String(d || '').replace(/\D/g, '')).filter((d) => d.length >= 6);
+  return !cuentas.some((c) => c === r || c.endsWith(r) || r.endsWith(c) || (r.length >= 8 && c.includes(r)));
 }
 
 function describePrior(p: PriorMatch): string {
@@ -392,6 +409,7 @@ Responde SOLO con un objeto JSON, sin texto antes ni después, con exactamente e
 
 Reglas:
 - Si un dato no aparece, deja la cadena vacía o null; no inventes.
+- La "referencia" es el número que identifica ESA transacción (Comprobante No., No. de transacción, CUS, aprobación, recibo). NUNCA pongas ahí el número de la cuenta destino ni de la cuenta origen, ni la fecha, ni el valor; si no hay ningún número de comprobante visible, deja referencia vacía.
 - Las tirillas de papel de CORRESPONSAL BANCOLOMBIA / REDEBAN (fotos de un recibo impreso) son consignaciones en efectivo: banco "Corresponsal Bancolombia", referencia = el número de RECIBO (o APROB si no hay recibo), valor = VALOR, cuentaDestino = el "Producto" o cuenta impresa y el TITULAR, tipoDestino "ahorros"; el pagador casi nunca aparece. Léelas aunque la foto esté oscura o torcida.
 - Identifica el banco o app también por la plantilla aunque no diga el nombre: "Comprobante No." con "Producto destino" o "Datos de la transferencia" es Bancolombia; morado con "¿Cuánto?" y "¿De dónde salió la plata?" es Nequi; rojo con "Pasaste plata" es DaviPlata; "Comprobante No. TR…" con "Punto de venta" y "Código de negocio" es Bre-B.
 - La fecha de hoy se indica abajo: una fecha de este año o de días recientes NO es futura; no comentes sobre el año.

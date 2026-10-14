@@ -47,6 +47,7 @@ import {
   ANALYSIS_AUTO_RETRIES,
   type PagoCliente,
   type PriorMatch,
+  referenciaUtil,
 } from '../../lib/pagos-verificacion';
 
 export const prerender = false;
@@ -175,8 +176,22 @@ export async function readRobotState(redis: any): Promise<{ paused: boolean; las
 
 function priorFrom(p: PagoCliente | null, kind: PriorMatch['kind']): PriorMatch | null {
   if (!p) return null;
-  return { id: p.id, createdAt: p.createdAt, clientName: p.clientName, createdByName: p.createdByName, kind };
+  return {
+    id: p.id,
+    createdAt: p.createdAt,
+    clientName: p.clientName,
+    createdByName: p.createdByName,
+    kind,
+    valor: p.extracted?.valor ?? null,
+    fecha: p.extracted?.fecha ?? null,
+    autoRechazado: p.status === 'rechazado' && p.resolvedByName === 'GPSITO',
+    clientId: p.optimus?.clientId ?? null,
+  };
 }
+
+const mismoCliente = (a: PagoCliente, b: PriorMatch) =>
+  (!!a.optimus?.clientId && a.optimus.clientId === b.clientId) || a.clientName.trim().toLowerCase() === b.clientName.trim().toLowerCase();
+const mismoValor = (a: number | null | undefined, b: number | null | undefined) => !!a && !!b && Math.abs(a - b) <= Math.max(100, a * 0.01);
 
 async function notifyRed(redis: any, pago: PagoCliente, texto?: string): Promise<void> {
   const users = await getUsers(redis);
@@ -234,7 +249,8 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
     }
     // La referencia se reserva en el mismo instante: dos secretarías subiendo el mismo
     // comprobante a la vez no pueden salir ambas en verde.
-    const ref = extracted ? normalizeRef(extracted.referencia) : '';
+    const destinosParaRef = await readDestinos(redis);
+    const ref = extracted && referenciaUtil(extracted.referencia, extracted.cuentaDestino, destinosParaRef) ? normalizeRef(extracted.referencia) : '';
     if (ref) {
       const refKey = `${REF_KEY_PREFIX}${normalizeBank(extracted!.banco)}:${ref}`;
       const reserved = await redis.set(refKey, fresh.id, { nx: true, ex: INDEX_TTL_SECONDS });
@@ -295,14 +311,29 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
       // Comprobante repetido con certeza (mismo archivo o misma referencia ya registrada): se
       // rechaza solo, sin pasar por una persona, y el robot lo deniega en Optimus (regla de
       // Gabriel, 2026-10-07). El parecido visual a secas sigue yendo a revisión.
-      const repetido = prior.find((p) => p.kind === 'archivo' || p.kind === 'referencia');
+      // Solo se rechaza solo cuando la evidencia es coherente: el otro comprobante tiene el
+      // mismo valor (y la misma fecha si se leyó). Si la referencia o el archivo coinciden pero
+      // el valor es otro, es una lectura dudosa o un adjunto equivocado en Optimus: va a rojo
+      // para que una persona lo mire (Gabriel, 2026-10-14: Karen Gómez rechazada por un
+      // comprobante de Isabel Araujo de otro valor y otra fecha).
+      const candidatos = prior.filter((p) => p.kind === 'archivo' || p.kind === 'referencia');
+      const nuevaSubidaTrasRechazo = candidatos.find((p) => p.autoRechazado && mismoCliente(fresh, p));
+      const repetido = nuevaSubidaTrasRechazo ? undefined : candidatos.find((p) => mismoValor(extracted?.valor, p.valor) && (!p.fecha || !extracted?.fecha || p.fecha === extracted.fecha));
       if (repetido && fresh.source === 'optimus') {
         fresh.status = 'rechazado';
         fresh.resolvedAt = new Date().toISOString();
         fresh.resolvedByName = 'GPSITO';
-        fresh.resolutionNote = `Comprobante repetido: es el mismo del ${repetido.createdAt.slice(0, 10)} de ${repetido.clientName} (subido por ${repetido.createdByName}).`;
+        fresh.resolutionNote = `Comprobante repetido: ${repetido.kind === 'archivo' ? 'es el mismo archivo' : 'tiene la misma referencia'} del ${repetido.createdAt.slice(0, 10)} de ${repetido.clientName} (subido por ${repetido.createdByName}), por el mismo valor ${extracted?.valor ? '$' + extracted.valor.toLocaleString('es-CO') : ''}.`;
         fresh.applyStatus = 'pendiente';
         fresh.applyAttempts = 0;
+      } else if (nuevaSubidaTrasRechazo) {
+        // El cliente volvió a subir lo que GPSITO había rechazado como repetido: lo decide una persona.
+        fresh.status = 'rojo';
+        fresh.reasons = [...fresh.reasons.filter((r) => !r.startsWith('Es el mismo archivo') && !r.startsWith('La referencia ya está')), `Es una nueva subida de ${fresh.clientName} después de que GPSITO rechazara como repetido su comprobante del ${nuevaSubidaTrasRechazo.createdAt.slice(0, 10)}; confirmar a mano si ese rechazo fue correcto.`];
+      } else if (candidatos.length) {
+        const c = candidatos[0];
+        fresh.status = 'rojo';
+        fresh.reasons = [...fresh.reasons.filter((r) => !r.startsWith('Es el mismo archivo') && !r.startsWith('La referencia ya está')), `${c.kind === 'archivo' ? 'El archivo coincide' : 'La referencia coincide'} con el comprobante del ${c.createdAt.slice(0, 10)} de ${c.clientName}, pero el valor leído (${extracted?.valor ? '$' + extracted.valor.toLocaleString('es-CO') : 'sin leer'}) no es el mismo (${c.valor ? '$' + c.valor.toLocaleString('es-CO') : 'sin leer'}): revisar a mano antes de rechazar.`];
       }
     }
     if (extracted) fresh.analysisError = null;
