@@ -185,6 +185,8 @@ function priorFrom(p: PagoCliente | null, kind: PriorMatch['kind']): PriorMatch 
     valor: p.extracted?.valor ?? null,
     fecha: p.extracted?.fecha ?? null,
     autoRechazado: p.status === 'rechazado' && p.resolvedByName === 'GPSITO',
+    rechazado: p.status === 'rechazado',
+    motivoRechazo: p.status === 'rechazado' ? `${p.resolvedByName || 'alguien'}: ${p.resolutionNote || 'sin motivo'}`.slice(0, 160) : '',
     clientId: p.optimus?.clientId ?? null,
   };
 }
@@ -317,8 +319,17 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
       // para que una persona lo mire (Gabriel, 2026-10-14: Karen Gómez rechazada por un
       // comprobante de Isabel Araujo de otro valor y otra fecha).
       const candidatos = prior.filter((p) => p.kind === 'archivo' || p.kind === 'referencia');
+      // Un comprobante solo está repetido si el anterior se aprobó o sigue abierto: si el anterior
+      // quedó rechazado, la plata nunca se acreditó y esta es la subida corregida (misma persona).
+      const esDupSoloDeRechazados = candidatos.length > 0 && candidatos.every((p) => p.rechazado && mismoCliente(fresh, p));
       const nuevaSubidaTrasRechazo = candidatos.find((p) => p.autoRechazado && mismoCliente(fresh, p));
-      const repetido = nuevaSubidaTrasRechazo ? undefined : candidatos.find((p) => mismoValor(extracted?.valor, p.valor) && (!p.fecha || !extracted?.fecha || p.fecha === extracted.fecha));
+      if (esDupSoloDeRechazados) {
+        const previo = candidatos[0];
+        fresh.reasons = fresh.reasons.filter((r) => !r.startsWith('Es el mismo archivo') && !r.startsWith('La referencia ya está'));
+        fresh.notes = [...fresh.notes, `Este comprobante ya se había subido el ${previo.createdAt.slice(0, 10)} y quedó rechazado (${previo.motivoRechazo}); esta es la subida corregida y se evalúa de nuevo.`];
+        fresh.status = fresh.reasons.length ? 'rojo' : 'verde';
+      }
+      const repetido = esDupSoloDeRechazados || nuevaSubidaTrasRechazo ? undefined : candidatos.find((p) => mismoValor(extracted?.valor, p.valor) && (!p.fecha || !extracted?.fecha || p.fecha === extracted.fecha));
       if (repetido && fresh.source === 'optimus') {
         fresh.status = 'rechazado';
         fresh.resolvedAt = new Date().toISOString();
@@ -326,6 +337,8 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
         fresh.resolutionNote = `Comprobante repetido: ${repetido.kind === 'archivo' ? 'es el mismo archivo' : 'tiene la misma referencia'} del ${repetido.createdAt.slice(0, 10)} de ${repetido.clientName} (subido por ${repetido.createdByName}), por el mismo valor ${extracted?.valor ? '$' + extracted.valor.toLocaleString('es-CO') : ''}.`;
         fresh.applyStatus = 'pendiente';
         fresh.applyAttempts = 0;
+      } else if (esDupSoloDeRechazados) {
+        // ya resuelto arriba
       } else if (nuevaSubidaTrasRechazo) {
         // El cliente volvió a subir lo que GPSITO había rechazado como repetido: lo decide una persona.
         fresh.status = 'rojo';

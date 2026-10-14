@@ -338,6 +338,11 @@ export interface PriorMatch {
   // El otro ya había sido rechazado solo por GPSITO como repetido: puede ser una nueva subida
   // del mismo cliente tras un rechazo equivocado.
   autoRechazado?: boolean;
+  // El otro quedó rechazado (por quien sea): el dinero no se acreditó, así que volver a subir el
+  // mismo comprobante corregido no es un repetido (caso Dairo Meriño, 2026-10-14: registrado
+  // por 49.000 con recibo de 45.000, rechazado, y luego rechazado dos veces más al corregirlo).
+  rechazado?: boolean;
+  motivoRechazo?: string;
   clientId?: string | null;
 }
 
