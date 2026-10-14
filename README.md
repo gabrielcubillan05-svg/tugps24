@@ -28,6 +28,7 @@ Se configuran en Vercel (Project → Settings → Environment Variables). En loc
 | `OPENAI_API_KEY` | OpenAI | sí para audios de WhatsApp | Transcripción de notas de voz (Whisper) |
 | `META_WHATSAPP_TOKEN` | Meta | sí para WhatsApp | Envío de mensajes, plantillas y archivos |
 | `META_PHONE_NUMBER_ID` | Meta | sí para WhatsApp | Número emisor; el webhook ignora mensajes de otros números |
+| `META_TEMPLATE_LEAD_CONCRETADO` | Meta | no (por defecto `lead_concretado`) | Nombre de la plantilla aprobada en Meta (Utilidad, Español COL, 5 variables) con la que Andrés avisa por WhatsApp a la secretaria y al gerente de la sucursal cada vez que concreta una venta; el celular de cada empleado se toma de su ficha en RR.HH. → Directorio |
 | `META_APP_SECRET` | Meta | sí para WhatsApp | Verifica la firma HMAC de cada webhook |
 | `META_WEBHOOK_VERIFY_TOKEN` | Meta | sí para WhatsApp | Verificación inicial del webhook (GET) |
 | `META_PAGE_ACCESS_TOKEN` | Meta | sí para formularios de anuncios | Lee los leads del webhook de Lead Ads |

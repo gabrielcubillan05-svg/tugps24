@@ -5,6 +5,7 @@ import { logAudit } from '../../lib/audit';
 import { getUsers, branchesOf } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { sendGabotMessage } from '../../lib/gabot';
+import { notifyHandoffByWhatsapp } from '../../lib/handoff-whatsapp';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { readLeads, writeLeads, normalizePhone, mergeLeadIntoCurrent, type Lead } from './leads';
@@ -207,6 +208,7 @@ export const POST: APIRoute = async ({ request }) => {
                 await sendGabotMessage(redis, person.id, gpsitoMessage);
               }
             }
+            await notifyHandoffByWhatsapp(redis, lead, servicingBranch, { canal: 'chat web', fechaPreferida, resumen: summary });
           } catch {
             // no debe tumbar el procesamiento del mensaje
           }

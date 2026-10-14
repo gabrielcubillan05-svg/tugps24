@@ -17,6 +17,7 @@ import { readAgentMedia } from './whatsapp-agent-media';
 import { branchForCityName } from '../../lib/pricing';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { sendGabotMessage } from '../../lib/gabot';
+import { notifyHandoffByWhatsapp } from '../../lib/handoff-whatsapp';
 
 export const prerender = false;
 
@@ -421,6 +422,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
                 });
               }
             }
+            await notifyHandoffByWhatsapp(redis, lead, servicingBranch, { canal: 'WhatsApp', fechaPreferida, resumen: summary });
           } catch {
             // no debe tumbar el procesamiento del mensaje
           }
