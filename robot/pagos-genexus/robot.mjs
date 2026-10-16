@@ -531,6 +531,13 @@ async function ingestar(page, known) {
 }
 
 // Aprueba en Optimus un comprobante que el panel dejó en verde. Lanza Error con el motivo si algo no cuadra.
+// Gabriel (2026-10-16): con dos o más contratos el robot no aprueba ni deniega, aunque el panel se
+// lo pida; Kelly decide en Optimus a qué contrato va. El panel ya no los manda; esto es la red.
+function sinVariosContratos(contratos) {
+  const n = Array.isArray(contratos) ? contratos.length : 0;
+  if (n >= 2) throw new Error(`el cliente tiene ${n} contratos: el robot no lo aprueba ni lo deniega; lo aplica Kelly a mano en Optimus eligiendo el contrato`);
+}
+
 // Dos casos: el pago lo creó una secretaria con monto, contrato y forma de pago ya puestos (el
 // cuadro solo trae Aprobar/Denegar) o lo cargó el cliente con monto 0 (el cuadro pide contrato,
 // monto, forma de pago y referencia).
@@ -538,8 +545,10 @@ async function aprobarEnOptimus(page, item) {
   const o = item.optimus || {};
   const fill = item.fill || {};
   if (!o.paymentId) throw new Error('el pago no trae el identificador de Optimus (vino de la subida manual); aplicar a mano');
+  sinVariosContratos(o.contratos);
   const fila = { paymentId: o.paymentId, clientId: o.clientId, numero: o.numero, sucursal: item.branch, cliente: item.clientName, fecha: o.fecha, cargadoPorCliente: !!o.cargadoPorCliente };
   const { info, contratos, formasPago, visibles } = await leerConfirmacion(page, fila);
+  sinVariosContratos(contratos);
   console.log('Cuadro abierto', fila.cargadoPorCliente ? '(cargado por el cliente)' : '(creado por secretaria)', '· campos visibles:', JSON.stringify(visibles));
   const pideDatos = visibles.PAYMENTMOUNT_CELL_Class !== 'Invisible' || visibles.vPAYMENTMOUNT_Visible === '1';
   const montoOptimus = Number(String(info.totalPagar || info.montoActual || '0').replace(/\./g, '').replace(',', '.')) || 0;
@@ -616,8 +625,10 @@ async function aprobarEnOptimus(page, item) {
 async function denegarEnOptimus(page, item) {
   const o = item.optimus || {};
   if (!o.paymentId) throw new Error('el pago no trae el identificador de Optimus; denegar a mano');
+  sinVariosContratos(o.contratos);
   const fila = { paymentId: o.paymentId, clientId: o.clientId, numero: o.numero, sucursal: item.branch, cliente: item.clientName, fecha: o.fecha, cargadoPorCliente: !!o.cargadoPorCliente };
-  await leerConfirmacion(page, fila);
+  const { contratos } = await leerConfirmacion(page, fila);
+  sinVariosContratos(contratos);
   page.once('dialog', (d) => d.accept().catch(() => {}));
   await page.click('#BTNDENIED');
   await page.waitForTimeout(2500);

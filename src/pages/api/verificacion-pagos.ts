@@ -42,6 +42,8 @@ import {
   readReceipt,
   isApplyPending,
   esPagoPayU,
+  tieneVariosContratos,
+  variosContratosRazon,
   APPLY_MAX_ATTEMPTS,
   ANALYSIS_NO_RESPONSE,
   ANALYSIS_AUTO_RETRIES,
@@ -323,6 +325,9 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
       // quedó rechazado, la plata nunca se acreditó y esta es la subida corregida (misma persona).
       const esDupSoloDeRechazados = candidatos.length > 0 && candidatos.every((p) => p.rechazado && mismoCliente(fresh, p));
       const nuevaSubidaTrasRechazo = candidatos.find((p) => p.autoRechazado && mismoCliente(fresh, p));
+      // Con varios contratos el robot tampoco deniega (Gabriel, 2026-10-16): el repetido se queda
+      // en rojo, con sus motivos, para que Kelly lo deniegue ella en Optimus.
+      const variosContratos = tieneVariosContratos(fresh);
       if (esDupSoloDeRechazados) {
         const previo = candidatos[0];
         fresh.reasons = fresh.reasons.filter((r) => !r.startsWith('Es el mismo archivo') && !r.startsWith('La referencia ya está'));
@@ -330,7 +335,10 @@ export async function analyzePago(redis: any, pago: PagoCliente, bytes: ArrayBuf
         fresh.status = fresh.reasons.length ? 'rojo' : 'verde';
       }
       const repetido = esDupSoloDeRechazados || nuevaSubidaTrasRechazo ? undefined : candidatos.find((p) => mismoValor(extracted?.valor, p.valor) && (!p.fecha || !extracted?.fecha || p.fecha === extracted.fecha));
-      if (repetido && fresh.source === 'optimus') {
+      if (repetido && variosContratos) {
+        fresh.status = 'rojo';
+        fresh.notes = [...fresh.notes, `Parece repetido (${repetido.kind === 'archivo' ? 'mismo archivo' : 'misma referencia'} del ${repetido.createdAt.slice(0, 10)} de ${repetido.clientName}), pero GPSITO no lo rechaza solo porque el cliente tiene varios contratos: lo decide Kelly en Optimus.`];
+      } else if (repetido && fresh.source === 'optimus') {
         fresh.status = 'rechazado';
         fresh.resolvedAt = new Date().toISOString();
         fresh.resolvedByName = 'GPSITO';
@@ -633,6 +641,9 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     if (!note) return json(400, { error: 'escribe el motivo' });
     if (pago.status === 'analizando' && !withTimeouts(pago).reasons.length) return json(409, { error: 'GPSITO todavía está leyendo este comprobante' });
     if (action === 'aprobar' && esPagoPayU(pago)) return json(409, { error: 'Es un pago en línea (PayU / TuGPS24.com): el robot no lo aprueba en Optimus. Aplícalo allá a mano; el panel lo cierra solo cuando deje de estar pendiente.' });
+    // Si se dejara aprobar o rechazar aquí, el robot no haría nada en Optimus y el pago quedaría
+    // en el limbo: resuelto en el panel, pendiente allá.
+    if (tieneVariosContratos(pago) && pago.optimus) return json(409, { error: `${variosContratosRazon(pago.optimus)} Apruébalo o deniégalo directo en Optimus.` });
     pago.status = action === 'aprobar' ? 'aprobado' : 'rechazado';
     pago.resolvedAt = now;
     pago.resolvedByName = byName;

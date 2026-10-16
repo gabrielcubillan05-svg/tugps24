@@ -121,12 +121,25 @@ export function applyActionFor(p: PagoCliente): 'aprobar' | 'denegar' | null {
   // Los pagos en línea (PayU / TuGPS24.com) no los aprueba el robot ni aunque alguien los haya
   // aprobado a mano: Optimus los dejó pendientes al pulsar Aprobar (caso Eider Torrijos,
   // 2026-10-08) y Gabriel decidió que los aplica Kelly directo en Optimus.
+  // Con dos o más contratos el robot no toca el pago en ningún sentido (Gabriel, 2026-10-16, caso
+  // Harol Bautista): hay que elegir a qué contrato se abona y eso lo decide Kelly en Optimus.
+  if (tieneVariosContratos(p)) return null;
   if ((p.status === 'verde' || p.status === 'aprobado') && !esPagoPayU(p)) return 'aprobar';
   if (p.status === 'rechazado' && p.source === 'optimus' && p.optimus?.paymentId) return 'denegar';
   return null;
 }
 
 export const PAYU_RAZON = 'Es un pago en línea (PayU / TuGPS24.com): el robot no lo aprueba en Optimus. Lo aplica Kelly a mano allá y el panel lo cierra solo cuando deje de estar pendiente.';
+
+export const VARIOS_CONTRATOS_PREFIJO = 'El cliente tiene varios contratos en Optimus';
+
+export function tieneVariosContratos(p: Pick<PagoCliente, 'optimus'>): boolean {
+  return (p.optimus?.contratos?.length || 0) >= 2;
+}
+
+export function variosContratosRazon(o: OptimusInfo): string {
+  return `${VARIOS_CONTRATOS_PREFIJO} (${o.contratos.join(', ')}): el robot no lo aprueba ni lo deniega. Lo aplica Kelly a mano allá eligiendo el contrato, y el panel lo cierra solo cuando deje de estar pendiente.`;
+}
 
 // Lo que GPSITO leyó indica pago por la pasarela de la web o PayU.
 export function esPagoPayU(p: PagoCliente): boolean {
@@ -366,6 +379,7 @@ function describePrior(p: PriorMatch): string {
 export function evaluate(extracted: PagoExtracted | null, clientName: string, destinos: string[], prior: PriorMatch[], today = todayInColombia(), optimus?: OptimusInfo | null): Evaluation {
   const reasons: string[] = [];
   const notes: string[] = [];
+  if (optimus && tieneVariosContratos({ optimus })) reasons.push(variosContratosRazon(optimus));
   if (optimus && extracted?.valor) {
     // La secretaria digitó un monto en Optimus distinto al del comprobante: error de digitación o
     // comprobante de otro pago. No se aprueba hasta que alguien lo mire.

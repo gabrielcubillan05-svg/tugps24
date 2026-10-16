@@ -9,7 +9,7 @@ import { pushNotification } from '../../lib/notifications';
 import { markCronOk } from '../../lib/incidents';
 import { blobTimeout } from '../../lib/blob-path';
 import { cronSecretMatches, getUsers, findUserByUsername, KELLY_USERNAME, WILMAR_USERNAME } from '../../lib/auth';
-import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, PAYU_RAZON, isApplyPending, applyActionFor, esPagoPayU, formaPagoDesdeBanco, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
+import { CONFIG_KEY, PHASH_KEY, SHA_KEY_PREFIX, INDEX_TTL_SECONDS, APPLY_CLAIM_MS, APPLY_MAX_ATTEMPTS, PAYU_RAZON, VARIOS_CONTRATOS_PREFIJO, isApplyPending, applyActionFor, esPagoPayU, tieneVariosContratos, variosContratosRazon, formaPagoDesdeBanco, type PagoCliente, type OptimusInfo } from '../../lib/pagos-verificacion';
 import { readPagos, readPago, savePago, analyzePago, REDIS_KEY, readRobotState, retryFailedAnalyses } from './verificacion-pagos';
 
 // Un pago de Optimus entra al panel una sola vez, por su número.
@@ -96,6 +96,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   const now = Date.now();
   const todos = await readPagos(redis);
   await devolverPayUARojo(redis, todos);
+  await devolverVariosContratosARojo(redis, todos);
   const pending = todos
     .filter(isApplyPending)
     .filter((p) => !soloManual || p.status === 'aprobado')
@@ -145,6 +146,35 @@ async function devolverPayUARojo(redis: any, pagos: PagoCliente[]): Promise<void
     await redis.hset(REDIS_KEY, { [p.id]: JSON.stringify(p) });
     await logAudit(redis, ACTOR, 'pago_payu_a_rojo', p.clientName, 'pago en línea aprobado a mano: vuelve a rojo para aplicarlo en Optimus');
     await notifyResolvers(redis, `🤖 El pago de ${p.clientName} (${p.branch}) es por PayU / TuGPS24.com: el robot no lo aprueba. Pasó a rojo para aplicarlo a mano en Optimus.`, `pago-robot-payu:${p.id}`);
+  }
+}
+
+// Cliente con dos o más contratos (Gabriel, 2026-10-16): el robot no aprueba ni deniega; Kelly
+// decide en Optimus a qué contrato va. Lo que ya estaba en verde, aprobado o rechazado de antes de
+// la regla (o lo que el robot intentó y falló por eso) vuelve a rojo para que ella lo vea pendiente.
+async function devolverVariosContratosARojo(redis: any, pagos: PagoCliente[]): Promise<void> {
+  const afectados = pagos.filter(
+    (p) => tieneVariosContratos(p) && p.optimus && (p.status === 'verde' || p.status === 'aprobado' || p.status === 'rechazado') && p.applyStatus !== 'aplicado' && p.applyStatus !== 'manual'
+  );
+  for (const p of afectados) {
+    const previo =
+      p.status === 'aprobado'
+        ? `Lo había aprobado a mano ${p.resolvedByName || 'alguien'}${p.resolutionNote ? ` (${p.resolutionNote})` : ''}.`
+        : p.status === 'rechazado'
+          ? `Lo había rechazado ${p.resolvedByName || 'alguien'}${p.resolutionNote ? ` (${p.resolutionNote})` : ''}: si sigue en pie, denegarlo a mano en Optimus.`
+          : '';
+    p.status = 'rojo';
+    p.reasons = [variosContratosRazon(p.optimus!), ...p.reasons.filter((r) => !r.startsWith(VARIOS_CONTRATOS_PREFIJO)), ...(previo ? [previo] : [])];
+    p.resolvedAt = null;
+    p.resolvedByName = '';
+    p.resolutionNote = '';
+    p.applyStatus = 'pendiente';
+    p.applyAttempts = 0;
+    p.applyClaimedAt = null;
+    p.applyDetail = '';
+    await redis.hset(REDIS_KEY, { [p.id]: JSON.stringify(p) });
+    await logAudit(redis, ACTOR, 'pago_varios_contratos_a_rojo', p.clientName, `cliente con ${p.optimus!.contratos.length} contratos: pasa a rojo para Kelly`);
+    await notifyResolvers(redis, `🤖 ${p.clientName} (${p.branch}) tiene ${p.optimus!.contratos.length} contratos en Optimus: el robot no lo aprueba ni lo deniega. Pasó a rojo para aplicarlo a mano eligiendo el contrato.`, `pago-robot-contratos:${p.id}`);
   }
 }
 
