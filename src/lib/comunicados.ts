@@ -39,9 +39,8 @@ export const COMUNICADOS: Comunicado[] = [
 <p><strong>Supervisores:</strong></p>
 <ul>
   <li><strong>Supervisión de operadores:</strong> verificar en cada turno que los operadores monitoreen la plataforma, atiendan de inmediato las alertas, registren las novedades y entreguen sus reportes completos y a tiempo.</li>
-  <li><strong>Supervisión de gerentes:</strong> hacer seguimiento a que los gerentes cumplan con la supervisión de su sucursal, los concretados, la cobranza, las instalaciones y sus estadísticas.</li>
-  <li><strong>Casos importantes:</strong> atender, escalar y hacer seguimiento a los casos importantes y a las situaciones de riesgo hasta su cierre.</li>
-  <li><strong>Reporte de incumplimientos:</strong> documentar con pruebas los incumplimientos del personal a su cargo e informarlos a la gerencia general para iniciar el procedimiento correspondiente.</li>
+  <li><strong>Casos importantes:</strong> atender, escalar y hacer seguimiento a los casos importantes y a las situaciones de riesgo que reporten los operadores hasta su cierre.</li>
+  <li><strong>Reporte de incumplimientos:</strong> documentar con pruebas los incumplimientos de los operadores a su cargo e informarlos a la gerencia general para iniciar el procedimiento correspondiente.</li>
   <li><strong>Alertas:</strong> atender a tiempo las tareas y los avisos de GPSITO.</li>
 </ul>
 <p><strong>Operadores:</strong></p>
