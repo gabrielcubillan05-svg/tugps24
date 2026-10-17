@@ -6,7 +6,13 @@ import { REDIS_KEY as LEADS_KEY } from '../pages/api/leads';
 // Leads que Andrés concretó y nadie ha confirmado: un set pequeño para no leer todos los leads
 // en cada página vista. Se limpia solo al consultarlo (lead confirmado, devuelto a la IA o borrado).
 export const LEADS_POR_CONFIRMAR_KEY = 'internal:leads-por-confirmar';
+// Quiénes ya confirmaron cada lead: cada secretaria y cada gerente de la sucursal debe confirmar
+// por su cuenta que sabe de la venta (pedido de Gabriel, 2026-10-17), no basta con que uno lo haga.
+const ACKS_PREFIX = 'internal:lead-acks:';
 const LEAD_BLOQUEO_MS = 60 * 60_000;
+// Pasado este tiempo el lead sale de la lista aunque alguien no haya confirmado: el set no crece
+// para siempre y nadie queda bloqueado por un lead de hace semanas.
+const LEAD_VIGENCIA_MS = 7 * 24 * 60 * 60_000;
 // Días que una tarea puede estar vencida antes del bloqueo fuerte (pedido de Gabriel, 2026-10-17).
 const DIAS_GRACIA = 2;
 // Con tareas vencidas hace más de DIAS_GRACIA días solo se puede entrar aquí: Tareas para
@@ -46,10 +52,13 @@ const VACIO: EstadoBloqueo = { leads: [], bloqueoLead: false, tareas: [], bloque
 
 export async function marcarLeadPorConfirmar(redis: any, leadId: string): Promise<void> {
   await redis.sadd(LEADS_POR_CONFIRMAR_KEY, leadId);
+  // Un lead que se vuelve a concretar exige una confirmación nueva de todos.
+  await redis.del(ACKS_PREFIX + leadId);
 }
 
-export async function quitarLeadPorConfirmar(redis: any, leadId: string): Promise<void> {
-  await redis.srem(LEADS_POR_CONFIRMAR_KEY, leadId);
+export async function registrarConfirmacionLead(redis: any, leadId: string, userId: string): Promise<void> {
+  await redis.sadd(ACKS_PREFIX + leadId, userId);
+  await redis.expire(ACKS_PREFIX + leadId, Math.ceil(LEAD_VIGENCIA_MS / 1000) + 86_400);
 }
 
 function diasEntre(desde: string, hasta: string): number {
@@ -58,7 +67,7 @@ function diasEntre(desde: string, hasta: string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
-async function leadsDeSucursal(redis: any, branches: string[]): Promise<LeadPorConfirmar[]> {
+async function leadsDeSucursal(redis: any, branches: string[], userId: string): Promise<LeadPorConfirmar[]> {
   const ids = ((await redis.smembers(LEADS_POR_CONFIRMAR_KEY)) || []) as string[];
   if (!ids.length) return [];
   const raws = await redis.hmget(LEADS_KEY, ...ids);
@@ -73,7 +82,7 @@ async function leadsDeSucursal(redis: any, branches: string[]): Promise<LeadPorC
     } catch {
       lead = null;
     }
-    if (!lead || lead.aiStage !== 'entregado' || lead.managerAckAt || !lead.aiHandoffAt) {
+    if (!lead || lead.aiStage !== 'entregado' || !lead.aiHandoffAt || Date.now() - Date.parse(lead.aiHandoffAt) > LEAD_VIGENCIA_MS) {
       viejos.push(id);
       return;
     }
@@ -90,8 +99,12 @@ async function leadsDeSucursal(redis: any, branches: string[]): Promise<LeadPorC
       bloquea: Date.now() - Date.parse(lead.aiHandoffAt) >= LEAD_BLOQUEO_MS,
     });
   });
-  if (viejos.length) await redis.srem(LEADS_POR_CONFIRMAR_KEY, ...viejos).catch(() => {});
-  return out.sort((a, b) => a.handoffAt.localeCompare(b.handoffAt));
+  if (viejos.length) {
+    await redis.srem(LEADS_POR_CONFIRMAR_KEY, ...viejos).catch(() => {});
+    await redis.del(...viejos.map((id) => ACKS_PREFIX + id)).catch(() => {});
+  }
+  const confirmados = await Promise.all(out.map((l) => redis.sismember(ACKS_PREFIX + l.id, userId)));
+  return out.filter((_, i) => !confirmados[i]).sort((a, b) => a.handoffAt.localeCompare(b.handoffAt));
 }
 
 export async function getEstadoBloqueo(redis: any, session: Session): Promise<EstadoBloqueo> {
@@ -99,7 +112,7 @@ export async function getEstadoBloqueo(redis: any, session: Session): Promise<Es
   const user = await findUserById(redis, session.userId);
   if (!user) return VACIO;
 
-  const leads = session.role === 'secretaria' || session.role === 'gerente' ? await leadsDeSucursal(redis, branchesOf(user)) : [];
+  const leads = session.role === 'secretaria' || session.role === 'gerente' ? await leadsDeSucursal(redis, branchesOf(user), session.userId) : [];
 
   const hoy = todayInColombia();
   const tareas: TareaVencida[] = (await readTasks(redis))

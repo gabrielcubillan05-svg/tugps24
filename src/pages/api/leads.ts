@@ -4,7 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { bumpVersion, readVersion, LEADS_VERSION_KEY } from '../../lib/versions';
 import { branchForCityName } from '../../lib/pricing';
 import { logAudit } from '../../lib/audit';
-import { quitarLeadPorConfirmar } from '../../lib/bloqueos';
+import { registrarConfirmacionLead } from '../../lib/bloqueos';
 import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, canVerifyInstalls, findUserById, verifySameOrigin } from '../../lib/auth';
 import { isOverdueInColombia, todayInColombia, dateInColombia } from '../../lib/colombia-time';
 
@@ -572,9 +572,15 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     lead.notes = [{ text: 'Reinició la conversación con el agente IA.', date: new Date().toISOString(), by: (await findUserById(redis, session.userId))?.name || session.username }, ...lead.notes];
   }
   if (body.confirmVenta) {
-    lead.managerAckAt = new Date().toISOString();
-    lead.managerAckBy = (await findUserById(redis, session.userId))?.name || session.username;
-    await quitarLeadPorConfirmar(redis, id).catch(() => {});
+    const quien = (await findUserById(redis, session.userId))?.name || session.username;
+    // managerAckAt queda con la primera confirmación (apaga los recordatorios de GPSITO); cada
+    // secretaria y gerente igual debe confirmar por su cuenta para quitar su alarma y bloqueo.
+    if (!lead.managerAckAt) {
+      lead.managerAckAt = new Date().toISOString();
+      lead.managerAckBy = quien;
+    }
+    lead.notes = [{ text: 'Confirmó que ya sabe de esta venta.', date: new Date().toISOString(), by: quien }, ...lead.notes];
+    await registrarConfirmacionLead(redis, id, session.userId).catch(() => {});
   }
   if (body.addNote) {
     const byName = (await findUserById(redis, session.userId))?.name || session.username;
