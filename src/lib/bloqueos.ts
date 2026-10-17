@@ -2,6 +2,7 @@ import { findUserById, branchesOf, type Session } from './auth';
 import { todayInColombia, dateInColombia, addDaysToDateString } from './colombia-time';
 import { readTasks, computeOverdue } from '../pages/api/tasks';
 import { REDIS_KEY as LEADS_KEY } from '../pages/api/leads';
+import { comunicadosPendientes } from './comunicados';
 
 // Leads que Andrés concretó y nadie ha confirmado: un set pequeño para no leer todos los leads
 // en cada página vista. Se limpia solo al consultarlo (lead confirmado, devuelto a la IA o borrado).
@@ -46,9 +47,10 @@ export interface EstadoBloqueo {
   tareas: TareaVencida[];
   bloqueoTareas: boolean;
   tareasSinResponder: number;
+  comunicados: { id: string; titulo: string; html: string }[];
 }
 
-const VACIO: EstadoBloqueo = { leads: [], bloqueoLead: false, tareas: [], bloqueoTareas: false, tareasSinResponder: 0 };
+const VACIO: EstadoBloqueo = { leads: [], bloqueoLead: false, tareas: [], bloqueoTareas: false, tareasSinResponder: 0, comunicados: [] };
 
 export async function marcarLeadPorConfirmar(redis: any, leadId: string): Promise<void> {
   await redis.sadd(LEADS_POR_CONFIRMAR_KEY, leadId);
@@ -137,6 +139,7 @@ export async function getEstadoBloqueo(redis: any, session: Session): Promise<Es
     tareas,
     bloqueoTareas: tareas.some((t) => t.bloqueaFuerte),
     tareasSinResponder: tareas.filter((t) => !t.respondidaHoy).length,
+    comunicados: await comunicadosPendientes(redis, session),
   };
 }
 

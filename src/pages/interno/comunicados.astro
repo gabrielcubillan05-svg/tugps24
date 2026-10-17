@@ -1,0 +1,56 @@
+---
+export const prerender = false;
+
+import InternoLayout from '../../layouts/InternoLayout.astro';
+import { SESSION_COOKIE, LOGIN_PATH, CHANGE_PASSWORD_PATH, getSession, getUsers, firstSectionFor, SECTION_PATHS, ROLE_LABELS } from '../../lib/auth';
+import { getRedis } from '../../lib/redis';
+import { COMUNICADOS, leerConfirmaciones } from '../../lib/comunicados';
+
+const session = await getSession(Astro.cookies.get(SESSION_COOKIE)?.value);
+if (!session) return Astro.redirect(LOGIN_PATH);
+if (session.mustChangePassword) return Astro.redirect(CHANGE_PASSWORD_PATH);
+// Constancia de entrega de comunicados: solo la ve el administrador.
+if (session.role !== 'admin') {
+  const fallback = firstSectionFor(session.role);
+  return Astro.redirect(fallback ? SECTION_PATHS[fallback] : LOGIN_PATH);
+}
+
+const redis = getRedis();
+const users = redis ? (await getUsers(redis)).filter((u) => u.active) : [];
+const fmt = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short' });
+
+const resumen = await Promise.all(
+  COMUNICADOS.map(async (c) => {
+    const acks = redis ? await leerConfirmaciones(redis, c.id) : {};
+    const filas = users
+      .filter((u) => c.roles.includes(u.role))
+      .map((u) => ({ nombre: u.name, rol: ROLE_LABELS[u.role], confirmado: acks[u.id] ? fmt.format(new Date(acks[u.id].at)) : null }))
+      .sort((a, b) => (a.confirmado ? 1 : 0) - (b.confirmado ? 1 : 0) || a.nombre.localeCompare(b.nombre));
+    return { c, filas, confirmados: filas.filter((f) => f.confirmado).length };
+  })
+);
+---
+
+<InternoLayout title="Comunicados" active={null} session={session}>
+  <h1>Comunicados</h1>
+  {resumen.map(({ c, filas, confirmados }) => (
+    <section style="margin-bottom:28px;">
+      <h2 style="font-size:16px;">{c.titulo}</h2>
+      <p style="color:var(--slate); font-size:13px;">Confirmado por {confirmados} de {filas.length} personas.</p>
+      <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+        <thead>
+          <tr><th style="text-align:left; padding:6px;">Nombre</th><th style="text-align:left; padding:6px;">Cargo</th><th style="text-align:left; padding:6px;">Confirmó</th></tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr style="border-top:1px solid var(--line);">
+              <td style="padding:6px;">{f.nombre}</td>
+              <td style="padding:6px;">{f.rol}</td>
+              <td style="padding:6px;">{f.confirmado ? `✅ ${f.confirmado}` : '⏳ Pendiente'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  ))}
+</InternoLayout>
