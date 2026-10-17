@@ -18,6 +18,7 @@ import { branchForCityName } from '../../lib/pricing';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { sendGabotMessage } from '../../lib/gabot';
 import { notifyHandoffByWhatsapp } from '../../lib/handoff-whatsapp';
+import { marcarLeadPorConfirmar } from '../../lib/bloqueos';
 
 export const prerender = false;
 
@@ -388,6 +389,7 @@ async function handleInboundMessage(redis: any, fromPhone: string, text: string,
       lead.handoffNudgeAt = null;
       const summary = String(call.input?.resumen || 'Lead calificado por el agente IA.');
       lead.notes = [{ text: `[Agente IA] ${summary}`, date: now }, ...lead.notes];
+      await marcarLeadPorConfirmar(redis, lead.id).catch(() => {});
 
       // La sucursal que realmente atiende al cliente (puede diferir de su ciudad literal,
       // ej. Cúcuta lo atiende Bucaramanga) — cae de vuelta a lead.city solo por compatibilidad

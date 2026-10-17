@@ -4,6 +4,7 @@ import { getRedis } from '../../lib/redis';
 import { bumpVersion, readVersion, LEADS_VERSION_KEY } from '../../lib/versions';
 import { branchForCityName } from '../../lib/pricing';
 import { logAudit } from '../../lib/audit';
+import { quitarLeadPorConfirmar } from '../../lib/bloqueos';
 import { SESSION_COOKIE, getSession, canAccessSection, canManageUsers, canVerifyInstalls, findUserById, verifySameOrigin } from '../../lib/auth';
 import { isOverdueInColombia, todayInColombia, dateInColombia } from '../../lib/colombia-time';
 
@@ -573,6 +574,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
   if (body.confirmVenta) {
     lead.managerAckAt = new Date().toISOString();
     lead.managerAckBy = (await findUserById(redis, session.userId))?.name || session.username;
+    await quitarLeadPorConfirmar(redis, id).catch(() => {});
   }
   if (body.addNote) {
     const byName = (await findUserById(redis, session.userId))?.name || session.username;

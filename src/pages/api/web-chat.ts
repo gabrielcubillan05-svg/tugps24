@@ -6,6 +6,7 @@ import { getUsers, branchesOf } from '../../lib/auth';
 import { pushNotification } from '../../lib/notifications';
 import { sendGabotMessage } from '../../lib/gabot';
 import { notifyHandoffByWhatsapp } from '../../lib/handoff-whatsapp';
+import { marcarLeadPorConfirmar } from '../../lib/bloqueos';
 import { getExtraInstructions, recordAgentUsage } from '../../lib/agent-usage';
 import { runSalesAgent, type AgentMessage } from '../../lib/sales-agent';
 import { readLeads, writeLeads, normalizePhone, mergeLeadIntoCurrent, type Lead } from './leads';
@@ -175,10 +176,16 @@ export const POST: APIRoute = async ({ request }) => {
     } else if (call.name === 'marcar_calificado') {
       lead.aiStage = 'entregado';
       lead.aiHandoffAt = now;
+      // Igual que en WhatsApp: sin esto, un lead ya confirmado antes que volvía a concretarse por
+      // el chat web quedaba como confirmado y no avisaba ni bloqueaba a nadie.
+      lead.managerAckAt = null;
+      lead.managerAckBy = null;
+      lead.handoffNudgeAt = null;
       if (lead.status !== 'Instalado') lead.status = 'Concretado por el agente';
       if (call.input?.fecha_preferida) lead.scheduledInstallDate = String(call.input.fecha_preferida);
       const summary = String(call.input?.resumen || 'Lead calificado por el agente IA (chat web).');
       lead.notes = [{ text: `[Agente IA - web] ${summary}`, date: now }, ...lead.notes];
+      await marcarLeadPorConfirmar(redis, lead.id).catch(() => {});
 
       const servicingBranch = lead.convertedBranch || lead.city;
       if (servicingBranch) {
