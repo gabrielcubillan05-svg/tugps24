@@ -83,6 +83,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  async function confirmarComunicado(id, btn) {
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/bloqueos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comunicadoId: id }) });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'No se pudo confirmar.');
+      }
+      await cargar();
+    } catch (err) {
+      alert(err.message);
+      btn.disabled = false;
+    }
+  }
+
   async function confirmarLead(id, btn) {
     btn.disabled = true;
     try {
@@ -129,6 +144,15 @@ document.addEventListener('DOMContentLoaded', function () {
       document.body.appendChild(overlay);
     }
     overlay.innerHTML = `<div class="modal-box bloqueo-box">${html}</div>`;
+  }
+
+  // El HTML del comunicado lo escribe la gerencia en el código del servidor, no un usuario.
+  function htmlComunicado(c) {
+    return `
+      <h2>📢 Comunicado de Gerencia</h2>
+      <p class="intro"><strong>${esc(c.titulo)}</strong></p>
+      <div class="comunicado-cuerpo">${c.html}</div>
+      <div class="acciones" style="margin-top:14px;"><button class="btn" type="button" data-comunicado="${esc(c.id)}">Confirmo que recibí y leí este comunicado</button></div>`;
   }
 
   function htmlLeads(leads) {
@@ -191,7 +215,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const leads = estado.leads || [];
     const tareasPendientes = (estado.tareas || []).filter((t) => !t.respondidaHoy);
 
-    if (estado.bloqueoLead) {
+    if (estado.comunicados && estado.comunicados.length) {
+      mostrarOverlay(htmlComunicado(estado.comunicados[0]));
+    } else if (estado.bloqueoLead) {
       mostrarOverlay(htmlLeads(leads));
     } else if (tareasPendientes.length) {
       mostrarOverlay(htmlTareas(tareasPendientes, estado.bloqueoTareas));
@@ -212,8 +238,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   document.addEventListener('click', function (e) {
-    const el = e.target.closest('[data-lead],[data-guardar],[data-modo],[data-sonido]');
+    const el = e.target.closest('[data-comunicado],[data-lead],[data-guardar],[data-modo],[data-sonido]');
     if (!el || !(overlay && overlay.contains(el)) && !(banner && banner.contains(el))) return;
+    if (el.hasAttribute('data-comunicado')) return confirmarComunicado(el.getAttribute('data-comunicado'), el);
     if (el.hasAttribute('data-lead')) return confirmarLead(el.getAttribute('data-lead'), el);
     if (el.hasAttribute('data-sonido')) return activarSonido();
     const item = el.closest('[data-tarea]');
