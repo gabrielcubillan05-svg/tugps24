@@ -17,8 +17,8 @@ const ACKS_PREFIX = 'internal:comunicado-acks:';
 export const COMUNICADOS: Comunicado[] = [
   {
     id: 'cumplimiento-funciones-2026-10-17',
-    titulo: 'Cumplimiento de funciones y metas – Secretarias, Gerentes, Operadores y Técnicos',
-    roles: ['secretaria', 'gerente', 'operador', 'tecnico'],
+    titulo: 'Cumplimiento de funciones y metas – Todo el personal',
+    roles: ['secretaria', 'gerente', 'supervisor', 'operador', 'tecnico'],
     html: `
 <p>Buen día, equipo de TuGPS24.</p>
 <p>Les recordamos las funciones de cada cargo.</p>
@@ -34,6 +34,14 @@ export const COMUNICADOS: Comunicado[] = [
   <li><strong>Supervisión diaria:</strong> verificar que el personal de su sucursal cumpla sus funciones y sus metas.</li>
   <li><strong>Concretados:</strong> confirmar y dar seguimiento a los concretados de Andrés y a las instalaciones de su sucursal.</li>
   <li><strong>Resultados:</strong> responder por las estadísticas de cobranza, ventas, atención e instalaciones de su sucursal.</li>
+  <li><strong>Alertas:</strong> atender a tiempo las tareas y los avisos de GPSITO.</li>
+</ul>
+<p><strong>Supervisores:</strong></p>
+<ul>
+  <li><strong>Supervisión de operadores:</strong> verificar en cada turno que los operadores monitoreen la plataforma, atiendan de inmediato las alertas, registren las novedades y entreguen sus reportes completos y a tiempo.</li>
+  <li><strong>Supervisión de gerentes:</strong> hacer seguimiento a que los gerentes cumplan con la supervisión de su sucursal, los concretados, la cobranza, las instalaciones y sus estadísticas.</li>
+  <li><strong>Casos importantes:</strong> atender, escalar y hacer seguimiento a los casos importantes y a las situaciones de riesgo hasta su cierre.</li>
+  <li><strong>Reporte de incumplimientos:</strong> documentar con pruebas los incumplimientos del personal a su cargo e informarlos a la gerencia general para iniciar el procedimiento correspondiente.</li>
   <li><strong>Alertas:</strong> atender a tiempo las tareas y los avisos de GPSITO.</li>
 </ul>
 <p><strong>Operadores:</strong></p>
