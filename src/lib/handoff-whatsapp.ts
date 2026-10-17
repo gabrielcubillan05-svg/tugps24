@@ -1,10 +1,10 @@
-import { sendWhatsappTemplate } from './whatsapp';
+import { sendWhatsappTemplate, sendWhatsappText } from './whatsapp';
 import { logAudit } from './audit';
 import { getUsers, branchesOf, type User } from './auth';
 import { readProfiles } from '../pages/api/employees';
 import { normalizePhone, type Lead } from '../pages/api/leads';
 
-// Aviso por WhatsApp a la secretaria y al gerente de la sucursal cuando Andrés concreta una
+// Aviso por WhatsApp a las secretarias y gerentes de la sucursal cuando Andrés concreta una
 // venta. La campanita, el push y el chat de GPSITO solo se ven con el panel abierto; de noche o
 // en la calle el concretado se quedaba horas sin que nadie lo llamara. Como el empleado no le
 // ha escrito al número de la empresa, Meta exige una plantilla aprobada (no texto libre).
@@ -13,7 +13,16 @@ import { normalizePhone, type Lead } from '../pages/api/leads';
 // cinco variables: {{1}} nombre del empleado, {{2}} cliente y teléfono, {{3}} ciudad,
 // {{4}} fecha preferida, {{5}} resumen de Andrés.
 const TEMPLATE_NAME = import.meta.env.META_TEMPLATE_LEAD_CONCRETADO || 'lead_concretado';
-const TEMPLATE_LANGUAGE = 'es_CO';
+// Desde el 14-oct-2026 Meta respondía 132001 ("does not exist in es_CO") y ningún concretado le
+// llegaba a la sucursal: la plantilla no estaba aprobada en Español COL. Se prueba primero el
+// idioma configurado y, si Meta dice que no existe en ese idioma, los otros españoles en que
+// pudo quedar aprobada.
+const TEMPLATE_LANGUAGES = [
+  import.meta.env.META_TEMPLATE_LEAD_CONCRETADO_LANG || 'es_CO',
+  'es',
+  'es_ES',
+  'es_MX',
+].filter((l, i, arr) => arr.indexOf(l) === i);
 // Meta rechaza el envío si el cuerpo supera 1024 caracteres contando las variables; el resumen es
 // la única parte que puede crecer sin control.
 const MAX_RESUMEN = 300;
@@ -32,6 +41,18 @@ function templateParam(value: string, fallback: string, max = 120): string {
   return clean.length > max ? `${clean.slice(0, max - 1).trimEnd()}…` : clean;
 }
 
+async function sendHandoffTemplate(phone: string, params: string[], textoPlano: string): Promise<{ ok: boolean; error?: string }> {
+  let last: { ok: boolean; error?: string } = { ok: false };
+  for (const lang of TEMPLATE_LANGUAGES) {
+    last = await sendWhatsappTemplate(phone, TEMPLATE_NAME, lang, params);
+    if (last.ok || !String(last.error || '').includes('132001')) return last;
+  }
+  // La plantilla no existe en ningún idioma: el texto libre solo entra si el empleado le escribió
+  // a la empresa en las últimas 24 h, pero es mejor que dejar el concretado sin aviso.
+  const texto = await sendWhatsappText(phone, textoPlano);
+  return texto.ok ? texto : last;
+}
+
 function firstName(user: User): string {
   return String(user.name || user.username).trim().split(/\s+/)[0] || 'equipo';
 }
@@ -45,9 +66,9 @@ export async function notifyHandoffByWhatsapp(
   const result: HandoffWhatsappResult = { sent: [], failed: [], sinCelular: [] };
   try {
     const staff = (await getUsers(redis)).filter((u) => u.active && branchesOf(u).includes(branch));
-    const secretaria = staff.find((u) => u.role === 'secretaria');
-    const gerente = staff.find((u) => u.role === 'gerente');
-    const destinatarios = [secretaria, gerente].filter((u, i, arr): u is User => !!u && arr.indexOf(u) === i);
+    // Todas las secretarias y todos los gerentes de la sucursal, no solo el primero de cada rol:
+    // en sucursales con dos secretarias el concretado le llegaba a una sola y la otra no se enteraba.
+    const destinatarios = staff.filter((u) => u.role === 'secretaria' || u.role === 'gerente');
     if (!destinatarios.length) return result;
 
     const profiles = await readProfiles(redis);
@@ -64,13 +85,11 @@ export async function notifyHandoffByWhatsapp(
         result.sinCelular.push(person.name);
         continue;
       }
-      const res = await sendWhatsappTemplate(phone, TEMPLATE_NAME, TEMPLATE_LANGUAGE, [
-        firstName(person),
-        cliente,
-        ciudad,
-        fecha,
-        resumen,
-      ]);
+      const res = await sendHandoffTemplate(
+        phone,
+        [firstName(person), cliente, ciudad, fecha, resumen],
+        `Hola ${firstName(person)}, Andrés concretó una venta: ${cliente}, ${ciudad}. Fecha preferida: ${fecha}. ${resumen} Revisa el panel y contáctalo hoy.`
+      );
       if (res.ok) result.sent.push(person.name);
       else result.failed.push(`${person.name} (${res.error || 'error desconocido'})`);
     }
