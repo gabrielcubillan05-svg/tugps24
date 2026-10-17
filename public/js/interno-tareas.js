@@ -142,6 +142,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </select>
             <button class="btn-small btn-done" data-action="attach" data-id="${t.id}" type="button" title="También puedes cancelar el explorador y pegar una captura con Ctrl+V">Adjuntar foto</button>
             ${t.status !== 'Completada' ? `<button class="btn-small btn-done" data-action="complete" data-id="${t.id}" type="button">Marcar completada</button>` : ''}
+            ${canAssign && t.status !== 'Completada' ? `<label title="Cambiar la fecha de vencimiento (ej. al aprobar una prórroga)">Vence <input type="date" data-action="duedate" data-id="${t.id}" value="${t.dueDate ? escapeHtml(t.dueDate.slice(0, 10)) : ''}" /></label>` : ''}
           </div>
         ` : ''}
         ${isAdmin ? `
@@ -446,9 +447,9 @@ document.addEventListener('DOMContentLoaded', function () {
   tasksList.addEventListener('change', function (e) {
     const el = e.target;
     const fieldAction = el.getAttribute('data-action');
-    if (fieldAction !== 'status' && fieldAction !== 'reassign') return;
+    if (fieldAction !== 'status' && fieldAction !== 'reassign' && fieldAction !== 'duedate') return;
     const id = el.getAttribute('data-id');
-    const body = fieldAction === 'status' ? { id, status: el.value } : { id, assigneeId: el.value };
+    const body = fieldAction === 'status' ? { id, status: el.value } : fieldAction === 'duedate' ? { id, dueDate: el.value || null } : { id, assigneeId: el.value };
     fetch('/api/tasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

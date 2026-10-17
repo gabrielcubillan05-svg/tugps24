@@ -1,5 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
-import { SESSION_COOKIE, sessionMustChangePassword } from './lib/auth';
+import { SESSION_COOKIE, sessionMustChangePassword, getSession, LOGIN_PATH, CHANGE_PASSWORD_PATH } from './lib/auth';
+import { getEstadoBloqueo, redireccionPorBloqueo } from './lib/bloqueos';
 import { getRedis } from './lib/redis';
 import { getClientIp } from './lib/rate-limit';
 import { recordSecurityEvent, securityPathLabel } from './lib/security-events';
@@ -33,6 +34,24 @@ export const onRequest = defineMiddleware(async (context, next) => {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+  }
+  // Muchos ignoraban a GPSITO: con un lead de Andrés sin confirmar hace más de 1 hora o tareas
+  // vencidas hace más de 2 días, el panel solo deja ver lo necesario para resolverlo. Se hace en
+  // el servidor para que no se salte cerrando la ventana en el navegador.
+  if (context.request.method === 'GET' && path.startsWith('/interno') && path !== LOGIN_PATH && path !== CHANGE_PASSWORD_PATH) {
+    const cookie = context.cookies.get(SESSION_COOKIE)?.value;
+    const redis = getRedis();
+    if (cookie && redis) {
+      try {
+        const session = await getSession(cookie);
+        if (session && !session.mustChangePassword) {
+          const destino = redireccionPorBloqueo(await getEstadoBloqueo(redis, session), path);
+          if (destino) return context.redirect(destino, 302);
+        }
+      } catch (err) {
+        console.error('bloqueo: no se pudo revisar', err instanceof Error ? err.message : String(err));
+      }
     }
   }
   const response = await next();

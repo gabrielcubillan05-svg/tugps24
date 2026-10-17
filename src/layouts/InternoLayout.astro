@@ -404,6 +404,23 @@ if (sections.includes('rrhh')) {
       }
       .modal-box h2 { font-size: 17px; margin-bottom: 16px; }
 
+      .bloqueo-overlay { z-index: 9000; align-items: flex-start; overflow-y: auto; }
+      .bloqueo-box { max-width: 620px; margin-top: 4vh; }
+      .bloqueo-box p.intro { color: var(--slate); font-size: 13.5px; margin-bottom: 14px; }
+      .bloqueo-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+      .bloqueo-item.urgente { border-color: var(--danger); }
+      .bloqueo-item h3 { font-size: 14.5px; margin-bottom: 4px; }
+      .bloqueo-item .meta { font-size: 12px; color: var(--slate); margin-bottom: 8px; }
+      .bloqueo-item .acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+      .bloqueo-item textarea, .bloqueo-item input[type="date"] { width: 100%; margin: 6px 0; }
+      .bloqueo-item .hecho { color: var(--success, #3fb950); font-size: 12.5px; }
+      .bloqueo-banner {
+        position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 8999; max-width: 92vw;
+        background: var(--danger); color: #fff; border-radius: 10px; padding: 10px 14px; font-size: 13.5px;
+        display: flex; gap: 10px; align-items: center; box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+      }
+      .bloqueo-banner button { background: #fff; color: #000; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-weight: 600; }
+
       .nav-badge, .bell-badge {
         display: inline-flex;
         align-items: center;
@@ -675,5 +692,7 @@ if (sections.includes('rrhh')) {
     <script src="/js/interno-notifications.js" defer></script>
     <script src="/js/interno-gabot-widget.js" defer></script>
     {ringAlarms && <script src="/js/interno-alarmas.js" defer></script>}
+    {session.role !== 'admin' && <div id="bloqueoRoot" data-role={session.role} data-path={Astro.url.pathname} hidden></div>}
+    {session.role !== 'admin' && <script src="/js/interno-bloqueo.js" defer></script>}
   </body>
 </html>

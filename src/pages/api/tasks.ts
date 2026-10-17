@@ -322,7 +322,7 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     return new Response(JSON.stringify({ error: 'not configured' }), { status: 503 });
   }
 
-  let body: { id?: string; status?: string; addNote?: string; assigneeId?: string };
+  let body: { id?: string; status?: string; addNote?: string; assigneeId?: string; dueDate?: string | null; requestExtension?: { date?: string; reason?: string } };
   try {
     body = await request.json();
   } catch {
@@ -382,11 +382,43 @@ export const PATCH: APIRoute = async ({ request, cookies }) => {
     task.assigneeId = newAssignee.id;
     task.assigneeName = newAssignee.name;
   }
+  // La prórroga la pide el responsable pero la decide quien asigna: si el propio responsable
+  // pudiera mover la fecha, el bloqueo por tareas vencidas no serviría de nada.
+  let extensionRequested: { date: string; reason: string } | null = null;
+  if (body.requestExtension) {
+    if (!isOwner) {
+      return new Response(JSON.stringify({ error: 'solo el responsable puede pedir prórroga' }), { status: 403 });
+    }
+    const date = String(body.requestExtension.date || '').slice(0, 10);
+    const reason = String(body.requestExtension.reason || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !reason) {
+      return new Response(JSON.stringify({ error: 'indica la nueva fecha y el motivo' }), { status: 400 });
+    }
+    task.notes = [{ text: `[Prórroga solicitada hasta ${date}] ${reason}`, date: new Date().toISOString(), by: session.username }, ...task.notes];
+    extensionRequested = { date, reason };
+  }
+  if (body.dueDate !== undefined) {
+    if (!isManager) {
+      return new Response(JSON.stringify({ error: 'solo quien asigna tareas puede cambiar la fecha' }), { status: 403 });
+    }
+    const due = body.dueDate ? String(body.dueDate).slice(0, 10) : null;
+    if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+      return new Response(JSON.stringify({ error: 'fecha inválida' }), { status: 400 });
+    }
+    task.dueDate = due;
+  }
   task.updatedAt = new Date().toISOString();
 
   await redis.hset(REDIS_KEY, { [id]: JSON.stringify(task) });
   await logAudit(redis, session, 'task_update', task.title, Object.keys(body).filter((k) => k !== 'id').join(', '));
   if (justCompleted) await spawnNextRecurrence(redis, task);
+  if (extensionRequested && task.assignedById && task.assignedById !== session.userId) {
+    await pushNotification(redis, task.assignedById, {
+      type: 'task_assigned',
+      message: `${task.assigneeName} pide prórroga hasta ${extensionRequested.date} para "${task.title}": ${extensionRequested.reason}`,
+      link: '/interno/tareas',
+    }).catch(() => {});
+  }
 
   return new Response(JSON.stringify({ task: { ...task, overdue: computeOverdue(task) } }), {
     headers: { 'Content-Type': 'application/json' },
